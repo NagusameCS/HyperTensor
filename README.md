@@ -9,7 +9,6 @@
   <img src="https://img.shields.io/badge/source-29K_lines-informational" alt="Lines of Code">
   <img src="https://img.shields.io/badge/platform-bare--metal-critical" alt="Bare Metal">
   <img src="https://img.shields.io/github/last-commit/NagusameCS/TensorOS?label=last%20commit" alt="Last Commit">
-  <img src="https://img.shields.io/github/stars/NagusameCS/TensorOS?style=flat" alt="Stars">
 </p>
 
 TensorOS is an operating system built from scratch with a single goal: **run AI workloads faster and cheaper, without losing accuracy.** Every layer — from the bootloader to the shell — is designed around tensors, models, and inference as first-class primitives.
