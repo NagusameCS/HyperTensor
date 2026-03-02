@@ -1,0 +1,145 @@
+/* =============================================================================
+ * TensorOS - Training Service
+ * =============================================================================
+ * Kernel-native distributed training:
+ *   - Automatic data/model parallelism
+ *   - Gradient checkpointing
+ *   - Mixed-precision training (FP32 master weights, FP16/BF16 compute)
+ *   - Native git checkpointing (every N steps → kernel git commit)
+ *   - Training metrics streamed to monitor daemon
+ *   - Hyperparameter scheduling (warmup, cosine annealing)
+ * =============================================================================*/
+
+#ifndef TRAIN_SERVICE_H
+#define TRAIN_SERVICE_H
+
+#include "kernel/core/kernel.h"
+#include "runtime/tensor/tensor_engine.h"
+#include "kernel/fs/git.h"
+
+#define TRAIN_MAX_JOBS       16
+#define TRAIN_MAX_PARAMS     64
+#define TRAIN_MAX_METRICS    1024
+#define TRAIN_CHECKPOINT_DIR "/checkpoints"
+
+typedef enum {
+    TRAIN_STATE_CREATED = 0,
+    TRAIN_STATE_LOADING_DATA,
+    TRAIN_STATE_RUNNING,
+    TRAIN_STATE_PAUSED,
+    TRAIN_STATE_CHECKPOINTING,
+    TRAIN_STATE_COMPLETED,
+    TRAIN_STATE_FAILED,
+} train_state_t;
+
+typedef enum {
+    OPT_SGD = 0,
+    OPT_ADAM,
+    OPT_ADAMW,
+    OPT_LAMB,
+    OPT_LION,
+} optimizer_type_t;
+
+typedef enum {
+    LR_CONSTANT = 0,
+    LR_LINEAR_WARMUP,
+    LR_COSINE_ANNEALING,
+    LR_ONE_CYCLE,
+    LR_STEP,
+} lr_schedule_t;
+
+typedef enum {
+    PARALLEL_NONE = 0,
+    PARALLEL_DATA,
+    PARALLEL_MODEL,
+    PARALLEL_PIPELINE,
+    PARALLEL_TENSOR,     /* Intra-layer tensor parallelism */
+    PARALLEL_EXPERT,     /* MoE expert parallelism */
+} parallelism_t;
+
+typedef struct {
+    float learning_rate;
+    float weight_decay;
+    float beta1, beta2;         /* Adam */
+    float epsilon;
+    float gradient_clip_norm;
+    float warmup_ratio;
+    float label_smoothing;
+
+    optimizer_type_t optimizer;
+    lr_schedule_t    lr_schedule;
+    parallelism_t    parallelism;
+
+    uint32_t batch_size;
+    uint32_t micro_batch_size;   /* For gradient accumulation */
+    uint32_t max_steps;
+    uint32_t num_epochs;
+    uint32_t checkpoint_every;   /* Steps between checkpoints */
+    uint32_t eval_every;
+    uint32_t log_every;
+
+    bool     mixed_precision;
+    bool     gradient_checkpointing;
+    bool     compile_model;      /* JIT-compile the forward pass */
+    uint8_t  compute_dtype;      /* TENSOR_F16 / TENSOR_BF16 */
+} train_config_t;
+
+typedef struct {
+    uint32_t step;
+    float    loss;
+    float    learning_rate;
+    float    grad_norm;
+    float    throughput_samples_sec;
+    float    gpu_util_percent;
+    uint64_t tokens_processed;
+    uint64_t timestamp;
+} train_metric_t;
+
+typedef struct {
+    char             name[64];
+    char             model_name[64];
+    char             dataset_path[128];
+    train_state_t    state;
+    train_config_t   config;
+
+    /* Progress */
+    uint32_t         current_step;
+    uint32_t         current_epoch;
+    float            current_loss;
+    float            best_loss;
+    uint32_t         best_step;
+
+    /* Metrics ring buffer */
+    train_metric_t   metrics[TRAIN_MAX_METRICS];
+    uint32_t         metric_count;
+    uint32_t         metric_cursor;
+
+    /* MEU resources */
+    uint32_t         meu_id;
+    uint32_t         gpu_ids[16];
+    uint32_t         num_gpus;
+
+    /* Git integration */
+    bool             git_enabled;
+    char             git_branch[64];
+    uint32_t         git_commits;
+
+    /* Timing */
+    uint64_t         start_tick;
+    uint64_t         total_train_time_us;
+    uint64_t         total_data_load_time_us;
+} train_job_t;
+
+/* API */
+int  train_init(void);
+int  train_create_job(const char *name, const char *model,
+                       const char *dataset, const train_config_t *config);
+int  train_start(const char *name);
+int  train_pause(const char *name);
+int  train_resume(const char *name);
+int  train_stop(const char *name);
+int  train_checkpoint(const char *name);
+void train_print_status(const char *name);
+void train_print_all(void);
+
+#endif /* TRAIN_SERVICE_H */

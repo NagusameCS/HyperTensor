@@ -1,0 +1,31 @@
+/* =============================================================================
+ * TensorOS — Minimal BCM2711 EMMC2 SD Card Driver
+ *
+ * Just enough to:  init → read sector → write sector
+ * Used by the OTA updater to rewrite kernel8.img on the boot partition.
+ *
+ * BCM2711 EMMC2 is at 0xFE340000 (separate from the legacy SDHCI at 0xFE300000).
+ * It's SDHCI-compliant with Arasan quirks.
+ * =============================================================================*/
+
+#ifndef TENSOROS_RPI_SD_H
+#define TENSOROS_RPI_SD_H
+
+#include <stdint.h>
+
+/* Initialize the SD card.  Returns 0 on success. */
+int  sd_init(void);
+
+/* Read a single 512-byte sector.  Returns 0 on success. */
+int  sd_read_sector(uint32_t lba, void *buf);
+
+/* Write a single 512-byte sector.  Returns 0 on success. */
+int  sd_write_sector(uint32_t lba, const void *buf);
+
+/* Read multiple contiguous sectors.  Returns 0 on success. */
+int  sd_read_sectors(uint32_t lba, uint32_t count, void *buf);
+
+/* Write multiple contiguous sectors.  Returns 0 on success. */
+int  sd_write_sectors(uint32_t lba, uint32_t count, const void *buf);
+
+#endif /* TENSOROS_RPI_SD_H */

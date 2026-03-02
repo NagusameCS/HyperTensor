@@ -1,0 +1,186 @@
+# TensorOS Build Script
+# Builds the TensorOS kernel for x86_64 and creates a bootable QEMU image
+#
+# Requirements: zig (0.15+), NASM
+# Usage: .\build.ps1 [-Run] [-Clean]
+
+param(
+    [switch]$Run,
+    [switch]$Interactive,
+    [switch]$Clean
+)
+
+$ErrorActionPreference = "Continue"
+Set-Location $PSScriptRoot
+
+$NASM = "C:\Users\legom\AppData\Local\bin\NASM\nasm.exe"
+$QEMU = "C:\Program Files\qemu\qemu-system-x86_64.exe"
+$BUILD = "build"
+
+$CFLAGS = @(
+    "-target", "x86_64-freestanding-none",
+    "-ffreestanding", "-fno-builtin", "-fno-stack-protector",
+    "-nostdlib", "-mno-red-zone", "-fno-pic", "-fno-pie",
+    "-O2", "-fno-sanitize=all", "-msse2",
+    "-Wno-unused-function", "-Wno-unused-variable", "-Wno-format",
+    "-Wno-incompatible-pointer-types", "-Wno-int-conversion",
+    "-I.", "-S"
+)
+
+$SOURCES = @(
+    "kernel\core\main.c",
+    "kernel\core\klib.c",
+    "kernel\core\perf.c",
+    "kernel\core\exception.c",
+    "kernel\core\cpu_features.c",
+    "kernel\core\watchdog.c",
+    "kernel\core\selftest.c",
+    "kernel\sched\tensor_sched.c",
+    "kernel\mm\tensor_mm.c",
+    "kernel\drivers\gpu\gpu.c",
+    "kernel\drivers\tpu\tpu.c",
+    "kernel\fs\git.c",
+    "kernel\fs\tensorfs.c",
+    "kernel\security\sandbox.c",
+    "kernel\ipc\tensor_ipc.c",
+    "virt\virt.c",
+    "runtime\pseudocode\pseudocode_jit.c",
+    "runtime\tensor\tensor_engine.c",
+    "runtime\tensor\tensor_cpu.c",
+    "runtime\tensor\tensor_avx2.c",
+    "runtime\jit\x86_jit.c",
+    "runtime\nn\inference.c",
+    "runtime\nn\quantize.c",
+    "runtime\nn\evolution.c",
+    "runtime\nn\train.c",
+    "runtime\nn\speculative.c",
+    "runtime\nn\transformer.c",
+    "runtime\nn\quantize4.c",
+    "kernel\mm\tensor_arena.c",
+    "runtime\nn\gguf.c",
+    "kernel\core\smp.c",
+    "kernel\drivers\net\virtio_net.c",
+    "kernel\net\netstack.c",
+    "kernel\drivers\blk\virtio_blk.c",
+    "pkg\modelpkg.c",
+    "userland\shell\aishell.c",
+    "userland\monitor\tensor_monitor.c",
+    "userland\deploy\deploy_service.c",
+    "userland\train\train_service.c",
+    "kernel\drivers\bt\rpi_bt.c",
+    "kernel\drivers\blk\rpi_sd.c",
+    "kernel\update\ota.c"
+)
+
+if ($Clean) {
+    Write-Host "Cleaning build directory..."
+    Remove-Item "$BUILD\*" -Force -ErrorAction SilentlyContinue
+    exit 0
+}
+
+if (-not (Test-Path $BUILD)) { New-Item -ItemType Directory $BUILD | Out-Null }
+
+# Step 1: Compile C -> asm -> fix string sections -> .o
+Write-Host "=== Compiling $($SOURCES.Count) C sources ===" -ForegroundColor Cyan
+foreach ($src in $SOURCES) {
+    $name = ($src -replace '\\','_' -replace '\.c$','')
+    $sfile = "$BUILD\${name}.s"
+    $ofile = "$BUILD\${name}.o"
+    $null = zig cc @CFLAGS -o $sfile $src 2>&1
+    # Workaround: zig lld corrupts relocations to SHF_MERGE sections
+    $content = Get-Content $sfile -Raw
+    $content = $content -replace '\.section\s+\.rodata\.[^,]+,"aM[S]?",@progbits,\d+', '.section .rodata,"a",@progbits'
+    Set-Content $sfile $content -NoNewline
+    $null = zig cc -target x86_64-freestanding-none -c -o $ofile $sfile 2>&1
+    Write-Host "  $src" -ForegroundColor DarkGray
+}
+
+# Step 2: Assemble 64-bit entry point (must be first object linked)
+Write-Host "=== Assembling entry64.asm ===" -ForegroundColor Cyan
+$null = & $NASM -f elf64 -o "$BUILD\entry64.o" boot\entry64.asm 2>&1
+
+# Step 3: Link 64-bit kernel ELF
+Write-Host "=== Linking kernel64.elf ===" -ForegroundColor Cyan
+$OBJS = @("$BUILD\entry64.o")
+foreach ($src in $SOURCES) {
+    $name = ($src -replace '\\','_' -replace '\.c$','')
+    $OBJS += "$BUILD\${name}.o"
+}
+$null = zig cc -target x86_64-freestanding-none -nostdlib -static -fno-pic -fno-pie `
+    "-Wl,-T,boot/kernel64.ld" "-Wl,--entry=long_mode_entry" `
+    -o "$BUILD\kernel64.elf" @OBJS 2>&1
+
+# Step 4: ELF to flat binary (custom - zig objcopy has segment mapping bug)
+Write-Host "=== Creating kernel64.bin ===" -ForegroundColor Cyan
+$elf = [System.IO.File]::ReadAllBytes("$PWD\$BUILD\kernel64.elf")
+$phoff = [BitConverter]::ToInt64($elf, 0x20)
+$phentsize = [BitConverter]::ToUInt16($elf, 0x36)
+$phnum = [BitConverter]::ToUInt16($elf, 0x38)
+$segments = @(); $minVA = [UInt64]::MaxValue; $maxVA = [UInt64]0
+for ($p = 0; $p -lt $phnum; $p++) {
+    $o = [int]$phoff + $p * $phentsize
+    if ([BitConverter]::ToUInt32($elf, $o) -ne 1) { continue }
+    $foff = [BitConverter]::ToUInt64($elf, $o + 8)
+    $vaddr = [BitConverter]::ToUInt64($elf, $o + 16)
+    $filesz = [BitConverter]::ToUInt64($elf, $o + 32)
+    if ($filesz -eq 0) { continue }
+    if ($vaddr -lt $minVA) { $minVA = $vaddr }
+    if (($vaddr + $filesz) -gt $maxVA) { $maxVA = $vaddr + $filesz }
+    $segments += @{v=$vaddr; f=[int]$foff; s=[int]$filesz}
+}
+$bin = New-Object byte[] ([int]($maxVA - $minVA))
+foreach ($seg in $segments) {
+    [Array]::Copy($elf, $seg.f, $bin, [int]($seg.v - $minVA), $seg.s)
+}
+[System.IO.File]::WriteAllBytes("$PWD\$BUILD\kernel64.bin", $bin)
+Write-Host "  kernel64.bin: $($bin.Length) bytes"
+
+# Step 5: Multiboot stub (embeds kernel64.bin via incbin)
+Write-Host "=== Building multiboot stub ===" -ForegroundColor Cyan
+$null = & $NASM -f elf32 -o "$BUILD\multiboot_stub.o" boot\multiboot_stub.asm 2>&1
+
+# Step 6: Final link
+Write-Host "=== Linking tensoros.elf ===" -ForegroundColor Cyan
+$null = zig cc -target x86-freestanding-none -nostdlib -static `
+    "-Wl,-T,boot/stub32.ld" "-Wl,--entry=_start" `
+    -o "$BUILD\tensoros.elf" "$BUILD\multiboot_stub.o" 2>&1
+
+$sz = (Get-Item "$BUILD\tensoros.elf").Length
+Write-Host "=== Build complete: tensoros.elf ($sz bytes) ===" -ForegroundColor Green
+
+if ($Interactive) {
+    Write-Host "`n=== Booting TensorOS (Interactive) ===" -ForegroundColor Yellow
+    Write-Host "  QEMU window will open. Type commands in the VGA console." -ForegroundColor DarkGray
+    Write-Host "  Type 'exit' in the shell to shut down." -ForegroundColor DarkGray
+    Remove-Item "$BUILD\serial.log" -Force -ErrorAction SilentlyContinue
+    & $QEMU @(
+        "-kernel", "$BUILD\tensoros.elf",
+        "-serial", "file:$BUILD\serial.log",
+        "-display", "gtk",
+        "-no-reboot", "-m", "4G",
+        "-device", "isa-debug-exit,iobase=0x501,iosize=2"
+    )
+    Write-Host "`n=== TensorOS exited ===" -ForegroundColor Green
+    if (Test-Path "$BUILD\serial.log") {
+        $log = [System.IO.File]::ReadAllBytes("$PWD\$BUILD\serial.log")
+        Write-Host "Serial log: $($log.Length) bytes saved to build\serial.log"
+    }
+} elseif ($Run) {
+    Write-Host "`n=== Booting TensorOS in QEMU ===" -ForegroundColor Yellow
+    Remove-Item "$BUILD\serial.log" -Force -ErrorAction SilentlyContinue
+    $proc = Start-Process -FilePath $QEMU -ArgumentList @(
+        "-kernel", "$BUILD\tensoros.elf",
+        "-serial", "file:$BUILD\serial.log",
+        "-display", "none", "-no-reboot", "-m", "4G",
+        "-device", "isa-debug-exit,iobase=0x501,iosize=2",
+        "-nic", "user,model=virtio-net-pci"
+    ) -PassThru
+    Start-Sleep 90
+    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep 1
+    if (Test-Path "$BUILD\serial.log") {
+        $log = [System.IO.File]::ReadAllBytes("$PWD\$BUILD\serial.log")
+        Write-Host "`n=== Serial Output ($($log.Length) bytes) ===" -ForegroundColor Cyan
+        [System.Text.Encoding]::ASCII.GetString($log)
+    }
+}

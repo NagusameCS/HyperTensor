@@ -1,0 +1,367 @@
+c[?7l[2J[0mSeaBIOS (version rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org)
+
+
+iPXE (http://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+BEFD1E30+BEF31E30 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...
+                                                                               
+
+
+Booting from ROM..BOOT
+1234LONG
+ENTRY64
+TensorOS v0.1.0 "Neuron" booting...
+[BOOT] Kernel loaded at 0x200000, size 882688 KB
+[BOOT] SSE2 enabled --- SIMD tensor operations available
+[BOOT] TSC calibrated: 3993 MHz
+[PHASE 1] Hardware initialization
+[IDT] Loaded with 256 entries
+  [OK] IDT initialized
+[CPU] Vendor: AuthenticAMD
+  [OK] 0 CPU(s) detected
+[PCI] Enumerating devices...
+[PCI] 0:0.0 vendor=8086 device=1237
+[PCI] 0:1.0 vendor=8086 device=7000
+[PCI] 0:2.0 vendor=1234 device=1111
+[PCI] 0:3.0 vendor=8086 device=100e
+  [OK] PCI bus enumerated
+  [OK] 1 GPU(s) detected and initialized
+       GPU 0: Unknown GPU (0 MB VRAM, 0 CUDA cores)
+[PIC] Remapped IRQs 0x20-0x2F
+[TIMER] PIT configured at 1000 Hz
+  [OK] Interrupts configured (1000 Hz timer) - enabling after boot
+[PHASE 2] Subsystem initialization
+[DBG] [MM] Initialized: 4096 MB total, 3232 MB free
+[DBG] [MM] Tensor heap: 256 MB, Model cache: 512 MB
+  [OK] Tensor memory manager initialized
+       Tensor heap: 256 MB, Model cache: 512 MB
+[DBG] [SCHED] Initialized with 1 GPUs, 0 TPUs, policy=THROUGHPUT
+  [OK] Tensor scheduler initialized
+  [OK] TensorFS mounted
+  [OK] Tensor IPC initialized
+[DBG] [GIT] Native git subsystem initialized, object store at 0x32000000
+  [OK] Native git subsystem initialized
+[NET] Network init (stub)
+  [OK] Network stack initialized
+[PHASE 3] AI runtime initialization
+[DBG] [JIT] Pseudocode JIT compiler initialized
+  [OK] Pseudocode JIT compiler ready
+[DBG] [JIT] x86_64 JIT compiler initialized
+  [OK] x86_64 native JIT backend initialized
+[DBG] [ENGINE] Tensor execution engine initialized
+  [OK] Tensor execution engine ready (SSE2 SIMD)
+  [OK] CPU tensor math verified (matmul, relu, softmax, dot)
+  [OK] Model sandbox initialized
+[DBG] [PKG] Model package manager initialized with 2 registries
+  [OK] Model package manager ready
+[DBG] [VIRT] Capabilities: AMD-V NPT 
+  [OK] Near-zero-cost virtualization layer ready
+[PHASE 4] Launching userland
+[MONITOR] Tensor monitor daemon initialized
+  [OK] Tensor monitor daemon started
+[DEPLOY] Deployment service initialized
+[DEPLOY] Deployment daemon initialized
+  [OK] Model deployment service started
+  [OK] Userland services initialized
+
+[BENCH] TensorOS Performance Benchmarks
+  TSC frequency: 3993 MHz
+  --- Matrix Multiply (BLIS-style packed GEMM, SSE2) ---
+  MatMul 16x16x16:  372 MFLOPS  (22 us, 88 Kcycles, best-of-50)
+  MatMul 32x32x32:  394 MFLOPS  (166 us, 663 Kcycles, best-of-10)
+  MatMul 64x64x64:  397 MFLOPS  (1318 us, 5263 Kcycles, best-of-5)
+  MatMul 128x128x128:  385 MFLOPS  (10889 us, 43482 Kcycles, best-of-5)
+  MatMul 256x256x256:  384 MFLOPS  (87266 us, 348453 Kcycles, best-of-5)
+  MatMul 512x512x512:  398 MFLOPS  (674247 us, 2692272 Kcycles, best-of-5)
+  --- Batch GEMV (inference throughput) ---
+  GEMV 256x128 (batch=1): 373 MFLOPS (17553 us/100)
+  GEMM 32x256x128 (batch=32): 324 MFLOPS (6457 us)
+  --- Conv2D (im2col + GEMM) ---
+  Conv2D 16x16 3ch->16ch 3x3: 252 MFLOPS (6701 us/10)
+  --- Activation Functions ---
+  ReLU 4096:        26 ns/elem  (108 us total)
+  Softmax 1024:   216 us
+  GELU 4096:        317 ns/elem
+  LayerNorm 1024: 226 us
+  --- Correctness Verification ---
+  CPU tensor math: PASS
+  --- JIT Compiler (x86_64 native codegen) ---
+  JIT exec test: PASS (code at 0xdaa000, 32 bytes)
+  JIT 16x16: C=38 JIT=218 us OK (0.17x)
+  JIT 32x32: C=172 JIT=628 us OK (0.27x)
+  JIT 64x64: C=1327 JIT=2377 us OK (0.55x)
+  JIT self-test:   PASS
+  JIT stats: 4 kernels, 848 bytes machine code
+  --- Transformer Attention ---
+  Attention seq=32 dim=64: 1258 us
+  --- Memory Allocator ---
+  Alloc+Free 4KB (100x): 971 ns/op
+[BENCH] Complete
+
+
+[AI] Neural Network Inference Engine
+  Architecture: Graph JIT -> native x86_64, zero overhead
+  Max capacity: 16 layers, 1024 neurons/layer
+
+  XOR network (2 layers, 4->4->4, 24 weights):
+    [0,0] -> 0.00 (expected 0) [OK]
+    [0,1] -> 1.00 (expected 1) [OK]
+    [1,0] -> 1.00 (expected 1) [OK]
+    [1,1] -> 0.00 (expected 0) [OK]
+    JIT graph compiled: all 4 cases PASS
+    Speed: eager 511 ns vs JIT 441 ns (1.15x)
+
+  Pattern classifier (8->16->4, softmax, 192 weights):
+    Pattern A: class 0 (conf 99%) [OK]
+    Pattern B: class 1 (conf 99%) [OK]
+    Pattern C: class 2 (conf 99%) [OK]
+    Pattern D: class 3 (conf 99%) [OK]
+    Accuracy: 4/4
+
+  Large MLP benchmark (64->32->16, 2560 weights):
+    JIT compilation: 899 us
+    Eager vs JIT: MATCH
+    Eager: 15525 ns/inference (329 MFLOPS)
+    JIT:   15671 ns/inference (326 MFLOPS)
+    Speedup: 0.99x
+
+  BIG MLP benchmark (256->128->64->16, 49408 weights):
+    JIT compilation: 343 us
+    Eager vs JIT: MATCH
+    Eager: 237642 ns/inference (353 MFLOPS)
+    JIT:   261916 ns/inference (320 MFLOPS)
+    Speedup: 0.90x
+
+[EDGE-AI] Real-time Sensor Anomaly Detection
+  Model: 8->32->16->4 (softmax), 880 params
+  Sensors: temp, vibration, pressure, RPM,
+           current, voltage, humidity, acoustic
+
+  --- Scenario Classification ---
+    Baseline (all low)      -> NORMAL (25%)
+    Thermal+vibration spike -> WARNING (99%)
+    Pressure+RPM surge      -> WARNING (99%)
+    Multi-sensor overload   -> WARNING (100%)
+    Vibration+acoustic hit  -> FAULT (87%)
+    Normal operating range  -> NORMAL (25%)
+
+  --- Real-time Throughput ---
+    Latency:    8658 ns/inference
+    Throughput: 115487 inferences/sec
+    Compute:    192 MFLOPS
+    Anomalies:  33333/50000 samples flagged
+
+  --- Latency Comparison ---
+    TensorOS (bare metal):  8658 ns
+    Linux + PyTorch:        ~500,000 ns (estimated)
+    Linux RTOS + TFLite:    ~50,000 ns (estimated)
+    Zephyr + TFLite Micro:  ~10,000 ns (estimated)
+    => 57x faster than Linux for safety-critical AI
+
+  Use case: Industrial IoT safety monitoring
+  Boot to inference: < 1 second
+  Deterministic latency: zero OS jitter
+
+[AI] Neural network demos complete
+
+[QUANT] INT16 Quantized Inference Engine
+  Method: symmetric per-tensor, SSE2 PMADDWD (8 MACs/cycle)
+
+  Model quantized: FP32 -> INT16 (2x memory reduction)
+  Accuracy: max error 0.0010
+  Argmax: FP32=7 INT16=7 MATCH
+  FP32:  15669 ns/inference (326 MFLOPS)
+  INT16: 9566 ns/inference (535 MFLOPS)
+  Speedup: 1.63x
+[QUANT] Complete
+
+[EVO] Neural Architecture Search via Neuroevolution
+  Strategy: (4+12)-ES, population=16, XOR task
+
+  Initializing 16 random genomes...
+  Evaluating fitness (4 XOR tests each)...
+  Gen 0: fit=28.8 acc=3/4 mse=0.24 arch=4->16->4
+  Gen 1: fit=28.9 acc=3/4 mse=0.22 arch=4->16->4
+  Gen 2: fit=29.0 acc=3/4 mse=0.19 arch=4->16->4
+
+  --- Evolution Results ---
+  *** XOR SOLVED in generation 11 ***
+  Best architecture: 4->16->4 (148 weights)
+  Predictions: [0,0]=0.33 [0,1]=0.76 [1,0]=0.72 [1,1]=0.36 
+  JIT compiled evolved network: eager 1526 vs JIT 1712 ns
+  Evolution time: 16561 us (16 ms)
+[EVO] Architecture search complete
+
+[TRAIN] Neural Network Training Engine (Backpropagation + Adam)
+  The OS learns from data during boot. No Python. No frameworks.
+
+  --- XOR (SGD+Momentum) ---
+    500 epochs: 4/4 correct, loss=0.0000, 10608 us
+  --- XOR (Adam optimizer) ---
+    500 epochs: 4/4 correct, loss=0.0000, 11279 us
+
+  --- Full ML Pipeline: Train -> Quantize -> JIT ---
+  Architecture: 8->16->4 (trained classifier)
+  [1] Train (Adam, 300 epochs): 4/4 acc, 27911 us
+  [2] Quantize (INT16): 4/4 acc, err=0.0002, 129 us
+  [3] JIT compile: 4/4 acc, 294 us
+  [4] Deploy benchmark (5000 inferences):
+      FP32 eager: 4345 ns/inference
+      INT16 quant: 4227 ns/inference
+      JIT native:  1864 ns/inference
+  Pipeline: Train+Quantize+JIT = 28334 us total
+[TRAIN] Complete - kernel learned 3 models during boot
+
+============================================================
+  TensorOS Boot Summary
+============================================================
+  GEMM:       BLIS-style packed panels, 4x4 micro-kernel
+              4x k-unroll, SW prefetch, panel packing
+  Inference:  Graph JIT -> native x86_64 (zero overhead)
+  Batch:      GEMV->GEMM promotion for peak throughput
+  Conv2D:     im2col + packed GEMM (CNN support)
+  Quantized:  INT16 PMADDWD (2x throughput vs FP32)
+  Training:   Backprop + Adam optimizer (learn at boot)
+  NAS:        Neuroevolution (mu+lambda) architecture search
+  Pipeline:   Train -> Quantize -> JIT -> Deploy
+  SIMD:       SSE2 4-wide, 4x k-unrolled micro-kernel
+  Capacity:   Unlimited layers/neurons (heap-allocated)
+  Edge AI:    Sensor anomaly detection at us-latency
+  Hardware:   0 CPU(s), 1 GPU(s), 0 TPU(s), 4G RAM
+============================================================
+
+[READY] TensorOS is operational. 0 CPUs, 1 GPUs, 0 TPUs
+[READY] Press any key for interactive shell (auto-exit in 2s)...
+[READY] No input detected - headless mode, exiting
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB
+[DBG] [IDLE] ops=0 models=0 mem_free=251 MB

@@ -1,0 +1,81 @@
+/* =============================================================================
+ * TensorOS - TensorFS: AI-Aware Filesystem
+ *
+ * A filesystem designed natively for AI workloads:
+ * - Model files are first-class: .onnx, .safetensors, .gguf are understood
+ * - Automatic model weight deduplication
+ * - Streaming access for large models (no need to load fully into RAM)
+ * - Built-in checksumming for model integrity
+ * - Metadata indexing for fast model search
+ * - Integrated with native git for version control
+ * =============================================================================*/
+
+#ifndef TENSOROS_TENSORFS_H
+#define TENSOROS_TENSORFS_H
+
+#include "kernel/core/kernel.h"
+
+/* File types understood natively */
+typedef enum {
+    TFS_FILE_REGULAR   = 0,
+    TFS_FILE_MODEL     = 1,    /* Model file (.onnx, .pt, .safetensors) */
+    TFS_FILE_WEIGHTS   = 2,    /* Raw weight file (.bin, .safetensors) */
+    TFS_FILE_DATASET   = 3,    /* Training dataset */
+    TFS_FILE_CONFIG    = 4,    /* Model configuration */
+    TFS_FILE_TOKENIZER = 5,    /* Tokenizer configuration */
+    TFS_FILE_CHECKPOINT= 6,    /* Training checkpoint */
+    TFS_FILE_LOG       = 7,    /* Training/inference log */
+    TFS_FILE_DIR       = 8,
+} tfs_file_type_t;
+
+/* Inode structure */
+typedef struct {
+    uint64_t        inode_num;
+    tfs_file_type_t type;
+    char            name[256];
+    uint64_t        size;
+    uint64_t        created;
+    uint64_t        modified;
+    uint32_t        permissions;
+    uint64_t        data_block;     /* Starting block */
+    uint64_t        block_count;
+    uint32_t        checksum;       /* CRC32 for integrity */
+
+    /* Model-specific metadata (if type is TFS_FILE_MODEL or WEIGHTS) */
+    uint64_t        param_count;
+    tensor_dtype_t  dtype;
+    char            model_arch[64]; /* e.g., "transformer", "cnn" */
+    char            format[16];     /* e.g., "safetensors", "gguf" */
+} tfs_inode_t;
+
+#define TFS_MAX_INODES      4096
+#define TFS_BLOCK_SIZE      4096
+#define TFS_MAX_PATH        1024
+
+/* =============================================================================
+ * TensorFS API
+ * =============================================================================*/
+
+void tensorfs_init(void);
+
+/* File operations */
+int  tfs_create(const char *path, tfs_file_type_t type);
+int  tfs_open(const char *path, uint32_t flags);
+int  tfs_read(int fd, void *buf, uint64_t size, uint64_t offset);
+int  tfs_write(int fd, const void *buf, uint64_t size, uint64_t offset);
+int  tfs_close(int fd);
+int  tfs_unlink(const char *path);
+int  tfs_stat(const char *path, tfs_inode_t *inode);
+
+/* Directory operations */
+int  tfs_mkdir(const char *path);
+int  tfs_readdir(const char *path, tfs_inode_t *entries,
+                  uint32_t max, uint32_t *count);
+
+/* Model-specific operations */
+int  tfs_model_list(tfs_inode_t *models, uint32_t max, uint32_t *count);
+int  tfs_model_stream_open(const char *path); /* Streaming read for large models */
+int  tfs_model_stream_read(int fd, void *buf, uint64_t chunk_size);
+void tfs_model_stream_close(int fd);
+
+#endif /* TENSOROS_TENSORFS_H */

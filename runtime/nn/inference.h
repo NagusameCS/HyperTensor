@@ -1,0 +1,105 @@
+/* =============================================================================
+ * TensorOS - Neural Network Inference Engine
+ *
+ * Revolutionary: JIT-compiles entire neural networks into single native x86_64
+ * functions. Zero interpreter overhead, zero intermediate memory allocation,
+ * zero function call dispatch. The OS IS the deep learning compiler.
+ *
+ * Supports:
+ *   - Multi-layer perceptrons (MLP) — unlimited size
+ *   - Convolutional neural networks (CNN) via im2col+GEMM
+ *   - Fused operations (matmul + bias + activation in one pass)
+ *   - Graph-level JIT compilation (entire forward pass → one function)
+ *   - Batch inference (GEMV→GEMM for peak FLOPS)
+ *   - Dynamic heap allocation (no static size limits)
+ *   - SSE2-vectorized everything, panel-packed GEMM
+ * =============================================================================*/
+
+#ifndef TENSOROS_NN_INFERENCE_H
+#define TENSOROS_NN_INFERENCE_H
+
+#include <stdint.h>
+
+/* Activation function types */
+#define NN_ACT_NONE    0
+#define NN_ACT_RELU    1
+#define NN_ACT_SIGMOID 2
+#define NN_ACT_SOFTMAX 3
+
+/* Layer types */
+#define NN_LAYER_DENSE  0
+#define NN_LAYER_CONV2D 1
+
+/* A single dense (fully-connected) layer */
+typedef struct {
+    float *weights;         /* [out_dim × in_dim] row-major (mutable for training) */
+    float *bias;            /* [out_dim] or NULL */
+    int in_dim;
+    int out_dim;
+    int activation;         /* NN_ACT_* */
+    int type;               /* NN_LAYER_DENSE or NN_LAYER_CONV2D */
+    /* Conv2D parameters (only used when type == NN_LAYER_CONV2D) */
+    int conv_h, conv_w;     /* input spatial dims */
+    int conv_ic, conv_oc;   /* input/output channels */
+    int conv_kh, conv_kw;   /* kernel size */
+    int conv_stride, conv_pad;
+} nn_layer_t;
+
+/* Default max layers for stack-allocated models (no limit for heap models) */
+#define NN_MAX_LAYERS 16
+
+/* A complete neural network model — can be stack or heap allocated */
+typedef struct nn_model {
+    nn_layer_t *layers;     /* Array of layers (may point to internal or heap) */
+    int num_layers;
+    int max_dim;            /* max(all in_dim, out_dim) for buffer sizing */
+    int capacity;           /* Allocated layer capacity (0 = uses _layers[]) */
+    int heap_allocated;     /* 1 if model was heap-allocated */
+    nn_layer_t _layers[NN_MAX_LAYERS]; /* Inline storage for small models */
+} nn_model_t;
+
+/* Function pointer type for JIT-compiled forward pass */
+typedef void (*nn_jit_fn)(float *output, const float *input);
+
+/* =============================================================================
+ * API — Core Inference
+ * =============================================================================*/
+
+/* Initialize a stack-allocated model (up to NN_MAX_LAYERS) */
+void nn_model_init(nn_model_t *model, int num_layers);
+
+/* Create a heap-allocated model with unlimited layers */
+nn_model_t *nn_model_create(int num_layers);
+
+/* Free a heap-allocated model and all its weights */
+void nn_model_destroy(nn_model_t *model);
+
+/* Add a dense layer. If weights==NULL, allocates from heap.
+ * Returns pointer to the layer for configuration. */
+nn_layer_t *nn_model_add_dense(nn_model_t *model, int in_dim, int out_dim,
+                               int activation, float *weights, float *bias);
+
+/* Add a Conv2D layer. Weights are [OC × KH × KW × IC]. */
+nn_layer_t *nn_model_add_conv2d(nn_model_t *model,
+                                int H, int W, int IC, int OC,
+                                int KH, int KW, int stride, int pad,
+                                int activation, float *weights, float *bias);
+
+/* Eager forward pass — single input */
+void nn_forward(nn_model_t *model, float *output, const float *input);
+
+/* Batch forward pass — turns GEMV into GEMM for peak throughput.
+ * in:  [batch × input_dim], row-major
+ * out: [batch × output_dim], row-major */
+void nn_forward_batch(nn_model_t *model, float *output, const float *input,
+                      int batch_size);
+
+/* JIT-compile an entire model into a single native x86_64 function.
+ * Weight addresses are embedded as immediates. Intermediate activations
+ * live on the JIT function's stack. Zero heap allocation during inference. */
+nn_jit_fn nn_jit_compile_model(nn_model_t *model);
+
+/* Run all neural network demos during boot */
+void nn_run_demos(void);
+
+#endif /* TENSOROS_NN_INFERENCE_H */

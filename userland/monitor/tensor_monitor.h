@@ -1,0 +1,89 @@
+/* =============================================================================
+ * TensorOS - Tensor Monitor Daemon
+ * =============================================================================
+ * Continuously monitors system health:
+ *   - GPU utilization, temperature, VRAM pressure
+ *   - MEU scheduling latency and throughput
+ *   - Tensor memory fragmentation
+ *   - Model cache hit rates
+ *   - Power consumption estimates
+ * =============================================================================*/
+
+#ifndef TENSOR_MONITOR_H
+#define TENSOR_MONITOR_H
+
+#include "kernel/core/kernel.h"
+#include "kernel/sched/tensor_sched.h"
+#include "kernel/mm/tensor_mm.h"
+#include "kernel/drivers/gpu/gpu.h"
+
+#define MONITOR_SAMPLE_INTERVAL_MS  1000
+#define MONITOR_MAX_SAMPLES         3600   /* 1 hour at 1s intervals */
+#define MONITOR_MAX_ALERTS          64
+
+typedef enum {
+    ALERT_NONE = 0,
+    ALERT_GPU_TEMP_HIGH,
+    ALERT_GPU_TEMP_CRITICAL,
+    ALERT_VRAM_PRESSURE,
+    ALERT_OOM_IMMINENT,
+    ALERT_SCHED_STARVATION,
+    ALERT_CACHE_THRASHING,
+    ALERT_POWER_LIMIT,
+} alert_type_t;
+
+typedef struct {
+    alert_type_t type;
+    uint64_t     timestamp;
+    uint32_t     device_id;
+    char         message[128];
+} monitor_alert_t;
+
+typedef struct {
+    /* Per-GPU snapshots */
+    uint32_t gpu_util_percent;
+    uint32_t gpu_temp_celsius;
+    uint64_t gpu_vram_used;
+    uint64_t gpu_vram_total;
+    uint32_t gpu_power_watts;
+    uint32_t gpu_fan_percent;
+
+    /* System-wide */
+    uint32_t meu_running_count;
+    uint32_t meu_queued_count;
+    uint64_t tensor_ops_per_sec;
+    uint64_t memory_used;
+    uint64_t memory_total;
+    float    cache_hit_rate;
+    uint64_t ipc_messages_per_sec;
+
+    uint64_t timestamp;
+} monitor_sample_t;
+
+typedef struct {
+    monitor_sample_t samples[MONITOR_MAX_SAMPLES];
+    uint32_t         sample_count;
+    uint32_t         sample_cursor;
+
+    monitor_alert_t  alerts[MONITOR_MAX_ALERTS];
+    uint32_t         alert_count;
+
+    /* Thresholds */
+    uint32_t         gpu_temp_warn;       /* default: 80°C */
+    uint32_t         gpu_temp_critical;   /* default: 95°C */
+    float            vram_pressure_thresh; /* default: 0.9 */
+    float            cache_thrash_thresh;  /* default: 0.3 */
+
+    bool             running;
+    uint64_t         last_tensor_ops;
+    uint64_t         last_ipc_count;
+} tensor_monitor_t;
+
+/* API */
+void  monitor_init(tensor_monitor_t *mon);
+void  monitor_tick(tensor_monitor_t *mon);
+void  monitor_print_dashboard(tensor_monitor_t *mon);
+void  monitor_check_alerts(tensor_monitor_t *mon);
+void  monitor_daemon_main(void);
+
+#endif /* TENSOR_MONITOR_H */

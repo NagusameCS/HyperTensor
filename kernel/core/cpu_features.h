@@ -1,0 +1,64 @@
+/* =============================================================================
+ * TensorOS - CPU Feature Detection Header
+ * CPUID-based feature flags for runtime ISA dispatch
+ * =============================================================================*/
+
+#ifndef TENSOROS_CPU_FEATURES_H
+#define TENSOROS_CPU_FEATURES_H
+
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef struct {
+    /* Vendor string (e.g., "GenuineIntel", "AuthenticAMD") */
+    char vendor[16];
+
+    /* SSE family */
+    bool has_sse;
+    bool has_sse2;
+    bool has_sse3;
+    bool has_ssse3;
+    bool has_sse41;
+    bool has_sse42;
+
+    /* AVX family */
+    bool has_avx;
+    bool has_avx2;
+    bool has_fma;
+    bool has_avx512f;
+
+    /* Bit manipulation */
+    bool has_bmi1;
+    bool has_bmi2;
+    bool has_popcnt;
+
+    /* Crypto */
+    bool has_aes;
+
+    /* OS support */
+    bool has_xsave;
+    bool has_osxsave;
+
+    /* TSC */
+    bool has_tsc;
+    bool has_rdtscp;
+    bool has_invariant_tsc;
+
+    /* Computed: OS has enabled AVX state saving */
+    bool avx_usable;
+    /* Computed: AVX2+FMA available and usable */
+    bool avx2_usable;
+} cpu_features_t;
+
+extern cpu_features_t cpu_features;
+
+/* Detect all CPU features via CPUID */
+void cpu_detect_features(void);
+
+/* Enable AVX/AVX2 state saving in OS (set CR4.OSXSAVE + XCR0) */
+void cpu_enable_avx(void);
+
+/* Print detected features to serial/VGA */
+void cpu_print_features(void);
+
+#endif /* TENSOROS_CPU_FEATURES_H */

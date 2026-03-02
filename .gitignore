@@ -1,0 +1,17 @@
+# Build outputs
+build_arm64/
+build_x86/
+build/
+*.o
+*.elf
+*.img
+*.bin
+
+# Editor/IDE
+.vscode/
+*.swp
+*~
+
+# OS junk
+Thumbs.db
+.DS_Store

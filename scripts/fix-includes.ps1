@@ -1,0 +1,31 @@
+$ErrorActionPreference = "Stop"
+$root = "C:\Users\legom\TensorOS"
+$files = Get-ChildItem -Path $root -Recurse -Include *.c,*.h | Where-Object { $_.FullName -notmatch "\\build\\" }
+Write-Host "Processing $($files.Count) source files..."
+
+foreach ($f in $files) {
+    $content = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
+    if (-not $content) { continue }
+    $original = $content
+    
+    $content = [regex]::Replace($content, '#include\s+"([^"]+)"', {
+        param($m)
+        $incPath = $m.Groups[1].Value
+        if ($incPath -match '^(std|limits|float)') { return $m.Value }
+        if ($incPath -match '^(kernel|runtime|virt|pkg|userland)/') { return $m.Value }
+        
+        $resolved = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($f.DirectoryName, $incPath))
+        if (Test-Path $resolved) {
+            $relFromRoot = $resolved.Replace("$root\","").Replace("\","/")
+            return "#include `"$relFromRoot`""
+        }
+        return $m.Value
+    })
+    
+    if ($content -ne $original) {
+        Set-Content $f.FullName -Value $content -NoNewline
+        $displayPath = $f.FullName.Replace($root + "\","")
+        Write-Host "  Fixed: $displayPath"
+    }
+}
+Write-Host "Done fixing includes."

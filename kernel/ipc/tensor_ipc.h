@@ -1,0 +1,62 @@
+/* =============================================================================
+ * TensorOS - Tensor IPC (Inter-Process Communication)
+ *
+ * Communication mechanism between Model Execution Units (MEUs):
+ * - Zero-copy tensor transfer via shared memory
+ * - Pipeline channels for chaining model outputs to inputs
+ * - Broadcast for ensemble/distributed training
+ * - Request-response for inference serving
+ * =============================================================================*/
+
+#ifndef TENSOROS_TENSOR_IPC_H
+#define TENSOROS_TENSOR_IPC_H
+
+#include "kernel/core/kernel.h"
+
+/* IPC Channel types */
+typedef enum {
+    IPC_CHAN_PIPE     = 0,  /* Unidirectional pipeline */
+    IPC_CHAN_BIDIR    = 1,  /* Bidirectional */
+    IPC_CHAN_BROADCAST = 2, /* One-to-many */
+    IPC_CHAN_RING     = 3,  /* Ring buffer for streaming */
+} ipc_chan_type_t;
+
+#define IPC_MAX_CHANNELS 128
+
+typedef struct {
+    uint32_t        id;
+    ipc_chan_type_t  type;
+    uint64_t        sender_meu;
+    uint64_t        receiver_meu;
+    void           *shared_buffer;    /* Shared memory for zero-copy */
+    uint64_t        buffer_size;
+    uint64_t        messages_sent;
+    uint64_t        bytes_transferred;
+    bool            active;
+} ipc_channel_t;
+
+/* =============================================================================
+ * IPC API
+ * =============================================================================*/
+
+void tensor_ipc_init(void);
+
+/* Channel management */
+int  ipc_channel_create(uint64_t sender_meu, uint64_t receiver_meu,
+                          ipc_chan_type_t type, uint64_t buffer_size);
+int  ipc_channel_destroy(uint32_t channel_id);
+
+/* Data transfer */
+int  ipc_send_tensor(uint32_t channel_id, const tensor_desc_t *tensor,
+                      const void *data);
+int  ipc_recv_tensor(uint32_t channel_id, tensor_desc_t *tensor,
+                      void *buf, uint64_t buf_size);
+
+/* Zero-copy transfer (returns shared memory pointer) */
+void *ipc_send_tensor_zerocopy(uint32_t channel_id, const tensor_desc_t *tensor);
+const void *ipc_recv_tensor_zerocopy(uint32_t channel_id, tensor_desc_t *tensor);
+
+/* Pipeline helper */
+int  ipc_pipeline_create(uint64_t *meu_ids, uint32_t count);
+
+#endif /* TENSOROS_TENSOR_IPC_H */

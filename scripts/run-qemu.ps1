@@ -1,0 +1,88 @@
+# ==============================================================================
+# TensorOS — PowerShell QEMU Launcher (Windows)
+# ==============================================================================
+# Usage:
+#   .\scripts\run-qemu.ps1              Normal boot
+#   .\scripts\run-qemu.ps1 -Debug       Boot with GDB stub
+#   .\scripts\run-qemu.ps1 -Iso         Boot from ISO
+# ==============================================================================
+
+param(
+    [switch]$Debug,
+    [switch]$Iso,
+    [string]$Memory = "4G",
+    [int]$Cpus = 4
+)
+
+$ErrorActionPreference = "Stop"
+
+$ProjectDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$BuildDir   = Join-Path $ProjectDir "build"
+$Kernel     = Join-Path $BuildDir "tensoros.bin"
+$IsoFile    = Join-Path $BuildDir "tensoros.iso"
+$LogFile    = Join-Path $BuildDir "qemu.log"
+
+# Find QEMU
+$QemuExe = "qemu-system-x86_64"
+$QemuPath = Get-Command $QemuExe -ErrorAction SilentlyContinue
+if (-not $QemuPath) {
+    # Try common Windows install locations
+    $commonPaths = @(
+        "C:\Program Files\qemu\qemu-system-x86_64.exe",
+        "C:\Program Files (x86)\qemu\qemu-system-x86_64.exe",
+        "$env:USERPROFILE\scoop\apps\qemu\current\qemu-system-x86_64.exe"
+    )
+    foreach ($p in $commonPaths) {
+        if (Test-Path $p) {
+            $QemuExe = $p
+            break
+        }
+    }
+    if (-not (Test-Path $QemuExe)) {
+        Write-Error "QEMU not found. Install: choco install qemu  or  scoop install qemu"
+        exit 1
+    }
+}
+
+# Ensure build dir exists
+if (-not (Test-Path $BuildDir)) {
+    New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
+}
+
+# Common args
+$CommonArgs = @(
+    "-m", $Memory,
+    "-smp", $Cpus,
+    "-serial", "stdio",
+    "-no-reboot",
+    "-no-shutdown",
+    "-device", "virtio-gpu-pci",
+    "-netdev", "user,id=net0,hostfwd=tcp::8080-:8080",
+    "-device", "virtio-net-pci,netdev=net0",
+    "-cpu", "qemu64,+sse2",
+    "-D", $LogFile
+)
+
+if ($Debug) {
+    Write-Host "================================================================"
+    Write-Host "  TensorOS - DEBUG MODE"
+    Write-Host "  GDB stub on localhost:1234"
+    Write-Host "================================================================"
+    & $QemuExe @CommonArgs -kernel $Kernel -s -S
+}
+elseif ($Iso) {
+    if (-not (Test-Path $IsoFile)) {
+        Write-Error "ISO not found at $IsoFile. Run 'make iso' first."
+        exit 1
+    }
+    Write-Host "[*] Booting from ISO: $IsoFile"
+    & $QemuExe @CommonArgs -cdrom $IsoFile
+}
+else {
+    Write-Host "================================================================"
+    Write-Host "  TensorOS - Booting in QEMU"
+    Write-Host "  Memory: $Memory | CPUs: $Cpus"
+    Write-Host "  Serial console on stdio"
+    Write-Host "================================================================"
+    & $QemuExe @CommonArgs -kernel $Kernel
+}

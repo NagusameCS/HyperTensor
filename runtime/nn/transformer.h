@@ -1,0 +1,108 @@
+/* =============================================================================
+ * TensorOS - Transformer Inference Engine with KV-Cache
+ *
+ * First bare-metal OS-level transformer with incremental decoding.
+ * KV-cache eliminates redundant attention computation during autoregressive
+ * generation — the same optimization that makes GPT-class inference practical.
+ *
+ * Architecture:
+ *   - Multi-head self-attention with RoPE-ready positions
+ *   - KV-cache: O(1) per-token decode vs O(n) recompute
+ *   - RMSNorm (more efficient than LayerNorm)
+ *   - SwiGLU feed-forward network (modern LLM architecture)
+ *   - Causal masking for autoregressive generation
+ *
+ * Memory layout: all [seq, dim] in row-major order.
+ * =============================================================================*/
+
+#ifndef TENSOROS_TRANSFORMER_H
+#define TENSOROS_TRANSFORMER_H
+
+#include "kernel/core/kernel.h"
+#include "kernel/core/perf.h"
+#include "runtime/tensor/tensor_cpu.h"
+
+/* Maximum supported dimensions */
+#define TF_MAX_SEQ       256   /* max sequence length */
+#define TF_MAX_DIM       128   /* max model dimension */
+#define TF_MAX_HEADS     8     /* max attention heads */
+#define TF_MAX_LAYERS    8     /* max transformer layers */
+
+/* ─── KV-Cache ─── */
+typedef struct {
+    float *k_cache;            /* [max_seq × head_dim] per head per layer */
+    float *v_cache;            /* [max_seq × head_dim] per head per layer */
+    int    len;                /* current cached sequence length */
+    int    max_seq;            /* maximum sequence length */
+    int    head_dim;           /* dimension per head */
+    int    num_heads;          /* number of attention heads */
+    int    num_layers;         /* number of transformer layers */
+} kv_cache_t;
+
+/* ─── Transformer Block Weights ─── */
+typedef struct {
+    /* Self-attention */
+    float *wq;                 /* [dim × dim] query projection */
+    float *wk;                 /* [dim × dim] key projection */
+    float *wv;                 /* [dim × dim] value projection */
+    float *wo;                 /* [dim × dim] output projection */
+
+    /* FFN (SwiGLU) */
+    float *w1;                 /* [dim × ff_dim] gate projection */
+    float *w2;                 /* [ff_dim × dim] down projection */
+    float *w3;                 /* [dim × ff_dim] up projection */
+
+    /* RMSNorm weights */
+    float *rms_att;            /* [dim] attention norm */
+    float *rms_ffn;            /* [dim] FFN norm */
+} tf_block_weights_t;
+
+/* ─── Transformer Model ─── */
+typedef struct {
+    int dim;                   /* model dimension */
+    int num_heads;             /* number of attention heads */
+    int head_dim;              /* dim / num_heads */
+    int ff_dim;                /* FFN hidden dimension (typically 4*dim or 8/3*dim) */
+    int num_layers;            /* number of transformer blocks */
+    int vocab_size;            /* vocabulary size */
+    int max_seq;               /* maximum sequence length */
+
+    tf_block_weights_t *layers;   /* [num_layers] block weights */
+    float *tok_embed;          /* [vocab_size × dim] token embeddings */
+    float *rms_final;          /* [dim] final RMSNorm */
+
+    kv_cache_t cache;          /* KV-cache for incremental decode */
+} tf_model_t;
+
+/* ─── API ─── */
+
+/* Initialize KV-cache */
+void kv_cache_init(kv_cache_t *cache, int max_seq, int head_dim,
+                   int num_heads, int num_layers);
+
+/* Reset KV-cache (start new sequence) */
+void kv_cache_reset(kv_cache_t *cache);
+
+/* RMSNorm: out[i] = x[i] * w[i] / rms(x), where rms = sqrt(mean(x^2) + eps) */
+void tf_rmsnorm(float *out, const float *x, const float *w, int dim);
+
+/* SwiGLU FFN: out = W2 · (SiLU(W1 · x) * (W3 · x)) */
+void tf_swiglu_ffn(float *out, const float *x,
+                   const float *w1, const float *w2, const float *w3,
+                   int dim, int ff_dim);
+
+/* Single-head attention with KV-cache append for position `pos`.
+ * Computes attention for a SINGLE new token (incremental decode). */
+void tf_cached_attention(float *out, const float *q, const float *k,
+                         const float *v, kv_cache_t *cache,
+                         int layer, int head, int pos);
+
+/* Forward one token through full transformer, updating KV-cache.
+ * Returns logits[vocab_size]. */
+void tf_forward_token(tf_model_t *model, float *logits,
+                      const float *tok_embed, int pos);
+
+/* Run transformer demos */
+void tf_run_demos(void);
+
+#endif /* TENSOROS_TRANSFORMER_H */
