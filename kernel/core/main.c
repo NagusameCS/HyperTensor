@@ -33,10 +33,13 @@
 #include "runtime/nn/quantize4.h"
 #include "kernel/mm/tensor_arena.h"
 #include "runtime/nn/gguf.h"
+#include "runtime/nn/math_llm.h"
+#include "runtime/nn/llm.h"
 #include "kernel/core/smp.h"
 #include "kernel/drivers/net/virtio_net.h"
 #include "kernel/net/netstack.h"
 #include "kernel/drivers/blk/virtio_blk.h"
+#include "kernel/drivers/blk/sdlog.h"
 
 /* Kernel version */
 #define TENSOROS_VERSION_MAJOR  0
@@ -461,6 +464,10 @@ write_fail:
     sdlog_flush();
     arena_run_demos();
 
+    /* Phase 13b: Math LLM Evaluation Suite */
+    sdlog("Phase13b: math LLM eval");
+    math_llm_run_eval();
+
     /* Phase 14: CPU Feature Detection & AVX2 Enable */
     sdlog("Phase14: CPU detect");
     kprintf("\n[PHASE 14] CPU Feature Detection\n");
@@ -506,6 +513,7 @@ write_fail:
     kprintf("\n[PHASE 18] SMP Multi-Core Bootstrap\n");
 #ifndef __aarch64__
     smp_run_demos();
+    kstate.cpu_count = smp.cpu_count;  /* Update with actual SMP count */
 #else
     kprintf("  [OK] ARM64 PSCI multicore (4 Cortex-A72 cores)\n");
 #endif
@@ -547,6 +555,11 @@ write_fail:
     kprintf("  [OK] GENET Ethernet (BCM54213PE) available\n");
 #endif
 
+    /* Phase 21: Real LLM Inference (if model disk attached) */
+    sdlog("Phase21: LLM inference");
+    kprintf("\n[PHASE 21] Real LLM Inference Engine\n");
+    llm_run_eval();
+
     kstate.phase = KSTATE_RUNNING;
 
     BREADCRUMB(99); /* ALL PHASES DONE */
@@ -583,6 +596,9 @@ write_fail:
     kprintf("  Transformer: KV-cache, RMSNorm, SwiGLU, MHA (LLM-ready)\n");
     kprintf("  INT4:       Q4_0 block quant (6.4x compression, GGML-class)\n");
     kprintf("  Arena:      O(1) bump alloc, 0%% frag, checkpoint/restore\n");
+    kprintf("  Math LLM:  5 micro-LLMs (arith, poly, trig, seq, calc)\n");
+    kprintf("  Real LLM:  GGUF loader + full transformer inference\n");
+    kprintf("             Qwen, Gemma, LLaMA, SmolLM, Mistral support\n");
     kprintf("  ---- Production Hardening ----\n");
 #if defined(__aarch64__)
     kprintf("  Exceptions: ARM64 EL1 exception vectors (sync, IRQ, FIQ)\n");

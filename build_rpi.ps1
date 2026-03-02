@@ -57,6 +57,8 @@ $SOURCES = @(
     "runtime\nn\quantize4.c",
     "kernel\mm\tensor_arena.c",
     "runtime\nn\gguf.c",
+    "runtime\nn\math_llm.c",
+    "runtime\nn\llm.c",
     "kernel\core\smp.c",
     "kernel\drivers\net\virtio_net.c",
     "kernel\net\netstack.c",

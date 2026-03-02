@@ -11,7 +11,7 @@
 #include <stddef.h>
 
 /* GGUF magic number: "GGUF" in little-endian */
-#define GGUF_MAGIC  0x46475547u
+#define GGUF_MAGIC  0x46554747u
 
 /* GGUF versions we support */
 #define GGUF_VERSION_MIN 2

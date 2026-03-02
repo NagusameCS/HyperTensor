@@ -94,8 +94,8 @@ static const uint8_t trampoline_code[] = {
     0x8E, 0xD0,                   /* mov ss, ax */
 
     /* Load 32-bit GDT */
-    0x0F, 0x01, 0x16,             /* lgdt [gdt_ptr] (at trampoline + 0x80) */
-    0x80, 0x00,                   /* offset 0x0080 within trampoline page */
+    0x0F, 0x01, 0x16,             /* lgdt [gdt_ptr] (at trampoline + 0xD0) */
+    0xD0, 0x80,                   /* offset 0x80D0 (absolute, DS=0) */
 
     /* Enable protected mode */
     0x0F, 0x20, 0xC0,             /* mov eax, cr0 */
@@ -106,9 +106,10 @@ static const uint8_t trampoline_code[] = {
     0x66, 0xEA,                   /* ljmp 0x08:offset */
     0x30, 0x80, 0x00, 0x00,      /* offset = 0x8030 (absolute) */
     0x08, 0x00,                   /* segment selector 0x08 */
-    /* Pad to offset 0x30 */
+    /* Pad to offset 0x30 (need 18 NOPs: 0x30 - 0x1E = 18) */
     0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
-    0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
+    0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
+    0x90, 0x90,
 
     /* 0x0030: 32-bit protected mode */
     /* bits 32 */
@@ -122,9 +123,9 @@ static const uint8_t trampoline_code[] = {
     0x0D, 0x20, 0x00, 0x00, 0x00,/* or eax, 0x20 */
     0x0F, 0x22, 0xE0,             /* mov cr4, eax */
 
-    /* Load CR3 from trampoline data area (offset 0x90) */
+    /* Load CR3 from trampoline data area (offset 0xC0) */
     0x8B, 0x05,                   /* mov eax, [abs] */
-    0x90, 0x80, 0x00, 0x00,      /* address 0x8090 */
+    0xC0, 0x80, 0x00, 0x00,      /* address 0x80C0 */
     0x0F, 0x22, 0xD8,             /* mov cr3, eax */
 
     /* Enable long mode in EFER MSR */
@@ -142,8 +143,8 @@ static const uint8_t trampoline_code[] = {
     0xEA,                          /* ljmp */
     0x70, 0x80, 0x00, 0x00,       /* offset = 0x8070 (absolute) */
     0x18, 0x00,                    /* 64-bit code segment (GDT entry 3) */
-    /* Pad to offset 0x70 */
-    0x90, 0x90, 0x90, 0x90, 0x90,
+    /* Pad to offset 0x70 (need 2 NOPs: 0x70 - 0x6E = 2) */
+    0x90, 0x90,
 
     /* 0x0070: 64-bit long mode */
     /* bits 64 */
@@ -159,19 +160,18 @@ static const uint8_t trampoline_code[] = {
     0x00, 0x00, 0x00, 0x00,
 
     /* Halt - AP will be managed by BSP */
-    0xFB,                         /* sti */
-    0xF4,                         /* hlt */
-    0xEB, 0xFC,                   /* jmp -2 (loop hlt) */
+    0xFA,                         /* cli (no IDT on AP, avoid interrupt faults) */
+    0xEB, 0xFE,                   /* jmp $ (tight infinite loop, NMI-safe) */
 };
 
-/* GDT for trampoline (at offset 0x80 in trampoline page) */
+/* GDT for trampoline (at offset 0xD0 in trampoline page) */
 static const uint8_t trampoline_gdt[] = {
     /* GDT pointer (6 bytes) */
     0x27, 0x00,                   /* limit = 39 (5 entries * 8 - 1) */
-    0x88, 0x80, 0x00, 0x00,      /* base = 0x8088 (GDT entries follow) */
+    0xD8, 0x80, 0x00, 0x00,      /* base = 0x80D8 (GDT entries follow) */
     0x00, 0x00,                   /* padding */
 
-    /* GDT entries at offset 0x88 */
+    /* GDT entries at offset 0xD8 */
     /* Entry 0: Null */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     /* Entry 1 (0x08): 32-bit code */
@@ -198,13 +198,20 @@ static void install_trampoline(void)
     /* Copy code */
     kmemcpy(tramp, trampoline_code, sizeof(trampoline_code));
     
-    /* Copy GDT at offset 0x80 */
-    kmemcpy(tramp + 0x80, trampoline_gdt, sizeof(trampoline_gdt));
+    /* Copy GDT at offset 0xD0 */
+    kmemcpy(tramp + 0xD0, trampoline_gdt, sizeof(trampoline_gdt));
     
-    /* Write CR3 value at offset 0x90 */
+    /* Write CR3 value at offset 0xC0 (must not overlap GDT entries at 0x88-0xAF) */
     uint64_t cr3;
     __asm__ volatile ("mov %%cr3, %0" : "=r"(cr3));
-    *(uint32_t *)(tramp + 0x90) = (uint32_t)cr3;
+    *(uint32_t *)(tramp + 0xC0) = (uint32_t)cr3;
+    
+    /* Patch the lock inc displacement at offset 0x7E to point to ap_running_flag.
+     * The lock inc instruction is at 0x807B (3-byte opcode + 4-byte disp32).
+     * RIP-relative displacement is relative to the instruction END (0x8082).
+     * displacement = &ap_running_flag - 0x8082 */
+    int32_t *disp = (int32_t *)(tramp + 0x7E);
+    *disp = (int32_t)((uintptr_t)&ap_running_flag - (uintptr_t)(tramp + 0x82));
 }
 
 /* =============================================================================
@@ -326,7 +333,7 @@ void smp_init(void)
         uint8_t target_id = smp.cpus[i].apic_id;
         smp.cpus[i].state = CPU_STATE_BOOTING;
 
-        uint32_t prev_count = smp.ap_started;
+        uint32_t prev_count = ap_running_flag;
 
         /* Step 1: Send INIT IPI */
         lapic_send_ipi(target_id, ICR_INIT | ICR_LEVEL_ASSERT);
@@ -348,12 +355,13 @@ void smp_init(void)
         /* Wait for AP to signal (up to 100ms) */
         uint64_t timeout = 100000; /* 100ms in us */
         uint64_t waited = 0;
-        while (smp.ap_started == prev_count && waited < timeout) {
+        while (ap_running_flag == prev_count && waited < timeout) {
             smp_delay_us(100);
             waited += 100;
         }
 
-        if (smp.ap_started > prev_count) {
+        if (ap_running_flag > prev_count) {
+            smp.ap_started++;
             smp.cpus[i].state = CPU_STATE_IDLE;
             kprintf("[SMP] CPU %u (APIC %u) started OK\n", i, target_id);
         } else {

@@ -339,6 +339,7 @@ static void sdlog_flush(void)
 /* =============================================================================
  * sdlog_panic — Log a message, flush to SD, then blink LED rapidly
  * =============================================================================*/
+#if defined(__aarch64__)
 __attribute__((unused))
 static void sdlog_panic(const char *msg)
 {
@@ -353,5 +354,6 @@ static void sdlog_panic(const char *msg)
         arm_timer_delay_ms(60);
     }
 }
+#endif /* __aarch64__ */
 
 #endif /* TENSOROS_SDLOG_H */

@@ -160,6 +160,36 @@ static void kprint_int64(int64_t val)
     }
 }
 
+/* Float formatting: integer.fraction with rounding */
+static void kprint_float(double val, int precision)
+{
+    if (val < 0.0) {
+        vga_putchar('-');
+        serial_putchar('-');
+        val = -val;
+    }
+    /* Round to given precision */
+    double mult = 1.0;
+    for (int p = 0; p < precision; p++) mult *= 10.0;
+    if (mult > 0.0) val += 0.5 / mult;
+    uint64_t integer_part = (uint64_t)val;
+    kprint_uint64(integer_part, 10, 0);
+    if (precision > 0) {
+        vga_putchar('.');
+        serial_putchar('.');
+        double frac = val - (double)integer_part;
+        for (int p = 0; p < precision; p++) {
+            frac *= 10.0;
+            int digit = (int)frac;
+            if (digit > 9) digit = 9;
+            if (digit < 0) digit = 0;
+            vga_putchar('0' + digit);
+            serial_putchar('0' + digit);
+            frac -= digit;
+        }
+    }
+}
+
 int kprintf(const char *fmt, ...)
 {
     __builtin_va_list ap;
@@ -177,11 +207,27 @@ int kprintf(const char *fmt, ...)
         }
         fmt++; /* skip '%' */
 
+        /* Parse optional precision (.N) for %f */
+        int precision = 4; /* default 4 decimal places */
+        if (*fmt == '.') {
+            fmt++;
+            precision = 0;
+            while (*fmt >= '0' && *fmt <= '9') {
+                precision = precision * 10 + (*fmt - '0');
+                fmt++;
+            }
+        }
+
         /* Check for 'l' modifier */
         int is_long = 0;
         if (*fmt == 'l') { is_long = 1; fmt++; }
 
         switch (*fmt) {
+        case 'f': {
+            double val = __builtin_va_arg(ap, double);
+            kprint_float(val, precision);
+            break;
+        }
         case 's': {
             const char *s = __builtin_va_arg(ap, const char *);
             if (!s) s = "(null)";
@@ -270,10 +316,41 @@ static void kvprintf_serial(const char *fmt, __builtin_va_list ap)
             continue;
         }
         fmt++;
+        /* Parse optional precision (.N) for %f */
+        int precision = 4;
+        if (*fmt == '.') {
+            fmt++;
+            precision = 0;
+            while (*fmt >= '0' && *fmt <= '9') {
+                precision = precision * 10 + (*fmt - '0');
+                fmt++;
+            }
+        }
         int is_long = 0;
         if (*fmt == 'l') { is_long = 1; fmt++; }
         if (*fmt == 'l') { is_long = 2; fmt++; }  /* ll */
         switch (*fmt) {
+        case 'f': {
+            double val = __builtin_va_arg(ap, double);
+            if (val < 0.0) { serial_putchar('-'); val = -val; }
+            double m = 1.0;
+            for (int p = 0; p < precision; p++) m *= 10.0;
+            if (m > 0.0) val += 0.5 / m;
+            uint64_t ip = (uint64_t)val;
+            char nb[24]; int ni = 0;
+            if (ip == 0) { serial_putchar('0'); }
+            else { while (ip > 0) { nb[ni++] = '0' + (ip % 10); ip /= 10; } while (--ni >= 0) serial_putchar(nb[ni]); }
+            if (precision > 0) {
+                serial_putchar('.');
+                double fr = val - (double)((uint64_t)val);
+                for (int p = 0; p < precision; p++) {
+                    fr *= 10.0; int d = (int)fr;
+                    if (d > 9) d = 9; if (d < 0) d = 0;
+                    serial_putchar('0' + d); fr -= d;
+                }
+            }
+            break;
+        }
         case 's': {
             const char *s = __builtin_va_arg(ap, const char *);
             serial_puts(s ? s : "(null)");
@@ -771,7 +848,7 @@ int cpu_detect_and_init(void)
     vendor[12] = '\0';
     kprintf("[CPU] Vendor: %s\n", vendor);
 
-    return 0;
+    return 1;  /* At least the BSP; SMP updates later */
 }
 
 /* =============================================================================
