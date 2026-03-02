@@ -1,8 +1,4 @@
 <img width="1280" height="640" alt="IRIS-MD" src="https://github.com/user-attachments/assets/3fb51941-b10b-4f92-b482-f0e8ff81d97d" />
-# TensorOS
-
-
-**An AI-First Operating System**
 
 TensorOS is an operating system built from scratch with a single goal: **run AI workloads faster and cheaper, without losing accuracy.** Every layer — from the bootloader to the shell — is designed around tensors, models, and inference as first-class primitives.
 
