@@ -1,3 +1,4 @@
+![TV (1)](https://github.com/user-attachments/assets/6f1bf8b7-769e-40ec-bf4f-e6f0dc748d67)
 # TensorOS
 
 **An AI-First Operating System**
