@@ -1,0 +1,234 @@
+/* =============================================================================
+ * TensorOS — Cryptographic Primitives Library
+ *
+ * World-class security primitives for bare-metal operation:
+ *   • SHA-256              — NIST FIPS 180-4 secure hash
+ *   • HMAC-SHA256          — RFC 2104 keyed-hash MAC
+ *   • HKDF-SHA256          — RFC 5869 key derivation
+ *   • AES-256-CTR          — NIST FIPS 197 + SP 800-38A counter mode
+ *   • ChaCha20             — RFC 8439 stream cipher
+ *   • Poly1305             — RFC 8439 one-time authenticator
+ *   • ChaCha20-Poly1305    — RFC 8439 AEAD construction
+ *   • Curve25519 / X25519  — RFC 7748 Diffie-Hellman key exchange
+ *   • Ed25519              — RFC 8032 digital signatures
+ *   • CSPRNG               — Hardware-seeded (RDRAND/RDSEED) + ChaCha20-based
+ *
+ * All implementations are constant-time where security-relevant.
+ * =============================================================================*/
+
+#ifndef TENSOROS_CRYPTO_H
+#define TENSOROS_CRYPTO_H
+
+#include "kernel/core/kernel.h"
+
+/* =============================================================================
+ * SHA-256 (FIPS 180-4)
+ * =============================================================================*/
+
+#define SHA256_BLOCK_SIZE   64
+#define SHA256_DIGEST_SIZE  32
+
+typedef struct {
+    uint32_t state[8];
+    uint64_t count;                     /* Total bytes hashed */
+    uint8_t  buf[SHA256_BLOCK_SIZE];    /* Partial block buffer */
+    uint32_t buf_len;
+} sha256_ctx_t;
+
+void sha256_init(sha256_ctx_t *ctx);
+void sha256_update(sha256_ctx_t *ctx, const void *data, uint64_t len);
+void sha256_final(sha256_ctx_t *ctx, uint8_t digest[SHA256_DIGEST_SIZE]);
+
+/* One-shot convenience */
+void sha256(const void *data, uint64_t len, uint8_t digest[SHA256_DIGEST_SIZE]);
+
+/* =============================================================================
+ * HMAC-SHA256 (RFC 2104)
+ * =============================================================================*/
+
+#define HMAC_SHA256_SIZE  32
+
+typedef struct {
+    sha256_ctx_t inner;
+    sha256_ctx_t outer;
+} hmac_sha256_ctx_t;
+
+void hmac_sha256_init(hmac_sha256_ctx_t *ctx, const void *key, uint32_t key_len);
+void hmac_sha256_update(hmac_sha256_ctx_t *ctx, const void *data, uint32_t len);
+void hmac_sha256_final(hmac_sha256_ctx_t *ctx, uint8_t mac[HMAC_SHA256_SIZE]);
+
+/* One-shot */
+void hmac_sha256(const void *key, uint32_t key_len,
+                 const void *data, uint32_t data_len,
+                 uint8_t mac[HMAC_SHA256_SIZE]);
+
+/* =============================================================================
+ * HKDF-SHA256 (RFC 5869) — Key Derivation
+ * =============================================================================*/
+
+void hkdf_sha256_extract(const uint8_t *salt, uint32_t salt_len,
+                          const uint8_t *ikm, uint32_t ikm_len,
+                          uint8_t prk[32]);
+
+int  hkdf_sha256_expand(const uint8_t prk[32],
+                         const uint8_t *info, uint32_t info_len,
+                         uint8_t *okm, uint32_t okm_len);
+
+/* =============================================================================
+ * AES-256-CTR (FIPS 197 + SP 800-38A)
+ * =============================================================================*/
+
+#define AES256_KEY_SIZE     32
+#define AES256_BLOCK_SIZE   16
+#define AES256_ROUNDS       14
+
+typedef struct {
+    uint32_t rk[60];                    /* Round keys (15 × 4 words) */
+} aes256_ctx_t;
+
+void aes256_init(aes256_ctx_t *ctx, const uint8_t key[AES256_KEY_SIZE]);
+void aes256_encrypt_block(const aes256_ctx_t *ctx,
+                           const uint8_t in[16], uint8_t out[16]);
+void aes256_decrypt_block(const aes256_ctx_t *ctx,
+                           const uint8_t in[16], uint8_t out[16]);
+
+/* CTR mode — same function encrypts and decrypts */
+void aes256_ctr(const aes256_ctx_t *ctx,
+                const uint8_t nonce[16],
+                const uint8_t *in, uint8_t *out, uint64_t len);
+
+/* =============================================================================
+ * ChaCha20 (RFC 8439)
+ * =============================================================================*/
+
+#define CHACHA20_KEY_SIZE   32
+#define CHACHA20_NONCE_SIZE 12
+
+typedef struct {
+    uint32_t state[16];
+} chacha20_ctx_t;
+
+void chacha20_init(chacha20_ctx_t *ctx,
+                   const uint8_t key[CHACHA20_KEY_SIZE],
+                   const uint8_t nonce[CHACHA20_NONCE_SIZE],
+                   uint32_t counter);
+
+void chacha20_encrypt(chacha20_ctx_t *ctx,
+                      const uint8_t *in, uint8_t *out, uint64_t len);
+
+/* Generate a raw keystream block (for Poly1305 key generation) */
+void chacha20_block(const uint32_t state[16], uint32_t out[16]);
+
+/* =============================================================================
+ * Poly1305 (RFC 8439)
+ * =============================================================================*/
+
+#define POLY1305_TAG_SIZE   16
+#define POLY1305_KEY_SIZE   32
+
+typedef struct {
+    uint32_t r[5];          /* Clamped key r (base 2^26) */
+    uint32_t s[4];          /* Key s */
+    uint32_t h[5];          /* Accumulator (base 2^26) */
+    uint8_t  buf[16];       /* Partial block buffer */
+    uint32_t buf_len;
+    uint64_t total;
+} poly1305_ctx_t;
+
+void poly1305_init(poly1305_ctx_t *ctx, const uint8_t key[POLY1305_KEY_SIZE]);
+void poly1305_update(poly1305_ctx_t *ctx, const void *data, uint32_t len);
+void poly1305_final(poly1305_ctx_t *ctx, uint8_t tag[POLY1305_TAG_SIZE]);
+
+/* =============================================================================
+ * ChaCha20-Poly1305 AEAD (RFC 8439)
+ * =============================================================================*/
+
+int chacha20_poly1305_encrypt(
+    const uint8_t key[32], const uint8_t nonce[12],
+    const uint8_t *aad, uint32_t aad_len,
+    const uint8_t *plaintext, uint32_t pt_len,
+    uint8_t *ciphertext, uint8_t tag[16]);
+
+int chacha20_poly1305_decrypt(
+    const uint8_t key[32], const uint8_t nonce[12],
+    const uint8_t *aad, uint32_t aad_len,
+    const uint8_t *ciphertext, uint32_t ct_len,
+    const uint8_t tag[16], uint8_t *plaintext);
+
+/* =============================================================================
+ * Curve25519 / X25519 (RFC 7748)
+ * =============================================================================*/
+
+#define X25519_KEY_SIZE     32
+
+/* Scalar multiplication: out = scalar * point (on Curve25519).
+ * For Diffie-Hellman:
+ *   Public key:    x25519(private_key, basepoint)
+ *   Shared secret: x25519(my_private, their_public)                    */
+void x25519(uint8_t out[32], const uint8_t scalar[32], const uint8_t point[32]);
+
+/* Compute public key from private key using the standard basepoint */
+void x25519_public_key(uint8_t pub[32], const uint8_t priv[32]);
+
+/* =============================================================================
+ * Ed25519 (RFC 8032) — Digital Signatures
+ * =============================================================================*/
+
+#define ED25519_PUB_SIZE    32
+#define ED25519_SIG_SIZE    64
+#define ED25519_SEED_SIZE   32
+
+/* Generate keypair from 32-byte seed */
+void ed25519_keypair(const uint8_t seed[32],
+                     uint8_t pub[32], uint8_t priv[64]);
+
+/* Sign a message */
+void ed25519_sign(const uint8_t *msg, uint64_t msg_len,
+                  const uint8_t pub[32], const uint8_t priv[64],
+                  uint8_t sig[64]);
+
+/* Verify a signature (returns 0 on success, -1 on failure) */
+int  ed25519_verify(const uint8_t *msg, uint64_t msg_len,
+                    const uint8_t pub[32], const uint8_t sig[64]);
+
+/* =============================================================================
+ * Cryptographically Secure PRNG
+ * =============================================================================*/
+
+#define CSPRNG_STATE_SIZE  48   /* 32-byte key + 12-byte nonce + 4-byte counter */
+
+typedef struct {
+    uint8_t  key[32];
+    uint8_t  nonce[12];
+    uint32_t counter;
+    int      seeded;
+} csprng_t;
+
+/* Global CSPRNG instance */
+extern csprng_t g_csprng;
+
+void   csprng_init(csprng_t *rng);
+void   csprng_seed(csprng_t *rng, const void *seed, uint32_t len);
+void   csprng_reseed_hw(csprng_t *rng);   /* Reseed from RDRAND/RDSEED/TSC */
+void   csprng_generate(csprng_t *rng, void *buf, uint32_t len);
+
+/* Convenience: fill buffer with random bytes using global CSPRNG */
+void   crypto_random(void *buf, uint32_t len);
+
+/* =============================================================================
+ * Constant-Time Utilities
+ * =============================================================================*/
+
+/* Constant-time compare (returns 0 if equal) */
+int    crypto_ct_equal(const void *a, const void *b, uint32_t len);
+
+/* Secure memory wipe (not optimized away by compiler) */
+void   crypto_wipe(void *buf, uint32_t len);
+
+/* =============================================================================
+ * Initialization
+ * =============================================================================*/
+
+void crypto_init(void);
+
+#endif /* TENSOROS_CRYPTO_H */

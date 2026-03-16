@@ -172,3 +172,32 @@ int modelpkg_search(const char *query, model_manifest_t *results,
     if (count) *count = 0;
     return 0;
 }
+
+int modelpkg_info(const char *name, model_manifest_t *manifest)
+{
+    if (!name || !manifest) return -1;
+    /* Search installed packages for match */
+    installed_model_t models[64];
+    uint32_t installed = 0;
+    modelpkg_list_installed(models, 64, &installed);
+    for (uint32_t i = 0; i < installed; i++) {
+        if (kstrcmp(models[i].manifest.name, name) == 0) {
+            *manifest = models[i].manifest;
+            return 0;
+        }
+    }
+    return -1; /* Not found */
+}
+
+int modelpkg_update(const char *name)
+{
+    /* TODO: Check registry for newer version and update */
+    (void)name;
+    return -1; /* Not implemented - no network registry yet */
+}
+
+int modelpkg_update_all(void)
+{
+    /* TODO: Update all installed packages */
+    return -1; /* Not implemented - no network registry yet */
+}

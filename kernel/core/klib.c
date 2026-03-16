@@ -725,6 +725,19 @@ static volatile int  kb_head = 0;
 static volatile int  kb_tail = 0;
 static volatile int  kb_shift = 0;
 static volatile int  kb_caps = 0;
+static volatile int  kb_ctrl = 0;
+static volatile int  kb_e0 = 0;
+
+static void kb_insert(char c)
+{
+    int next = (kb_head + 1) % KB_BUF_SIZE;
+    if (next != kb_tail) { kb_buf[kb_head] = c; kb_head = next; }
+}
+
+static void kb_insert_seq(const char *s)
+{
+    while (*s) kb_insert(*s++);
+}
 
 static const char scancode_to_ascii[128] = {
     0,  27, '1','2','3','4','5','6','7','8','9','0','-','=','\b',
@@ -753,11 +766,32 @@ void keyboard_irq_handler(void)
 {
     uint8_t sc = inb(0x60);
 
-    /* Track shift keys (make=0x2A/0x36, break=0xAA/0xB6) */
+    /* Handle E0 prefix for extended keys (arrows, home, end, etc.) */
+    if (sc == 0xE0) { kb_e0 = 1; return; }
+
+    if (kb_e0) {
+        kb_e0 = 0;
+        if (sc & 0x80) return;  /* ignore extended key release */
+        switch (sc) {
+            case 0x48: kb_insert_seq("\x1b[A"); return;  /* Up    */
+            case 0x50: kb_insert_seq("\x1b[B"); return;  /* Down  */
+            case 0x4D: kb_insert_seq("\x1b[C"); return;  /* Right */
+            case 0x4B: kb_insert_seq("\x1b[D"); return;  /* Left  */
+            case 0x47: kb_insert_seq("\x1b[H"); return;  /* Home  */
+            case 0x4F: kb_insert_seq("\x1b[F"); return;  /* End   */
+            case 0x53: kb_insert_seq("\x1b[3~"); return; /* Del   */
+            case 0x49: kb_insert_seq("\x1b[5~"); return; /* PgUp  */
+            case 0x51: kb_insert_seq("\x1b[6~"); return; /* PgDn  */
+            case 0x52: kb_insert_seq("\x1b[2~"); return; /* Ins   */
+        }
+        return;
+    }
+
+    /* Track modifier keys */
     if (sc == 0x2A || sc == 0x36) { kb_shift = 1; return; }
     if (sc == 0xAA || sc == 0xB6) { kb_shift = 0; return; }
-
-    /* Caps Lock toggle (make=0x3A) */
+    if (sc == 0x1D) { kb_ctrl = 1; return; }
+    if (sc == 0x9D) { kb_ctrl = 0; return; }
     if (sc == 0x3A) { kb_caps ^= 1; return; }
 
     /* Ignore key release (bit 7 set) */
@@ -776,12 +810,11 @@ void keyboard_irq_handler(void)
 
     if (c == 0) return;
 
-    /* Insert into ring buffer */
-    int next = (kb_head + 1) % KB_BUF_SIZE;
-    if (next != kb_tail) {
-        kb_buf[kb_head] = c;
-        kb_head = next;
-    }
+    /* Ctrl+key: produce control codes */
+    if (kb_ctrl && c >= 'a' && c <= 'z') c = c - 'a' + 1;
+    else if (kb_ctrl && c >= 'A' && c <= 'Z') c = c - 'A' + 1;
+
+    kb_insert(c);
 }
 
 /* Public API: blocking read one character from keyboard buffer or serial */

@@ -1,6 +1,6 @@
 /* =============================================================================
- * TensorOS - Minimal Network Stack
- * ARP, IPv4, UDP, and simple HTTP for AI inference serving
+ * TensorOS - Network Stack
+ * ARP, IPv4, ICMP, UDP, TCP, and OpenAI-compatible HTTP API for LLM serving
  * =============================================================================*/
 
 #ifndef TENSOROS_NETSTACK_H
@@ -55,6 +55,64 @@ struct ip_hdr {
     uint8_t  dst[4];
 } __attribute__((packed));
 
+struct tcp_hdr {
+    uint16_t src_port;    /* Big-endian */
+    uint16_t dst_port;    /* Big-endian */
+    uint32_t seq;         /* Sequence number */
+    uint32_t ack;         /* Acknowledgment number */
+    uint8_t  data_off;    /* Data offset (upper 4 bits) in 32-bit words */
+    uint8_t  flags;       /* TCP flags */
+    uint16_t window;      /* Window size */
+    uint16_t checksum;    /* Checksum */
+    uint16_t urgent;      /* Urgent pointer */
+} __attribute__((packed));
+
+/* TCP flags */
+#define TCP_FIN  0x01
+#define TCP_SYN  0x02
+#define TCP_RST  0x04
+#define TCP_PSH  0x08
+#define TCP_ACK  0x10
+#define TCP_URG  0x20
+
+/* TCP connection states */
+#define TCP_STATE_CLOSED      0
+#define TCP_STATE_LISTEN      1
+#define TCP_STATE_SYN_RCVD    2
+#define TCP_STATE_ESTABLISHED 3
+#define TCP_STATE_FIN_WAIT_1  4
+#define TCP_STATE_FIN_WAIT_2  5
+#define TCP_STATE_CLOSE_WAIT  6
+#define TCP_STATE_LAST_ACK    7
+#define TCP_STATE_TIME_WAIT   8
+
+/* TCP connection (simplified — single concurrent connection per slot) */
+#define TCP_MAX_CONNS     16
+#define TCP_RX_BUF_SIZE   16384  /* 16 KB receive buffer per connection */
+#define TCP_TX_BUF_SIZE   32768  /* 32 KB send buffer per connection */
+
+typedef struct tcp_conn {
+    uint8_t  state;
+    uint8_t  remote_ip[4];
+    uint16_t local_port;
+    uint16_t remote_port;
+    uint32_t snd_nxt;       /* Next sequence number to send */
+    uint32_t snd_una;       /* Oldest unacknowledged seq */
+    uint32_t rcv_nxt;       /* Next expected receive seq */
+    uint16_t remote_win;    /* Remote window size */
+
+    /* Receive buffer (reassembled in-order data) */
+    uint8_t  rx_buf[TCP_RX_BUF_SIZE];
+    uint32_t rx_len;        /* Bytes available in rx_buf */
+
+    /* Send buffer (data queued for transmission) */
+    uint8_t  tx_buf[TCP_TX_BUF_SIZE];
+    uint32_t tx_len;        /* Bytes queued in tx_buf */
+
+    /* HTTP request complete flag (received full request) */
+    int      http_request_complete;
+} tcp_conn_t;
+
 struct udp_hdr {
     uint16_t src_port;    /* Big-endian */
     uint16_t dst_port;    /* Big-endian */
@@ -79,8 +137,9 @@ typedef struct {
     uint8_t  netmask[4];
     uint8_t  gateway[4];
     uint8_t  mac[6];
-    uint16_t http_port;      /* Port for inference HTTP server */
+    uint16_t http_port;      /* Port for inference HTTP server (default 8080) */
     int      configured;
+    int      server_running; /* HTTP API server active */
 } net_config_t;
 
 /* ARP cache entry */
@@ -121,18 +180,55 @@ int netstack_send_ip(const uint8_t dst_ip[4], uint8_t proto,
                      const void *data, uint32_t len);
 
 /**
+ * Send a TCP segment on a connection.
+ */
+int netstack_tcp_send(tcp_conn_t *conn, uint8_t flags,
+                      const void *data, uint32_t len);
+
+/**
+ * Write data to a TCP connection's send buffer and transmit.
+ */
+int tcp_conn_write(tcp_conn_t *conn, const void *data, uint32_t len);
+
+/**
+ * Close a TCP connection (send FIN).
+ */
+void tcp_conn_close(tcp_conn_t *conn);
+
+/**
  * Register a UDP handler for a specific port.
- * handler(src_ip, src_port, data, data_len)
  */
 typedef void (*udp_handler_t)(const uint8_t src_ip[4], uint16_t src_port,
                                const uint8_t *data, uint32_t len);
 void netstack_register_udp(uint16_t port, udp_handler_t handler);
 
 /**
- * Start the HTTP inference server on the configured port.
- * Handles simple GET/POST requests.
+ * Start the OpenAI-compatible HTTP inference API server.
+ * Endpoints:
+ *   GET  /v1/models          — list loaded models
+ *   POST /v1/completions     — text completion
+ *   POST /v1/chat/completions — chat completion
+ *   GET  /health             — health check
+ *
+ * Compatible with: curl, Python requests, OpenAI SDK, any HTTP client.
  */
 void netstack_start_http_server(void);
+
+/**
+ * Poll for network events (call in main loop).
+ * Processes pending TCP connections and HTTP requests.
+ */
+void netstack_poll(void);
+
+/**
+ * Check if HTTP server is running.
+ */
+int netstack_server_running(void);
+
+/**
+ * Get network configuration (for display).
+ */
+const net_config_t *netstack_get_config(void);
 
 /**
  * Get network stack statistics.

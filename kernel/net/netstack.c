@@ -1,11 +1,19 @@
 /* =============================================================================
  * TensorOS - Network Stack Implementation
- * ARP responder, IPv4, UDP, ICMP echo, and simple HTTP inference server
+ * ARP responder, IPv4, ICMP echo, UDP, TCP, and OpenAI-compatible HTTP API
+ *
+ * TCP implementation: simplified 3-way handshake, in-order delivery,
+ * segmented send, FIN teardown. Sufficient for HTTP request/response.
+ *
+ * HTTP API: OpenAI-compatible REST endpoints for LLM inference.
+ * Any device on the network can connect with curl, Python, or the OpenAI SDK.
  * =============================================================================*/
 
 #include "kernel/core/kernel.h"
+#include "kernel/core/perf.h"
 #include "kernel/drivers/net/virtio_net.h"
 #include "kernel/net/netstack.h"
+#include "runtime/nn/llm.h"
 
 /* =============================================================================
  * State
@@ -22,7 +30,9 @@ static uint64_t stat_arp_rep;
 static uint64_t stat_ip_rx;
 static uint64_t stat_udp_rx;
 static uint64_t stat_icmp_rx;
+static uint64_t stat_tcp_rx;
 static uint64_t stat_http_req;
+static uint64_t stat_http_infer;
 
 /* UDP port handlers */
 #define MAX_UDP_HANDLERS 16
@@ -32,8 +42,16 @@ static struct {
 } udp_handlers[MAX_UDP_HANDLERS];
 static int n_udp_handlers;
 
+/* TCP connections */
+static tcp_conn_t tcp_conns[TCP_MAX_CONNS];
+static uint16_t tcp_listen_port;
+static uint32_t tcp_isn_counter = 0x10000; /* Initial sequence number counter */
+
 /* TX frame buffer */
 static uint8_t tx_frame[2048] __attribute__((aligned(16)));
+
+/* IP identification counter */
+static uint16_t ip_id_counter = 1;
 
 /* =============================================================================
  * IP checksum
@@ -48,6 +66,33 @@ static uint16_t ip_checksum(const void *data, uint32_t len)
         len -= 2;
     }
     if (len == 1) sum += *(const uint8_t *)p;
+    sum = (sum >> 16) + (sum & 0xFFFF);
+    sum += (sum >> 16);
+    return (uint16_t)(~sum);
+}
+
+/* TCP pseudo-header checksum */
+static uint16_t tcp_checksum(const uint8_t src[4], const uint8_t dst[4],
+                             const void *tcp_segment, uint32_t tcp_len)
+{
+    uint32_t sum = 0;
+    /* Pseudo-header: src IP, dst IP, zero, protocol, TCP length */
+    sum += ((uint16_t)src[0] << 8) | src[1];
+    sum += ((uint16_t)src[2] << 8) | src[3];
+    sum += ((uint16_t)dst[0] << 8) | dst[1];
+    sum += ((uint16_t)dst[2] << 8) | dst[3];
+    sum += IP_PROTO_TCP;
+    sum += tcp_len;
+
+    /* TCP segment data */
+    const uint16_t *p = (const uint16_t *)tcp_segment;
+    uint32_t remaining = tcp_len;
+    while (remaining > 1) {
+        sum += *p++;
+        remaining -= 2;
+    }
+    if (remaining == 1) sum += *(const uint8_t *)p;
+
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
     return (uint16_t)(~sum);
@@ -74,19 +119,167 @@ __attribute__((unused))
 static const uint8_t zero_mac[6] = {0,0,0,0,0,0};
 
 /* =============================================================================
+ * String helpers for HTTP parsing
+ * =============================================================================*/
+
+static int str_starts_with(const char *str, const char *prefix)
+{
+    while (*prefix) {
+        if (*str != *prefix) return 0;
+        str++; prefix++;
+    }
+    return 1;
+}
+
+static int str_find(const char *haystack, int haystack_len,
+                    const char *needle)
+{
+    int nlen = 0;
+    while (needle[nlen]) nlen++;
+    for (int i = 0; i <= haystack_len - nlen; i++) {
+        int match = 1;
+        for (int j = 0; j < nlen; j++) {
+            if (haystack[i + j] != needle[j]) { match = 0; break; }
+        }
+        if (match) return i;
+    }
+    return -1;
+}
+
+/* Find Content-Length in HTTP headers */
+static int http_content_length(const char *headers, int len)
+{
+    int pos = str_find(headers, len, "Content-Length:");
+    if (pos < 0) pos = str_find(headers, len, "content-length:");
+    if (pos < 0) return -1;
+    pos += 15; /* skip "Content-Length:" */
+    while (pos < len && headers[pos] == ' ') pos++;
+    int val = 0;
+    while (pos < len && headers[pos] >= '0' && headers[pos] <= '9') {
+        val = val * 10 + (headers[pos] - '0');
+        pos++;
+    }
+    return val;
+}
+
+/* Extract JSON string value for a key: "key": "value" */
+static int json_get_string(const char *json, int json_len,
+                           const char *key, char *out, int out_max)
+{
+    int klen = 0;
+    while (key[klen]) klen++;
+
+    for (int i = 0; i < json_len - klen - 4; i++) {
+        if (json[i] == '"') {
+            int match = 1;
+            for (int j = 0; j < klen; j++) {
+                if (json[i + 1 + j] != key[j]) { match = 0; break; }
+            }
+            if (match && json[i + 1 + klen] == '"') {
+                int vi = i + 1 + klen + 1;
+                while (vi < json_len && (json[vi] == ':' || json[vi] == ' '))
+                    vi++;
+                if (vi < json_len && json[vi] == '"') {
+                    vi++;
+                    int oi = 0;
+                    while (vi < json_len && json[vi] != '"' && oi < out_max - 1) {
+                        if (json[vi] == '\\' && vi + 1 < json_len) {
+                            vi++;
+                            if (json[vi] == 'n') out[oi++] = '\n';
+                            else out[oi++] = json[vi];
+                        } else {
+                            out[oi++] = json[vi];
+                        }
+                        vi++;
+                    }
+                    out[oi] = '\0';
+                    return oi;
+                }
+            }
+        }
+    }
+    out[0] = '\0';
+    return 0;
+}
+
+/* Extract "messages" content from chat completion request */
+static int json_extract_chat_prompt(const char *json, int json_len,
+                                    char *out, int out_max)
+{
+    int oi = 0;
+    int pos = str_find(json, json_len, "\"messages\"");
+    if (pos < 0) return 0;
+
+    for (int i = pos; i < json_len - 12 && oi < out_max - 2; i++) {
+        if (json[i] == 'c' && str_starts_with(json + i, "content")) {
+            int ci = i + 7;
+            while (ci < json_len && (json[ci] == '"' || json[ci] == ':' ||
+                   json[ci] == ' ')) ci++;
+            if (ci < json_len && json[ci] == '"') {
+                ci++;
+                if (oi > 0 && oi < out_max - 1) out[oi++] = '\n';
+                while (ci < json_len && json[ci] != '"' && oi < out_max - 1) {
+                    if (json[ci] == '\\' && ci + 1 < json_len) {
+                        ci++;
+                        if (json[ci] == 'n') out[oi++] = '\n';
+                        else out[oi++] = json[ci];
+                    } else {
+                        out[oi++] = json[ci];
+                    }
+                    ci++;
+                }
+                i = ci;
+            }
+        }
+    }
+    out[oi] = '\0';
+    return oi;
+}
+
+/* Extract integer value for JSON key */
+static int json_get_int(const char *json, int json_len,
+                        const char *key, int default_val)
+{
+    int klen = 0;
+    while (key[klen]) klen++;
+
+    for (int i = 0; i < json_len - klen - 3; i++) {
+        if (json[i] == '"') {
+            int match = 1;
+            for (int j = 0; j < klen; j++) {
+                if (json[i + 1 + j] != key[j]) { match = 0; break; }
+            }
+            if (match && json[i + 1 + klen] == '"') {
+                int vi = i + 1 + klen + 1;
+                while (vi < json_len && (json[vi] == ':' || json[vi] == ' '))
+                    vi++;
+                int val = 0;
+                int neg = 0;
+                if (vi < json_len && json[vi] == '-') { neg = 1; vi++; }
+                int found = 0;
+                while (vi < json_len && json[vi] >= '0' && json[vi] <= '9') {
+                    val = val * 10 + (json[vi] - '0');
+                    vi++; found = 1;
+                }
+                if (found) return neg ? -val : val;
+            }
+        }
+    }
+    return default_val;
+}
+
+/* =============================================================================
  * ARP cache
  * =============================================================================*/
 
 static void arp_cache_add(const uint8_t ip[4], const uint8_t mac[6])
 {
-    /* Check if already exists */
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (arp_cache[i].valid && ip_eq(arp_cache[i].ip, ip)) {
             kmemcpy(arp_cache[i].mac, mac, 6);
             return;
         }
     }
-    /* Find empty slot */
     for (int i = 0; i < ARP_CACHE_SIZE; i++) {
         if (!arp_cache[i].valid) {
             kmemcpy(arp_cache[i].ip, ip, 4);
@@ -95,7 +288,6 @@ static void arp_cache_add(const uint8_t ip[4], const uint8_t mac[6])
             return;
         }
     }
-    /* Cache full — overwrite first entry */
     kmemcpy(arp_cache[0].ip, ip, 4);
     kmemcpy(arp_cache[0].mac, mac, 6);
 }
@@ -138,31 +330,26 @@ static void handle_arp(const uint8_t *frame, uint32_t len)
     const struct arp_hdr *arp = (const struct arp_hdr *)(frame + 14);
 
     uint16_t op = ntohs(arp->opcode);
-
-    /* Always learn sender */
     arp_cache_add(arp->sender_ip, arp->sender_mac);
 
-    if (op == 1) { /* ARP Request */
+    if (op == 1) {
         stat_arp_req++;
-        /* Is this for our IP? */
         if (!ip_eq(arp->target_ip, net_cfg.ip)) return;
 
-        /* Build ARP reply */
         struct arp_hdr reply;
         reply.hw_type = htons(1);
         reply.proto_type = htons(0x0800);
         reply.hw_len = 6;
         reply.proto_len = 4;
-        reply.opcode = htons(2); /* Reply */
+        reply.opcode = htons(2);
         kmemcpy(reply.sender_mac, net_cfg.mac, 6);
         kmemcpy(reply.sender_ip, net_cfg.ip, 4);
         kmemcpy(reply.target_mac, arp->sender_mac, 6);
         kmemcpy(reply.target_ip, arp->sender_ip, 4);
-
         send_eth(arp->sender_mac, ETH_TYPE_ARP, &reply, sizeof(reply));
         stat_arp_rep++;
     }
-    else if (op == 2) { /* ARP Reply — already cached above */
+    else if (op == 2) {
         stat_arp_rep++;
     }
 }
@@ -181,17 +368,15 @@ static void handle_icmp(const uint8_t *ip_pkt, uint32_t ip_len,
     stat_icmp_rx++;
 
     if (icmp->type == 8 && icmp->code == 0) {
-        /* Echo request — build echo reply */
         uint32_t icmp_total = ip_len - hdr_len;
         uint8_t reply_buf[1500];
         if (icmp_total > sizeof(reply_buf)) return;
 
         kmemcpy(reply_buf, icmp, icmp_total);
         struct icmp_hdr *rep = (struct icmp_hdr *)reply_buf;
-        rep->type = 0; /* Echo reply */
+        rep->type = 0;
         rep->checksum = 0;
         rep->checksum = ip_checksum(reply_buf, icmp_total);
-
         netstack_send_ip(iph->src, IP_PROTO_ICMP, reply_buf, icmp_total);
     }
 }
@@ -214,7 +399,6 @@ static void handle_udp(const uint8_t *ip_pkt, uint32_t ip_len,
 
     stat_udp_rx++;
 
-    /* Dispatch to registered handler */
     for (int i = 0; i < n_udp_handlers; i++) {
         if (udp_handlers[i].port == dst_port && udp_handlers[i].handler) {
             udp_handlers[i].handler(iph->src, src_port, udp_data, udp_data_len);
@@ -224,7 +408,282 @@ static void handle_udp(const uint8_t *ip_pkt, uint32_t ip_len,
 }
 
 /* =============================================================================
- * IP handler
+ * TCP Implementation
+ * =============================================================================*/
+
+static tcp_conn_t *tcp_find_conn(const uint8_t ip[4], uint16_t local_port,
+                                 uint16_t remote_port)
+{
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (tcp_conns[i].state != TCP_STATE_CLOSED &&
+            ip_eq(tcp_conns[i].remote_ip, ip) &&
+            tcp_conns[i].local_port == local_port &&
+            tcp_conns[i].remote_port == remote_port)
+            return &tcp_conns[i];
+    }
+    return NULL;
+}
+
+static tcp_conn_t *tcp_alloc_conn(void)
+{
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (tcp_conns[i].state == TCP_STATE_CLOSED)
+            return &tcp_conns[i];
+    }
+    /* Reclaim TIME_WAIT connections */
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (tcp_conns[i].state == TCP_STATE_TIME_WAIT) {
+            kmemset(&tcp_conns[i], 0, sizeof(tcp_conn_t));
+            return &tcp_conns[i];
+        }
+    }
+    return NULL;
+}
+
+/* Send a TCP segment with given flags and optional data */
+int netstack_tcp_send(tcp_conn_t *conn, uint8_t flags,
+                      const void *data, uint32_t len)
+{
+    uint8_t pkt[1500];
+    uint32_t tcp_hdr_len = 20;
+
+    if (len + tcp_hdr_len > 1460) len = 1460;
+
+    struct tcp_hdr *tcp = (struct tcp_hdr *)pkt;
+    tcp->src_port = htons(conn->local_port);
+    tcp->dst_port = htons(conn->remote_port);
+    tcp->seq = htonl(conn->snd_nxt);
+    tcp->ack = htonl(conn->rcv_nxt);
+    tcp->data_off = (uint8_t)((tcp_hdr_len / 4) << 4);
+    tcp->flags = flags;
+    tcp->window = htons((uint16_t)(TCP_RX_BUF_SIZE - conn->rx_len));
+    tcp->checksum = 0;
+    tcp->urgent = 0;
+
+    if (data && len > 0)
+        kmemcpy(pkt + tcp_hdr_len, data, len);
+
+    tcp->checksum = tcp_checksum(net_cfg.ip, conn->remote_ip,
+                                 pkt, tcp_hdr_len + len);
+
+    conn->snd_nxt += len;
+    if (flags & (TCP_SYN | TCP_FIN)) conn->snd_nxt++;
+
+    return netstack_send_ip(conn->remote_ip, IP_PROTO_TCP,
+                            pkt, tcp_hdr_len + len);
+}
+
+/* Send a TCP RST to reject a connection */
+static void tcp_send_rst(const uint8_t *ip_pkt, const struct ip_hdr *iph,
+                         const struct tcp_hdr *in_tcp)
+{
+    uint8_t pkt[40];
+    struct tcp_hdr *tcp = (struct tcp_hdr *)pkt;
+    tcp->src_port = in_tcp->dst_port;
+    tcp->dst_port = in_tcp->src_port;
+    tcp->seq = in_tcp->ack;
+    tcp->ack = htonl(ntohl(in_tcp->seq) + 1);
+    tcp->data_off = (20 / 4) << 4;
+    tcp->flags = TCP_RST | TCP_ACK;
+    tcp->window = 0;
+    tcp->checksum = 0;
+    tcp->urgent = 0;
+    tcp->checksum = tcp_checksum(net_cfg.ip, iph->src, pkt, 20);
+    netstack_send_ip(iph->src, IP_PROTO_TCP, pkt, 20);
+}
+
+/* Forward declaration */
+static void http_handle_request(tcp_conn_t *conn);
+
+static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
+                       const struct ip_hdr *iph)
+{
+    uint32_t hdr_len = (iph->version_ihl & 0x0F) * 4;
+    if (ip_len < hdr_len + sizeof(struct tcp_hdr)) return;
+
+    const struct tcp_hdr *tcp = (const struct tcp_hdr *)(ip_pkt + hdr_len);
+    uint16_t dst_port = ntohs(tcp->dst_port);
+    uint16_t src_port = ntohs(tcp->src_port);
+    uint32_t tcp_hdr_len = ((uint32_t)(tcp->data_off >> 4)) * 4;
+    uint32_t payload_len = ip_len - hdr_len - tcp_hdr_len;
+    const uint8_t *payload = ip_pkt + hdr_len + tcp_hdr_len;
+    uint32_t seq = ntohl(tcp->seq);
+    uint32_t ack = ntohl(tcp->ack);
+
+    stat_tcp_rx++;
+
+    /* Find existing connection */
+    tcp_conn_t *conn = tcp_find_conn(iph->src, dst_port, src_port);
+
+    /* New SYN on listen port? */
+    if (!conn && (tcp->flags & TCP_SYN) && !(tcp->flags & TCP_ACK)) {
+        if (dst_port != tcp_listen_port || !net_cfg.server_running) {
+            tcp_send_rst(ip_pkt, iph, tcp);
+            return;
+        }
+
+        conn = tcp_alloc_conn();
+        if (!conn) {
+            tcp_send_rst(ip_pkt, iph, tcp);
+            return;
+        }
+
+        /* Initialize connection */
+        kmemcpy(conn->remote_ip, iph->src, 4);
+        conn->local_port = dst_port;
+        conn->remote_port = src_port;
+        conn->rcv_nxt = seq + 1;
+        conn->snd_nxt = tcp_isn_counter;
+        tcp_isn_counter += 64000;
+        conn->snd_una = conn->snd_nxt;
+        conn->remote_win = ntohs(tcp->window);
+        conn->rx_len = 0;
+        conn->tx_len = 0;
+        conn->http_request_complete = 0;
+        conn->state = TCP_STATE_SYN_RCVD;
+
+        /* Send SYN+ACK */
+        netstack_tcp_send(conn, TCP_SYN | TCP_ACK, NULL, 0);
+        return;
+    }
+
+    if (!conn) {
+        if (!(tcp->flags & TCP_RST))
+            tcp_send_rst(ip_pkt, iph, tcp);
+        return;
+    }
+
+    /* Handle RST */
+    if (tcp->flags & TCP_RST) {
+        conn->state = TCP_STATE_CLOSED;
+        return;
+    }
+
+    /* State machine */
+    switch (conn->state) {
+    case TCP_STATE_SYN_RCVD:
+        if (tcp->flags & TCP_ACK) {
+            conn->snd_una = ack;
+            conn->state = TCP_STATE_ESTABLISHED;
+        }
+        break;
+
+    case TCP_STATE_ESTABLISHED:
+        if (tcp->flags & TCP_ACK) {
+            conn->snd_una = ack;
+        }
+
+        /* Process incoming data */
+        if (payload_len > 0 && seq == conn->rcv_nxt) {
+            uint32_t space = TCP_RX_BUF_SIZE - conn->rx_len;
+            uint32_t copy = payload_len < space ? payload_len : space;
+            if (copy > 0) {
+                kmemcpy(conn->rx_buf + conn->rx_len, payload, copy);
+                conn->rx_len += copy;
+                conn->rcv_nxt += copy;
+            }
+
+            /* Send ACK */
+            netstack_tcp_send(conn, TCP_ACK, NULL, 0);
+
+            /* Check if we have a complete HTTP request */
+            if (!conn->http_request_complete) {
+                int hdr_end_pos = str_find((const char *)conn->rx_buf,
+                                       (int)conn->rx_len, "\r\n\r\n");
+                if (hdr_end_pos >= 0) {
+                    int body_start = hdr_end_pos + 4;
+                    int clen = http_content_length(
+                        (const char *)conn->rx_buf, hdr_end_pos);
+                    if (clen <= 0 ||
+                        (int)(conn->rx_len - body_start) >= clen) {
+                        conn->http_request_complete = 1;
+                    }
+                }
+            }
+
+            /* Process complete HTTP request */
+            if (conn->http_request_complete) {
+                http_handle_request(conn);
+            }
+        }
+
+        /* Handle FIN */
+        if (tcp->flags & TCP_FIN) {
+            conn->rcv_nxt++;
+            netstack_tcp_send(conn, TCP_ACK, NULL, 0);
+            conn->state = TCP_STATE_CLOSE_WAIT;
+            netstack_tcp_send(conn, TCP_FIN | TCP_ACK, NULL, 0);
+            conn->state = TCP_STATE_LAST_ACK;
+        }
+        break;
+
+    case TCP_STATE_FIN_WAIT_1:
+        if (tcp->flags & TCP_ACK) {
+            conn->snd_una = ack;
+            if (tcp->flags & TCP_FIN) {
+                conn->rcv_nxt++;
+                netstack_tcp_send(conn, TCP_ACK, NULL, 0);
+                conn->state = TCP_STATE_TIME_WAIT;
+            } else {
+                conn->state = TCP_STATE_FIN_WAIT_2;
+            }
+        }
+        break;
+
+    case TCP_STATE_FIN_WAIT_2:
+        if (tcp->flags & TCP_FIN) {
+            conn->rcv_nxt++;
+            netstack_tcp_send(conn, TCP_ACK, NULL, 0);
+            conn->state = TCP_STATE_TIME_WAIT;
+        }
+        break;
+
+    case TCP_STATE_LAST_ACK:
+        if (tcp->flags & TCP_ACK) {
+            conn->state = TCP_STATE_CLOSED;
+        }
+        break;
+
+    case TCP_STATE_TIME_WAIT:
+        conn->state = TCP_STATE_CLOSED;
+        break;
+
+    default:
+        break;
+    }
+}
+
+/* Write data to TCP connection and transmit */
+int tcp_conn_write(tcp_conn_t *conn, const void *data, uint32_t len)
+{
+    if (!conn || conn->state != TCP_STATE_ESTABLISHED) return -1;
+
+    const uint8_t *p = (const uint8_t *)data;
+    uint32_t sent = 0;
+
+    while (sent < len) {
+        uint32_t chunk = len - sent;
+        if (chunk > 1400) chunk = 1400;
+        netstack_tcp_send(conn, TCP_ACK | TCP_PSH, p + sent, chunk);
+        sent += chunk;
+    }
+    return (int)sent;
+}
+
+/* Close TCP connection */
+void tcp_conn_close(tcp_conn_t *conn)
+{
+    if (!conn) return;
+    if (conn->state == TCP_STATE_ESTABLISHED) {
+        netstack_tcp_send(conn, TCP_FIN | TCP_ACK, NULL, 0);
+        conn->state = TCP_STATE_FIN_WAIT_1;
+    } else {
+        conn->state = TCP_STATE_CLOSED;
+    }
+}
+
+/* =============================================================================
+ * IP handler (dispatch to ICMP, UDP, TCP)
  * =============================================================================*/
 
 static void handle_ip(const uint8_t *frame, uint32_t len)
@@ -232,10 +691,8 @@ static void handle_ip(const uint8_t *frame, uint32_t len)
     if (len < 14 + sizeof(struct ip_hdr)) return;
     const struct ip_hdr *iph = (const struct ip_hdr *)(frame + 14);
 
-    /* Verify it's IPv4 */
     if ((iph->version_ihl >> 4) != 4) return;
 
-    /* Verify it's for us (or broadcast) */
     uint8_t bcast[4] = {255,255,255,255};
     if (!ip_eq(iph->dst, net_cfg.ip) && !ip_eq(iph->dst, bcast)) return;
 
@@ -250,9 +707,486 @@ static void handle_ip(const uint8_t *frame, uint32_t len)
     case IP_PROTO_UDP:
         handle_udp(ip_pkt, ip_total, iph);
         break;
+    case IP_PROTO_TCP:
+        handle_tcp(ip_pkt, ip_total, iph);
+        break;
     default:
         break;
     }
+}
+
+/* =============================================================================
+ * OpenAI-compatible HTTP API Server
+ *
+ * Endpoints:
+ *   GET  /v1/models            — List available models
+ *   POST /v1/completions       — Text completion (OpenAI compat)
+ *   POST /v1/chat/completions  — Chat completion (OpenAI compat)
+ *   GET  /health               — Health check
+ *   GET  /                     — Quick-start guide
+ *
+ * CORS headers included for browser clients.
+ * =============================================================================*/
+
+static char http_resp[32768];
+static char llm_output_buf[8192];
+
+static void http_send_response(tcp_conn_t *conn, int status,
+                               const char *status_text,
+                               const char *content_type,
+                               const char *body, int body_len)
+{
+    int pos = 0;
+    pos += kprintf_to_buf(http_resp + pos, (int)sizeof(http_resp) - pos,
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %d\r\n"
+        "Connection: close\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+        "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+        "Server: TensorOS/0.1.0\r\n"
+        "\r\n",
+        status, status_text, content_type, body_len);
+
+    tcp_conn_write(conn, http_resp, pos);
+
+    if (body && body_len > 0) {
+        tcp_conn_write(conn, body, body_len);
+    }
+}
+
+static void http_send_json(tcp_conn_t *conn, int status,
+                           const char *status_text,
+                           const char *json, int json_len)
+{
+    http_send_response(conn, status, status_text,
+                       "application/json", json, json_len);
+}
+
+/* Escape string for JSON */
+static int json_escape(char *out, int out_max, const char *in, int in_len)
+{
+    int oi = 0;
+    for (int i = 0; i < in_len && oi < out_max - 2; i++) {
+        switch (in[i]) {
+        case '"':  if (oi + 2 < out_max) { out[oi++] = '\\'; out[oi++] = '"'; } break;
+        case '\\': if (oi + 2 < out_max) { out[oi++] = '\\'; out[oi++] = '\\'; } break;
+        case '\n': if (oi + 2 < out_max) { out[oi++] = '\\'; out[oi++] = 'n'; } break;
+        case '\r': if (oi + 2 < out_max) { out[oi++] = '\\'; out[oi++] = 'r'; } break;
+        case '\t': if (oi + 2 < out_max) { out[oi++] = '\\'; out[oi++] = 't'; } break;
+        default:
+            if ((unsigned char)in[i] >= 0x20) out[oi++] = in[i];
+            break;
+        }
+    }
+    out[oi] = '\0';
+    return oi;
+}
+
+/* GET /v1/models */
+static void api_list_models(tcp_conn_t *conn)
+{
+    char body[2048];
+    int pos = 0;
+
+    if (llm_is_loaded()) {
+        const char *name = llm_model_name();
+        char escaped_name[256];
+        int nlen = 0;
+        while (name[nlen]) nlen++;
+        json_escape(escaped_name, (int)sizeof(escaped_name), name, nlen);
+
+        pos += kprintf_to_buf(body + pos, (int)sizeof(body) - pos,
+            "{\"object\":\"list\",\"data\":[{"
+            "\"id\":\"%s\","
+            "\"object\":\"model\","
+            "\"created\":1709500800,"
+            "\"owned_by\":\"tensoros\","
+            "\"permission\":[],"
+            "\"root\":\"%s\","
+            "\"parent\":null"
+            "}]}",
+            escaped_name, escaped_name);
+    } else {
+        pos += kprintf_to_buf(body + pos, (int)sizeof(body) - pos,
+            "{\"object\":\"list\",\"data\":[]}");
+    }
+
+    http_send_json(conn, 200, "OK", body, pos);
+}
+
+/* GET /health */
+static void api_health(tcp_conn_t *conn)
+{
+    char body[512];
+    int pos = kprintf_to_buf(body, (int)sizeof(body),
+        "{\"status\":\"ok\",\"model_loaded\":%s,"
+        "\"model\":\"%s\","
+        "\"uptime_ms\":%u,"
+        "\"cpus\":%u}",
+        llm_is_loaded() ? "true" : "false",
+        llm_is_loaded() ? llm_model_name() : "none",
+        watchdog_uptime_ms(),
+        kstate.cpu_count);
+    http_send_json(conn, 200, "OK", body, pos);
+}
+
+/* POST /v1/completions */
+static void api_completions(tcp_conn_t *conn, const char *body_json, int body_len)
+{
+    stat_http_infer++;
+
+    if (!llm_is_loaded()) {
+        const char *err = "{\"error\":{\"message\":\"No model loaded. "
+                          "Attach a GGUF model file to load.\","
+                          "\"type\":\"model_error\",\"code\":\"model_not_loaded\"}}";
+        int elen = 0; while (err[elen]) elen++;
+        http_send_json(conn, 503, "Service Unavailable", err, elen);
+        return;
+    }
+
+    char prompt[4096];
+    int plen = json_get_string(body_json, body_len, "prompt", prompt, (int)sizeof(prompt));
+    if (plen == 0) {
+        const char *err = "{\"error\":{\"message\":\"Missing 'prompt' field\","
+                          "\"type\":\"invalid_request\",\"code\":\"missing_prompt\"}}";
+        int elen = 0; while (err[elen]) elen++;
+        http_send_json(conn, 400, "Bad Request", err, elen);
+        return;
+    }
+
+    int max_tokens = json_get_int(body_json, body_len, "max_tokens", 128);
+    if (max_tokens > 2048) max_tokens = 2048;
+    if (max_tokens < 1) max_tokens = 128;
+
+    kprintf("[API] Completion: prompt=%d chars, max_tokens=%d\n", plen, max_tokens);
+
+    llm_reset_cache();
+
+    uint64_t start = rdtsc_fenced();
+    int ntokens = llm_prompt(prompt, llm_output_buf, (int)sizeof(llm_output_buf));
+    uint64_t elapsed = rdtsc_fenced() - start;
+    uint32_t ms = (uint32_t)(perf_cycles_to_us(elapsed) / 1000);
+
+    if (ntokens < 0) ntokens = 0;
+    int olen = 0;
+    while (llm_output_buf[olen]) olen++;
+
+    char escaped_output[16384];
+    int escaped_len = json_escape(escaped_output, (int)sizeof(escaped_output),
+                                  llm_output_buf, olen);
+
+    char resp[24576];
+    int rpos = kprintf_to_buf(resp, (int)sizeof(resp),
+        "{\"id\":\"cmpl-tensoros-%u\","
+        "\"object\":\"text_completion\","
+        "\"created\":%u,"
+        "\"model\":\"%s\","
+        "\"choices\":[{"
+        "\"text\":\"%s\","
+        "\"index\":0,"
+        "\"logprobs\":null,"
+        "\"finish_reason\":\"%s\""
+        "}],"
+        "\"usage\":{"
+        "\"prompt_tokens\":%d,"
+        "\"completion_tokens\":%d,"
+        "\"total_tokens\":%d"
+        "},"
+        "\"timing\":{"
+        "\"total_ms\":%u,"
+        "\"tokens_per_sec\":%u"
+        "}}",
+        (uint32_t)(stat_http_infer & 0xFFFFFFFF),
+        watchdog_uptime_ms() / 1000,
+        llm_model_name(),
+        escaped_output,
+        ntokens > 0 ? "stop" : "length",
+        plen > 0 ? 1 : 0,
+        ntokens,
+        (plen > 0 ? 1 : 0) + ntokens,
+        ms,
+        ms > 0 ? (uint32_t)((uint64_t)ntokens * 1000 / ms) : 0);
+
+    kprintf("[API] Generated %d tokens in %u ms\n", ntokens, ms);
+    http_send_json(conn, 200, "OK", resp, rpos);
+    (void)escaped_len;
+}
+
+/* POST /v1/chat/completions */
+static void api_chat_completions(tcp_conn_t *conn, const char *body_json, int body_len)
+{
+    stat_http_infer++;
+
+    if (!llm_is_loaded()) {
+        const char *err = "{\"error\":{\"message\":\"No model loaded.\","
+                          "\"type\":\"model_error\",\"code\":\"model_not_loaded\"}}";
+        int elen = 0; while (err[elen]) elen++;
+        http_send_json(conn, 503, "Service Unavailable", err, elen);
+        return;
+    }
+
+    char prompt[4096];
+    int plen = json_extract_chat_prompt(body_json, body_len, prompt, (int)sizeof(prompt));
+    if (plen == 0) {
+        plen = json_get_string(body_json, body_len, "prompt", prompt, (int)sizeof(prompt));
+    }
+    if (plen == 0) {
+        const char *err = "{\"error\":{\"message\":\"Missing 'messages' array\","
+                          "\"type\":\"invalid_request\",\"code\":\"missing_messages\"}}";
+        int elen = 0; while (err[elen]) elen++;
+        http_send_json(conn, 400, "Bad Request", err, elen);
+        return;
+    }
+
+    int max_tokens = json_get_int(body_json, body_len, "max_tokens", 128);
+    if (max_tokens > 2048) max_tokens = 2048;
+    if (max_tokens < 1) max_tokens = 128;
+
+    kprintf("[API] Chat: prompt=%d chars, max_tokens=%d\n", plen, max_tokens);
+
+    llm_reset_cache();
+
+    uint64_t start = rdtsc_fenced();
+    int ntokens = llm_prompt(prompt, llm_output_buf, (int)sizeof(llm_output_buf));
+    uint64_t elapsed = rdtsc_fenced() - start;
+    uint32_t ms = (uint32_t)(perf_cycles_to_us(elapsed) / 1000);
+
+    if (ntokens < 0) ntokens = 0;
+    int olen = 0;
+    while (llm_output_buf[olen]) olen++;
+
+    char escaped_output[16384];
+    int escaped_len = json_escape(escaped_output, (int)sizeof(escaped_output),
+                                  llm_output_buf, olen);
+
+    char resp[24576];
+    int rpos = kprintf_to_buf(resp, (int)sizeof(resp),
+        "{\"id\":\"chatcmpl-tensoros-%u\","
+        "\"object\":\"chat.completion\","
+        "\"created\":%u,"
+        "\"model\":\"%s\","
+        "\"choices\":[{"
+        "\"index\":0,"
+        "\"message\":{"
+        "\"role\":\"assistant\","
+        "\"content\":\"%s\""
+        "},"
+        "\"finish_reason\":\"%s\""
+        "}],"
+        "\"usage\":{"
+        "\"prompt_tokens\":%d,"
+        "\"completion_tokens\":%d,"
+        "\"total_tokens\":%d"
+        "},"
+        "\"timing\":{"
+        "\"total_ms\":%u,"
+        "\"tokens_per_sec\":%u"
+        "}}",
+        (uint32_t)(stat_http_infer & 0xFFFFFFFF),
+        watchdog_uptime_ms() / 1000,
+        llm_model_name(),
+        escaped_output,
+        ntokens > 0 ? "stop" : "length",
+        plen > 0 ? 1 : 0,
+        ntokens,
+        (plen > 0 ? 1 : 0) + ntokens,
+        ms,
+        ms > 0 ? (uint32_t)((uint64_t)ntokens * 1000 / ms) : 0);
+
+    kprintf("[API] Chat generated %d tokens in %u ms\n", ntokens, ms);
+    http_send_json(conn, 200, "OK", resp, rpos);
+    (void)escaped_len;
+}
+
+/* GET / — Welcome & quick-start guide */
+static void api_welcome(tcp_conn_t *conn)
+{
+    char body[4096];
+    int pos = kprintf_to_buf(body, (int)sizeof(body),
+        "{\"name\":\"TensorOS LLM API\","
+        "\"version\":\"0.1.0\","
+        "\"description\":\"OpenAI-compatible bare-metal inference server\","
+        "\"model\":\"%s\","
+        "\"endpoints\":{"
+        "\"/v1/models\":\"GET - List loaded models\","
+        "\"/v1/completions\":\"POST - Text completion\","
+        "\"/v1/chat/completions\":\"POST - Chat completion (OpenAI format)\","
+        "\"/health\":\"GET - Health check\""
+        "},"
+        "\"quickstart\":{"
+        "\"curl\":\"curl http://%u.%u.%u.%u:%u/v1/models\","
+        "\"python\":\"from openai import OpenAI; "
+        "c = OpenAI(base_url='http://%u.%u.%u.%u:%u/v1', api_key='tensoros'); "
+        "r = c.chat.completions.create(model='default', "
+        "messages=[{'role':'user','content':'Hello'}])\""
+        "}}",
+        llm_is_loaded() ? llm_model_name() : "none",
+        net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+        net_cfg.http_port,
+        net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+        net_cfg.http_port);
+
+    http_send_json(conn, 200, "OK", body, pos);
+}
+
+/* CORS preflight */
+static void api_options(tcp_conn_t *conn)
+{
+    http_send_response(conn, 204, "No Content", "text/plain", NULL, 0);
+}
+
+/* 404 */
+static void api_not_found(tcp_conn_t *conn)
+{
+    char body[512];
+    int pos = kprintf_to_buf(body, (int)sizeof(body),
+        "{\"error\":{\"message\":\"Not found. Available: "
+        "/v1/models, /v1/completions, /v1/chat/completions, /health\","
+        "\"type\":\"not_found\",\"code\":404}}");
+    http_send_json(conn, 404, "Not Found", body, pos);
+}
+
+/* Parse and route HTTP request */
+static void http_handle_request(tcp_conn_t *conn)
+{
+    stat_http_req++;
+    const char *req = (const char *)conn->rx_buf;
+    int req_len = (int)conn->rx_len;
+
+    /* Parse method and path */
+    int method_end = 0;
+    while (method_end < req_len && req[method_end] != ' ') method_end++;
+    int path_start = method_end + 1;
+    int path_end = path_start;
+    while (path_end < req_len && req[path_end] != ' ' && req[path_end] != '?')
+        path_end++;
+    int path_len = path_end - path_start;
+
+    /* Find body (after \r\n\r\n) */
+    int hdr_end = str_find(req, req_len, "\r\n\r\n");
+    const char *body = NULL;
+    int body_len = 0;
+    if (hdr_end >= 0) {
+        body = req + hdr_end + 4;
+        body_len = req_len - (hdr_end + 4);
+    }
+
+    int is_get = (method_end == 3 &&
+                  req[0] == 'G' && req[1] == 'E' && req[2] == 'T');
+    int is_post = (method_end == 4 &&
+                   req[0] == 'P' && req[1] == 'O' && req[2] == 'S' &&
+                   req[3] == 'T');
+    int is_options = (method_end >= 7 &&
+                      req[0] == 'O' && req[1] == 'P' && req[2] == 'T');
+
+    kprintf("[HTTP] %.*s %.*s (%d bytes body)\n",
+            method_end, req, path_len, req + path_start, body_len);
+
+    /* Route requests */
+    if (is_options) {
+        api_options(conn);
+    }
+    else if (is_get && path_len == 1 && req[path_start] == '/') {
+        api_welcome(conn);
+    }
+    else if (is_get && path_len >= 7 &&
+             str_starts_with(req + path_start, "/health")) {
+        api_health(conn);
+    }
+    else if (is_get && path_len >= 10 &&
+             str_starts_with(req + path_start, "/v1/models")) {
+        api_list_models(conn);
+    }
+    else if (is_post && path_len >= 20 &&
+             str_starts_with(req + path_start, "/v1/chat/completions")) {
+        api_chat_completions(conn, body, body_len);
+    }
+    else if (is_post && path_len >= 15 &&
+             str_starts_with(req + path_start, "/v1/completions")) {
+        api_completions(conn, body, body_len);
+    }
+    else {
+        api_not_found(conn);
+    }
+
+    /* Close connection after response (HTTP/1.0 style) */
+    tcp_conn_close(conn);
+    (void)is_post;
+}
+
+/* =============================================================================
+ * Legacy UDP handler (backward compat)
+ * =============================================================================*/
+
+static void inference_udp_handler(const uint8_t src_ip[4], uint16_t src_port,
+                                  const uint8_t *data, uint32_t len)
+{
+    stat_http_req++;
+
+    if (len >= 4 && data[0] == 'P' && data[1] == 'I' &&
+        data[2] == 'N' && data[3] == 'G') {
+        const char *resp = "PONG TensorOS v0.1.0 Neuron\n";
+        netstack_send_udp(src_ip, net_cfg.http_port, src_port,
+                          resp, kstrlen(resp));
+        return;
+    }
+
+    if (len >= 4 && data[0] == 'I' && data[1] == 'N' &&
+        data[2] == 'F' && data[3] == 'O') {
+        char info[512];
+        int pos = kprintf_to_buf(info, (int)sizeof(info),
+            "{\"os\":\"TensorOS\",\"version\":\"0.1.0\","
+            "\"model\":\"%s\","
+            "\"api\":\"http://%u.%u.%u.%u:%u/v1\"}\n",
+            llm_is_loaded() ? llm_model_name() : "none",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.http_port);
+        netstack_send_udp(src_ip, net_cfg.http_port, src_port, info, pos);
+        return;
+    }
+
+    if (len >= 5 && data[0] == 'I' && data[1] == 'N' && data[2] == 'F' &&
+        data[3] == 'E' && data[4] == 'R') {
+        if (!llm_is_loaded()) {
+            const char *resp = "ERR no model loaded\n";
+            netstack_send_udp(src_ip, net_cfg.http_port, src_port,
+                              resp, kstrlen(resp));
+            return;
+        }
+        const char *prompt_data = (const char *)data + 6;
+        int plen = (int)len - 6;
+        if (plen <= 0) {
+            const char *resp = "ERR empty prompt\n";
+            netstack_send_udp(src_ip, net_cfg.http_port, src_port,
+                              resp, kstrlen(resp));
+            return;
+        }
+        char pbuf[2048];
+        int lim = plen < (int)sizeof(pbuf) - 1 ? plen : (int)sizeof(pbuf) - 1;
+        kmemcpy(pbuf, prompt_data, lim);
+        pbuf[lim] = '\0';
+
+        llm_reset_cache();
+        int ntokens = llm_prompt(pbuf, llm_output_buf, (int)sizeof(llm_output_buf));
+        if (ntokens < 0) {
+            const char *resp = "ERR inference failed\n";
+            netstack_send_udp(src_ip, net_cfg.http_port, src_port,
+                              resp, kstrlen(resp));
+        } else {
+            char resp[4096];
+            int rlen = kprintf_to_buf(resp, (int)sizeof(resp),
+                "OK %d tokens\n%s\n", ntokens, llm_output_buf);
+            netstack_send_udp(src_ip, net_cfg.http_port, src_port, resp, rlen);
+        }
+        return;
+    }
+
+    const char *resp = "ERR unknown command. Use: PING, INFO, INFER <prompt>\n"
+                       "HTTP API: http://<ip>:8080/v1/chat/completions\n";
+    netstack_send_udp(src_ip, net_cfg.http_port, src_port,
+                      resp, kstrlen(resp));
 }
 
 /* =============================================================================
@@ -267,6 +1201,7 @@ void netstack_init(const uint8_t ip[4], const uint8_t netmask[4],
     kmemcpy(net_cfg.netmask, netmask, 4);
     kmemcpy(net_cfg.gateway, gateway, 4);
     net_cfg.http_port = 8080;
+    net_cfg.server_running = 0;
 
     virtio_net_dev_t *dev = virtio_net_get_dev();
     if (dev && dev->initialized) {
@@ -274,7 +1209,9 @@ void netstack_init(const uint8_t ip[4], const uint8_t netmask[4],
     }
 
     kmemset(arp_cache, 0, sizeof(arp_cache));
+    kmemset(tcp_conns, 0, sizeof(tcp_conns));
     n_udp_handlers = 0;
+    tcp_listen_port = 0;
 
     net_cfg.configured = 1;
 
@@ -310,14 +1247,13 @@ int netstack_send_ip(const uint8_t dst_ip[4], uint8_t proto,
     if (!net_cfg.configured) return -1;
     if (len + sizeof(struct ip_hdr) > 1500) return -2;
 
-    /* Build IP packet */
     uint8_t pkt[1500];
     struct ip_hdr *iph = (struct ip_hdr *)pkt;
-    iph->version_ihl = 0x45;  /* IPv4, 20-byte header */
+    iph->version_ihl = 0x45;
     iph->tos = 0;
-    iph->total_len = htons(sizeof(struct ip_hdr) + len);
-    iph->id = 0;
-    iph->flags_frag = 0;
+    iph->total_len = htons((uint16_t)(sizeof(struct ip_hdr) + len));
+    iph->id = htons(ip_id_counter++);
+    iph->flags_frag = htons(0x4000);
     iph->ttl = 64;
     iph->proto = proto;
     iph->checksum = 0;
@@ -327,14 +1263,10 @@ int netstack_send_ip(const uint8_t dst_ip[4], uint8_t proto,
 
     kmemcpy(pkt + sizeof(struct ip_hdr), data, len);
 
-    /* Resolve dest MAC via ARP cache */
     const uint8_t *dst_mac = arp_cache_lookup(dst_ip);
-    if (!dst_mac) {
-        /* Send ARP request (lazy — just use broadcast) */
-        dst_mac = broadcast_mac;
-    }
+    if (!dst_mac) dst_mac = broadcast_mac;
 
-    return send_eth(dst_mac, ETH_TYPE_IP, pkt, sizeof(struct ip_hdr) + len);
+    return send_eth(dst_mac, ETH_TYPE_IP, pkt, (uint32_t)(sizeof(struct ip_hdr) + len));
 }
 
 int netstack_send_udp(const uint8_t dst_ip[4], uint16_t src_port,
@@ -346,13 +1278,12 @@ int netstack_send_udp(const uint8_t dst_ip[4], uint16_t src_port,
     struct udp_hdr *udp = (struct udp_hdr *)udp_pkt;
     udp->src_port = htons(src_port);
     udp->dst_port = htons(dst_port);
-    udp->length = htons(sizeof(struct udp_hdr) + len);
-    udp->checksum = 0; /* Optional for UDP over IPv4 */
+    udp->length = htons((uint16_t)(sizeof(struct udp_hdr) + len));
+    udp->checksum = 0;
 
     kmemcpy(udp_pkt + sizeof(struct udp_hdr), data, len);
-
     return netstack_send_ip(dst_ip, IP_PROTO_UDP, udp_pkt,
-                            sizeof(struct udp_hdr) + len);
+                            (uint32_t)(sizeof(struct udp_hdr) + len));
 }
 
 void netstack_register_udp(uint16_t port, udp_handler_t handler)
@@ -364,83 +1295,107 @@ void netstack_register_udp(uint16_t port, udp_handler_t handler)
     kprintf("[NET] Registered UDP handler on port %u\n", port);
 }
 
-/* =============================================================================
- * Simple HTTP inference server (over UDP for simplicity)
- * Real HTTP would need TCP; this is a lightweight REST-like API over UDP
- * for maximum latency & simplicity.
- *
- * Protocol:
- *   Request:  "INFER <model_name> <input_json>\n"
- *   Response: "OK <output_json>\n"  or  "ERR <message>\n"
- *
- * Also responds to:
- *   "PING\n"  -> "PONG TensorOS v0.1\n"
- *   "INFO\n"  -> JSON system info
- * =============================================================================*/
-
-static void inference_udp_handler(const uint8_t src_ip[4], uint16_t src_port,
-                                  const uint8_t *data, uint32_t len)
-{
-    stat_http_req++;
-
-    /* Simple command parser */
-    if (len >= 4 && data[0] == 'P' && data[1] == 'I' && data[2] == 'N' && data[3] == 'G') {
-        const char *resp = "PONG TensorOS v0.1.0 Neuron\n";
-        netstack_send_udp(src_ip, net_cfg.http_port, src_port,
-                          resp, kstrlen(resp));
-        return;
-    }
-
-    if (len >= 4 && data[0] == 'I' && data[1] == 'N' && data[2] == 'F' && data[3] == 'O') {
-        /* Send system info */
-        char info[512];
-        int pos = 0;
-        pos += kprintf_to_buf(info + pos, sizeof(info) - pos,
-            "{\"os\":\"TensorOS\",\"version\":\"0.1.0\","
-            "\"cpus\":%u,\"gpus\":%u,"
-            "\"features\":[\"SSE2\",\"GEMM\",\"Q4_0\",\"KV-cache\",\"SNE\","
-            "\"Winograd\",\"Arena\",\"GGUF\"]}\n",
-            kstate.cpu_count, kstate.gpu_count);
-        netstack_send_udp(src_ip, net_cfg.http_port, src_port, info, pos);
-        return;
-    }
-
-    if (len >= 5 && data[0] == 'I' && data[1] == 'N' && data[2] == 'F' &&
-        data[3] == 'E' && data[4] == 'R') {
-        /* Inference request — placeholder */
-        const char *resp = "ERR no model loaded (use GGUF loader)\n";
-        netstack_send_udp(src_ip, net_cfg.http_port, src_port,
-                          resp, kstrlen(resp));
-        return;
-    }
-
-    /* Unknown command */
-    const char *resp = "ERR unknown command. Use: PING, INFO, INFER\n";
-    netstack_send_udp(src_ip, net_cfg.http_port, src_port,
-                      resp, kstrlen(resp));
-}
-
 void netstack_start_http_server(void)
 {
+    tcp_listen_port = net_cfg.http_port;
+    net_cfg.server_running = 1;
+
     netstack_register_udp(net_cfg.http_port, inference_udp_handler);
-    kprintf("[NET] Inference server listening on UDP port %u\n", net_cfg.http_port);
+
+    kprintf("\n");
+    kprintf("==========================================================\n");
+    kprintf("  TensorOS LLM API Server  -  OpenAI Compatible\n");
+    kprintf("==========================================================\n");
+    kprintf("  Listening:  http://%u.%u.%u.%u:%u\n",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.http_port);
+    kprintf("  Model:      %s\n",
+            llm_is_loaded() ? llm_model_name() : "(none)");
+    kprintf("\n");
+    kprintf("  Endpoints:\n");
+    kprintf("    GET  /v1/models            List models\n");
+    kprintf("    POST /v1/completions       Text completion\n");
+    kprintf("    POST /v1/chat/completions  Chat completion\n");
+    kprintf("    GET  /health               Health check\n");
+    kprintf("\n");
+    kprintf("  Quick start (from any device on the network):\n");
+    kprintf("\n");
+    kprintf("    # List models\n");
+    kprintf("    curl http://%u.%u.%u.%u:%u/v1/models\n",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.http_port);
+    kprintf("\n");
+    kprintf("    # Chat completion\n");
+    kprintf("    curl -X POST http://%u.%u.%u.%u:%u/v1/chat/completions \\\n",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.http_port);
+    kprintf("      -H 'Content-Type: application/json' \\\n");
+    kprintf("      -d '{\"messages\":[{\"role\":\"user\","
+            "\"content\":\"Hello\"}]}'\n");
+    kprintf("\n");
+    kprintf("    # Python (OpenAI SDK)\n");
+    kprintf("    from openai import OpenAI\n");
+    kprintf("    client = OpenAI(\n");
+    kprintf("        base_url=\"http://%u.%u.%u.%u:%u/v1\",\n",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.http_port);
+    kprintf("        api_key=\"tensoros\")\n");
+    kprintf("    r = client.chat.completions.create(\n");
+    kprintf("        model=\"default\",\n");
+    kprintf("        messages=[{\"role\":\"user\",\"content\":\"Hello\"}])\n");
+    kprintf("    print(r.choices[0].message.content)\n");
+    kprintf("==========================================================\n\n");
+}
+
+void netstack_poll(void)
+{
+    if (!net_cfg.configured) return;
+    virtio_net_poll(netstack_rx);
+}
+
+int netstack_server_running(void)
+{
+    return net_cfg.server_running;
+}
+
+const net_config_t *netstack_get_config(void)
+{
+    return &net_cfg;
 }
 
 void netstack_print_stats(void)
 {
-    kprintf("[NET] Stats: RX=%lu TX=%lu ARP=%lu/%lu IP=%lu UDP=%lu ICMP=%lu HTTP=%lu\n",
-            stat_rx_frames, stat_tx_frames, stat_arp_req, stat_arp_rep,
-            stat_ip_rx, stat_udp_rx, stat_icmp_rx, stat_http_req);
+    kprintf("  RX frames:    %lu\n", stat_rx_frames);
+    kprintf("  TX frames:    %lu\n", stat_tx_frames);
+    kprintf("  ARP req/rep:  %lu / %lu\n", stat_arp_req, stat_arp_rep);
+    kprintf("  IP packets:   %lu\n", stat_ip_rx);
+    kprintf("  TCP segments: %lu\n", stat_tcp_rx);
+    kprintf("  UDP packets:  %lu\n", stat_udp_rx);
+    kprintf("  ICMP packets: %lu\n", stat_icmp_rx);
+    kprintf("  HTTP reqs:    %lu\n", stat_http_req);
+    kprintf("  Inferences:   %lu\n", stat_http_infer);
+
+    if (net_cfg.server_running) {
+        kprintf("  Server:       http://%u.%u.%u.%u:%u (running)\n",
+                net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+                net_cfg.http_port);
+    } else {
+        kprintf("  Server:       not started (use 'serve' command)\n");
+    }
+
+    int active = 0;
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        if (tcp_conns[i].state != TCP_STATE_CLOSED) active++;
+    }
+    kprintf("  TCP conns:    %d / %d\n", active, TCP_MAX_CONNS);
 }
 
 /* =============================================================================
- * kprintf_to_buf - format string to buffer (subset of kprintf)
- * Simple implementation supporting %s, %u, %d
+ * kprintf_to_buf - snprintf-like formatter (subset: %s, %u, %d, %lu, %ld)
  * =============================================================================*/
 
 int kprintf_to_buf(char *buf, int buflen, const char *fmt, ...)
 {
-    /* Minimal snprintf-like implementation */
     __builtin_va_list ap;
     __builtin_va_start(ap, fmt);
 
@@ -451,30 +1406,63 @@ int kprintf_to_buf(char *buf, int buflen, const char *fmt, ...)
             continue;
         }
         fmt++;
+
+        /* Handle format flags */
+        int is_long = 0;
+        int pad_width = 0;
+        int dot_star = 0;
+        int dot_width = 0;
+
+        /* Check for width (e.g., %.*s) */
+        if (*fmt == '.') {
+            fmt++;
+            if (*fmt == '*') {
+                dot_star = 1;
+                dot_width = __builtin_va_arg(ap, int);
+                fmt++;
+            }
+        }
+
+        /* Numeric width */
+        while (*fmt >= '0' && *fmt <= '9') {
+            pad_width = pad_width * 10 + (*fmt - '0');
+            fmt++;
+        }
+
+        if (*fmt == 'l') { is_long = 1; fmt++; }
+
         switch (*fmt) {
         case 's': {
             const char *s = __builtin_va_arg(ap, const char *);
             if (!s) s = "(null)";
-            while (*s && pos < buflen - 1) buf[pos++] = *s++;
+            int slen = 0;
+            while (s[slen]) slen++;
+            int limit = (dot_star && dot_width < slen) ? dot_width : slen;
+            for (int i = 0; i < limit && pos < buflen - 1; i++)
+                buf[pos++] = s[i];
             break;
         }
         case 'u': {
-            uint32_t v = __builtin_va_arg(ap, uint32_t);
-            char tmp[12];
+            uint64_t v;
+            if (is_long) v = __builtin_va_arg(ap, uint64_t);
+            else v = __builtin_va_arg(ap, uint32_t);
+            char tmp[20];
             int ti = 0;
             if (v == 0) { tmp[ti++] = '0'; }
-            else { while (v > 0) { tmp[ti++] = '0' + (v % 10); v /= 10; } }
+            else { while (v > 0) { tmp[ti++] = '0' + (char)(v % 10); v /= 10; } }
             for (int i = ti - 1; i >= 0 && pos < buflen - 1; i--)
                 buf[pos++] = tmp[i];
             break;
         }
         case 'd': {
-            int32_t v = __builtin_va_arg(ap, int32_t);
-            if (v < 0) { buf[pos++] = '-'; v = -v; }
-            char tmp[12];
+            int64_t v;
+            if (is_long) v = __builtin_va_arg(ap, int64_t);
+            else v = __builtin_va_arg(ap, int32_t);
+            if (v < 0) { if (pos < buflen - 1) buf[pos++] = '-'; v = -v; }
+            char tmp[20];
             int ti = 0;
             if (v == 0) { tmp[ti++] = '0'; }
-            else { while (v > 0) { tmp[ti++] = '0' + (v % 10); v /= 10; } }
+            else { while (v > 0) { tmp[ti++] = '0' + (char)(v % 10); v /= 10; } }
             for (int i = ti - 1; i >= 0 && pos < buflen - 1; i--)
                 buf[pos++] = tmp[i];
             break;
@@ -484,6 +1472,7 @@ int kprintf_to_buf(char *buf, int buflen, const char *fmt, ...)
             break;
         default:
             buf[pos++] = '%';
+            if (is_long && pos < buflen - 1) buf[pos++] = 'l';
             if (pos < buflen - 1) buf[pos++] = *fmt;
             break;
         }

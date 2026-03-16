@@ -1,32 +1,23 @@
 /* =============================================================================
  * TensorOS - AI Shell (aishell)
  * =============================================================================
- * The default interactive shell for TensorOS. Unlike traditional shells that
- * execute programs, aishell is AI-first:
+ * Full-featured interactive shell with readline-like line editing,
+ * command history navigation, tab completion, environment variables,
+ * aliases, and 80+ built-in commands spanning filesystem, hardware,
+ * AI/ML, networking, and system administration.
  *
- *   - Commands can be natural language (JIT-compiled via Pseudocode runtime)
- *   - Native tensor inspection / model management commands
- *   - Built-in git (kernel-level)
- *   - Pipeline syntax for model chaining: model1 |> model2 |> deploy
- *   - Tab-completion aware of loaded models, datasets, and tensor shapes
- *
- * Built-in commands:
- *   model load <name>        Load a model into an MEU
- *   model list               List running MEUs
- *   model info <id>          Show MEU stats (FLOPS, memory, latency)
- *   model kill <id>          Terminate an MEU
- *   tensor shape <expr>      Print tensor shape
- *   tensor cast <id> <dtype> Requantize a tensor
- *   infer <model> <input>    Run inference
- *   train <model> <dataset>  Launch training MEU
- *   deploy <model> [port]    Deploy model as service
- *   git <subcommand>         Kernel-level git
- *   pkg install <model>      Install from model registry
- *   pkg search <query>       Search registries
- *   monitor                  Open tensor monitor
- *   sandbox <policy> <cmd>   Run command in sandbox
- *   help                     Show help
- *   exit                     Shutdown
+ * Line editor keybindings:
+ *   Up/Down       Navigate command history
+ *   Left/Right    Move cursor within line
+ *   Home/End      Jump to start/end of line
+ *   Ctrl+A/E      Same as Home/End
+ *   Ctrl+K        Kill from cursor to end of line
+ *   Ctrl+U        Kill from start of line to cursor
+ *   Ctrl+W        Kill previous word
+ *   Ctrl+L        Clear screen, redraw line
+ *   Ctrl+C        Cancel current line
+ *   Tab           Auto-complete command names
+ *   Delete        Delete char at cursor
  * =============================================================================*/
 
 #ifndef AISHELL_H
@@ -40,8 +31,23 @@
 
 #define SHELL_MAX_LINE    256
 #define SHELL_MAX_ARGS    32
-#define SHELL_MAX_HISTORY 16
+#define SHELL_MAX_HISTORY 64
 #define SHELL_PROMPT_MAX  64
+#define SHELL_MAX_ENV     32
+#define SHELL_MAX_ALIASES 32
+#define SHELL_MAX_PATH    256
+
+/* Special key codes returned by shell_read_key() */
+#define KEY_UP      256
+#define KEY_DOWN    257
+#define KEY_RIGHT   258
+#define KEY_LEFT    259
+#define KEY_HOME    260
+#define KEY_END     261
+#define KEY_DELETE  262
+#define KEY_PGUP    263
+#define KEY_PGDN    264
+#define KEY_INSERT  265
 
 typedef struct {
     char lines[SHELL_MAX_HISTORY][SHELL_MAX_LINE];
@@ -50,13 +56,29 @@ typedef struct {
 } shell_history_t;
 
 typedef struct {
-    char          prompt[SHELL_PROMPT_MAX];
-    shell_history_t history;
-    pseudo_runtime_t *runtime;   /* Pseudocode JIT for scripting */
-    bool          running;
-    bool          interactive;
-    uint32_t      commands_executed;
-    uint64_t      session_start_ticks;
+    char name[32];
+    char value[128];
+} shell_env_t;
+
+typedef struct {
+    char name[32];
+    char command[SHELL_MAX_LINE];
+} shell_alias_t;
+
+typedef struct {
+    char             prompt[SHELL_PROMPT_MAX];
+    char             cwd[SHELL_MAX_PATH];
+    shell_history_t  history;
+    shell_env_t      env[SHELL_MAX_ENV];
+    int              env_count;
+    shell_alias_t    aliases[SHELL_MAX_ALIASES];
+    int              alias_count;
+    pseudo_runtime_t *runtime;
+    bool             running;
+    bool             interactive;
+    uint32_t         commands_executed;
+    uint64_t         session_start_ticks;
+    int              last_exit_code;
 } aishell_t;
 
 #endif /* AISHELL_H */

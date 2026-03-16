@@ -42,6 +42,9 @@ $SOURCES = @(
     "kernel\fs\git.c",
     "kernel\fs\tensorfs.c",
     "kernel\security\sandbox.c",
+    "kernel\security\crypto.c",
+    "kernel\security\ssh.c",
+    "kernel\security\security.c",
     "kernel\ipc\tensor_ipc.c",
     "virt\virt.c",
     "runtime\pseudocode\pseudocode_jit.c",
@@ -88,18 +91,21 @@ foreach ($src in $SOURCES) {
     $name = ($src -replace '\\','_' -replace '\.c$','')
     $sfile = "$BUILD\${name}.s"
     $ofile = "$BUILD\${name}.o"
-    $null = zig cc @CFLAGS -o $sfile $src 2>&1
+    $out = zig cc @CFLAGS -o $sfile $src 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Host "  ERROR compiling $src" -ForegroundColor Red; $out | Write-Host; exit 1 }
     # Workaround: zig lld corrupts relocations to SHF_MERGE sections
     $content = Get-Content $sfile -Raw
     $content = $content -replace '\.section\s+\.rodata\.[^,]+,"aM[S]?",@progbits,\d+', '.section .rodata,"a",@progbits'
     Set-Content $sfile $content -NoNewline
-    $null = zig cc -target x86_64-freestanding-none -c -o $ofile $sfile 2>&1
+    $out = zig cc -target x86_64-freestanding-none -c -o $ofile $sfile 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Host "  ERROR assembling $sfile" -ForegroundColor Red; $out | Write-Host; exit 1 }
     Write-Host "  $src" -ForegroundColor DarkGray
 }
 
 # Step 2: Assemble 64-bit entry point (must be first object linked)
 Write-Host "=== Assembling entry64.asm ===" -ForegroundColor Cyan
-$null = & $NASM -f elf64 -o "$BUILD\entry64.o" boot\entry64.asm 2>&1
+$out = & $NASM -f elf64 -o "$BUILD\entry64.o" boot\entry64.asm 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Host "  ERROR assembling entry64.asm" -ForegroundColor Red; $out | Write-Host; exit 1 }
 
 # Step 3: Link 64-bit kernel ELF
 Write-Host "=== Linking kernel64.elf ===" -ForegroundColor Cyan
@@ -108,9 +114,10 @@ foreach ($src in $SOURCES) {
     $name = ($src -replace '\\','_' -replace '\.c$','')
     $OBJS += "$BUILD\${name}.o"
 }
-$null = zig cc -target x86_64-freestanding-none -nostdlib -static -fno-pic -fno-pie `
+$out = zig cc -target x86_64-freestanding-none -nostdlib -static -fno-pic -fno-pie `
     "-Wl,-T,boot/kernel64.ld" "-Wl,--entry=long_mode_entry" `
     -o "$BUILD\kernel64.elf" @OBJS 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Host "  LINK ERROR" -ForegroundColor Red; $out | Write-Host; exit 1 }
 
 # Step 4: ELF to flat binary (custom - zig objcopy has segment mapping bug)
 Write-Host "=== Creating kernel64.bin ===" -ForegroundColor Cyan
@@ -139,13 +146,15 @@ Write-Host "  kernel64.bin: $($bin.Length) bytes"
 
 # Step 5: Multiboot stub (embeds kernel64.bin via incbin)
 Write-Host "=== Building multiboot stub ===" -ForegroundColor Cyan
-$null = & $NASM -f elf32 -o "$BUILD\multiboot_stub.o" boot\multiboot_stub.asm 2>&1
+$out = & $NASM -f elf32 -o "$BUILD\multiboot_stub.o" boot\multiboot_stub.asm 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Host "  ERROR assembling multiboot_stub.asm" -ForegroundColor Red; $out | Write-Host; exit 1 }
 
 # Step 6: Final link
 Write-Host "=== Linking tensoros.elf ===" -ForegroundColor Cyan
-$null = zig cc -target x86-freestanding-none -nostdlib -static `
+$out = zig cc -target x86-freestanding-none -nostdlib -static `
     "-Wl,-T,boot/stub32.ld" "-Wl,--entry=_start" `
     -o "$BUILD\tensoros.elf" "$BUILD\multiboot_stub.o" 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Host "  ERROR linking tensoros.elf" -ForegroundColor Red; $out | Write-Host; exit 1 }
 
 $sz = (Get-Item "$BUILD\tensoros.elf").Length
 Write-Host "=== Build complete: tensoros.elf ($sz bytes) ===" -ForegroundColor Green

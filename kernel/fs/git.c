@@ -497,3 +497,62 @@ int git_index_write_tree(git_repo_t *repo, git_index_t *index,
 
     return git_obj_write(repo, GIT_OBJ_TREE, &tree, sizeof(tree), out_tree);
 }
+
+int git_ref_list(git_repo_t *repo, git_ref_t *refs, uint32_t max, uint32_t *count)
+{
+    if (!repo || !refs) return -1;
+    uint32_t found = 0;
+    for (uint32_t i = 0; i < repo->ref_count && found < max; i++) {
+        refs[found++] = repo->refs[i];
+    }
+    if (count) *count = found;
+    return 0;
+}
+
+int git_log(git_repo_t *repo, git_commit_t *commits, uint32_t max, uint32_t *count)
+{
+    if (!repo || !commits) return -1;
+    /* Walk HEAD back through parent chain */
+    git_hash_t current;
+    if (git_ref_resolve(repo, "HEAD", &current) != 0) {
+        if (count) *count = 0;
+        return 0;
+    }
+    git_hash_t zero;
+    kmemset(&zero, 0, sizeof(zero));
+    uint32_t found = 0;
+    while (found < max) {
+        git_commit_t c;
+        kmemset(&c, 0, sizeof(c));
+        git_obj_header_t hdr;
+        kmemset(&hdr, 0, sizeof(hdr));
+        if (git_obj_read(repo, &current, &c, sizeof(c), &hdr) != 0) break;
+        if (hdr.type != GIT_OBJ_COMMIT) break;
+        commits[found++] = c;
+        /* Follow parent link; stop if zero hash (initial commit) */
+        if (git_hash_equal(&c.parent, &zero)) break;
+        current = c.parent;
+    }
+    if (count) *count = found;
+    return 0;
+}
+
+int git_branch_create(git_repo_t *repo, const char *name)
+{
+    if (!repo || !name) return -1;
+    git_hash_t head;
+    if (git_ref_resolve(repo, "HEAD", &head) != 0) {
+        /* No HEAD yet — create ref pointing to zero hash */
+        kmemset(&head, 0, sizeof(head));
+    }
+    char ref_name[128];
+    ref_name[0] = '\0';
+    /* Build "refs/heads/<name>" */
+    const char *prefix = "refs/heads/";
+    int i = 0;
+    while (prefix[i]) { ref_name[i] = prefix[i]; i++; }
+    int j = 0;
+    while (name[j] && i < 126) { ref_name[i++] = name[j++]; }
+    ref_name[i] = '\0';
+    return git_ref_create(repo, ref_name, &head);
+}
