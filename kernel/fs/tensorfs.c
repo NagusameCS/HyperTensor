@@ -103,11 +103,54 @@ int tfs_model_list(tfs_inode_t *models, uint32_t max, uint32_t *count)
     return 0;
 }
 
-/* Simple in-memory file data storage */
+/* Simple in-memory file data storage with free-list reclamation */
 #define TFS_DATA_POOL_SIZE  (4 * 1024 * 1024)  /* 4 MB total */
 #define TFS_MAX_FILE_DATA   (64 * 1024)         /* 64 KB per file max */
 static uint8_t tfs_data_pool[TFS_DATA_POOL_SIZE];
 static uint64_t tfs_data_pool_used = 0;
+
+/* Free-list for reclaimed blocks */
+typedef struct tfs_free_block {
+    struct tfs_free_block *next;
+    uint64_t size;
+} tfs_free_block_t;
+static tfs_free_block_t *tfs_free_list = NULL;
+
+/* Allocate from pool: check free-list first, then bump allocator */
+static uint8_t *tfs_pool_alloc(uint64_t size)
+{
+    /* First-fit search in free list */
+    tfs_free_block_t **prev = &tfs_free_list;
+    tfs_free_block_t *blk = tfs_free_list;
+    while (blk) {
+        if (blk->size >= size) {
+            /* Reuse this block */
+            *prev = blk->next;
+            uint8_t *ptr = (uint8_t *)blk;
+            kmemset(ptr, 0, size);
+            return ptr;
+        }
+        prev = &blk->next;
+        blk = blk->next;
+    }
+    /* Fall back to bump allocator */
+    if (tfs_data_pool_used + size > TFS_DATA_POOL_SIZE)
+        return NULL;
+    uint8_t *ptr = &tfs_data_pool[tfs_data_pool_used];
+    tfs_data_pool_used += size;
+    kmemset(ptr, 0, size);
+    return ptr;
+}
+
+/* Return a block to the free list */
+static void tfs_pool_free(uint8_t *ptr, uint64_t size)
+{
+    if (!ptr || size < sizeof(tfs_free_block_t)) return;
+    tfs_free_block_t *blk = (tfs_free_block_t *)ptr;
+    blk->size = size;
+    blk->next = tfs_free_list;
+    tfs_free_list = blk;
+}
 
 /* Per-inode data mapping */
 static struct {
@@ -183,28 +226,24 @@ int tfs_write(int fd, const void *buf, uint64_t size, uint64_t offset)
     if (!inode_data[idx].data) {
         uint64_t alloc = (end > 4096) ? end : 4096;
         if (alloc > TFS_MAX_FILE_DATA) alloc = TFS_MAX_FILE_DATA;
-        if (tfs_data_pool_used + alloc > TFS_DATA_POOL_SIZE) return -1;
-        inode_data[idx].data = &tfs_data_pool[tfs_data_pool_used];
+        uint8_t *newp = tfs_pool_alloc(alloc);
+        if (!newp) return -1;
+        inode_data[idx].data = newp;
         inode_data[idx].capacity = alloc;
-        kmemset(inode_data[idx].data, 0, alloc);
-        tfs_data_pool_used += alloc;
     }
 
     /* Grow if needed */
     if (end > inode_data[idx].capacity) {
-        /* Can't grow in-place with static pool, fail */
         if (end > TFS_MAX_FILE_DATA) return -1;
-        /* Try to allocate a new larger block */
         uint64_t new_cap = end * 2;
         if (new_cap > TFS_MAX_FILE_DATA) new_cap = TFS_MAX_FILE_DATA;
-        if (tfs_data_pool_used + new_cap > TFS_DATA_POOL_SIZE) return -1;
-        uint8_t *new_data = &tfs_data_pool[tfs_data_pool_used];
-        kmemset(new_data, 0, new_cap);
+        uint8_t *new_data = tfs_pool_alloc(new_cap);
+        if (!new_data) return -1;
         kmemcpy(new_data, inode_data[idx].data, inode->size);
+        /* Return old block to free list */
+        tfs_pool_free(inode_data[idx].data, inode_data[idx].capacity);
         inode_data[idx].data = new_data;
         inode_data[idx].capacity = new_cap;
-        tfs_data_pool_used += new_cap;
-        /* Old block is leaked — acceptable for embedded OS */
     }
 
     kmemcpy(inode_data[idx].data + offset, buf, size);
@@ -226,8 +265,12 @@ int tfs_unlink(const char *path)
                 if (fd_table[fd].open && fd_table[fd].inode_idx == i)
                     fd_table[fd].open = false;
             }
-            /* Clear data reference (pool memory is leaked) */
+            /* Return data block to free list */
+            if (inode_data[i].data) {
+                tfs_pool_free(inode_data[i].data, inode_data[i].capacity);
+            }
             inode_data[i].data = NULL;
+            inode_data[i].capacity = 0;
             inode_data[i].capacity = 0;
             /* Remove inode by shifting */
             for (uint32_t j = i; j + 1 < inode_count; j++) {

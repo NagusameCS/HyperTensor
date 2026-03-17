@@ -1,0 +1,111 @@
+/* =============================================================================
+ * TensorOS — AHCI SATA Disk Driver Header
+ * Standard AHCI 1.0+ for real SATA hardware.
+ * =============================================================================*/
+
+#ifndef TENSOROS_AHCI_H
+#define TENSOROS_AHCI_H
+
+#include <stdint.h>
+
+/* PCI class/subclass for AHCI */
+#define PCI_CLASS_STORAGE       0x01
+#define PCI_SUBCLASS_SATA       0x06
+#define PCI_PROGIF_AHCI         0x01
+
+/* AHCI HBA registers (offsets from ABAR) */
+#define AHCI_CAP            0x00    /* Host Capabilities */
+#define AHCI_GHC            0x04    /* Global Host Control */
+#define AHCI_IS             0x08    /* Interrupt Status */
+#define AHCI_PI             0x0C    /* Ports Implemented */
+#define AHCI_VS             0x10    /* Version */
+
+/* GHC bits */
+#define AHCI_GHC_AE         (1U << 31)  /* AHCI Enable */
+#define AHCI_GHC_IE         (1U << 1)   /* Interrupt Enable */
+#define AHCI_GHC_HR         (1U << 0)   /* HBA Reset */
+
+/* Per-port register offsets (base = 0x100 + port * 0x80) */
+#define AHCI_PxCLB          0x00    /* Command List Base */
+#define AHCI_PxCLBU         0x04    /* Command List Base Upper */
+#define AHCI_PxFB           0x08    /* FIS Base */
+#define AHCI_PxFBU          0x0C    /* FIS Base Upper */
+#define AHCI_PxIS           0x10    /* Interrupt Status */
+#define AHCI_PxIE           0x14    /* Interrupt Enable */
+#define AHCI_PxCMD          0x18    /* Command and Status */
+#define AHCI_PxTFD          0x20    /* Task File Data */
+#define AHCI_PxSIG          0x24    /* Signature */
+#define AHCI_PxSSTS         0x28    /* SATA Status */
+#define AHCI_PxSERR         0x30    /* SATA Error */
+#define AHCI_PxCI           0x38    /* Command Issue */
+
+/* PxCMD bits */
+#define AHCI_PxCMD_ST       (1 << 0)   /* Start */
+#define AHCI_PxCMD_FRE      (1 << 4)   /* FIS Receive Enable */
+#define AHCI_PxCMD_FR       (1 << 14)  /* FIS Receive Running */
+#define AHCI_PxCMD_CR       (1 << 15)  /* Command List Running */
+
+/* SATA Status (PxSSTS) DET field */
+#define AHCI_SSTS_DET_MASK  0x0F
+#define AHCI_SSTS_DET_OK    0x03       /* Device detected, communication established */
+
+/* Port signature types */
+#define AHCI_SIG_ATA        0x00000101  /* SATA disk */
+#define AHCI_SIG_ATAPI      0xEB140101  /* SATAPI (CD/DVD) */
+
+/* FIS types */
+#define FIS_TYPE_H2D        0x27    /* Register FIS: host to device */
+#define FIS_TYPE_D2H        0x34    /* Register FIS: device to host */
+#define FIS_TYPE_DMA_SETUP  0x41
+#define FIS_TYPE_PIO_SETUP  0x5F
+
+/* ATA commands */
+#define ATA_CMD_IDENTIFY    0xEC
+#define ATA_CMD_READ_DMA_EX 0x25
+#define ATA_CMD_WRITE_DMA_EX 0x35
+
+/* Command header (in command list) */
+typedef struct __attribute__((packed)) {
+    uint16_t opts;      /* CFL (bits 0-4), ATAPI, Write, Prefetchable, etc. */
+    uint16_t prdtl;     /* PRDT length (entries) */
+    uint32_t prdbc;     /* PRD byte count transferred */
+    uint64_t ctba;      /* Command table base address */
+    uint32_t reserved[4];
+} ahci_cmd_header_t;
+
+/* Physical Region Descriptor Table entry */
+typedef struct __attribute__((packed)) {
+    uint64_t dba;       /* Data base address */
+    uint32_t reserved;
+    uint32_t dbc;       /* Data byte count (bit 0 must be 1) [max 4MB] */
+} ahci_prdt_entry_t;
+
+/* Command Table */
+typedef struct __attribute__((packed)) {
+    uint8_t cfis[64];           /* Command FIS */
+    uint8_t acmd[16];           /* ATAPI command */
+    uint8_t reserved[48];       /* Reserved */
+    ahci_prdt_entry_t prdt[8];  /* Up to 8 PRDT entries */
+} ahci_cmd_table_t;
+
+/* Per-port Received FIS structure */
+typedef struct __attribute__((packed)) {
+    uint8_t dsfis[28];     /* DMA Setup FIS */
+    uint8_t pad0[4];
+    uint8_t psfis[20];     /* PIO Setup FIS */
+    uint8_t pad1[12];
+    uint8_t rfis[20];      /* D2H Register FIS */
+    uint8_t pad2[4];
+    uint8_t sdbfis[8];     /* Set Device Bits FIS */
+    uint8_t ufis[64];      /* Unknown FIS */
+    uint8_t reserved[96];
+} ahci_fis_t;
+
+/* Driver API */
+int  ahci_init(void);
+int  ahci_read_sectors(uint32_t port, uint64_t lba, uint32_t count, void *buf);
+int  ahci_write_sectors(uint32_t port, uint64_t lba, uint32_t count, const void *buf);
+int  ahci_port_count(void);
+uint64_t ahci_disk_sectors(uint32_t port);
+
+#endif /* TENSOROS_AHCI_H */

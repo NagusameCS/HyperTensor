@@ -40,6 +40,9 @@
 #include "kernel/net/netstack.h"
 #include "kernel/drivers/blk/virtio_blk.h"
 #include "kernel/drivers/blk/sdlog.h"
+#include "kernel/core/syscall.h"
+#include "kernel/drivers/net/e1000.h"
+#include "kernel/drivers/blk/ahci.h"
 #include "runtime/nn/braniac.h"
 
 /* Kernel version */
@@ -356,6 +359,11 @@ void kernel_main(void)
     kprintf("  [OK] ARM64 PSCI multicore (4 Cortex-A72 cores)\n");
 #endif
 
+    /* Phase 7b: Syscall Infrastructure */
+#ifndef __aarch64__
+    syscall_init();
+#endif
+
     /* Phase 8: Storage Driver */
     sdlog("Phase8: storage");
     kprintf("\n[PHASE 8] Storage Driver\n");
@@ -366,6 +374,11 @@ void kernel_main(void)
             virtio_blk_print_info();
         } else {
             kprintf("  [--] No block device (add -drive to QEMU)\n");
+        }
+        /* Try AHCI (real SATA hardware) */
+        int ahci_rc = ahci_init();
+        if (ahci_rc > 0) {
+            kprintf("  [OK] AHCI: %d SATA port(s) active\n", ahci_rc);
         }
     }
 #else
@@ -387,7 +400,14 @@ void kernel_main(void)
             netstack_start_https_server();
             kprintf("  [OK] Network ready: 10.0.2.15 HTTP:8080 HTTPS:8443\n");
         } else {
-            kprintf("  [--] No NIC (add -nic to QEMU for networking)\n");
+            kprintf("  [--] No virtio NIC\n");
+        }
+        /* Try Intel E1000 (real hardware NIC) */
+        if (e1000_init() == 0) {
+            uint8_t mac[6];
+            e1000_get_mac(mac);
+            kprintf("  [OK] E1000 NIC: %x:%x:%x:%x:%x:%x\n",
+                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         }
     }
 #else

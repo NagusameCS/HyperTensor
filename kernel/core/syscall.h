@@ -1,0 +1,84 @@
+/* =============================================================================
+ * TensorOS — Syscall Interface Header
+ *
+ * Defines the SYSCALL/SYSRET boundary between ring-0 kernel and ring-3
+ * userland. System call numbers follow a simple flat numbering scheme.
+ * =============================================================================*/
+
+#ifndef TENSOROS_SYSCALL_H
+#define TENSOROS_SYSCALL_H
+
+#include <stdint.h>
+
+/* =============================================================================
+ * System Call Numbers
+ * =============================================================================*/
+
+#define SYS_EXIT            0   /* Exit current process */
+#define SYS_WRITE           1   /* Write to file descriptor */
+#define SYS_READ            2   /* Read from file descriptor */
+#define SYS_OPEN            3   /* Open a file */
+#define SYS_CLOSE           4   /* Close a file descriptor */
+#define SYS_MMAP            5   /* Map memory */
+#define SYS_MUNMAP          6   /* Unmap memory */
+#define SYS_YIELD           7   /* Yield CPU */
+#define SYS_GETPID          8   /* Get process ID */
+#define SYS_SLEEP           9   /* Sleep for N milliseconds */
+#define SYS_INFERENCE       10  /* Submit inference request */
+#define SYS_MODEL_INFO      11  /* Query loaded model */
+#define SYS_TENSOR_ALLOC    12  /* Allocate tensor memory */
+#define SYS_TENSOR_FREE     13  /* Free tensor memory */
+#define SYS_KLOG            14  /* Write to kernel log */
+#define SYS_UPTIME          15  /* Get system uptime */
+#define NR_SYSCALLS         16
+
+/* =============================================================================
+ * GDT Selectors
+ * =============================================================================*/
+
+#define GDT_KERNEL_CODE     0x08    /* GDT[1]: 64-bit code, DPL=0 */
+#define GDT_KERNEL_DATA     0x10    /* GDT[2]: 64-bit data, DPL=0 */
+#define GDT_TSS             0x18    /* GDT[3-4]: TSS descriptor (16 bytes) */
+#define GDT_USER_DATA       0x28    /* GDT[5]: 64-bit data, DPL=3 */
+#define GDT_USER_CODE       0x30    /* GDT[6]: 64-bit code, DPL=3 */
+#define GDT_USER_DATA_RPL3  (GDT_USER_DATA | 3)
+#define GDT_USER_CODE_RPL3  (GDT_USER_CODE | 3)
+
+/* =============================================================================
+ * User-mode page table flags
+ * =============================================================================*/
+
+#define PT_USER             (1ULL << 2)   /* U/S bit: accessible from ring 3 */
+
+/* =============================================================================
+ * Syscall calling convention (matches SYSCALL instruction):
+ *   Number: RAX
+ *   Args:   RDI, RSI, RDX, R10, R8, R9
+ *   Return: RAX (result), RCX (clobbered), R11 (clobbered)
+ * =============================================================================*/
+
+/* Syscall handler — called from assembly stub */
+int64_t syscall_dispatch(uint64_t nr, uint64_t a1, uint64_t a2,
+                         uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6);
+
+/* Initialize SYSCALL/SYSRET MSRs and GDT entries */
+void syscall_init(void);
+
+/* Transition to user mode: jump to addr with given stack in ring 3 */
+void user_mode_enter(uint64_t entry, uint64_t user_stack) __attribute__((noreturn));
+
+/* Process structure for user-mode tasks */
+typedef struct {
+    uint64_t pid;
+    uint64_t entry;             /* User-mode entry point */
+    uint64_t user_rsp;          /* User-mode stack pointer */
+    uint64_t kernel_rsp;        /* Saved kernel RSP on syscall entry */
+    uint8_t *user_stack;        /* Base of allocated user stack */
+    uint32_t user_stack_size;
+    int      state;             /* 0=free, 1=running, 2=sleeping, 3=exited */
+    int      exit_code;
+} user_process_t;
+
+#define MAX_USER_PROCS  16
+
+#endif /* TENSOROS_SYSCALL_H */

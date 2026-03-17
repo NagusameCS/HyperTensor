@@ -8,6 +8,7 @@
 
 #include "kernel/core/kernel.h"
 #include "kernel/core/smp.h"
+#include "kernel/core/spinlock.h"
 
 /* =============================================================================
  * SMP global state
@@ -384,27 +385,98 @@ void smp_detect(void)
     kprintf("[SMP] LAPIC base: 0x%lx, BSP APIC ID: %u\n",
             smp.lapic_base, smp.bsp_id);
 
-    /* Try to detect CPUs via ACPI MADT (simplified) */
-    /* For now, try to enumerate via CPUID */
-    uint32_t eax, ebx, ecx, edx;
-    __asm__ volatile ("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
-                     : "a"(1));
-    
-    /* Check for HTT (Hyper-Threading Technology) bit in EDX */
-    if (edx & (1 << 28)) {
-        /* EBX[23:16] contains logical processor count */
-        uint32_t logical_cpus = (ebx >> 16) & 0xFF;
-        if (logical_cpus > MAX_CPUS) logical_cpus = MAX_CPUS;
-        if (logical_cpus < 1) logical_cpus = 1;
-        smp.cpu_count = logical_cpus;
-    } else {
-        smp.cpu_count = 1;
+    /* -------------------------------------------------------
+     * Try ACPI MADT for accurate APIC ID enumeration
+     * Search for RSDP signature in BIOS data areas,
+     * then walk RSDT → MADT → Local APIC entries.
+     * ------------------------------------------------------- */
+    int found_madt = 0;
+
+    /* Scan for "RSD PTR " in EBDA (0x9FC00-0x9FFFF) and BIOS ROM (0xE0000-0xFFFFF) */
+    static const uint64_t scan_ranges[][2] = {
+        { 0xE0000, 0x100000 },
+        { 0x80000, 0xA0000 },
+    };
+    uint64_t rsdp_addr = 0;
+    for (int r = 0; r < 2 && !rsdp_addr; r++) {
+        for (uint64_t addr = scan_ranges[r][0]; addr < scan_ranges[r][1]; addr += 16) {
+            const char *p = (const char *)(uintptr_t)addr;
+            if (p[0] == 'R' && p[1] == 'S' && p[2] == 'D' && p[3] == ' ' &&
+                p[4] == 'P' && p[5] == 'T' && p[6] == 'R' && p[7] == ' ') {
+                /* Validate checksum (first 20 bytes) */
+                uint8_t sum = 0;
+                for (int i = 0; i < 20; i++) sum += (uint8_t)p[i];
+                if (sum == 0) { rsdp_addr = addr; break; }
+            }
+        }
     }
 
-    /* Initialize CPU state for each detected core */
-    for (uint32_t i = 1; i < smp.cpu_count; i++) {
-        smp.cpus[i].apic_id = i; /* Assume sequential APIC IDs */
-        smp.cpus[i].state = CPU_STATE_OFFLINE;
+    if (rsdp_addr) {
+        uint32_t rsdt_addr = *(uint32_t *)(uintptr_t)(rsdp_addr + 16);
+        uint32_t *rsdt = (uint32_t *)(uintptr_t)rsdt_addr;
+        uint32_t rsdt_len = rsdt[1]; /* Length at offset 4 as uint32 in ACPI header */
+        /* ACPI header is 36 bytes; entries start at offset 36, each is 4 bytes */
+        uint32_t entries = (rsdt_len - 36) / 4;
+        uint32_t *entry_ptrs = (uint32_t *)((uint8_t *)rsdt + 36);
+
+        for (uint32_t e = 0; e < entries && !found_madt; e++) {
+            uint8_t *tbl = (uint8_t *)(uintptr_t)entry_ptrs[e];
+            /* Check for "APIC" signature */
+            if (tbl[0] == 'A' && tbl[1] == 'P' && tbl[2] == 'I' && tbl[3] == 'C') {
+                found_madt = 1;
+
+                uint32_t madt_len = *(uint32_t *)(tbl + 4);
+                /* MADT header: 44 bytes (36 ACPI + 4 LAPIC addr + 4 flags) */
+                uint32_t offset = 44;
+                smp.cpu_count = 0;
+
+                while (offset + 2 <= madt_len) {
+                    uint8_t type = tbl[offset];
+                    uint8_t len  = tbl[offset + 1];
+                    if (len < 2) break;
+
+                    if (type == 0 && len >= 8) {
+                        /* Type 0 = Processor Local APIC */
+                        uint8_t apic_id = tbl[offset + 3];
+                        uint32_t flags  = *(uint32_t *)(tbl + offset + 4);
+                        /* Bit 0 = Enabled, Bit 1 = Online Capable */
+                        if (flags & 0x3) {
+                            if (smp.cpu_count < MAX_CPUS) {
+                                smp.cpus[smp.cpu_count].apic_id = apic_id;
+                                smp.cpus[smp.cpu_count].state =
+                                    (apic_id == smp.bsp_id) ? CPU_STATE_IDLE : CPU_STATE_OFFLINE;
+                                smp.cpu_count++;
+                            }
+                        }
+                    }
+                    offset += len;
+                }
+
+                kprintf("[SMP] ACPI MADT: %u CPUs enumerated\n", smp.cpu_count);
+            }
+        }
+    }
+
+    /* Fallback: CPUID-based detection if MADT not found */
+    if (!found_madt) {
+        /* Try to detect CPUs via CPUID */
+        uint32_t eax, ebx, ecx, edx;
+        __asm__ volatile ("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+                         : "a"(1));
+
+        if (edx & (1 << 28)) {
+            uint32_t logical_cpus = (ebx >> 16) & 0xFF;
+            if (logical_cpus > MAX_CPUS) logical_cpus = MAX_CPUS;
+            if (logical_cpus < 1) logical_cpus = 1;
+            smp.cpu_count = logical_cpus;
+        } else {
+            smp.cpu_count = 1;
+        }
+
+        for (uint32_t i = 1; i < smp.cpu_count; i++) {
+            smp.cpus[i].apic_id = i;
+            smp.cpus[i].state = CPU_STATE_OFFLINE;
+        }
     }
 
     kprintf("[SMP] Detected %u logical CPUs\n", smp.cpu_count);

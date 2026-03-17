@@ -1,0 +1,313 @@
+/* =============================================================================
+ * TensorOS — Intel E1000 Ethernet NIC Driver
+ *
+ * Supports Intel 82540EM (QEMU default) and other E1000 variants.
+ * Uses MMIO register access and polled I/O (no interrupt-driven path yet).
+ *
+ * Reference: Intel 82540EP/EM Software Developer's Manual (SDM)
+ * =============================================================================*/
+
+#include "kernel/drivers/net/e1000.h"
+#include "kernel/core/kernel.h"
+
+/* =============================================================================
+ * MMIO access — identity-mapped physical addresses
+ * =============================================================================*/
+
+static volatile uint8_t *e1000_mmio_base = NULL;
+static int e1000_present = 0;
+static uint8_t e1000_mac[6];
+
+static inline uint32_t e1000_read(uint32_t reg)
+{
+    return *(volatile uint32_t *)(e1000_mmio_base + reg);
+}
+
+static inline void e1000_write(uint32_t reg, uint32_t val)
+{
+    *(volatile uint32_t *)(e1000_mmio_base + reg) = val;
+}
+
+/* =============================================================================
+ * Descriptor Rings — statically allocated, cache-line aligned
+ * =============================================================================*/
+
+static e1000_rx_desc_t rx_descs[E1000_NUM_RX_DESC] __attribute__((aligned(128)));
+static e1000_tx_desc_t tx_descs[E1000_NUM_TX_DESC] __attribute__((aligned(128)));
+
+static uint8_t rx_buffers[E1000_NUM_RX_DESC][E1000_RX_BUF_SIZE]
+    __attribute__((aligned(16)));
+
+static int rx_cur = 0;
+static int tx_cur = 0;
+
+/* =============================================================================
+ * PCI Configuration Space Access (I/O ports 0xCF8/0xCFC)
+ * =============================================================================*/
+
+static inline uint32_t pci_read32(uint8_t bus, uint8_t dev, uint8_t func, uint8_t off)
+{
+    uint32_t addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+                    ((uint32_t)func << 8) | (off & 0xFC);
+    outl(0xCF8, addr);
+    return inl(0xCFC);
+}
+
+static inline void pci_write32(uint8_t bus, uint8_t dev, uint8_t func, uint8_t off, uint32_t val)
+{
+    uint32_t addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+                    ((uint32_t)func << 8) | (off & 0xFC);
+    outl(0xCF8, addr);
+    outl(0xCFC, val);
+}
+
+/* =============================================================================
+ * EEPROM read — needed to get MAC address on real hardware
+ * =============================================================================*/
+
+static uint16_t e1000_eeprom_read(uint8_t addr)
+{
+    e1000_write(E1000_EERD, ((uint32_t)addr << 8) | 1);
+    uint32_t val;
+    int timeout = 10000;
+    do {
+        val = e1000_read(E1000_EERD);
+        if (--timeout == 0) return 0xFFFF;
+    } while (!(val & (1 << 4)));  /* Wait for done bit */
+    return (uint16_t)(val >> 16);
+}
+
+/* =============================================================================
+ * Read MAC address — try EEPROM first, then RAL/RAH registers
+ * =============================================================================*/
+
+static void e1000_read_mac(void)
+{
+    /* Try EEPROM */
+    uint16_t w0 = e1000_eeprom_read(0);
+    uint16_t w1 = e1000_eeprom_read(1);
+    uint16_t w2 = e1000_eeprom_read(2);
+
+    if (w0 != 0xFFFF && w1 != 0xFFFF && w2 != 0xFFFF) {
+        e1000_mac[0] = w0 & 0xFF;
+        e1000_mac[1] = (w0 >> 8) & 0xFF;
+        e1000_mac[2] = w1 & 0xFF;
+        e1000_mac[3] = (w1 >> 8) & 0xFF;
+        e1000_mac[4] = w2 & 0xFF;
+        e1000_mac[5] = (w2 >> 8) & 0xFF;
+    } else {
+        /* Fall back to RAL/RAH (works on QEMU) */
+        uint32_t ral = e1000_read(E1000_RAL0);
+        uint32_t rah = e1000_read(E1000_RAH0);
+        e1000_mac[0] = ral & 0xFF;
+        e1000_mac[1] = (ral >> 8) & 0xFF;
+        e1000_mac[2] = (ral >> 16) & 0xFF;
+        e1000_mac[3] = (ral >> 24) & 0xFF;
+        e1000_mac[4] = rah & 0xFF;
+        e1000_mac[5] = (rah >> 8) & 0xFF;
+    }
+}
+
+/* =============================================================================
+ * Initialize receive path
+ * =============================================================================*/
+
+static void e1000_init_rx(void)
+{
+    /* Set up RX descriptor ring */
+    for (int i = 0; i < E1000_NUM_RX_DESC; i++) {
+        rx_descs[i].addr = (uint64_t)(uintptr_t)rx_buffers[i];
+        rx_descs[i].status = 0;
+    }
+
+    /* Tell hardware where the descriptor ring is */
+    uint64_t rdesc_phys = (uint64_t)(uintptr_t)rx_descs;
+    e1000_write(E1000_RDBAL, (uint32_t)(rdesc_phys & 0xFFFFFFFF));
+    e1000_write(E1000_RDBAH, (uint32_t)(rdesc_phys >> 32));
+    e1000_write(E1000_RDLEN, E1000_NUM_RX_DESC * sizeof(e1000_rx_desc_t));
+    e1000_write(E1000_RDH, 0);
+    e1000_write(E1000_RDT, E1000_NUM_RX_DESC - 1);
+
+    rx_cur = 0;
+
+    /* Enable receiver: accept broadcast, 2K buffers, strip CRC */
+    e1000_write(E1000_RCTL,
+                E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_BSIZE_2K |
+                E1000_RCTL_SECRC);
+}
+
+/* =============================================================================
+ * Initialize transmit path
+ * =============================================================================*/
+
+static void e1000_init_tx(void)
+{
+    /* Set up TX descriptor ring */
+    kmemset(tx_descs, 0, sizeof(tx_descs));
+
+    uint64_t tdesc_phys = (uint64_t)(uintptr_t)tx_descs;
+    e1000_write(E1000_TDBAL, (uint32_t)(tdesc_phys & 0xFFFFFFFF));
+    e1000_write(E1000_TDBAH, (uint32_t)(tdesc_phys >> 32));
+    e1000_write(E1000_TDLEN, E1000_NUM_TX_DESC * sizeof(e1000_tx_desc_t));
+    e1000_write(E1000_TDH, 0);
+    e1000_write(E1000_TDT, 0);
+
+    tx_cur = 0;
+
+    /* Inter-Packet Gap: recommended values from the SDM */
+    e1000_write(E1000_TIPG, (10 | (10 << 10) | (10 << 20)));
+
+    /* Enable transmitter: pad short packets */
+    e1000_write(E1000_TCTL, E1000_TCTL_EN | E1000_TCTL_PSP |
+                (0x0F << 4) |   /* Collision Threshold */
+                (0x40 << 12));  /* Collision Distance */
+}
+
+/* =============================================================================
+ * PCI probe and initialization
+ * =============================================================================*/
+
+int e1000_init(void)
+{
+    /* Scan PCI bus 0 for Intel E1000 */
+    int found_bus = -1, found_dev = -1;
+    for (int dev = 0; dev < 32; dev++) {
+        uint32_t id = pci_read32(0, dev, 0, 0);
+        uint16_t vendor = id & 0xFFFF;
+        uint16_t device = (id >> 16) & 0xFFFF;
+        if (vendor == E1000_VENDOR_INTEL &&
+            (device == E1000_DEV_82540EM ||
+             device == E1000_DEV_82545EM ||
+             device == E1000_DEV_82574L)) {
+            found_bus = 0;
+            found_dev = dev;
+            kprintf("[E1000] Found Intel E1000 (device=0x%x) at PCI 0:%d.0\n",
+                    device, dev);
+            break;
+        }
+    }
+
+    if (found_bus < 0) {
+        kprintf("[E1000] No Intel E1000 NIC found\n");
+        return -1;
+    }
+
+    /* Read BAR0 (MMIO base address) */
+    uint32_t bar0 = pci_read32(0, found_dev, 0, 0x10);
+    if (bar0 & 1) {
+        kprintf("[E1000] BAR0 is I/O space, not supported\n");
+        return -1;
+    }
+    uint64_t mmio = bar0 & ~0xFULL;
+
+    /* Check for 64-bit BAR */
+    if ((bar0 & 0x6) == 0x4) {
+        uint32_t bar1 = pci_read32(0, found_dev, 0, 0x14);
+        mmio |= ((uint64_t)bar1 << 32);
+    }
+
+    e1000_mmio_base = (volatile uint8_t *)(uintptr_t)mmio;
+    kprintf("[E1000] MMIO base: 0x%lx\n", mmio);
+
+    /* Enable PCI bus mastering and memory space */
+    uint32_t cmd = pci_read32(0, found_dev, 0, 0x04);
+    cmd |= (1 << 1) | (1 << 2);  /* Memory Space + Bus Master */
+    pci_write32(0, found_dev, 0, 0x04, cmd);
+
+    /* Reset NIC */
+    e1000_write(E1000_CTRL, e1000_read(E1000_CTRL) | E1000_CTRL_RST);
+    /* Wait for reset to complete */
+    for (volatile int i = 0; i < 100000; i++) ;
+    /* Disable all interrupts (polled mode) */
+    e1000_write(E1000_IMC, 0xFFFFFFFF);
+
+    /* Set link up */
+    uint32_t ctrl = e1000_read(E1000_CTRL);
+    ctrl |= E1000_CTRL_SLU;
+    ctrl &= ~E1000_CTRL_RST;
+    e1000_write(E1000_CTRL, ctrl);
+
+    /* Clear MTA (multicast table) */
+    for (int i = 0; i < 128; i++)
+        e1000_write(E1000_MTA + i * 4, 0);
+
+    /* Read MAC address */
+    e1000_read_mac();
+    kprintf("[E1000] MAC: %x:%x:%x:%x:%x:%x\n",
+            e1000_mac[0], e1000_mac[1], e1000_mac[2],
+            e1000_mac[3], e1000_mac[4], e1000_mac[5]);
+
+    /* Initialize RX and TX */
+    e1000_init_rx();
+    e1000_init_tx();
+
+    e1000_present = 1;
+    kprintf("[E1000] NIC initialized (polled mode)\n");
+    return 0;
+}
+
+/* =============================================================================
+ * Send a packet
+ * =============================================================================*/
+
+int e1000_send(const uint8_t *data, uint16_t len)
+{
+    if (!e1000_present || len > 1518) return -1;
+
+    /* Wait for previous TX on this slot to complete */
+    int timeout = 100000;
+    while (!(tx_descs[tx_cur].status & E1000_TXD_STAT_DD) &&
+           tx_descs[tx_cur].cmd && --timeout > 0) ;
+
+    /* Set up descriptor */
+    tx_descs[tx_cur].addr = (uint64_t)(uintptr_t)data;
+    tx_descs[tx_cur].length = len;
+    tx_descs[tx_cur].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_IFCS | E1000_TXD_CMD_RS;
+    tx_descs[tx_cur].status = 0;
+
+    /* Advance tail — kicks the hardware */
+    int old = tx_cur;
+    tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
+    e1000_write(E1000_TDT, tx_cur);
+
+    (void)old;
+    return 0;
+}
+
+/* =============================================================================
+ * Poll for received packets
+ * =============================================================================*/
+
+void e1000_poll(void (*rx_callback)(const uint8_t *data, uint16_t len))
+{
+    if (!e1000_present) return;
+
+    while (rx_descs[rx_cur].status & E1000_RXD_STAT_DD) {
+        uint16_t len = rx_descs[rx_cur].length;
+
+        if ((rx_descs[rx_cur].status & E1000_RXD_STAT_EOP) && len > 0) {
+            rx_callback(rx_buffers[rx_cur], len);
+        }
+
+        /* Reset descriptor and return to hardware */
+        rx_descs[rx_cur].status = 0;
+        e1000_write(E1000_RDT, rx_cur);
+
+        rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
+    }
+}
+
+/* =============================================================================
+ * Utility functions
+ * =============================================================================*/
+
+void e1000_get_mac(uint8_t mac[6])
+{
+    for (int i = 0; i < 6; i++) mac[i] = e1000_mac[i];
+}
+
+int e1000_link_up(void)
+{
+    if (!e1000_present) return 0;
+    return (e1000_read(E1000_STATUS) & 0x02) ? 1 : 0;
+}

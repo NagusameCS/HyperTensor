@@ -87,7 +87,7 @@ struct tcp_hdr {
 #define TCP_STATE_TIME_WAIT   8
 
 /* TCP connection (simplified — single concurrent connection per slot) */
-#define TCP_MAX_CONNS     16
+#define TCP_MAX_CONNS     64
 #define TCP_RX_BUF_SIZE   16384  /* 16 KB receive buffer per connection */
 #define TCP_TX_BUF_SIZE   32768  /* 32 KB send buffer per connection */
 

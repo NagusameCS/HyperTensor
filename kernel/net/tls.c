@@ -31,7 +31,7 @@ static uint8_t tls_cert_priv[64];
 static int tls_initialized = 0;
 
 /* Session pool */
-#define TLS_MAX_SESSIONS 8
+#define TLS_MAX_SESSIONS 32
 static tls_session_t tls_sessions[TLS_MAX_SESSIONS];
 
 /* =============================================================================

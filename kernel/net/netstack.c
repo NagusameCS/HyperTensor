@@ -46,7 +46,7 @@ void net_set_api_key(const char *key)
 }
 
 /* UDP port handlers */
-#define MAX_UDP_HANDLERS 16
+#define MAX_UDP_HANDLERS 32
 static struct {
     uint16_t     port;
     udp_handler_t handler;
@@ -894,7 +894,7 @@ static char llm_output_buf[8192];
  * Processed in FIFO order by netstack_poll().
  * =============================================================================*/
 
-#define INFER_QUEUE_SIZE 8
+#define INFER_QUEUE_SIZE 32
 
 typedef struct {
     tcp_conn_t *conn;
