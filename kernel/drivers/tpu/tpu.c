@@ -27,12 +27,14 @@ int tpu_tensor_matmul(uint32_t tpu_id, tensor_desc_t *C,
 {
     if (tpu_id >= tpu_count) return -1;
     /* TPU systolic array matrix multiply would be dispatched here */
-    return 0;
+    kprintf_debug("[TPU] matmul: no firmware loaded for TPU %u\n", tpu_id);
+    return -2; /* TPU_ENOSYS: stub not implemented */
 }
 
 int tpu_tensor_conv2d(uint32_t tpu_id, tensor_desc_t *output,
                        const tensor_desc_t *input, const tensor_desc_t *kernel)
 {
     if (tpu_id >= tpu_count) return -1;
-    return 0;
+    kprintf_debug("[TPU] conv2d: no firmware loaded for TPU %u\n", tpu_id);
+    return -2; /* TPU_ENOSYS: stub not implemented */
 }

@@ -182,10 +182,14 @@ static int parse_kv_value(reader_t *r, gguf_kv_t *kv, gguf_type_t type)
         /* Skip array data — we just record the pointer */
         for (uint64_t i = 0; i < kv->value.array.count; i++) {
             switch (kv->value.array.elem_type) {
-            case GGUF_TYPE_UINT8:  case GGUF_TYPE_INT8:  case GGUF_TYPE_BOOL: r->pos += 1; break;
-            case GGUF_TYPE_UINT16: case GGUF_TYPE_INT16: r->pos += 2; break;
-            case GGUF_TYPE_UINT32: case GGUF_TYPE_INT32: case GGUF_TYPE_FLOAT32: r->pos += 4; break;
-            case GGUF_TYPE_UINT64: case GGUF_TYPE_INT64: case GGUF_TYPE_FLOAT64: r->pos += 8; break;
+            case GGUF_TYPE_UINT8:  case GGUF_TYPE_INT8:  case GGUF_TYPE_BOOL:
+                if (!reader_has(r, 1)) return -4; r->pos += 1; break;
+            case GGUF_TYPE_UINT16: case GGUF_TYPE_INT16:
+                if (!reader_has(r, 2)) return -4; r->pos += 2; break;
+            case GGUF_TYPE_UINT32: case GGUF_TYPE_INT32: case GGUF_TYPE_FLOAT32:
+                if (!reader_has(r, 4)) return -4; r->pos += 4; break;
+            case GGUF_TYPE_UINT64: case GGUF_TYPE_INT64: case GGUF_TYPE_FLOAT64:
+                if (!reader_has(r, 8)) return -4; r->pos += 8; break;
             case GGUF_TYPE_STRING: { gguf_string_t s = read_string(r); (void)s; } break;
             default: return -4; /* unsupported array element type */
             }

@@ -115,6 +115,13 @@ int tensor_add(tensor_desc_t *C, const tensor_desc_t *A,
 
     /* CPU element-wise add */
     *C = *A;
+    if (A->data_virt && B->data_virt && C->data_virt) {
+        int n = (int)(A->size_bytes / sizeof(float));
+        const float *fa = (const float *)A->data_virt;
+        const float *fb = (const float *)B->data_virt;
+        float *fc = (float *)C->data_virt;
+        for (int i = 0; i < n; i++) fc[i] = fa[i] + fb[i];
+    }
     kstate.tensor_ops_total++;
     return 0;
 }
@@ -140,6 +147,11 @@ int tensor_softmax(tensor_desc_t *output, const tensor_desc_t *input, int axis)
         return gpu_tensor_softmax(0, output, input, axis);
 
     *output = *input;
+    if (input->data_virt && output->data_virt) {
+        int n = (int)(input->size_bytes / sizeof(float));
+        tensor_cpu_softmax((float *)output->data_virt,
+                           (const float *)input->data_virt, n);
+    }
     kstate.tensor_ops_total++;
     return 0;
 }
@@ -152,9 +164,9 @@ int tensor_attention(tensor_desc_t *output,
     if (kstate.gpu_count > 0)
         return gpu_tensor_attention(0, output, Q, K, V, scale);
 
-    /* CPU fallback */
+    /* CPU fallback — attention requires GPU, report error */
     kstate.tensor_ops_total++;
-    return 0;
+    return -1;
 }
 
 int tensor_layernorm(tensor_desc_t *output, const tensor_desc_t *input,

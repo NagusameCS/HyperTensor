@@ -58,9 +58,9 @@ void monitor_tick(tensor_monitor_t *mon)
         s->gpu_fan_percent  = 0;
     }
 
-    /* Cache hit rate approximation: ratio of tensor ops to dispatches */
+    /* Cache hit rate: not yet tracked, report as unavailable */
     if (kstate.tensor_ops_total > 0) {
-        s->cache_hit_rate = 0.85f;  /* Baseline from in-memory cache design */
+        s->cache_hit_rate = 0.0f;  /* Real cache tracking not yet implemented */
     } else {
         s->cache_hit_rate = 0.0f;
     }

@@ -235,6 +235,11 @@ int tfs_unlink(const char *path)
                 inode_data[j] = inode_data[j + 1];
             }
             inode_count--;
+            /* Fix fd_table indices invalidated by the shift */
+            for (int fd = 0; fd < MAX_OPEN_FILES; fd++) {
+                if (fd_table[fd].open && fd_table[fd].inode_idx > i)
+                    fd_table[fd].inode_idx--;
+            }
             return 0;
         }
     }
@@ -271,10 +276,13 @@ typedef struct {
 static uint32_t tfs_checksum(const void *data, uint64_t len)
 {
     const uint8_t *p = (const uint8_t *)data;
-    uint32_t sum = 0;
-    for (uint64_t i = 0; i < len; i++)
-        sum += p[i];
-    return sum;
+    uint32_t crc = 0xFFFFFFFF;
+    for (uint64_t i = 0; i < len; i++) {
+        crc ^= p[i];
+        for (int j = 0; j < 8; j++)
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+    return ~crc;
 }
 
 int tfs_sync(void)

@@ -104,8 +104,9 @@ int deploy_stop(const char *name)
     /* Kill all replicas */
     for (uint32_t i = 0; i < svc->replica_count; i++) {
         if (svc->replicas[i].meu_id > 0) {
-            /* Find and destroy the MEU — iterate scheduler pool */
-            kprintf_debug("[DEPLOY] Destroying MEU #%d\n", svc->replicas[i].meu_id);
+            model_exec_unit_t *meu = meu_find_by_id(svc->replicas[i].meu_id);
+            if (meu) meu_destroy(meu);
+            kprintf_debug("[DEPLOY] Destroyed MEU #%d\n", svc->replicas[i].meu_id);
         }
     }
     svc->replica_count = 0;

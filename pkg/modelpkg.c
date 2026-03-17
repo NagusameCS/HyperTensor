@@ -53,6 +53,17 @@ int modelpkg_install(const char *name, const char *version)
             model->manifest.version[i] = version[i];
     }
 
+    /* Build install path first, then create directory */
+    {
+        char *path = model->install_path;
+        const char *prefix = "/models/";
+        int pos = 0;
+        while (*prefix && pos < 255) path[pos++] = *prefix++;
+        for (int i = 0; i < 63 && name[i] && pos < 255; i++)
+            path[pos++] = name[i];
+        path[pos] = '\0';
+    }
+
     /* Create model directory in TensorFS */
     tfs_mkdir(model->install_path);
 
@@ -62,13 +73,6 @@ int modelpkg_install(const char *name, const char *version)
 
     model->status = PKG_STATUS_INSTALLED;
     model->install_time = kstate.uptime_ticks;
-
-    /* Set install path */
-    char *path = model->install_path;
-    const char *prefix = "/models/";
-    while (*prefix) *path++ = *prefix++;
-    for (int i = 0; i < 63 && name[i]; i++) *path++ = name[i];
-    *path = '\0';
 
     kprintf("[PKG] Installed %s to %s\n", name, model->install_path);
     return 0;

@@ -307,6 +307,15 @@ int virt_shared_mem_create(uint32_t container_id, uint64_t size,
  * the container makes a hypercall and the host processes the tensor op natively
  * =============================================================================*/
 
+/* Validate guest pointer: reject kernel low memory, wraparound */
+static int virt_validate_guest_ptr(const void *ptr, uint64_t size)
+{
+    uintptr_t addr = (uintptr_t)ptr;
+    if (addr < 0x100000) return 0;       /* Below 1MB — kernel area */
+    if (addr + size < addr) return 0;    /* Integer wraparound */
+    return 1;
+}
+
 int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
 {
     switch (frame->call) {
@@ -341,6 +350,11 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
             tensor_desc_t *A = (tensor_desc_t *)frame->args[1];
             tensor_desc_t *B = (tensor_desc_t *)frame->args[2];
             if (!C || !A || !B) { frame->ret = (uint64_t)-1; return -1; }
+            if (!virt_validate_guest_ptr(C, sizeof(tensor_desc_t)) ||
+                !virt_validate_guest_ptr(A, sizeof(tensor_desc_t)) ||
+                !virt_validate_guest_ptr(B, sizeof(tensor_desc_t))) {
+                frame->ret = (uint64_t)-1; return -1;
+            }
             uint32_t gpu_id = (uint32_t)frame->args[3];
             frame->ret = gpu_tensor_matmul(gpu_id, C, A, B);
         }
@@ -353,6 +367,12 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
             tensor_desc_t *K = (tensor_desc_t *)frame->args[2];
             tensor_desc_t *V = (tensor_desc_t *)frame->args[3];
             if (!out || !Q || !K || !V) { frame->ret = (uint64_t)-1; return -1; }
+            if (!virt_validate_guest_ptr(out, sizeof(tensor_desc_t)) ||
+                !virt_validate_guest_ptr(Q, sizeof(tensor_desc_t)) ||
+                !virt_validate_guest_ptr(K, sizeof(tensor_desc_t)) ||
+                !virt_validate_guest_ptr(V, sizeof(tensor_desc_t))) {
+                frame->ret = (uint64_t)-1; return -1;
+            }
             float scale = *(float *)&frame->args[4];
             uint32_t gpu_id = (uint32_t)frame->args[5];
             frame->ret = gpu_tensor_attention(gpu_id, out, Q, K, V, scale);
@@ -373,7 +393,9 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
         /* Git commit from within container */
         {
             const char *message = (const char *)frame->args[0];
-            if (!message) { frame->ret = (uint64_t)-1; return -1; }
+            if (!message || !virt_validate_guest_ptr(message, 1)) {
+                frame->ret = (uint64_t)-1; return -1;
+            }
             frame->ret = git_commit(&default_repo, message);
         }
         break;

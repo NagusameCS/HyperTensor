@@ -55,6 +55,26 @@ static int n_udp_handlers;
 static tcp_conn_t tcp_conns[TCP_MAX_CONNS];
 static uint16_t tcp_listen_port;
 static uint32_t tcp_isn_counter = 0x10000; /* Initial sequence number counter */
+static uint32_t tcp_isn_secret = 0xA3F197E2; /* ISN hash secret */
+
+/* FNV-1a hash for unpredictable ISN generation (RFC 6528) */
+static uint32_t isn_hash(const uint8_t src[4], uint16_t sport,
+                         const uint8_t dst[4], uint16_t dport,
+                         uint32_t counter)
+{
+    uint32_t h = 0x811c9dc5; /* FNV-1a offset basis */
+    h = (h ^ tcp_isn_secret) * 0x01000193;
+    for (int i = 0; i < 4; i++) h = (h ^ src[i]) * 0x01000193;
+    for (int i = 0; i < 4; i++) h = (h ^ dst[i]) * 0x01000193;
+    h = (h ^ (sport >> 8)) * 0x01000193;
+    h = (h ^ (sport & 0xFF)) * 0x01000193;
+    h = (h ^ (dport >> 8)) * 0x01000193;
+    h = (h ^ (dport & 0xFF)) * 0x01000193;
+    for (int i = 0; i < 4; i++) {
+        h = (h ^ ((counter >> (i * 8)) & 0xFF)) * 0x01000193;
+    }
+    return h;
+}
 
 /* TX frame buffer */
 static uint8_t tx_frame[2048] __attribute__((aligned(16)));
@@ -542,7 +562,8 @@ static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
         conn->local_port = dst_port;
         conn->remote_port = src_port;
         conn->rcv_nxt = seq + 1;
-        conn->snd_nxt = tcp_isn_counter;
+        conn->snd_nxt = isn_hash(net_cfg.ip, dst_port, iph->src, src_port,
+                                 tcp_isn_counter);
         tcp_isn_counter += 64000;
         conn->snd_una = conn->snd_nxt;
         conn->remote_win = ntohs(tcp->window);

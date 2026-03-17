@@ -68,8 +68,8 @@ void nn_model_destroy(nn_model_t *model)
     if (!model) return;
     /* Free heap-allocated weight buffers */
     for (int i = 0; i < model->num_layers; i++) {
-        /* Only free if we allocated them (detected by checking if they
-         * fall in the tensor heap range — simplified: just free) */
+        if (model->layers[i].weights)
+            tensor_free(model->layers[i].weights);
     }
     if (model->layers != model->_layers)
         tensor_free(model->layers);
@@ -150,12 +150,28 @@ nn_layer_t *nn_model_add_conv2d(nn_model_t *model,
 void nn_forward(nn_model_t *model, float *output, const float *input)
 {
     static float buf[2][1024] __attribute__((aligned(16)));
+    float *bufs[2] = { buf[0], buf[1] };
+    float *heap0 = NULL, *heap1 = NULL;
+
+    if (model->max_dim > 1024) {
+        uint64_t sz = (uint64_t)model->max_dim * sizeof(float);
+        heap0 = (float *)tensor_alloc(sz);
+        heap1 = (float *)tensor_alloc(sz);
+        if (!heap0 || !heap1) {
+            if (heap0) tensor_free(heap0);
+            if (heap1) tensor_free(heap1);
+            return;
+        }
+        bufs[0] = heap0;
+        bufs[1] = heap1;
+    }
+
     const float *in = input;
     int cur = 0;
 
     for (int l = 0; l < model->num_layers; l++) {
         nn_layer_t *L = &model->layers[l];
-        float *out = buf[cur];
+        float *out = bufs[cur];
 
         typedef float v4f __attribute__((vector_size(16)));
         int i = 0;
@@ -282,6 +298,8 @@ void nn_forward(nn_model_t *model, float *output, const float *input)
 
     int final_dim = model->layers[model->num_layers - 1].out_dim;
     kmemcpy(output, in, (size_t)final_dim * sizeof(float));
+    if (heap0) tensor_free(heap0);
+    if (heap1) tensor_free(heap1);
 }
 
 /* =============================================================================
@@ -311,6 +329,9 @@ void nn_forward_batch(nn_model_t *model, float *output, const float *input,
     if (!bbuf0 || !bbuf1) {
         if (bbuf0) tensor_free(bbuf0);
         if (bbuf1) tensor_free(bbuf1);
+        /* Zero output to signal failure */
+        int out_dim = model->layers[model->num_layers - 1].out_dim;
+        kmemset(output, 0, (size_t)batch_size * out_dim * sizeof(float));
         return;
     }
     float *bbufs[2] = { bbuf0, bbuf1 };

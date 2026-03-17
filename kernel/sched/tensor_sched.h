@@ -129,6 +129,7 @@ void tensor_sched_init(void);
 model_exec_unit_t *meu_create(const char *name, meu_type_t type,
                                meu_priority_t priority);
 void meu_destroy(model_exec_unit_t *meu);
+model_exec_unit_t *meu_find_by_id(uint64_t meu_id);
 int  meu_set_model(model_exec_unit_t *meu, uint64_t model_hash,
                     uint64_t param_count, tensor_dtype_t dtype);
 int  meu_set_resource_budget(model_exec_unit_t *meu, uint64_t mem_bytes,

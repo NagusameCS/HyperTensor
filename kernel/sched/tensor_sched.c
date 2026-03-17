@@ -119,12 +119,21 @@ void tensor_sched_init(void)
 model_exec_unit_t *meu_create(const char *name, meu_type_t type,
                                meu_priority_t priority)
 {
-    if (meu_pool_used >= SCHED_MAX_MEUS) {
-        kprintf("SCHED: MEU pool exhausted\n");
-        return NULL;
+    /* Try to reclaim a completed slot first */
+    model_exec_unit_t *meu = NULL;
+    for (uint32_t i = 0; i < meu_pool_used; i++) {
+        if (meu_pool[i].state == MEU_STATE_COMPLETED) {
+            meu = &meu_pool[i];
+            break;
+        }
     }
-
-    model_exec_unit_t *meu = &meu_pool[meu_pool_used++];
+    if (!meu) {
+        if (meu_pool_used >= SCHED_MAX_MEUS) {
+            kprintf("SCHED: MEU pool exhausted\n");
+            return NULL;
+        }
+        meu = &meu_pool[meu_pool_used++];
+    }
     kmemset(meu, 0, sizeof(*meu));
 
     meu->meu_id = next_meu_id++;
@@ -173,6 +182,16 @@ void meu_destroy(model_exec_unit_t *meu)
     meu->state = MEU_STATE_COMPLETED;
     kprintf_debug("[SCHED] Destroyed MEU %lu '%s' (ops=%lu)\n",
                   meu->meu_id, meu->name, meu->tensor_ops);
+}
+
+model_exec_unit_t *meu_find_by_id(uint64_t meu_id)
+{
+    for (uint32_t i = 0; i < meu_pool_used; i++) {
+        if (meu_pool[i].meu_id == meu_id &&
+            meu_pool[i].state != MEU_STATE_COMPLETED)
+            return &meu_pool[i];
+    }
+    return NULL;
 }
 
 int meu_set_model(model_exec_unit_t *meu, uint64_t model_hash,

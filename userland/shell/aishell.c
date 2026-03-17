@@ -47,12 +47,6 @@ static uint64_t shell_strlen(const char *s)
     return n;
 }
 
-static void shell_strcpy(char *dst, const char *src)
-{
-    while (*src) *dst++ = *src++;
-    *dst = 0;
-}
-
 static void shell_strncpy(char *dst, const char *src, uint64_t size)
 {
     if (!size) return;
