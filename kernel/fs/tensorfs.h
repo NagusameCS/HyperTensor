@@ -78,4 +78,8 @@ int  tfs_model_stream_open(const char *path); /* Streaming read for large models
 int  tfs_model_stream_read(int fd, void *buf, uint64_t chunk_size);
 void tfs_model_stream_close(int fd);
 
+/* Disk persistence */
+int  tfs_sync(void);    /* Flush filesystem state to disk via virtio_blk */
+int  tfs_mount(void);   /* Load filesystem state from disk */
+
 #endif /* TENSOROS_TENSORFS_H */

@@ -72,6 +72,7 @@ $SOURCES = @(
     "userland\monitor\tensor_monitor.c",
     "userland\deploy\deploy_service.c",
     "userland\train\train_service.c",
+    "runtime\nn\braniac.c",
     "kernel\drivers\bt\rpi_bt.c",
     "kernel\drivers\blk\rpi_sd.c",
     "kernel\update\ota.c"

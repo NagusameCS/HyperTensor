@@ -57,6 +57,10 @@ _start:
     cmp eax, 0x2BADB002
     jne .error
 
+    ; Save multiboot info pointer to safe location before CPUID clobbers EBX
+    ; Address 0x500 is in the conventional BIOS free area (0x500-0x7BFF)
+    mov [0x500], ebx
+
     ; --- Check CPUID ---
     pushfd
     pop eax
@@ -251,6 +255,9 @@ realm64:
     out dx, al
 
     ; Jump to 64-bit kernel at KERNEL64_LOAD_ADDR
+    ; Pass multiboot info pointer in RDI (System V ABI first argument)
+    xor rdi, rdi
+    mov edi, [0x500]              ; Load saved multiboot info pointer
     mov rax, KERNEL64_LOAD_ADDR
     jmp rax
 
@@ -273,7 +280,7 @@ gdt64:
     dq 0x00CF92000000FFFF          ; 64-bit Data: base=0, limit=0xFFFFF, G=1, P=1, DPL=0, Type=data/write
 gdt64_ptr:
     dw $ - gdt64 - 1
-    dd gdt64
+    dq gdt64                              ; 8-byte base for 64-bit LGDT
 
 ; =============================================================================
 ; 64-bit kernel payload (flat binary)

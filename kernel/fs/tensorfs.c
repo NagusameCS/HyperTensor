@@ -4,6 +4,10 @@
 
 #include "kernel/fs/tensorfs.h"
 
+/* Forward declaration for virtio_blk driver */
+extern int virtio_blk_read(uint64_t sector, uint32_t count, void *buf);
+extern int virtio_blk_write(uint64_t sector, uint32_t count, const void *buf);
+
 static tfs_inode_t inodes[TFS_MAX_INODES];
 static uint32_t inode_count = 0;
 static uint64_t next_inode = 1;
@@ -235,4 +239,167 @@ int tfs_unlink(const char *path)
         }
     }
     return -1;
+}
+
+/* =============================================================================
+ * Disk Persistence Layer
+ *
+ * On-disk format (via virtio_blk):
+ *   Sector 0:      Superblock (512 bytes)
+ *   Sectors 1-N:   Inode table (packed tfs_inode_t entries)
+ *   Sectors N+1..: File data blocks (referenced by inode_data offsets)
+ *
+ * The superblock contains a magic number, inode count, data pool usage,
+ * and a CRC32 checksum for integrity validation.
+ * =============================================================================*/
+
+#define TFS_DISK_MAGIC      0x54465330  /* "TFS0" */
+#define TFS_SUPER_SECTOR    0           /* Superblock at sector 0 */
+#define TFS_INODE_SECTOR    1           /* Inode table starts at sector 1 */
+#define TFS_DATA_SECTOR     256         /* Data pool starts at sector 256 */
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t inode_count;
+    uint64_t next_inode;
+    uint64_t data_pool_used;
+    uint32_t checksum;          /* Simple additive checksum */
+    uint8_t  reserved[480];     /* Pad to 512 bytes */
+} __attribute__((packed)) tfs_superblock_t;
+
+static uint32_t tfs_checksum(const void *data, uint64_t len)
+{
+    const uint8_t *p = (const uint8_t *)data;
+    uint32_t sum = 0;
+    for (uint64_t i = 0; i < len; i++)
+        sum += p[i];
+    return sum;
+}
+
+int tfs_sync(void)
+{
+    /* Write superblock */
+    tfs_superblock_t sb;
+    kmemset(&sb, 0, sizeof(sb));
+    sb.magic = TFS_DISK_MAGIC;
+    sb.version = 1;
+    sb.inode_count = inode_count;
+    sb.next_inode = next_inode;
+    sb.data_pool_used = tfs_data_pool_used;
+    sb.checksum = tfs_checksum(inodes, inode_count * sizeof(tfs_inode_t));
+
+    if (virtio_blk_write(TFS_SUPER_SECTOR, 1, &sb) != 0) {
+        kprintf("[TFS] SYNC ERROR: Failed to write superblock\n");
+        return -1;
+    }
+
+    /* Write inode table */
+    uint32_t inode_bytes = inode_count * sizeof(tfs_inode_t);
+    uint32_t inode_sectors = (inode_bytes + 511) / 512;
+    if (inode_sectors > 0) {
+        /* Need a sector-aligned buffer — use data pool as temp if needed */
+        uint32_t aligned_bytes = inode_sectors * 512;
+        static uint8_t inode_buf[255 * 512];  /* Max 255 sectors for inode table */
+        if (aligned_bytes > sizeof(inode_buf)) {
+            kprintf("[TFS] SYNC ERROR: Inode table too large\n");
+            return -1;
+        }
+        kmemset(inode_buf, 0, aligned_bytes);
+        kmemcpy(inode_buf, inodes, inode_bytes);
+        if (virtio_blk_write(TFS_INODE_SECTOR, inode_sectors, inode_buf) != 0) {
+            kprintf("[TFS] SYNC ERROR: Failed to write inode table\n");
+            return -1;
+        }
+    }
+
+    /* Write used portion of data pool */
+    if (tfs_data_pool_used > 0) {
+        uint32_t data_sectors = (tfs_data_pool_used + 511) / 512;
+        if (virtio_blk_write(TFS_DATA_SECTOR, data_sectors, tfs_data_pool) != 0) {
+            kprintf("[TFS] SYNC ERROR: Failed to write data pool\n");
+            return -1;
+        }
+    }
+
+    kprintf_debug("[TFS] Synced to disk: %u inodes, %lu bytes data\n",
+                  inode_count, tfs_data_pool_used);
+    return 0;
+}
+
+int tfs_mount(void)
+{
+    /* Read superblock */
+    tfs_superblock_t sb;
+    kmemset(&sb, 0, sizeof(sb));
+    if (virtio_blk_read(TFS_SUPER_SECTOR, 1, &sb) != 0) {
+        kprintf("[TFS] No disk found, using RAM-only mode\n");
+        return -1;
+    }
+
+    if (sb.magic != TFS_DISK_MAGIC) {
+        kprintf("[TFS] No TensorFS filesystem on disk (formatting...)\n");
+        /* Format: write empty superblock */
+        return tfs_sync();
+    }
+
+    if (sb.version != 1) {
+        kprintf("[TFS] Unsupported TFS version %u\n", sb.version);
+        return -1;
+    }
+
+    /* Restore inode table */
+    inode_count = sb.inode_count;
+    next_inode = sb.next_inode;
+    tfs_data_pool_used = sb.data_pool_used;
+
+    if (inode_count > 0) {
+        uint32_t inode_bytes = inode_count * sizeof(tfs_inode_t);
+        uint32_t inode_sectors = (inode_bytes + 511) / 512;
+        static uint8_t inode_buf[255 * 512];
+        uint32_t aligned_bytes = inode_sectors * 512;
+        if (aligned_bytes > sizeof(inode_buf)) {
+            kprintf("[TFS] WARNING: Inode table exceeds buffer\n");
+            return -1;
+        }
+        if (virtio_blk_read(TFS_INODE_SECTOR, inode_sectors, inode_buf) != 0) {
+            kprintf("[TFS] ERROR: Failed to read inode table\n");
+            return -1;
+        }
+        kmemcpy(inodes, inode_buf, inode_bytes);
+
+        /* Verify checksum */
+        uint32_t computed = tfs_checksum(inodes, inode_bytes);
+        if (computed != sb.checksum) {
+            kprintf("[TFS] WARNING: Inode checksum mismatch (disk=%u, computed=%u)\n",
+                    sb.checksum, computed);
+        }
+    }
+
+    /* Restore data pool */
+    if (tfs_data_pool_used > 0) {
+        uint32_t data_sectors = (tfs_data_pool_used + 511) / 512;
+        if (virtio_blk_read(TFS_DATA_SECTOR, data_sectors, tfs_data_pool) != 0) {
+            kprintf("[TFS] ERROR: Failed to read data pool\n");
+            return -1;
+        }
+
+        /* Reconstruct inode_data pointers from the restored data pool */
+        kmemset(inode_data, 0, sizeof(inode_data));
+        uint64_t offset = 0;
+        for (uint32_t i = 0; i < inode_count && offset < tfs_data_pool_used; i++) {
+            if (inodes[i].size > 0 && inodes[i].type != TFS_FILE_DIR) {
+                inode_data[i].data = &tfs_data_pool[offset];
+                inode_data[i].capacity = (inodes[i].size > 4096) ?
+                    inodes[i].size : 4096;
+                if (inode_data[i].capacity > TFS_MAX_FILE_DATA)
+                    inode_data[i].capacity = TFS_MAX_FILE_DATA;
+                offset += inode_data[i].capacity;
+            }
+        }
+    }
+
+    kprintf("[TFS] Mounted from disk: %u inodes, %lu bytes data\n",
+            inode_count, tfs_data_pool_used);
+    return 0;
 }

@@ -21,6 +21,79 @@
 #include "kernel/mm/tensor_mm.h"
 
 /* =============================================================================
+ * Multiboot1 Memory Map Parsing
+ * =============================================================================*/
+
+/* Global set by entry64.asm before BSS zeroing.  Lives in .data (not BSS). */
+volatile uint64_t g_multiboot_info_addr __attribute__((section(".data"))) = 0;
+
+/* Multiboot1 information structure (subset of fields we use) */
+struct multiboot_info {
+    uint32_t flags;
+    uint32_t mem_lower;         /* KB of lower memory (below 1MB) */
+    uint32_t mem_upper;         /* KB of upper memory (above 1MB) */
+    uint32_t boot_device;
+    uint32_t cmdline;
+    uint32_t mods_count;
+    uint32_t mods_addr;
+    uint8_t  syms[16];
+    uint32_t mmap_length;       /* total size of memory map buffer */
+    uint32_t mmap_addr;         /* physical address of memory map */
+} __attribute__((packed));
+
+/* Multiboot1 memory map entry */
+struct multiboot_mmap_entry {
+    uint32_t size;              /* size of the rest of this entry */
+    uint64_t base_addr;
+    uint64_t length;
+    uint32_t type;              /* 1=available, 2=reserved, 3=ACPI, 4=NVS, 5=bad */
+} __attribute__((packed));
+
+#define MBOOT_FLAG_MEM    (1 << 0)   /* mem_lower/mem_upper valid */
+#define MBOOT_FLAG_MMAP   (1 << 6)   /* mmap_addr/mmap_length valid */
+
+/* Detect physical memory from multiboot info structure.
+ * Returns total usable bytes, or 0 if detection fails. */
+static uint64_t multiboot_detect_memory(void)
+{
+    if (g_multiboot_info_addr == 0)
+        return 0;
+
+    struct multiboot_info *mbi = (struct multiboot_info *)(uintptr_t)g_multiboot_info_addr;
+    uint64_t total = 0;
+
+    /* Try full memory map first (most accurate) */
+    if (mbi->flags & MBOOT_FLAG_MMAP) {
+        uint64_t addr = (uint64_t)mbi->mmap_addr;
+        uint64_t end  = addr + mbi->mmap_length;
+
+        while (addr < end) {
+            struct multiboot_mmap_entry *entry = (struct multiboot_mmap_entry *)(uintptr_t)addr;
+            if (entry->type == 1) {  /* Available RAM */
+                uint64_t region_end = entry->base_addr + entry->length;
+                if (region_end > total)
+                    total = region_end;
+            }
+            /* Advance by entry->size + 4 (the size field itself is not included in size) */
+            addr += entry->size + 4;
+        }
+        if (total > 0) {
+            kprintf("[MM] Multiboot mmap: detected %lu MB RAM\n", total / (1024 * 1024));
+            return total;
+        }
+    }
+
+    /* Fallback: basic memory info */
+    if (mbi->flags & MBOOT_FLAG_MEM) {
+        total = ((uint64_t)mbi->mem_upper + 1024) * 1024;  /* mem_upper is KB above 1MB */
+        kprintf("[MM] Multiboot basic: %lu MB RAM\n", total / (1024 * 1024));
+        return total;
+    }
+
+    return 0;
+}
+
+/* =============================================================================
  * Physical Memory Bitmap
  * Simple bitmap allocator for physical pages
  * =============================================================================*/
@@ -29,15 +102,13 @@
 #define PHYS_PAGES_4K       (PHYS_MEM_MAX_GB * 1024 * 256) /* 4K pages */
 #define BITMAP_SIZE         (PHYS_PAGES_4K / 8)
 
-/* Bitmap for 4GB / 4KB = 1M pages → 128KB bitmap.
- * We allocate enough for 4GB (reasonable for QEMU). */
-#define PHYS_BITMAP_4GB  (1024 * 1024 / 8)   /* 128 KB */
-static uint8_t phys_bitmap[PHYS_BITMAP_4GB];
+/* Bitmap for physical pages.  Covers up to PHYS_MEM_MAX_GB (64GB). */
+static uint8_t phys_bitmap[BITMAP_SIZE];
 static uint64_t phys_mem_total = 0;
 static uint64_t phys_mem_free = 0;
 
 /* Track page allocations for kfree: (ptr → page_count) */
-#define KFREE_TRACK_MAX 512
+#define KFREE_TRACK_MAX 2048
 static struct { uint64_t addr; uint32_t pages; } kfree_track[KFREE_TRACK_MAX];
 static int kfree_track_count = 0;
 
@@ -451,8 +522,20 @@ void kfree(void *ptr)
 void tensor_mm_init(void)
 {
     /* Detect physical memory from multiboot info */
-    /* For now, assume 4GB */
-    phys_mem_total = 4ULL * 1024 * 1024 * 1024;
+    uint64_t detected = multiboot_detect_memory();
+    if (detected > 0) {
+        phys_mem_total = detected;
+    } else {
+        /* Fallback: assume 4GB (safe default for QEMU) */
+        phys_mem_total = 4ULL * 1024 * 1024 * 1024;
+        kprintf("[MM] No multiboot memory info, assuming 4096 MB\n");
+    }
+
+    /* Cap to our bitmap capacity */
+    uint64_t bitmap_max = (uint64_t)BITMAP_SIZE * 8 * MM_PAGE_SIZE_4K;
+    if (phys_mem_total > bitmap_max)
+        phys_mem_total = bitmap_max;
+
     phys_mem_free = phys_mem_total;
 
     /* Mark first 2MB as reserved: BIOS data, VGA framebuffer, ISA ROM,
@@ -599,9 +682,17 @@ void tensor_mm_defrag(void)
 
 void tensor_mm_cache_warmup(void)
 {
-    /* Prefetch model weights that are predicted to be needed soon */
-    /* Based on historical access patterns */
-    /* TODO: implement predictive prefetching */
+    /* Touch first pages of cached blocks to bring them into CPU cache */
+    heap_block_t *block = tensor_heap_first;
+    uint32_t warmed = 0;
+    while (block && warmed < 16) {
+        if (!block->free) {
+            volatile uint8_t dummy = *(volatile uint8_t *)block;
+            (void)dummy;
+            warmed++;
+        }
+        block = block->next;
+    }
 }
 
 /* =============================================================================

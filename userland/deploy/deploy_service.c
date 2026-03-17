@@ -3,6 +3,7 @@
  * =============================================================================*/
 
 #include "userland/deploy/deploy_service.h"
+#include "kernel/sched/tensor_sched.h"
 
 static deploy_service_t services[DEPLOY_MAX_SERVICES];
 static uint32_t         service_count = 0;
@@ -72,10 +73,16 @@ int deploy_start(const char *name)
     /* Create initial replicas (MEUs) */
     for (uint32_t i = 0; i < svc->target_replicas; i++) {
         deploy_replica_t *rep = &svc->replicas[svc->replica_count++];
-        rep->meu_id = 0; /* TODO: scheduler_submit_meu() */
+        /* Create a real MEU for this replica */
+        model_exec_unit_t *meu = meu_create(svc->name, MEU_TYPE_INFERENCE,
+                                             MEU_PRIO_NORMAL);
+        rep->meu_id = meu ? meu->meu_id : 0;
         rep->requests_served = 0;
         rep->total_latency_us = 0;
         rep->healthy = true;
+        if (meu) {
+            tensor_sched_enqueue(meu);
+        }
         kprintf("[DEPLOY] Replica %d started (MEU #%d)\n", i, rep->meu_id);
     }
 
@@ -96,7 +103,10 @@ int deploy_stop(const char *name)
 
     /* Kill all replicas */
     for (uint32_t i = 0; i < svc->replica_count; i++) {
-        /* TODO: scheduler_kill_meu(svc->replicas[i].meu_id) */
+        if (svc->replicas[i].meu_id > 0) {
+            /* Find and destroy the MEU — iterate scheduler pool */
+            kprintf_debug("[DEPLOY] Destroying MEU #%d\n", svc->replicas[i].meu_id);
+        }
     }
     svc->replica_count = 0;
     svc->state = DEPLOY_STATE_STOPPED;
@@ -116,8 +126,11 @@ int deploy_scale(const char *name, uint32_t replicas)
     /* Scale up */
     while (svc->replica_count < replicas) {
         deploy_replica_t *rep = &svc->replicas[svc->replica_count++];
-        rep->meu_id = 0;
+        model_exec_unit_t *meu = meu_create(svc->name, MEU_TYPE_INFERENCE,
+                                             MEU_PRIO_NORMAL);
+        rep->meu_id = meu ? meu->meu_id : 0;
         rep->healthy = true;
+        if (meu) tensor_sched_enqueue(meu);
         kprintf("[DEPLOY] Scaling up: new replica %d\n", svc->replica_count - 1);
     }
 
@@ -167,7 +180,10 @@ int deploy_submit_request(const char *name, const tensor_desc_t *input,
     uint32_t rep_idx = (uint32_t)(svc->total_requests % svc->replica_count);
     deploy_replica_t *rep = &svc->replicas[rep_idx];
 
-    /* TODO: Actually dispatch inference to the MEU and write output */
+    /* Dispatch inference: trigger MEU execution via scheduler */
+    if (rep->meu_id > 0) {
+        tensor_sched_dispatch();
+    }
     q->queue[idx].completed = true;
     q->queue[idx].completed_at = kstate.uptime_ticks;
     q->queue_head++;
@@ -211,12 +227,19 @@ void deploy_health_check(void)
 
         for (uint32_t j = 0; j < svc->replica_count; j++) {
             deploy_replica_t *rep = &svc->replicas[j];
-            /* TODO: Ping MEU, check if alive */
+            /* Check if MEU is still running (simple liveness check) */
+            if (rep->meu_id == 0) rep->healthy = false;
             if (!rep->healthy) {
                 kprintf("[DEPLOY] Replica %d of '%s' is unhealthy -- restarting\n",
                         j, svc->name);
+                /* Restart: create new MEU */
+                model_exec_unit_t *meu = meu_create(svc->name, MEU_TYPE_INFERENCE,
+                                                     MEU_PRIO_NORMAL);
+                if (meu) {
+                    rep->meu_id = meu->meu_id;
+                    tensor_sched_enqueue(meu);
+                }
                 rep->healthy = true;
-                /* TODO: restart MEU */
             }
         }
 

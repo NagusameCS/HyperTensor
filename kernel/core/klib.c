@@ -716,6 +716,115 @@ static struct idt_entry idt[256];
 static struct idt_ptr   idtr;
 
 /* =============================================================================
+ * TSS (Task State Segment) — Required by x86_64 for interrupt stack switching
+ *
+ * The CPU loads RSP0 from the TSS when an interrupt occurs in ring 0.
+ * IST entries provide dedicated stacks for critical exceptions (NMI, #DF, #MC).
+ * =============================================================================*/
+
+struct tss64 {
+    uint32_t reserved0;
+    uint64_t rsp0;          /* Stack pointer for CPL 0 (kernel) */
+    uint64_t rsp1;          /* Stack pointer for CPL 1 (unused) */
+    uint64_t rsp2;          /* Stack pointer for CPL 2 (unused) */
+    uint64_t reserved1;
+    uint64_t ist1;          /* Interrupt Stack Table 1: #DF (double fault) */
+    uint64_t ist2;          /* IST2: NMI */
+    uint64_t ist3;          /* IST3: #MC (machine check) */
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved2;
+    uint16_t reserved3;
+    uint16_t iopb_offset;   /* I/O permission bitmap offset */
+} __attribute__((packed));
+
+/* GDT with TSS descriptor */
+struct gdt_entry {
+    uint64_t entries[5];    /* null, code64, data64, TSS low, TSS high */
+} __attribute__((packed, aligned(16)));
+
+struct gdt_ptr {
+    uint16_t limit;
+    uint64_t base;
+} __attribute__((packed));
+
+static struct tss64     kernel_tss __attribute__((aligned(16)));
+static struct gdt_entry kernel_gdt __attribute__((aligned(16)));
+static struct gdt_ptr   kernel_gdtr;
+
+/* Dedicated stacks for critical IST exceptions (4KB each) */
+static uint8_t ist_stack_df[4096] __attribute__((aligned(16)));   /* Double fault */
+static uint8_t ist_stack_nmi[4096] __attribute__((aligned(16)));  /* NMI */
+static uint8_t ist_stack_mc[4096] __attribute__((aligned(16)));   /* Machine check */
+
+/* Main kernel interrupt stack (16KB) */
+static uint8_t kernel_intr_stack[16384] __attribute__((aligned(16)));
+
+static void tss_init(void)
+{
+    /* Zero TSS */
+    kmemset(&kernel_tss, 0, sizeof(kernel_tss));
+
+    /* RSP0: kernel stack for ring transitions (top of interrupt stack) */
+    kernel_tss.rsp0 = (uint64_t)&kernel_intr_stack[sizeof(kernel_intr_stack)];
+
+    /* IST stacks for critical exceptions */
+    kernel_tss.ist1 = (uint64_t)&ist_stack_df[sizeof(ist_stack_df)];    /* Double fault */
+    kernel_tss.ist2 = (uint64_t)&ist_stack_nmi[sizeof(ist_stack_nmi)];  /* NMI */
+    kernel_tss.ist3 = (uint64_t)&ist_stack_mc[sizeof(ist_stack_mc)];    /* Machine check */
+
+    /* I/O permission bitmap: offset past end of TSS = no IOPB */
+    kernel_tss.iopb_offset = sizeof(struct tss64);
+
+    /* Build GDT: null, code64, data64, TSS descriptor */
+    kernel_gdt.entries[0] = 0x0000000000000000ULL;  /* Null */
+    kernel_gdt.entries[1] = 0x00AF9A000000FFFFULL;  /* 64-bit code: G=1, L=1, P=1, DPL=0 */
+    kernel_gdt.entries[2] = 0x00CF92000000FFFFULL;  /* 64-bit data: G=1, P=1, DPL=0 */
+
+    /* TSS descriptor is 16 bytes (two GDT slots) */
+    uint64_t tss_base = (uint64_t)&kernel_tss;
+    uint32_t tss_limit = sizeof(struct tss64) - 1;
+
+    /* TSS low: limit[15:0], base[23:0], type=0x9 (available 64-bit TSS), P=1, base[31:24] */
+    kernel_gdt.entries[3] =
+        ((uint64_t)(tss_limit & 0xFFFF)) |
+        ((uint64_t)(tss_base & 0xFFFFFF) << 16) |
+        ((uint64_t)0x89 << 40) |                     /* P=1, type=0x9 (available TSS) */
+        ((uint64_t)((tss_limit >> 16) & 0xF) << 48) |
+        ((uint64_t)((tss_base >> 24) & 0xFF) << 56);
+
+    /* TSS high: base[63:32] */
+    kernel_gdt.entries[4] = (tss_base >> 32) & 0xFFFFFFFF;
+
+    /* Load new GDT */
+    kernel_gdtr.limit = sizeof(kernel_gdt) - 1;
+    kernel_gdtr.base = (uint64_t)&kernel_gdt;
+    __asm__ volatile ("lgdt %0" : : "m"(kernel_gdtr));
+
+    /* Reload code and data segment registers */
+    __asm__ volatile (
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        "mov %%ax, %%ss\n"
+        /* Far return to reload CS with selector 0x08 */
+        "pushq $0x08\n"
+        "lea 1f(%%rip), %%rax\n"
+        "pushq %%rax\n"
+        "lretq\n"
+        "1:\n"
+        : : : "rax", "memory"
+    );
+
+    /* Load TSS (selector 0x18 = GDT entry 3) */
+    __asm__ volatile ("ltr %%ax" : : "a"(0x18));
+}
+
+/* =============================================================================
  * Keyboard Ring Buffer
  * =============================================================================*/
 
@@ -920,7 +1029,16 @@ void idt_init(void)
     idtr.base  = (uint64_t)(uintptr_t)&idt[0];
     __asm__ volatile ("lidt %0" : : "m"(idtr));
 
+    /* Initialize TSS and reload GDT with TSS descriptor */
+    tss_init();
+
+    /* Set IST for critical exceptions that need dedicated stacks */
+    idt[2].ist  = 2;   /* NMI → IST2 */
+    idt[8].ist  = 1;   /* Double Fault → IST1 */
+    idt[18].ist = 3;   /* Machine Check → IST3 */
+
     kprintf("[IDT] Loaded with 256 entries (32 exception + 224 IRQ)\n");
+    kprintf("[TSS] Initialized with IST stacks for NMI/#DF/#MC\n");
 }
 
 /* PIC remapping */

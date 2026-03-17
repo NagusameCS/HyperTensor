@@ -113,6 +113,10 @@ typedef struct model_exec_unit {
     uint64_t        sandbox_id;     /* Security sandbox */
     uint32_t        permissions;    /* MEU_PERM_* flags */
 
+    /* Execution context */
+    int           (*exec_fn)(struct model_exec_unit *meu, void *arg);
+    void           *exec_arg;       /* Opaque argument for exec_fn */
+
     /* Linked list for scheduler queues */
     struct model_exec_unit *next;
     struct model_exec_unit *prev;

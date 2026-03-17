@@ -316,8 +316,9 @@ static int dispatch_assign_device(model_exec_unit_t *meu)
         if (dev->temperature_c > 60)
             score -= ((dev->temperature_c - 60) / 10) * 5;
 
-        /* Bonus for weight locality (check if model hash matches cached) */
-        /* TODO: integrate with model cache subsystem */
+        /* Bonus for weight locality — check if model is already loaded on this device */
+        if (meu->gpu_id == (uint32_t)i)
+            score += 50;  /* Prefer device where model is already loaded */
 
         if (score > best_score) {
             best_score = score;
@@ -356,8 +357,23 @@ void tensor_sched_dispatch(void)
                   meu->gpu_id != (uint32_t)-1 ? "GPU" : "CPU",
                   meu->gpu_id != (uint32_t)-1 ? meu->gpu_id : 0);
 
-    /* TODO: Actually context-switch to MEU execution context */
-    /* For now, this is the scheduling decision framework */
+    /* Execute the MEU's registered function */
+    if (meu->exec_fn) {
+        meu->start_tick = kstate.uptime_ticks;
+        int ret = meu->exec_fn(meu, meu->exec_arg);
+        meu->cpu_ticks += kstate.uptime_ticks - meu->start_tick;
+        if (ret == 0) {
+            meu->state = MEU_STATE_COMPLETED;
+            meu->inferences++;
+        } else {
+            /* Execution yielded or blocked — re-enqueue */
+            meu->state = MEU_STATE_READY;
+            tensor_sched_enqueue(meu);
+        }
+    } else {
+        /* No exec function: mark completed (metrics-only MEU) */
+        meu->state = MEU_STATE_COMPLETED;
+    }
 }
 
 /* =============================================================================
@@ -481,8 +497,20 @@ void tensor_sched_balance_devices(void)
     /* Only balance if imbalance > 30% */
     if (max_util - min_util < 30) return;
 
-    /* Migrate lowest-priority MEU from overloaded GPU */
-    /* TODO: implement full migration with weight transfer */
+    /* Migrate lowest-priority MEU from overloaded GPU to underloaded GPU */
+    for (int p = MEU_PRIO_IDLE; p >= MEU_PRIO_REALTIME; p--) {
+        model_exec_unit_t *m = g_scheduler.queues[p].head;
+        while (m) {
+            if (m->gpu_id == max_gpu) {
+                kprintf_debug("[SCHED] Migrating MEU %lu from GPU %d -> GPU %d\n",
+                              m->meu_id, max_gpu, min_gpu);
+                tensor_sched_migrate_device(m, min_gpu);
+                goto balanced;
+            }
+            m = m->next;
+        }
+    }
+balanced:
     kprintf_debug("[SCHED] Balancing: GPU %d (%d%%) -> GPU %d (%d%%)\n",
                   max_gpu, max_util, min_gpu, min_util);
 }

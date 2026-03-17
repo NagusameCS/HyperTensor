@@ -40,6 +40,7 @@
 #include "kernel/net/netstack.h"
 #include "kernel/drivers/blk/virtio_blk.h"
 #include "kernel/drivers/blk/sdlog.h"
+#include "runtime/nn/braniac.h"
 
 /* Kernel version */
 #define TENSOROS_VERSION_MAJOR  0
@@ -318,6 +319,9 @@ void kernel_main(void)
     kprintf("\n[PHASE 6] Production Self-Test Suite\n");
     selftest_run_all();
 
+    /* Braniac predictive coding self-test */
+    braniac_selftest();
+
     /* Phase 7: SMP Multi-Core Bootstrap */
     sdlog("Phase7: SMP");
     sdlog_flush();
@@ -521,7 +525,12 @@ static void init_phase2_subsystems(void)
 
     /* TensorFS - AI-aware filesystem */
     tensorfs_init();
-    kprintf("  [OK] TensorFS mounted\n");
+    /* Attempt to mount persistent state from disk */
+    if (tfs_mount() == 0) {
+        kprintf("  [OK] TensorFS mounted (persistent)\n");
+    } else {
+        kprintf("  [OK] TensorFS mounted (RAM-only)\n");
+    }
 
     /* IPC subsystem for model communication */
     tensor_ipc_init();

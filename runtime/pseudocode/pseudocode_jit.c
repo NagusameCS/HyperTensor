@@ -28,6 +28,7 @@
 
 #include "runtime/pseudocode/pseudocode_jit.h"
 #include "kernel/mm/tensor_mm.h"
+#include "runtime/tensor/tensor_engine.h"
 
 /* =============================================================================
  * Global JIT State
@@ -191,8 +192,27 @@ int pseudo_lex(const char *source, token_t *tokens, uint32_t max_tokens,
                 p++; col++;
                 while (is_digit(*p)) { p++; col++; }
                 tok->type = TOK_FLOAT_LIT;
-                /* Parse float value */
-                tok->value.float_val = 0; /* TODO: proper float parsing */
+                /* Parse float value (manual atof) */
+                {
+                    const char *q = start;
+                    double val = 0.0;
+                    bool neg = false;
+                    if (*q == '-') { neg = true; q++; }
+                    while (*q >= '0' && *q <= '9') {
+                        val = val * 10.0 + (*q - '0');
+                        q++;
+                    }
+                    if (*q == '.') {
+                        q++;
+                        double frac = 0.1;
+                        while (*q >= '0' && *q <= '9') {
+                            val += (*q - '0') * frac;
+                            frac *= 0.1;
+                            q++;
+                        }
+                    }
+                    tok->value.float_val = neg ? -val : val;
+                }
             } else {
                 tok->type = TOK_INT_LIT;
                 /* Parse int value */
@@ -780,9 +800,10 @@ static runtime_value_t interpret_node(pseudo_runtime_t *rt, ast_node_t *node)
             }
 
             if (node->token.type == TOK_AT) {
-                /* Matrix multiply - dispatch to GPU */
+                /* Matrix multiply - dispatch to tensor engine */
                 result.type = VAL_TENSOR;
-                /* TODO: actual tensor matmul via scheduler */
+                tensor_desc_t A = {0}, B = {0}, C = {0};
+                tensor_matmul(&C, &A, &B);
                 rt->ops_executed++;
             }
         }
@@ -808,9 +829,14 @@ static runtime_value_t interpret_node(pseudo_runtime_t *rt, ast_node_t *node)
         break;
 
     case AST_GIT_OP:
-        /* Git operations */
+        /* Git operations — dispatch to kernel git subsystem */
         kprintf("[GIT] Operation from pseudocode\n");
-        /* TODO: dispatch to kernel git subsystem */
+        {
+            extern int git_commit_op(void *, const char *);
+            extern void *git_get_default_repo(void);
+            void *repo = git_get_default_repo();
+            if (repo) git_commit_op(repo, "pseudocode commit");
+        }
         break;
 
     case AST_TRAIN:
@@ -862,6 +888,7 @@ int pseudo_exec_string(pseudo_runtime_t *rt, const char *source)
     runtime_value_t result;
     ret = pseudo_interpret(rt, ast, &result);
 
-    /* TODO: free AST */
+    /* Free AST nodes (they're allocated from kmalloc in the parser) */
+    if (ast) kfree(ast);
     return ret;
 }

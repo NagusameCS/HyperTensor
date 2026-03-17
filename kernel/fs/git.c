@@ -188,6 +188,11 @@ void git_subsystem_init(void)
                   __git_objects_start);
 }
 
+git_repo_t *git_get_default_repo(void)
+{
+    return &default_repo;
+}
+
 /* =============================================================================
  * Repository Operations
  * =============================================================================*/
@@ -210,7 +215,12 @@ int git_repo_init(const char *path, git_repo_t *repo)
 
 int git_repo_open(const char *path, git_repo_t *repo)
 {
-    /* TODO: Read repo state from TensorFS */
+    /* Try to read repo state from TensorFS — if the path matches the
+     * default repo, just return it instead of re-initializing */
+    if (kstrcmp(path, default_repo.path) == 0 && default_repo.object_count > 0) {
+        *repo = default_repo;
+        return 0;
+    }
     return git_repo_init(path, repo);
 }
 
@@ -354,7 +364,7 @@ int git_commit_create(git_repo_t *repo, const git_hash_t *tree,
     for (int i = 0; i < 1023 && message[i]; i++)
         commit.message[i] = message[i];
 
-    commit.timestamp = kstate.uptime_ticks; /* TODO: real timestamp */
+    commit.timestamp = kstate.uptime_ticks; /* Monotonic ticks (RTC for real time pending) */
 
     /* Store as object */
     git_hash_t hash;
@@ -374,7 +384,23 @@ int git_commit_create(git_repo_t *repo, const git_hash_t *tree,
 
 int git_add(git_repo_t *repo, const char *path)
 {
-    /* TODO: Read file from TensorFS, create blob, add to index */
+    /* Read file from TensorFS, create blob, add to index */
+    int fd = tfs_open(path, 0);
+    if (fd < 0) return -1;
+
+    /* Read file contents (up to 64KB) */
+    uint8_t buf[65536];
+    int bytes = tfs_read(fd, buf, sizeof(buf), 0);
+    tfs_close(fd);
+    if (bytes <= 0) return -1;
+
+    /* Create blob object */
+    git_hash_t blob_hash;
+    int ret = git_obj_write(repo, GIT_OBJ_BLOB, buf, (uint64_t)bytes, &blob_hash);
+    if (ret != 0) return ret;
+
+    /* Add to index */
+    git_index_add(&default_index, path, &blob_hash, 0644);
     return 0;
 }
 

@@ -238,8 +238,38 @@ int tensor_graph_execute(compute_graph_t *graph)
         }
         if (!deps_done) continue;
 
-        /* Execute the node */
-        /* TODO: dispatch based on node->op and node->backend */
+        /* Execute the node by dispatching to the appropriate backend */
+        switch (node->op) {
+        case TIR_MATMUL:
+            if (node->num_inputs >= 2)
+                tensor_matmul(&node->output, &node->inputs[0], &node->inputs[1]);
+            break;
+        case TIR_ADD:
+            if (node->num_inputs >= 2)
+                tensor_add(&node->output, &node->inputs[0], &node->inputs[1]);
+            break;
+        case TIR_RELU:
+            if (node->num_inputs >= 1)
+                tensor_relu(&node->output, &node->inputs[0]);
+            break;
+        case TIR_SOFTMAX:
+            if (node->num_inputs >= 1)
+                tensor_softmax(&node->output, &node->inputs[0], -1);
+            break;
+        case TIR_ATTENTION:
+            if (node->num_inputs >= 3)
+                tensor_attention(&node->output, &node->inputs[0],
+                                 &node->inputs[1], &node->inputs[2], 1.0f);
+            break;
+        case TIR_LAYERNORM:
+            if (node->num_inputs >= 3)
+                tensor_layernorm(&node->output, &node->inputs[0],
+                                 &node->inputs[1], &node->inputs[2], 1e-5f);
+            break;
+        default:
+            /* Unsupported ops: mark completed without executing */
+            break;
+        }
         node->completed = true;
         kstate.tensor_ops_total++;
     }

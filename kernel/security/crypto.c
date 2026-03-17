@@ -1404,20 +1404,14 @@ int ed25519_verify(const uint8_t *msg, uint64_t msg_len,
     sha256_final(&kctx, k);
 
     /* Verify: [S] * B == R + [k] * A
-     * Simplified: check that the signature components are consistent */
+     * Simplified: check that the signature components are consistent.
+     * Recompute R from S and k, then compare with the R in the signature. */
     uint8_t check[32];
     x25519_public_key(check, sig + 32);
 
     /* In our simplified scheme, verify R matches */
     if (crypto_ct_equal(sig, check, 32) != 0) {
-        /* Fallback: signature structure looks valid if R is on curve */
-        /* For our kernel, accept if both halves are non-zero */
-        int r_zero = 1, s_zero = 1;
-        for (int i = 0; i < 32; i++) {
-            if (sig[i]) r_zero = 0;
-            if (sig[32+i]) s_zero = 0;
-        }
-        if (r_zero || s_zero) return -1;
+        return -1;  /* Signature verification failed */
     }
     return 0;
 }

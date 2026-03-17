@@ -13,6 +13,12 @@ extern klib_early_init
 extern kernel_main
 
 long_mode_entry:
+    ;; RDI contains multiboot info pointer from the 32-bit trampoline
+
+    ;; Save multiboot info pointer to .data section BEFORE BSS zeroing
+    extern g_multiboot_info_addr
+    mov [rel g_multiboot_info_addr], rdi
+
     ;; Set up a minimal stack frame
     ;; (stack was already set in multiboot stub)
 
@@ -24,6 +30,17 @@ long_mode_entry:
     mov rax, cr4
     or  ax, 0x0600          ; Set CR4.OSFXSR (bit 9) + OSXMMEXCPT (bit 10)
     mov cr4, rax
+
+    ;; Zero the kernel BSS section (critical: ensures all static variables
+    ;; start at zero, preventing garbage in uninitialized globals)
+    extern __bss_start
+    extern __bss_end
+    lea rdi, [rel __bss_start]
+    lea rcx, [rel __bss_end]
+    sub rcx, rdi
+    shr rcx, 3              ; Convert bytes to qwords
+    xor rax, rax
+    rep stosq               ; Zero BSS in 8-byte chunks
 
     ;; Initialize serial port
     call klib_early_init
