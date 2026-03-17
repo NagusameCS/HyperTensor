@@ -71,6 +71,7 @@ void kv_cache_reset(kv_cache_t *cache)
 /* Get pointer to K-cache for a specific layer and head at position pos */
 static float *kv_k_at(kv_cache_t *cache, int layer, int head, int pos)
 {
+    if (pos < 0 || pos >= cache->max_seq) return NULL;
     int stride = cache->max_seq * cache->head_dim;
     int offset = (layer * cache->num_heads + head) * stride + pos * cache->head_dim;
     return cache->k_cache + offset;
@@ -79,6 +80,7 @@ static float *kv_k_at(kv_cache_t *cache, int layer, int head, int pos)
 /* Get pointer to V-cache for a specific layer and head at position pos */
 static float *kv_v_at(kv_cache_t *cache, int layer, int head, int pos)
 {
+    if (pos < 0 || pos >= cache->max_seq) return NULL;
     int stride = cache->max_seq * cache->head_dim;
     int offset = (layer * cache->num_heads + head) * stride + pos * cache->head_dim;
     return cache->v_cache + offset;
@@ -200,6 +202,7 @@ void tf_cached_attention(float *out, const float *q, const float *k,
     /* Step 1: Append new K and V to cache */
     float *k_slot = kv_k_at(cache, layer, head, pos);
     float *v_slot = kv_v_at(cache, layer, head, pos);
+    if (!k_slot || !v_slot) return; /* pos out of range */
     for (int i = 0; i < d; i++) {
         k_slot[i] = k[i];
         v_slot[i] = v[i];

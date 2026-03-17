@@ -130,6 +130,7 @@ void nn_apc_forward(nn_model_t *fp_model, nn_qmodel_t *q_model,
                     float *output, const float *input, apc_stats_t *stats)
 {
     int out_dim = q_model->layers[q_model->num_layers - 1].out_dim;
+    if (out_dim > 1024) out_dim = 1024; /* clamp to static buffer size */
     static float q_out[1024] __attribute__((aligned(16)));
     static float probs[1024] __attribute__((aligned(16)));
 
@@ -229,6 +230,7 @@ void nn_slf_forward(nn_model_t *model, float *output, const float *input,
 
     for (int l = 0; l < model->num_layers; l++) {
         nn_layer_t *L = &model->layers[l];
+        if (L->in_dim > 1024 || L->out_dim > 1024) return; /* exceeds static buf */
         float *out = buf[cur];
 
         /* Compute input signature for this layer */

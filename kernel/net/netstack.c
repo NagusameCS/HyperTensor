@@ -186,6 +186,7 @@ static int http_content_length(const char *headers, int len)
     while (pos < len && headers[pos] == ' ') pos++;
     int val = 0;
     while (pos < len && headers[pos] >= '0' && headers[pos] <= '9') {
+        if (val > (2147483647 - 9) / 10) return -1; /* overflow → reject */
         val = val * 10 + (headers[pos] - '0');
         pos++;
     }
@@ -288,6 +289,7 @@ static int json_get_int(const char *json, int json_len,
                 if (vi < json_len && json[vi] == '-') { neg = 1; vi++; }
                 int found = 0;
                 while (vi < json_len && json[vi] >= '0' && json[vi] <= '9') {
+                    if (val > (2147483647 - 9) / 10) { val = 2147483647; vi++; found = 1; continue; }
                     val = val * 10 + (json[vi] - '0');
                     vi++; found = 1;
                 }
