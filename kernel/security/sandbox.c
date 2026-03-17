@@ -16,9 +16,15 @@ void sandbox_init(void)
 
 sandbox_t *sandbox_create(const char *name, sandbox_policy_t policy)
 {
-    if (sandbox_count >= SANDBOX_MAX) return NULL;
-
-    sandbox_t *sb = &sandboxes[sandbox_count++];
+    /* Reuse a destroyed slot before growing sandbox_count */
+    sandbox_t *sb = NULL;
+    for (uint32_t i = 0; i < sandbox_count; i++) {
+        if (sandboxes[i].id == 0) { sb = &sandboxes[i]; break; }
+    }
+    if (!sb) {
+        if (sandbox_count >= SANDBOX_MAX) return NULL;
+        sb = &sandboxes[sandbox_count++];
+    }
     kmemset(sb, 0, sizeof(*sb));
 
     sb->id = next_sandbox_id++;

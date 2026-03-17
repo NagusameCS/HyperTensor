@@ -178,9 +178,13 @@ int train_start(const char *name)
         kprintf("[TRAIN] Git: created branch 'train/%s'\n", name);
     }
 
-    /* Main training loop (simulated) */
+    /* Main training loop — bounded to avoid blocking the caller indefinitely */
+    #define TRAIN_STEPS_PER_CALL 100
+    int steps_this_call = 0;
+
     while (job->state == TRAIN_STATE_RUNNING &&
-           job->current_step < job->config.max_steps) {
+           job->current_step < job->config.max_steps &&
+           steps_this_call < TRAIN_STEPS_PER_CALL) {
 
         float lr = compute_lr(job);
 
@@ -211,10 +215,8 @@ int train_start(const char *name)
         }
 
         job->current_step++;
+        steps_this_call++;
         kstate.tensor_ops_total += job->config.batch_size;
-
-        /* Yield CPU (in real implementation, this would be preemptive) */
-        for (volatile uint64_t i = 0; i < 1000; i++) { }
     }
 
     if (job->current_step >= job->config.max_steps) {
@@ -231,9 +233,11 @@ int train_start(const char *name)
                     job->git_commits + 1);
             job->git_commits++;
         }
+        return 0;
     }
 
-    return 0;
+    /* More steps remain — caller should re-invoke to continue */
+    return 1;
 }
 
 int train_pause(const char *name)

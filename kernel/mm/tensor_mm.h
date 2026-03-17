@@ -136,6 +136,7 @@ void *model_cache_get(uint64_t model_hash, uint64_t *size);
 int   model_cache_put(uint64_t model_hash, void *data, uint64_t size);
 void  model_cache_pin(uint64_t model_hash);
 void  model_cache_unpin(uint64_t model_hash);
+void  model_cache_release(uint64_t model_hash);
 void  model_cache_evict_lru(void);
 
 /* GPU memory management */

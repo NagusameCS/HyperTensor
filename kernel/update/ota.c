@@ -64,7 +64,7 @@ static uint8_t ota_getc(void)
 }
 
 __attribute__((unused))
-static uint8_t ota_getc_timeout(uint32_t ms)
+static int ota_getc_timeout(uint32_t ms)
 {
     uint64_t deadline = arm_timer_count() + (arm_timer_freq() * ms / 1000);
     while (arm_timer_count() < deadline) {
@@ -72,7 +72,7 @@ static uint8_t ota_getc_timeout(uint32_t ms)
         bt_poll();
         if (bt_has_data()) return (uint8_t)bt_getchar();
     }
-    return 0;  /* timeout — caller must handle */
+    return -1;  /* timeout */
 }
 
 /* Read exact number of bytes.  Returns 0 on success, -1 on timeout */

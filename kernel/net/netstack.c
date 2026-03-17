@@ -13,6 +13,7 @@
 #include "kernel/core/perf.h"
 #include "kernel/drivers/net/virtio_net.h"
 #include "kernel/net/netstack.h"
+#include "kernel/security/crypto.h"
 #include "runtime/nn/llm.h"
 
 /* =============================================================================
@@ -55,7 +56,7 @@ static int n_udp_handlers;
 static tcp_conn_t tcp_conns[TCP_MAX_CONNS];
 static uint16_t tcp_listen_port;
 static uint32_t tcp_isn_counter = 0x10000; /* Initial sequence number counter */
-static uint32_t tcp_isn_secret = 0xA3F197E2; /* ISN hash secret */
+static uint32_t tcp_isn_secret; /* Randomized at init */
 
 /* FNV-1a hash for unpredictable ISN generation (RFC 6528) */
 static uint32_t isn_hash(const uint8_t src[4], uint16_t sport,
@@ -758,6 +759,8 @@ static void handle_ip(const uint8_t *frame, uint32_t len)
  * CORS headers included for browser clients.
  * =============================================================================*/
 
+/* HTTP response buffers — serialized by http_busy lock */
+static volatile int http_busy = 0;
 static char http_resp[32768];
 static char llm_output_buf[8192];
 
@@ -1081,6 +1084,14 @@ static void api_not_found(tcp_conn_t *conn)
 /* Parse and route HTTP request */
 static void http_handle_request(tcp_conn_t *conn)
 {
+    /* Serialize HTTP handling — static response buffers not reentrant */
+    if (__sync_lock_test_and_set(&http_busy, 1)) {
+        /* Another request in progress, send 503 directly */
+        const char *busy = "HTTP/1.1 503 Service Unavailable\r\n"
+            "Content-Length: 4\r\nConnection: close\r\n\r\nbusy";
+        netstack_tcp_send(conn, TCP_ACK | TCP_PSH, busy, 81);
+        return;
+    }
     stat_http_req++;
     const char *req = (const char *)conn->rx_buf;
     int req_len = (int)conn->rx_len;
@@ -1174,6 +1185,7 @@ static void http_handle_request(tcp_conn_t *conn)
     /* Close connection after response (HTTP/1.0 style) */
     tcp_conn_close(conn);
     (void)is_post;
+    __sync_lock_release(&http_busy);
 }
 
 /* =============================================================================
@@ -1274,6 +1286,9 @@ void netstack_init(const uint8_t ip[4], const uint8_t netmask[4],
     tcp_listen_port = 0;
 
     net_cfg.configured = 1;
+
+    /* Seed ISN secret from CSPRNG */
+    crypto_random(&tcp_isn_secret, sizeof(tcp_isn_secret));
 
     kprintf("[NET] Stack configured: %u.%u.%u.%u/%u.%u.%u.%u gw %u.%u.%u.%u\n",
             ip[0], ip[1], ip[2], ip[3],

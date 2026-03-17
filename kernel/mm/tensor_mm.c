@@ -347,6 +347,17 @@ void model_cache_unpin(uint64_t model_hash)
     }
 }
 
+void model_cache_release(uint64_t model_hash)
+{
+    for (uint32_t i = 0; i < model_cache.count; i++) {
+        if (model_cache.entries[i].model_hash == model_hash) {
+            if (model_cache.entries[i].ref_count > 0)
+                model_cache.entries[i].ref_count--;
+            return;
+        }
+    }
+}
+
 void model_cache_evict_lru(void)
 {
     if (model_cache.count == 0) return;

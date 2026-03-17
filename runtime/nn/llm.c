@@ -44,6 +44,9 @@ static gguf_ctx_t llm_gguf_ctx;
 /* Model descriptor */
 static llm_model_t llm_model;
 
+/* Inference serialization: prevent concurrent use of static buffers */
+static volatile int llm_inference_active = 0;
+
 /* KV Cache — 32MB each (K and V), supports models up to ~2B params */
 static float llm_kv_k[LLM_KV_FLOATS] __attribute__((aligned(64)));
 static float llm_kv_v[LLM_KV_FLOATS] __attribute__((aligned(64)));
@@ -1991,6 +1994,12 @@ int llm_prompt(const char *user_text, char *output, int max_output)
         return -1;
     }
 
+    /* Serialize: only one inference at a time (static buffers not reentrant) */
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) {
+        kstrlcpy(output, "[inference busy — try again]", max_output);
+        return -1;
+    }
+
     llm_model_t *m = &llm_model;
 
     /* Build chat prompt using the model's preferred format */
@@ -2034,6 +2043,7 @@ int llm_prompt(const char *user_text, char *output, int max_output)
     /* Tokenize */
     int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, LLM_MAX_TOKENS - 64);
     if (n_tokens <= 0) {
+        __sync_lock_release(&llm_inference_active);
         kstrlcpy(output, "[tokenization failed]", max_output);
         return -1;
     }
@@ -2041,6 +2051,7 @@ int llm_prompt(const char *user_text, char *output, int max_output)
     /* Generate: max 256 tokens, temperature 0.7 with top-k/top-p sampling */
     int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
                              256, 0.7f, 0);
+    __sync_lock_release(&llm_inference_active);
     return n_gen;
 }
 

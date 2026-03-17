@@ -324,9 +324,16 @@ static int ssh_handle_kex_ecdh_init(ssh_session_t *s, const uint8_t *payload, ui
     sha256_update(&hash, tmp, 4);
     sha256_update(&hash, s->kex_pub, 32);
 
-    /* K (shared secret as mpint) */
-    ssh_put_u32(tmp, 32);
-    sha256_update(&hash, tmp, 4);
+    /* K (shared secret as mpint — RFC 4251: prepend 0x00 if MSB set) */
+    if (s->shared_secret[0] & 0x80) {
+        ssh_put_u32(tmp, 33);
+        sha256_update(&hash, tmp, 4);
+        uint8_t zero = 0;
+        sha256_update(&hash, &zero, 1);
+    } else {
+        ssh_put_u32(tmp, 32);
+        sha256_update(&hash, tmp, 4);
+    }
     sha256_update(&hash, s->shared_secret, 32);
 
     sha256_final(&hash, s->kex_hash);
@@ -545,8 +552,10 @@ static int ssh_handle_userauth_request(ssh_session_t *s,
         if (!sig_blob) return -1;
 
         if (user && user->pubkey_set) {
-            /* Verify Ed25519 signature over session_id + auth data */
-            /* For simplicity, verify signature over session_id */
+            /* Verify Ed25519 signature over RFC 4252 §7 signed data:
+             *   string session_id, byte SSH_MSG_USERAUTH_REQUEST,
+             *   string user, string "ssh-connection", string "publickey",
+             *   boolean TRUE, string "ssh-ed25519", string pubkey_blob */
             if (sig_len >= 4) {
                 uint32_t inner_algo_len;
                 ssh_get_string(sig_blob, &inner_algo_len, sig_len);
@@ -555,8 +564,26 @@ static int ssh_handle_userauth_request(ssh_session_t *s,
                 const uint8_t *sig_data = ssh_get_string(actual_sig, &asig_len,
                     sig_len - 4 - inner_algo_len);
 
+                /* Build signed data blob per RFC 4252 §7 */
+                uint8_t signed_data[512];
+                uint32_t sd = 0;
+                sd += ssh_put_string(signed_data + sd, s->session_id, 32);
+                signed_data[sd++] = SSH_MSG_USERAUTH_REQUEST;
+                sd += ssh_put_string(signed_data + sd, s->auth_user,
+                                     kstrlen(s->auth_user));
+                sd += ssh_put_string(signed_data + sd, "ssh-connection", 14);
+                sd += ssh_put_string(signed_data + sd, "publickey", 9);
+                signed_data[sd++] = 1; /* TRUE */
+                sd += ssh_put_string(signed_data + sd, "ssh-ed25519", 11);
+                /* pubkey blob: string "ssh-ed25519" + string pubkey */
+                uint8_t pk_blob[64];
+                uint32_t pk = 0;
+                pk += ssh_put_string(pk_blob + pk, "ssh-ed25519", 11);
+                pk += ssh_put_string(pk_blob + pk, user->pubkey, 32);
+                sd += ssh_put_string(signed_data + sd, pk_blob, pk);
+
                 if (sig_data && asig_len == 64 &&
-                    ed25519_verify(s->session_id, 32, user->pubkey, sig_data) == 0) {
+                    ed25519_verify(signed_data, sd, user->pubkey, sig_data) == 0) {
                     kprintf("[SSH] User '%s' authenticated via publickey\n", s->auth_user);
                     s->state = SSH_STATE_AUTHENTICATED;
                     return ssh_send_msg(s, SSH_MSG_USERAUTH_SUCCESS);

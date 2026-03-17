@@ -40,27 +40,46 @@ static int jit_pool_offset = 0;
 #define JIT_MAX_BUFS 32
 static jit_buf_t jit_buf_storage[JIT_MAX_BUFS];
 static int jit_buf_count = 0;
+static bool jit_buf_active[JIT_MAX_BUFS]; /* Track which slots are in use */
 
 jit_buf_t *jit_create(int capacity)
 {
-    if (jit_buf_count >= JIT_MAX_BUFS) return NULL;
-
     /* Align capacity to 16 bytes */
     capacity = (capacity + 15) & ~15;
+
+    /* Try to find a recycled slot first */
+    for (int i = 0; i < jit_buf_count; i++) {
+        if (!jit_buf_active[i] && jit_buf_storage[i].cap >= capacity) {
+            jit_buf_active[i] = true;
+            jit_buf_storage[i].len = 0;
+            return &jit_buf_storage[i];
+        }
+    }
+
+    if (jit_buf_count >= JIT_MAX_BUFS) return NULL;
     if (jit_pool_offset + capacity > JIT_POOL_SIZE) return NULL;
 
-    jit_buf_t *b = &jit_buf_storage[jit_buf_count++];
+    int idx = jit_buf_count++;
+    jit_buf_t *b = &jit_buf_storage[idx];
     b->code = jit_pool + jit_pool_offset;
     b->len = 0;
     b->cap = capacity;
     jit_pool_offset += capacity;
+    jit_buf_active[idx] = true;
     return b;
 }
 
 void jit_destroy(jit_buf_t *buf)
 {
-    /* Static pool — no deallocation needed */
-    (void)buf;
+    if (!buf) return;
+    /* Mark slot as inactive so jit_create can reuse it */
+    for (int i = 0; i < jit_buf_count; i++) {
+        if (&jit_buf_storage[i] == buf) {
+            jit_buf_active[i] = false;
+            buf->len = 0;
+            return;
+        }
+    }
 }
 
 void jit_reset(jit_buf_t *buf)

@@ -322,6 +322,15 @@ static ast_node_t *alloc_node(ast_node_type_t type)
     return node;
 }
 
+void pseudo_ast_free(ast_node_t *node)
+{
+    if (!node) return;
+    for (uint32_t i = 0; i < node->child_count && i < 8; i++)
+        pseudo_ast_free(node->children[i]);
+    pseudo_ast_free(node->next);
+    kfree(node);
+}
+
 static token_t *peek(parser_state_t *ps)
 {
     if (ps->pos >= ps->count) return NULL;
@@ -889,6 +898,6 @@ int pseudo_exec_string(pseudo_runtime_t *rt, const char *source)
     ret = pseudo_interpret(rt, ast, &result);
 
     /* Free AST nodes (they're allocated from kmalloc in the parser) */
-    if (ast) kfree(ast);
+    if (ast) pseudo_ast_free(ast);
     return ret;
 }

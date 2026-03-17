@@ -179,7 +179,7 @@ static void kprint_int64(int64_t val)
     if (val < 0) {
         vga_putchar('-');
         serial_putchar('-');
-        kprint_uint64((uint64_t)(-val), 10, 0);
+        kprint_uint64(0ULL - (uint64_t)val, 10, 0);
     } else {
         kprint_uint64((uint64_t)val, 10, 0);
     }
