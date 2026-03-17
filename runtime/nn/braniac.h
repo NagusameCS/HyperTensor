@@ -138,20 +138,21 @@ typedef struct {
  * Work Buffers — Preallocated scratch for PC dynamics
  * =============================================================================*/
 
+/*
+ * WARNING: ~3.4 MB struct — must be static or heap-allocated, NEVER on stack.
+ */
 typedef struct __attribute__((aligned(64))) {
     /* Value neurons per layer: [batch × dim] */
     float values[BRANIAC_MAX_LAYERS][BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
-    /* Prediction errors per layer */
-    float errors[BRANIAC_MAX_LAYERS][BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
+    /* Prediction errors per column (indexed 0..num_columns-1) */
+    float errors[BRANIAC_MAX_COLUMNS][BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
     /* Per-column feedback signals */
     float feedback[BRANIAC_MAX_COLUMNS][BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
     /* Cached exp(log_precision) per column */
     float precision[BRANIAC_MAX_COLUMNS][BRANIAC_MAX_DIM];
-    /* Scratch */
-    float temp[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
-    /* Gradient refinement: weight gradients */
-    float grad_G[BRANIAC_MAX_COLUMNS][BRANIAC_MAX_WEIGHTS];
-    float grad_G_bias[BRANIAC_MAX_COLUMNS][BRANIAC_MAX_DIM];
+    /* Scratch: gradient refinement delta + backprop staging */
+    float delta[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
+    float delta_swap[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
 } braniac_buffers_t;
 
 /* =============================================================================
@@ -198,8 +199,9 @@ int  braniac_init(braniac_network_t *net, const braniac_config_t *config);
 void braniac_trainer_init(braniac_trainer_t *trainer, braniac_network_t *net,
                           braniac_buffers_t *bufs, const braniac_config_t *config);
 
-/* Forward pass: bottom-up only (fast inference, no PC dynamics) */
-void braniac_forward(braniac_network_t *net, float *output,
+/* Forward pass: bottom-up only (fast inference, no PC dynamics)
+ * NOTE: uses a static internal buffer — not reentrant. */
+void braniac_forward(const braniac_network_t *net, float *output,
                      const float *input, int batch_size);
 
 /* Full PC inference: forward + settling dynamics (accurate but slower) */
@@ -222,7 +224,7 @@ void braniac_evaluate(braniac_trainer_t *trainer,
 int  braniac_jit_compile(braniac_network_t *net);
 
 /* Print network diagnostics */
-void braniac_print_diagnostics(braniac_trainer_t *trainer);
+void braniac_print_diagnostics(const braniac_trainer_t *trainer);
 
 /* Self-test: create small network, train, verify convergence */
 int  braniac_selftest(void);

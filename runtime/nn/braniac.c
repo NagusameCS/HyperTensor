@@ -231,17 +231,17 @@ static float compute_beta(const braniac_config_t *config, int step)
  * before recurrent dynamics kick in. Fast but coarse.
  * =============================================================================*/
 
-void braniac_forward(braniac_network_t *net, float *output,
+void braniac_forward(const braniac_network_t *net, float *output,
                      const float *input, int batch_size)
 {
     /* Use batch GEMV through each column */
     const float *h = input;
-    /* Need a ping-pong buffer for intermediate activations */
+    /* Ping-pong buffer for intermediate activations (static — not reentrant) */
     static float fwd_buf[2][BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
     int cur = 0;
 
     for (int i = 0; i < net->num_columns; i++) {
-        braniac_column_t *col = &net->columns[i];
+        const braniac_column_t *col = &net->columns[i];
         float *dst = (i == net->num_columns - 1) ? output : fwd_buf[cur];
 
         /* out[batch×out_dim] = in[batch×in_dim] × W_forward^T + bias */
@@ -816,7 +816,7 @@ static float gradient_refinement(braniac_trainer_t *trainer,
     float task_loss = 0.0f;
 
     /* Compute output-layer gradient from task loss (MSE) */
-    float delta[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
+    float *delta = bufs->delta;
     int top = net->num_layers - 1;
     int top_dim = net->layer_sizes[top];
 
@@ -872,7 +872,7 @@ static float gradient_refinement(braniac_trainer_t *trainer,
 
         /* Propagate delta backward: delta_below = W_forward^T @ delta */
         if (i > 0) {
-            float new_delta[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
+            float *new_delta = bufs->delta_swap;
             for (int b = 0; b < batch_size; b++) {
                 float *d = &delta[b * out_dim];
                 float *nd = &new_delta[b * in_dim];
@@ -1058,7 +1058,7 @@ void braniac_evaluate(braniac_trainer_t *trainer,
     braniac_metrics_t m;
     kmemset(&m, 0, sizeof(m));
 
-    /* Fast forward inference */
+    /* Fast forward inference (static buffer — not reentrant) */
     static float eval_out[BRANIAC_MAX_BATCH * BRANIAC_MAX_DIM];
     braniac_forward(trainer->network, eval_out, input, batch_size);
 
@@ -1078,7 +1078,7 @@ void braniac_evaluate(braniac_trainer_t *trainer,
             }
             if (pred_class == true_class) correct += 1.0f;
         }
-        m.task_loss = correct / (float)batch_size; /* accuracy, not loss */
+        m.task_loss = correct / (float)batch_size; /* classification accuracy (0–1) */
     }
 
     /* Full PC inference */
@@ -1096,9 +1096,9 @@ void braniac_evaluate(braniac_trainer_t *trainer,
  * Diagnostics
  * =============================================================================*/
 
-void braniac_print_diagnostics(braniac_trainer_t *trainer)
+void braniac_print_diagnostics(const braniac_trainer_t *trainer)
 {
-    braniac_network_t *net = trainer->network;
+    const braniac_network_t *net = trainer->network;
 
     kprintf("[BRANIAC] === Diagnostics ===\n");
     kprintf("  Step: %d  Beta: %.6f\n", trainer->step_count,
@@ -1111,7 +1111,7 @@ void braniac_print_diagnostics(braniac_trainer_t *trainer)
     kprintf("  JIT: %s\n", net->jit_ready ? "compiled" : "interpreted");
 
     for (int i = 0; i < net->num_columns; i++) {
-        braniac_column_t *col = &net->columns[i];
+        const braniac_column_t *col = &net->columns[i];
         /* Compute weight norms */
         float w_norm = 0.0f, g_norm = 0.0f;
         int total = col->in_dim * col->out_dim;
