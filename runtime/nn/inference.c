@@ -17,6 +17,7 @@
 #include "runtime/nn/inference.h"
 #include "kernel/core/kernel.h"
 #include "kernel/core/perf.h"
+#include "kernel/mm/tensor_mm.h"
 #include "runtime/tensor/tensor_cpu.h"
 #ifndef __aarch64__
 #include "runtime/jit/x86_jit.h"
@@ -690,6 +691,7 @@ nn_jit_fn nn_jit_compile_model(nn_model_t *model)
 
     jit_epilogue(b);
 
+    vmm_mark_rx(b->code, b->cap);
     return (nn_jit_fn)(void *)b->code;
 }
 

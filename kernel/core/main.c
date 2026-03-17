@@ -384,7 +384,8 @@ void kernel_main(void)
             uint8_t gateway[] = {10, 0, 2, 2};
             netstack_init(ip, netmask, gateway);
             netstack_start_http_server();
-            kprintf("  [OK] Network ready: 10.0.2.15 UDP:8080\n");
+            netstack_start_https_server();
+            kprintf("  [OK] Network ready: 10.0.2.15 HTTP:8080 HTTPS:8443\n");
         } else {
             kprintf("  [--] No NIC (add -nic to QEMU for networking)\n");
         }
@@ -518,6 +519,11 @@ static void init_phase2_subsystems(void)
     kprintf("       Tensor heap: %lu MB, Model cache: %lu MB\n",
             tensor_mm_heap_size() / (1024 * 1024),
             tensor_mm_cache_size() / (1024 * 1024));
+
+#ifndef __aarch64__
+    /* Enforce W^X: .text=RX, .rodata=R, .data/.bss=RW+NX */
+    vmm_enforce_wx();
+#endif
 
     /* Tensor-aware process scheduler */
     tensor_sched_init();

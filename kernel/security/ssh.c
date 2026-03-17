@@ -394,15 +394,16 @@ static ssh_user_t *ssh_find_user(const char *username)
     return NULL;
 }
 
+/* PBKDF2 iteration count — NIST SP 800-132 recommends >= 10,000.
+ * 100,000 iterations provides strong brute-force resistance. */
+#define SSH_PBKDF2_ITERATIONS 100000
+
 static int ssh_verify_password(const ssh_user_t *user, const char *password)
 {
-    /* Hash: SHA-256(salt || password) */
-    sha256_ctx_t ctx;
-    sha256_init(&ctx);
-    sha256_update(&ctx, user->password_salt, 16);
-    sha256_update(&ctx, password, kstrlen(password));
     uint8_t hash[32];
-    sha256_final(&ctx, hash);
+    pbkdf2_hmac_sha256((const uint8_t *)password, (uint32_t)kstrlen(password),
+                       user->password_salt, 16,
+                       SSH_PBKDF2_ITERATIONS, hash, 32);
 
     int result = crypto_ct_equal(hash, user->password_hash, 32);
     crypto_wipe(hash, 32);
@@ -1265,12 +1266,10 @@ int ssh_add_user(const char *username, const char *password, uint32_t perms)
     /* Generate random salt */
     crypto_random(u->password_salt, 16);
 
-    /* Hash password: SHA-256(salt || password) */
-    sha256_ctx_t ctx;
-    sha256_init(&ctx);
-    sha256_update(&ctx, u->password_salt, 16);
-    sha256_update(&ctx, password, kstrlen(password));
-    sha256_final(&ctx, u->password_hash);
+    /* PBKDF2-HMAC-SHA256 password hash (100K iterations) */
+    pbkdf2_hmac_sha256((const uint8_t *)password, (uint32_t)kstrlen(password),
+                       u->password_salt, 16,
+                       SSH_PBKDF2_ITERATIONS, u->password_hash, 32);
 
     u->permissions = perms;
     u->active = 1;
@@ -1299,12 +1298,10 @@ int ssh_change_password(const char *username, const char *new_password)
     /* New salt */
     crypto_random(u->password_salt, 16);
 
-    /* New hash */
-    sha256_ctx_t ctx;
-    sha256_init(&ctx);
-    sha256_update(&ctx, u->password_salt, 16);
-    sha256_update(&ctx, new_password, kstrlen(new_password));
-    sha256_final(&ctx, u->password_hash);
+    /* PBKDF2-HMAC-SHA256 password hash (100K iterations) */
+    pbkdf2_hmac_sha256((const uint8_t *)new_password, (uint32_t)kstrlen(new_password),
+                       u->password_salt, 16,
+                       SSH_PBKDF2_ITERATIONS, u->password_hash, 32);
 
     return 0;
 }

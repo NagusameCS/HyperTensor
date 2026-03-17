@@ -1535,6 +1535,48 @@ void crypto_random(void *buf, uint32_t len)
 }
 
 /* =============================================================================
+ * PBKDF2-HMAC-SHA256 (RFC 2898 / NIST SP 800-132)
+ * =============================================================================*/
+
+void pbkdf2_hmac_sha256(const uint8_t *password, uint32_t password_len,
+                         const uint8_t *salt, uint32_t salt_len,
+                         uint32_t iterations,
+                         uint8_t *dk, uint32_t dk_len)
+{
+    uint32_t block_count = (dk_len + 31) / 32;
+    uint32_t remaining = dk_len;
+
+    for (uint32_t i = 1; i <= block_count; i++) {
+        /* U_1 = HMAC(password, salt || INT_32_BE(i)) */
+        hmac_sha256_ctx_t ctx;
+        hmac_sha256_init(&ctx, password, password_len);
+        hmac_sha256_update(&ctx, salt, salt_len);
+        uint8_t be_i[4] = {
+            (uint8_t)(i >> 24), (uint8_t)(i >> 16),
+            (uint8_t)(i >> 8),  (uint8_t)i
+        };
+        hmac_sha256_update(&ctx, be_i, 4);
+        uint8_t u[32], t[32];
+        hmac_sha256_final(&ctx, u);
+        kmemcpy(t, u, 32);
+
+        /* U_2 .. U_c: XOR chain */
+        for (uint32_t j = 1; j < iterations; j++) {
+            hmac_sha256(password, password_len, u, 32, u);
+            for (int k = 0; k < 32; k++) t[k] ^= u[k];
+        }
+
+        /* Copy to output */
+        uint32_t copy = remaining < 32 ? remaining : 32;
+        kmemcpy(dk + (i - 1) * 32, t, copy);
+        remaining -= copy;
+
+        crypto_wipe(u, 32);
+        crypto_wipe(t, 32);
+    }
+}
+
+/* =============================================================================
  * Initialization
  * =============================================================================*/
 

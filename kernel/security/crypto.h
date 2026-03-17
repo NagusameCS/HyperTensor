@@ -216,6 +216,15 @@ void   csprng_generate(csprng_t *rng, void *buf, uint32_t len);
 void   crypto_random(void *buf, uint32_t len);
 
 /* =============================================================================
+ * PBKDF2-HMAC-SHA256 (RFC 2898 / NIST SP 800-132)
+ * =============================================================================*/
+
+void pbkdf2_hmac_sha256(const uint8_t *password, uint32_t password_len,
+                         const uint8_t *salt, uint32_t salt_len,
+                         uint32_t iterations,
+                         uint8_t *dk, uint32_t dk_len);
+
+/* =============================================================================
  * Constant-Time Utilities
  * =============================================================================*/
 

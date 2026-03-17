@@ -66,6 +66,7 @@ $SOURCES = @(
     "kernel\core\smp.c",
     "kernel\drivers\net\virtio_net.c",
     "kernel\net\netstack.c",
+    "kernel\net\tls.c",
     "kernel\drivers\blk\virtio_blk.c",
     "pkg\modelpkg.c",
     "userland\shell\aishell.c",

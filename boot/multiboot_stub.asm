@@ -175,10 +175,10 @@ _start:
     or eax, 1 << 5
     mov cr4, eax
 
-    ; --- Set LME in EFER ---
+    ; --- Set LME + NXE in EFER ---
     mov ecx, 0xC0000080
     rdmsr
-    or eax, 1 << 8
+    or eax, (1 << 8) | (1 << 11) ; LME=bit8, NXE=bit11 (enable NX bit in page tables)
     wrmsr
 
     ; --- Enable paging ---

@@ -13,6 +13,7 @@
 #include "kernel/core/perf.h"
 #include "kernel/drivers/net/virtio_net.h"
 #include "kernel/net/netstack.h"
+#include "kernel/net/tls.h"
 #include "kernel/security/crypto.h"
 #include "runtime/nn/llm.h"
 
@@ -549,7 +550,8 @@ static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
 
     /* New SYN on listen port? */
     if (!conn && (tcp->flags & TCP_SYN) && !(tcp->flags & TCP_ACK)) {
-        if (dst_port != tcp_listen_port || !net_cfg.server_running) {
+        if ((dst_port != tcp_listen_port && dst_port != net_cfg.https_port) ||
+            !net_cfg.server_running) {
             tcp_send_rst(ip_pkt, iph, tcp);
             return;
         }
@@ -573,7 +575,22 @@ static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
         conn->rx_len = 0;
         conn->tx_len = 0;
         conn->http_request_complete = 0;
+        conn->rto_ms = 1000;       /* RFC 6298: initial RTO = 1s */
+        conn->srtt = 0;
+        conn->rttvar = 0;
+        conn->last_send_tick = watchdog_ticks;
+        conn->retransmits = 0;
+        conn->dup_acks = 0;
+        conn->cwnd = 1460;         /* IW = 1 MSS */
+        conn->ssthresh = 65535;
+        conn->rtx_len = 0;
+        conn->tls_session = NULL;
         conn->state = TCP_STATE_SYN_RCVD;
+
+        /* Allocate TLS session for HTTPS connections */
+        if (dst_port == net_cfg.https_port) {
+            conn->tls_session = tls_session_new();
+        }
 
         /* Send SYN+ACK */
         netstack_tcp_send(conn, TCP_SYN | TCP_ACK, NULL, 0);
@@ -603,7 +620,57 @@ static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
 
     case TCP_STATE_ESTABLISHED:
         if (tcp->flags & TCP_ACK) {
-            conn->snd_una = ack;
+            if (ack > conn->snd_una) {
+                /* New ACK — update RTT estimate (Jacobson/Karn, RFC 6298) */
+                if (conn->last_send_tick && conn->retransmits == 0) {
+                    uint32_t rtt_ms = (uint32_t)((watchdog_ticks - conn->last_send_tick) * 10);
+                    if (rtt_ms == 0) rtt_ms = 1;
+                    if (conn->srtt == 0) {
+                        /* First measurement */
+                        conn->srtt = rtt_ms << 3;       /* srtt = R × 8 */
+                        conn->rttvar = (rtt_ms >> 1) << 2; /* rttvar = R/2 × 4 */
+                    } else {
+                        /* EWMA update */
+                        int32_t delta = (int32_t)rtt_ms - (int32_t)(conn->srtt >> 3);
+                        int32_t abs_delta = delta < 0 ? -delta : delta;
+                        conn->rttvar = conn->rttvar - (conn->rttvar >> 2) + (uint32_t)abs_delta;
+                        conn->srtt = conn->srtt - (conn->srtt >> 3) + rtt_ms;
+                    }
+                    conn->rto_ms = (conn->srtt >> 3) + (conn->rttvar >> 2) * 4;
+                    if (conn->rto_ms < 200) conn->rto_ms = 200;   /* Floor */
+                    if (conn->rto_ms > 60000) conn->rto_ms = 60000; /* Cap 60s */
+                }
+                conn->snd_una = ack;
+                conn->retransmits = 0;
+                conn->dup_acks = 0;
+                conn->rtx_len = 0;  /* Acked, clear retransmit buffer */
+
+                /* Congestion control: open window */
+                if (conn->cwnd < conn->ssthresh) {
+                    /* Slow start: +1 MSS per ACK */
+                    conn->cwnd += 1460;
+                } else {
+                    /* Congestion avoidance: +1 MSS per RTT */
+                    conn->cwnd += (1460 * 1460) / conn->cwnd;
+                }
+            } else if (ack == conn->snd_una && conn->rtx_len > 0) {
+                /* Duplicate ACK */
+                conn->dup_acks++;
+                if (conn->dup_acks == 3) {
+                    /* Fast retransmit (RFC 5681) */
+                    conn->ssthresh = conn->cwnd / 2;
+                    if (conn->ssthresh < 2920) conn->ssthresh = 2920;
+                    conn->cwnd = conn->ssthresh + 3 * 1460;
+
+                    /* Retransmit saved segment directly */
+                    uint32_t saved_nxt = conn->snd_nxt;
+                    conn->snd_nxt = conn->rtx_seq;
+                    netstack_tcp_send(conn, TCP_ACK | TCP_PSH,
+                                     conn->rtx_buf, conn->rtx_len);
+                    conn->snd_nxt = saved_nxt;
+                    conn->last_send_tick = watchdog_ticks;
+                }
+            }
         }
 
         /* Process incoming data */
@@ -619,24 +686,63 @@ static void handle_tcp(const uint8_t *ip_pkt, uint32_t ip_len,
             /* Send ACK */
             netstack_tcp_send(conn, TCP_ACK, NULL, 0);
 
-            /* Check if we have a complete HTTP request */
-            if (!conn->http_request_complete) {
-                int hdr_end_pos = str_find((const char *)conn->rx_buf,
-                                       (int)conn->rx_len, "\r\n\r\n");
-                if (hdr_end_pos >= 0) {
-                    int body_start = hdr_end_pos + 4;
-                    int clen = http_content_length(
-                        (const char *)conn->rx_buf, hdr_end_pos);
-                    if (clen <= 0 ||
-                        (int)(conn->rx_len - body_start) >= clen) {
-                        conn->http_request_complete = 1;
+            /* TLS connection? Route through TLS processing */
+            if (conn->tls_session) {
+                tls_session_t *tls = (tls_session_t *)conn->tls_session;
+                /* Process all complete TLS records in the buffer */
+                while (conn->rx_len >= 5) {
+                    uint16_t rec_len = ((uint16_t)conn->rx_buf[3] << 8) | conn->rx_buf[4];
+                    uint32_t total = 5 + rec_len;
+                    if (total > conn->rx_len) break; /* Incomplete record */
+
+                    int ret = tls_process_record(tls, conn, conn->rx_buf, total);
+
+                    /* Shift remaining data */
+                    if (total < conn->rx_len)
+                        for (uint32_t i = 0; i < conn->rx_len - total; i++)
+                            conn->rx_buf[i] = conn->rx_buf[i + total];
+                    conn->rx_len -= total;
+
+                    if (ret > 0) {
+                        /* Decrypted HTTP data in tls->plaintext_buf */
+                        /* Copy to rx_buf for HTTP parsing */
+                        uint32_t pt_len = tls->plaintext_len;
+                        if (pt_len <= TCP_RX_BUF_SIZE) {
+                            kmemcpy(conn->rx_buf, tls->plaintext_buf, pt_len);
+                            conn->rx_len = pt_len;
+                            conn->http_request_complete = 1;
+                            conn->tls_session = tls; /* Keep for response */
+                            http_handle_request(conn);
+                            return; /* connection handled */
+                        }
+                    } else if (ret < 0) {
+                        tls_session_free(tls);
+                        conn->tls_session = NULL;
+                        conn->state = TCP_STATE_CLOSED;
+                        return;
                     }
                 }
-            }
+            } else {
+                /* Plaintext HTTP processing */
+                /* Check if we have a complete HTTP request */
+                if (!conn->http_request_complete) {
+                    int hdr_end_pos = str_find((const char *)conn->rx_buf,
+                                           (int)conn->rx_len, "\r\n\r\n");
+                    if (hdr_end_pos >= 0) {
+                        int body_start = hdr_end_pos + 4;
+                        int clen = http_content_length(
+                            (const char *)conn->rx_buf, hdr_end_pos);
+                        if (clen <= 0 ||
+                            (int)(conn->rx_len - body_start) >= clen) {
+                            conn->http_request_complete = 1;
+                        }
+                    }
+                }
 
-            /* Process complete HTTP request */
-            if (conn->http_request_complete) {
-                http_handle_request(conn);
+                /* Process complete HTTP request */
+                if (conn->http_request_complete) {
+                    http_handle_request(conn);
+                }
             }
         }
 
@@ -697,7 +803,18 @@ int tcp_conn_write(tcp_conn_t *conn, const void *data, uint32_t len)
     while (sent < len) {
         uint32_t chunk = len - sent;
         if (chunk > 1400) chunk = 1400;
+
+        /* Save last segment for potential retransmit */
+        uint32_t pre_seq = conn->snd_nxt;
         netstack_tcp_send(conn, TCP_ACK | TCP_PSH, p + sent, chunk);
+        if (chunk <= sizeof(conn->rtx_buf)) {
+            kmemcpy(conn->rtx_buf, p + sent, chunk);
+            conn->rtx_len = chunk;
+            conn->rtx_seq = pre_seq;
+        }
+        conn->last_send_tick = watchdog_ticks;
+        conn->retransmits = 0;
+
         sent += chunk;
     }
     return (int)sent;
@@ -707,6 +824,11 @@ int tcp_conn_write(tcp_conn_t *conn, const void *data, uint32_t len)
 void tcp_conn_close(tcp_conn_t *conn)
 {
     if (!conn) return;
+    /* Free TLS session if present */
+    if (conn->tls_session) {
+        tls_session_free((tls_session_t *)conn->tls_session);
+        conn->tls_session = NULL;
+    }
     if (conn->state == TCP_STATE_ESTABLISHED) {
         netstack_tcp_send(conn, TCP_FIN | TCP_ACK, NULL, 0);
         conn->state = TCP_STATE_FIN_WAIT_1;
@@ -766,6 +888,44 @@ static volatile int http_busy = 0;
 static char http_resp[32768];
 static char llm_output_buf[8192];
 
+/* =============================================================================
+ * Inference Request Queue
+ * Queues requests when inference is in-flight so they aren't rejected with 503.
+ * Processed in FIFO order by netstack_poll().
+ * =============================================================================*/
+
+#define INFER_QUEUE_SIZE 8
+
+typedef struct {
+    tcp_conn_t *conn;
+    int         is_chat;         /* 1=chat/completions, 0=completions */
+    char        body[4096];
+    int         body_len;
+    void       *tls_session;     /* Saved TLS session for responses */
+} infer_request_t;
+
+static infer_request_t infer_queue[INFER_QUEUE_SIZE];
+static volatile int infer_queue_head = 0;  /* Next slot to dequeue */
+static volatile int infer_queue_tail = 0;  /* Next slot to enqueue */
+
+static int infer_queue_enqueue(tcp_conn_t *conn, int is_chat,
+                                const char *body, int body_len)
+{
+    int next = (infer_queue_tail + 1) % INFER_QUEUE_SIZE;
+    if (next == infer_queue_head) return -1; /* Full */
+
+    infer_request_t *r = &infer_queue[infer_queue_tail];
+    r->conn = conn;
+    r->is_chat = is_chat;
+    int copy = body_len < (int)sizeof(r->body) - 1 ? body_len : (int)sizeof(r->body) - 1;
+    kmemcpy(r->body, body, copy);
+    r->body[copy] = '\0';
+    r->body_len = copy;
+    r->tls_session = conn->tls_session;
+    infer_queue_tail = next;
+    return 0;
+}
+
 static void http_send_response(tcp_conn_t *conn, int status,
                                const char *status_text,
                                const char *content_type,
@@ -784,10 +944,15 @@ static void http_send_response(tcp_conn_t *conn, int status,
         "\r\n",
         status, status_text, content_type, body_len);
 
-    tcp_conn_write(conn, http_resp, pos);
-
-    if (body && body_len > 0) {
-        tcp_conn_write(conn, body, body_len);
+    if (conn->tls_session) {
+        tls_session_t *tls = (tls_session_t *)conn->tls_session;
+        tls_send(tls, conn, http_resp, pos);
+        if (body && body_len > 0)
+            tls_send(tls, conn, body, body_len);
+    } else {
+        tcp_conn_write(conn, http_resp, pos);
+        if (body && body_len > 0)
+            tcp_conn_write(conn, body, body_len);
     }
 }
 
@@ -1088,7 +1253,23 @@ static void http_handle_request(tcp_conn_t *conn)
 {
     /* Serialize HTTP handling — static response buffers not reentrant */
     if (__sync_lock_test_and_set(&http_busy, 1)) {
-        /* Another request in progress, send 503 directly */
+        /* Busy — try to queue inference requests instead of rejecting */
+        const char *rq = (const char *)conn->rx_buf;
+        int rqlen = (int)conn->rx_len;
+        int is_infer = 0, is_chat = 0;
+        if (rqlen > 20 && rq[0] == 'P') { /* POST */
+            if (str_find(rq, rqlen > 128 ? 128 : rqlen, "/v1/chat/completions") >= 0)
+                { is_infer = 1; is_chat = 1; }
+            else if (str_find(rq, rqlen > 128 ? 128 : rqlen, "/v1/completions") >= 0)
+                { is_infer = 1; is_chat = 0; }
+        }
+        if (is_infer) {
+            int hdr = str_find(rq, rqlen, "\r\n\r\n");
+            const char *bd = (hdr >= 0) ? rq + hdr + 4 : NULL;
+            int bdlen = (hdr >= 0) ? rqlen - (hdr + 4) : 0;
+            if (bd && bdlen > 0 && infer_queue_enqueue(conn, is_chat, bd, bdlen) == 0)
+                return; /* queued — will be processed by netstack_poll */
+        }
         const char *busy = "HTTP/1.1 503 Service Unavailable\r\n"
             "Content-Length: 4\r\nConnection: close\r\n\r\nbusy";
         netstack_tcp_send(conn, TCP_ACK | TCP_PSH, busy, 81);
@@ -1263,6 +1444,63 @@ static void inference_udp_handler(const uint8_t src_ip[4], uint16_t src_port,
 }
 
 /* =============================================================================
+ * TCP Retransmission Timer (call from main loop ~100ms)
+ * =============================================================================*/
+
+void netstack_timer_tick(void)
+{
+    uint64_t now = watchdog_ticks;
+
+    for (int i = 0; i < TCP_MAX_CONNS; i++) {
+        tcp_conn_t *c = &tcp_conns[i];
+
+        /* TIME_WAIT cleanup: expire after ~2MSL (60s) */
+        if (c->state == TCP_STATE_TIME_WAIT) {
+            if (now - c->last_send_tick > 6000) /* 60s at 100Hz */
+                c->state = TCP_STATE_CLOSED;
+            continue;
+        }
+
+        /* Only retransmit for connections with unacked data */
+        if (c->state != TCP_STATE_ESTABLISHED &&
+            c->state != TCP_STATE_SYN_RCVD)
+            continue;
+        if (c->rtx_len == 0 || c->snd_una == c->snd_nxt)
+            continue;
+
+        /* Check RTO expiry */
+        uint64_t elapsed_ticks = now - c->last_send_tick;
+        uint32_t elapsed_ms = (uint32_t)(elapsed_ticks * 10); /* 100Hz ticks → ms */
+        if (elapsed_ms < c->rto_ms)
+            continue;
+
+        /* RTO fired — retransmit (RFC 6298 §5.5-5.7) */
+        c->retransmits++;
+        if (c->retransmits > 8) {
+            /* Too many retransmits — reset connection */
+            c->state = TCP_STATE_CLOSED;
+            continue;
+        }
+
+        /* Exponential backoff */
+        c->rto_ms *= 2;
+        if (c->rto_ms > 60000) c->rto_ms = 60000;
+
+        /* Congestion collapse: reset to slow start */
+        c->ssthresh = c->cwnd / 2;
+        if (c->ssthresh < 2920) c->ssthresh = 2920;
+        c->cwnd = 1460;  /* 1 MSS */
+
+        /* Retransmit the saved segment */
+        uint32_t saved_nxt = c->snd_nxt;
+        c->snd_nxt = c->rtx_seq;
+        netstack_tcp_send(c, TCP_ACK | TCP_PSH, c->rtx_buf, c->rtx_len);
+        c->snd_nxt = saved_nxt;
+        c->last_send_tick = now;
+    }
+}
+
+/* =============================================================================
  * Public API
  * =============================================================================*/
 
@@ -1274,6 +1512,7 @@ void netstack_init(const uint8_t ip[4], const uint8_t netmask[4],
     kmemcpy(net_cfg.netmask, netmask, 4);
     kmemcpy(net_cfg.gateway, gateway, 4);
     net_cfg.http_port = 8080;
+    net_cfg.https_port = 8443;
     net_cfg.server_running = 0;
 
     virtio_net_dev_t *dev = virtio_net_get_dev();
@@ -1423,10 +1662,38 @@ void netstack_start_http_server(void)
     kprintf("==========================================================\n\n");
 }
 
+void netstack_start_https_server(void)
+{
+    tls_init();
+    net_cfg.https_port = 8443;
+    kprintf("[HTTPS] TLS 1.3 server on port %u\n", net_cfg.https_port);
+    kprintf("[HTTPS] https://%u.%u.%u.%u:%u/v1/models\n",
+            net_cfg.ip[0], net_cfg.ip[1], net_cfg.ip[2], net_cfg.ip[3],
+            net_cfg.https_port);
+}
+
 void netstack_poll(void)
 {
     if (!net_cfg.configured) return;
     virtio_net_poll(netstack_rx);
+
+    /* Process queued inference requests */
+    while (infer_queue_head != infer_queue_tail) {
+        if (__sync_lock_test_and_set(&http_busy, 1)) break; /* Busy */
+
+        infer_request_t *r = &infer_queue[infer_queue_head];
+        tcp_conn_t *conn = r->conn;
+        if (conn && conn->state == TCP_STATE_ESTABLISHED) {
+            conn->tls_session = r->tls_session;
+            if (r->is_chat)
+                api_chat_completions(conn, r->body, r->body_len);
+            else
+                api_completions(conn, r->body, r->body_len);
+            tcp_conn_close(conn);
+        }
+        __sync_lock_release(&http_busy);
+        infer_queue_head = (infer_queue_head + 1) % INFER_QUEUE_SIZE;
+    }
 }
 
 int netstack_server_running(void)

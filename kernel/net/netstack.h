@@ -101,6 +101,21 @@ typedef struct tcp_conn {
     uint32_t rcv_nxt;       /* Next expected receive seq */
     uint16_t remote_win;    /* Remote window size */
 
+    /* Retransmission / congestion control */
+    uint32_t rto_ms;        /* Retransmit timeout (ms), Jacobson/Karn */
+    uint32_t srtt;          /* Smoothed RTT (ms, fixed-point ×8) */
+    uint32_t rttvar;        /* RTT variance (ms, fixed-point ×4) */
+    uint64_t last_send_tick;/* Tick when last data segment was sent */
+    uint32_t retransmits;   /* Consecutive retransmit count */
+    uint32_t dup_acks;      /* Duplicate ACK counter */
+    uint32_t cwnd;          /* Congestion window (bytes) */
+    uint32_t ssthresh;      /* Slow-start threshold (bytes) */
+
+    /* Retransmit buffer (last unacked segment) */
+    uint8_t  rtx_buf[1460]; /* Saved payload for retransmit */
+    uint32_t rtx_len;       /* Length of saved payload */
+    uint32_t rtx_seq;       /* Sequence number of saved payload */
+
     /* Receive buffer (reassembled in-order data) */
     uint8_t  rx_buf[TCP_RX_BUF_SIZE];
     uint32_t rx_len;        /* Bytes available in rx_buf */
@@ -111,6 +126,9 @@ typedef struct tcp_conn {
 
     /* HTTP request complete flag (received full request) */
     int      http_request_complete;
+
+    /* TLS session (NULL for plaintext connections) */
+    void    *tls_session;
 } tcp_conn_t;
 
 struct udp_hdr {
@@ -138,6 +156,7 @@ typedef struct {
     uint8_t  gateway[4];
     uint8_t  mac[6];
     uint16_t http_port;      /* Port for inference HTTP server (default 8080) */
+    uint16_t https_port;     /* Port for HTTPS/TLS server (default 8443) */
     int      configured;
     int      server_running; /* HTTP API server active */
 } net_config_t;
@@ -215,10 +234,21 @@ void netstack_register_udp(uint16_t port, udp_handler_t handler);
 void netstack_start_http_server(void);
 
 /**
+ * Start the HTTPS (TLS 1.3) inference API server on port 8443.
+ */
+void netstack_start_https_server(void);
+
+/**
  * Poll for network events (call in main loop).
  * Processes pending TCP connections and HTTP requests.
  */
 void netstack_poll(void);
+
+/**
+ * TCP retransmission timer — call periodically (~100ms) from main loop.
+ * Handles RTO-based retransmits and TIME_WAIT cleanup.
+ */
+void netstack_timer_tick(void);
 
 /**
  * Check if HTTP server is running.

@@ -880,4 +880,95 @@ int vm_demand_fault(uint64_t fault_addr)
 
     return 0;
 }
+
+/* =============================================================================
+ * W^X Enforcement
+ *
+ * After boot, split the huge pages covering kernel sections and apply:
+ *   .text        → RX  (executable, not writable)
+ *   .rodata      → R   (read-only, not writable, not executable)
+ *   .data / .bss → RW  (writable, not executable)
+ *
+ * This prevents code injection (W^X: a page is either writable or executable,
+ * never both). Requires NXE bit enabled in EFER (done in multiboot_stub).
+ * =============================================================================*/
+
+void vmm_enforce_wx(void)
+{
+    /* Apply NX to .rodata pages (read-only, no execute, no write) */
+    uint64_t ro_start = (uint64_t)(uintptr_t)__rodata_start & ~0xFFFULL;
+    uint64_t ro_end   = ((uint64_t)(uintptr_t)__rodata_end + 0xFFF) & ~0xFFFULL;
+    uint64_t count_ro = 0;
+    for (uint64_t addr = ro_start; addr < ro_end; addr += 0x1000) {
+        if (vm_map_4k(addr, addr, PT_PRESENT | PT_NX) == 0)
+            count_ro++;
+    }
+
+    /* Apply NX to .data pages (writable, no execute) */
+    uint64_t data_start = (uint64_t)(uintptr_t)__data_start & ~0xFFFULL;
+    uint64_t data_end   = ((uint64_t)(uintptr_t)__data_end + 0xFFF) & ~0xFFFULL;
+    uint64_t count_data = 0;
+    for (uint64_t addr = data_start; addr < data_end; addr += 0x1000) {
+        if (vm_map_4k(addr, addr, PT_PRESENT | PT_WRITE | PT_NX) == 0)
+            count_data++;
+    }
+
+    /* Apply NX to .bss pages (writable, no execute) */
+    uint64_t bss_start = (uint64_t)(uintptr_t)__bss_start & ~0xFFFULL;
+    uint64_t bss_end   = ((uint64_t)(uintptr_t)__bss_end + 0xFFF) & ~0xFFFULL;
+    uint64_t count_bss = 0;
+    for (uint64_t addr = bss_start; addr < bss_end; addr += 0x1000) {
+        if (vm_map_4k(addr, addr, PT_PRESENT | PT_WRITE | PT_NX) == 0)
+            count_bss++;
+    }
+
+    /* .text stays as-is from the split: Present + RX (no NX, no Write) —
+     * It inherits Present from the huge page split.
+     * Remove the Write bit from .text pages */
+    uint64_t text_start = (uint64_t)(uintptr_t)__text_start & ~0xFFFULL;
+    uint64_t text_end   = ((uint64_t)(uintptr_t)__text_end + 0xFFF) & ~0xFFFULL;
+    uint64_t count_text = 0;
+    for (uint64_t addr = text_start; addr < text_end; addr += 0x1000) {
+        if (vm_map_4k(addr, addr, PT_PRESENT) == 0) /* RX: present, no write, no NX */
+            count_text++;
+    }
+
+    kprintf("[VMM] W^X enforced: .text=%lu RX, .rodata=%lu R, .data=%lu RW, .bss=%lu RW\n",
+            count_text, count_ro, count_data, count_bss);
+}
+
+/* =============================================================================
+ * vmm_mark_rx() — Transition pages from RW+NX to RX (W^X compliant).
+ * Used by JIT compiler: write code first, then flip to executable.
+ * Pages become read+execute only (not writable).
+ * =============================================================================*/
+int vmm_mark_rx(void *addr, uint32_t size)
+{
+    uint64_t start = (uint64_t)(uintptr_t)addr & ~0xFFFULL;
+    uint64_t end   = ((uint64_t)(uintptr_t)addr + size + 0xFFF) & ~0xFFFULL;
+    int count = 0;
+    for (uint64_t a = start; a < end; a += 0x1000) {
+        if (vm_map_4k(a, a, PT_PRESENT) == 0) /* RX: no write, no NX */
+            count++;
+    }
+    /* Flush TLB for remapped pages */
+    for (uint64_t a = start; a < end; a += 0x1000)
+        __asm__ volatile("invlpg (%0)" :: "r"(a) : "memory");
+    return count;
+}
+
+/* vmm_mark_rw() — Transition pages back to RW+NX (for re-compilation) */
+int vmm_mark_rw(void *addr, uint32_t size)
+{
+    uint64_t start = (uint64_t)(uintptr_t)addr & ~0xFFFULL;
+    uint64_t end   = ((uint64_t)(uintptr_t)addr + size + 0xFFF) & ~0xFFFULL;
+    int count = 0;
+    for (uint64_t a = start; a < end; a += 0x1000) {
+        if (vm_map_4k(a, a, PT_PRESENT | PT_WRITE | PT_NX) == 0)
+            count++;
+    }
+    for (uint64_t a = start; a < end; a += 0x1000)
+        __asm__ volatile("invlpg (%0)" :: "r"(a) : "memory");
+    return count;
+}
 #endif /* !__aarch64__ */

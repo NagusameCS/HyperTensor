@@ -1,0 +1,106 @@
+/* =============================================================================
+ * TensorOS — TLS 1.3 Implementation (RFC 8446)
+ *
+ * Minimal TLS 1.3 server for HTTPS inference API:
+ *   • X25519 key exchange
+ *   • ChaCha20-Poly1305 AEAD bulk encryption
+ *   • HKDF-SHA256 key derivation
+ *   • Ed25519 self-signed certificate
+ *   • Server-only authentication (no client certs)
+ *
+ * Cipher suite: TLS_CHACHA20_POLY1305_SHA256 (0x1303)
+ * =============================================================================*/
+
+#ifndef TENSOROS_TLS_H
+#define TENSOROS_TLS_H
+
+#include <stdint.h>
+
+/* TLS record types */
+#define TLS_RT_CHANGE_CIPHER   20
+#define TLS_RT_ALERT           21
+#define TLS_RT_HANDSHAKE       22
+#define TLS_RT_APPLICATION     23
+
+/* TLS handshake types */
+#define TLS_HS_CLIENT_HELLO    1
+#define TLS_HS_SERVER_HELLO    2
+#define TLS_HS_ENCRYPTED_EXT   8
+#define TLS_HS_CERTIFICATE     11
+#define TLS_HS_CERT_VERIFY     15
+#define TLS_HS_FINISHED        20
+
+/* TLS alert levels */
+#define TLS_ALERT_WARNING      1
+#define TLS_ALERT_FATAL        2
+
+/* TLS connection states */
+#define TLS_STATE_NONE         0   /* Not TLS / plaintext */
+#define TLS_STATE_HANDSHAKE    1   /* Handshake in progress */
+#define TLS_STATE_ACTIVE       2   /* Encrypted application data */
+#define TLS_STATE_ERROR        3   /* Fatal error occurred */
+
+/* Forward declaration */
+struct tcp_conn;
+
+/* TLS session state (embedded per TCP connection or separate) */
+typedef struct tls_session {
+    uint8_t  state;
+
+    /* Key exchange */
+    uint8_t  server_privkey[32];     /* X25519 ephemeral private key */
+    uint8_t  server_pubkey[32];      /* X25519 ephemeral public key */
+    uint8_t  shared_secret[32];      /* X25519 shared secret */
+
+    /* Derived keys */
+    uint8_t  server_write_key[32];   /* ChaCha20-Poly1305 key (server → client) */
+    uint8_t  server_write_iv[12];    /* Nonce IV */
+    uint8_t  client_write_key[32];   /* ChaCha20-Poly1305 key (client → server) */
+    uint8_t  client_write_iv[12];    /* Nonce IV */
+
+    /* Sequence numbers for nonce construction */
+    uint64_t server_seq;
+    uint64_t client_seq;
+
+    /* Handshake transcript hash */
+    uint8_t  transcript_hash[32];
+
+    /* Host certificate keys (Ed25519) */
+    uint8_t  cert_pub[32];
+    uint8_t  cert_priv[64];
+
+    /* Handshake message buffer */
+    uint8_t  hs_buf[4096];
+    uint32_t hs_len;
+
+    /* Decrypted plaintext buffer for application data */
+    uint8_t  plaintext_buf[16384];
+    uint32_t plaintext_len;
+} tls_session_t;
+
+/* =============================================================================
+ * API
+ * =============================================================================*/
+
+/* Initialize TLS subsystem (generate self-signed Ed25519 cert) */
+void tls_init(void);
+
+/* Process incoming TLS record from TCP connection.
+ * Returns number of plaintext application bytes available, or:
+ *   0  = handshake in progress (no app data yet)
+ *  -1  = error
+ * Decrypted app data is in session->plaintext_buf[0..plaintext_len-1] */
+int tls_process_record(tls_session_t *session, struct tcp_conn *conn,
+                       const uint8_t *data, uint32_t len);
+
+/* Encrypt and send application data over TLS */
+int tls_send(tls_session_t *session, struct tcp_conn *conn,
+             const void *data, uint32_t len);
+
+/* Allocate a fresh TLS session */
+tls_session_t *tls_session_new(void);
+
+/* Release a TLS session */
+void tls_session_free(tls_session_t *session);
+
+#endif /* TENSOROS_TLS_H */

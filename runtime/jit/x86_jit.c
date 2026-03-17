@@ -90,6 +90,8 @@ void jit_reset(jit_buf_t *buf)
 jit_void_fn jit_get_fn(jit_buf_t *buf)
 {
     if (!buf || !buf->code) return NULL;
+    /* Ensure pages are executable (W^X: flip from RW to RX) */
+    vmm_mark_rx(buf->code, buf->cap);
     return (jit_void_fn)(void *)buf->code;
 }
 
@@ -698,6 +700,7 @@ jit_matmul_fn jit_compile_matmul_kernel(int M, int N, int K)
     jit_epilogue(b);
 
     /* Cache the compiled kernel */
+    vmm_mark_rx(b->code, b->cap);
     jit_matmul_fn fn = (jit_matmul_fn)(void *)b->code;
     if (jit_num_kernels < JIT_MAX_KERNELS) {
         jit_kernel_cache[jit_num_kernels].M = M;
@@ -755,6 +758,7 @@ jit_unary_fn jit_compile_relu_kernel(int n)
 
     jit_epilogue(b);
 
+    vmm_mark_rx(b->code, b->cap);
     jit_unary_fn fn = (jit_unary_fn)(void *)b->code;
     jit_total_bytes += b->len;
     jit_num_kernels++;
@@ -1039,6 +1043,7 @@ jit_gemv_q8_fn jit_compile_q8_gemv(int rows, int cols)
 
     jit_epilogue(b);
 
+    vmm_mark_rx(b->code, b->cap);
     jit_gemv_q8_fn fn = (jit_gemv_q8_fn)(void *)b->code;
     if (jit_num_gemv < JIT_MAX_GEMV_KERNELS) {
         jit_gemv_cache[jit_num_gemv].rows = rows;

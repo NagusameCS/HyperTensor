@@ -160,6 +160,12 @@ void     tensor_mm_get_stats(mm_stats_t *stats);
 int  vm_map_4k(uint64_t vaddr, uint64_t paddr, uint64_t flags);
 void vm_unmap_4k(uint64_t vaddr);
 int  vm_demand_fault(uint64_t fault_addr); /* Returns 0 if handled, -1 if not */
+
+/* W^X enforcement: mark .text RX, .rodata R, .data/.bss RW+NX */
+void vmm_enforce_wx(void);
+/* JIT W^X transitions: flip pages between RW (for writing) and RX (for exec) */
+int  vmm_mark_rx(void *addr, uint32_t size);
+int  vmm_mark_rw(void *addr, uint32_t size);
 #endif /* !__aarch64__ */
 
 #endif /* TENSOROS_TENSOR_MM_H */
