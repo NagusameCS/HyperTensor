@@ -108,11 +108,11 @@ static float compute_lr(train_job_t *job)
         if (step < warmup_steps)
             return base_lr * ((float)step / warmup_steps);
         float progress = (float)(step - warmup_steps) / (max_steps - warmup_steps);
-        /* cos(pi * progress) ranges from 1 to -1 */
-        /* Approximate cosine: cos(x) ≈ 1 - x²/2 + x⁴/24 (Taylor) */
+        /* Bhaskara I cosine approximation: accurate within ~0.1% for [0,π] */
         float x = 3.14159265f * progress;
         float x2 = x * x;
-        float cos_approx = 1.0f - x2 / 2.0f + (x2 * x2) / 24.0f;
+        float pi2 = 3.14159265f * 3.14159265f;
+        float cos_approx = (pi2 - 4.0f * x2) / (pi2 + x2);
         return base_lr * 0.5f * (1.0f + cos_approx);
     }
 

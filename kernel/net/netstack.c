@@ -1090,6 +1090,7 @@ static void http_handle_request(tcp_conn_t *conn)
         const char *busy = "HTTP/1.1 503 Service Unavailable\r\n"
             "Content-Length: 4\r\nConnection: close\r\n\r\nbusy";
         netstack_tcp_send(conn, TCP_ACK | TCP_PSH, busy, 81);
+        tcp_conn_close(conn);
         return;
     }
     stat_http_req++;
@@ -1140,9 +1141,7 @@ static void http_handle_request(tcp_conn_t *conn)
             while (tok[tok_len] && tok[tok_len] != '\r' && tok[tok_len] != '\n') tok_len++;
             int key_len = kstrlen(api_key);
             if (tok_len == key_len) {
-                auth_ok = 1;
-                for (int i = 0; i < key_len; i++)
-                    if (tok[i] != api_key[i]) { auth_ok = 0; break; }
+                auth_ok = (crypto_ct_equal(tok, api_key, key_len) == 0) ? 1 : 0;
             }
         }
         if (!auth_ok) {

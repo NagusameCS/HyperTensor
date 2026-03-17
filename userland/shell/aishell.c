@@ -59,7 +59,10 @@ static int shell_atoi(const char *s)
 {
     int neg = 0, val = 0;
     if (*s == '-') { neg = 1; s++; }
-    while (*s >= '0' && *s <= '9') { val = val * 10 + (*s - '0'); s++; }
+    while (*s >= '0' && *s <= '9') {
+        if (val > (2147483647 - 9) / 10) break;  /* overflow guard */
+        val = val * 10 + (*s - '0'); s++;
+    }
     return neg ? -val : val;
 }
 

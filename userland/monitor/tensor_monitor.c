@@ -72,6 +72,7 @@ void monitor_tick(tensor_monitor_t *mon)
 
 void monitor_check_alerts(tensor_monitor_t *mon)
 {
+    if (mon->sample_count == 0) return;
     uint32_t idx = (mon->sample_cursor - 1) % MONITOR_MAX_SAMPLES;
     monitor_sample_t *s = &mon->samples[idx];
 

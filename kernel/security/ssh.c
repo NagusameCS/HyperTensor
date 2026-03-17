@@ -565,7 +565,7 @@ static int ssh_handle_userauth_request(ssh_session_t *s,
                     sig_len - 4 - inner_algo_len);
 
                 /* Build signed data blob per RFC 4252 §7 */
-                uint8_t signed_data[512];
+                uint8_t signed_data[768];
                 uint32_t sd = 0;
                 sd += ssh_put_string(signed_data + sd, s->session_id, 32);
                 signed_data[sd++] = SSH_MSG_USERAUTH_REQUEST;
@@ -832,8 +832,8 @@ static int ssh_handle_channel_data(ssh_session_t *s,
         ch->rx_len += copy;
     }
 
-    /* Update window */
-    ch->local_window -= data_len;
+    /* Update window — only for bytes actually buffered */
+    ch->local_window -= copy;
     if (ch->local_window < SSH_CHANNEL_WINDOW / 2) {
         uint32_t adjust = SSH_CHANNEL_WINDOW - ch->local_window;
         uint8_t wadj[12];

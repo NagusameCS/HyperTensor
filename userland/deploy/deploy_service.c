@@ -138,6 +138,11 @@ int deploy_scale(const char *name, uint32_t replicas)
     /* Scale down */
     while (svc->replica_count > replicas) {
         svc->replica_count--;
+        deploy_replica_t *rep = &svc->replicas[svc->replica_count];
+        if (rep->meu_id > 0) {
+            model_exec_unit_t *meu = meu_find_by_id(rep->meu_id);
+            if (meu) meu_destroy(meu);
+        }
         kprintf("[DEPLOY] Scaling down: removed replica %d\n", svc->replica_count);
     }
 

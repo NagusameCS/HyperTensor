@@ -18,9 +18,15 @@ void tensor_ipc_init(void)
 int ipc_channel_create(uint64_t sender_meu, uint64_t receiver_meu,
                          ipc_chan_type_t type, uint64_t buffer_size)
 {
-    if (channel_count >= IPC_MAX_CHANNELS) return -1;
-
-    ipc_channel_t *ch = &channels[channel_count++];
+    /* Reuse a destroyed slot before growing channel_count */
+    ipc_channel_t *ch = NULL;
+    for (uint32_t i = 0; i < channel_count; i++) {
+        if (!channels[i].active && channels[i].id == 0) { ch = &channels[i]; break; }
+    }
+    if (!ch) {
+        if (channel_count >= IPC_MAX_CHANNELS) return -1;
+        ch = &channels[channel_count++];
+    }
     kmemset(ch, 0, sizeof(*ch));
 
     ch->id = next_channel_id++;
@@ -32,6 +38,11 @@ int ipc_channel_create(uint64_t sender_meu, uint64_t receiver_meu,
 
     /* Allocate shared buffer for zero-copy transfers */
     ch->shared_buffer = tensor_alloc_shared(buffer_size);
+    if (!ch->shared_buffer) {
+        ch->id = 0;
+        ch->active = false;
+        return -1;
+    }
 
     kprintf_debug("[IPC] Channel %d created: MEU %lu -> MEU %lu (%lu KB buffer)\n",
                   ch->id, sender_meu, receiver_meu, buffer_size / 1024);
@@ -44,7 +55,9 @@ int ipc_channel_destroy(uint32_t channel_id)
         if (channels[i].id == channel_id) {
             if (channels[i].shared_buffer)
                 tensor_free(channels[i].shared_buffer);
+            channels[i].shared_buffer = NULL;
             channels[i].active = false;
+            channels[i].id = 0;
             return 0;
         }
     }
@@ -92,6 +105,7 @@ const void *ipc_recv_tensor_zerocopy(uint32_t channel_id, tensor_desc_t *tensor)
 
 int ipc_pipeline_create(uint64_t *meu_ids, uint32_t count)
 {
+    if (count < 2) return -1;
     /* Create a chain of channels: MEU[0] -> MEU[1] -> ... -> MEU[n-1] */
     for (uint32_t i = 0; i < count - 1; i++) {
         int ch = ipc_channel_create(meu_ids[i], meu_ids[i + 1],

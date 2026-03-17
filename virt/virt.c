@@ -94,9 +94,15 @@ uint64_t virt_get_capabilities(void)
 
 virt_container_t *virt_container_create(const char *name, virt_level_t level)
 {
-    if (container_count >= CONTAINER_MAX) return NULL;
-
-    virt_container_t *c = &containers[container_count++];
+    /* Reuse a destroyed slot before growing */
+    virt_container_t *c = NULL;
+    for (uint32_t i = 0; i < container_count; i++) {
+        if (containers[i].id == 0) { c = &containers[i]; break; }
+    }
+    if (!c) {
+        if (container_count >= CONTAINER_MAX) return NULL;
+        c = &containers[container_count++];
+    }
     kmemset(c, 0, sizeof(*c));
 
     c->id = next_container_id++;
@@ -179,7 +185,10 @@ int virt_container_destroy(uint32_t container_id)
             /* Free shared memory regions */
             for (uint32_t j = 0; j < shared_region_count; j++) {
                 if (shared_regions[j].container_id == container_id) {
+                    if (shared_regions[j].host_phys)
+                        tensor_free((void *)(uintptr_t)shared_regions[j].host_phys);
                     shared_regions[j].size = 0;
+                    shared_regions[j].host_phys = 0;
                 }
             }
 

@@ -22,6 +22,7 @@
 #include "kernel/core/perf.h"
 #include "runtime/nn/gguf.h"
 #include "runtime/jit/x86_jit.h"
+#include "kernel/security/crypto.h"
 #ifndef __aarch64__
 #include "kernel/drivers/blk/virtio_blk.h"
 #endif
@@ -893,14 +894,14 @@ static uint32_t llm_hash_str(const char *str, int len)
 }
 
 /* Hash-table backed token lookup — O(1) average */
-static int16_t llm_vocab_ht[LLM_HASH_SIZE];
+static int32_t llm_vocab_ht[LLM_HASH_SIZE];
 static int llm_ht_ready = 0;
 
 static void llm_build_hash_table(const llm_model_t *m)
 {
     /* Initialize all slots to -1 (empty) */
     for (int i = 0; i < LLM_HASH_SIZE; i++)
-        llm_vocab_ht[i] = -1;
+        llm_vocab_ht[i] = -1;  /* int32_t: supports vocab up to 2^31 */
 
     /* Insert all vocab entries using open addressing (linear probing) */
     for (int i = 0; i < m->n_vocab; i++) {
@@ -912,7 +913,7 @@ static void llm_build_hash_table(const llm_model_t *m)
             probes++;
         }
         if (probes < LLM_HASH_SIZE)
-            llm_vocab_ht[slot] = (int16_t)i;
+            llm_vocab_ht[slot] = (int32_t)i;
     }
     llm_ht_ready = 1;
 }
@@ -925,7 +926,7 @@ static int llm_find_token(const llm_model_t *m, const char *str, int len)
         uint32_t slot = h & (LLM_HASH_SIZE - 1);
         int probes = 0;
         while (probes < 64) { /* limit probe length */
-            int16_t idx = llm_vocab_ht[slot];
+            int32_t idx = llm_vocab_ht[slot];
             if (idx == -1) return -1; /* empty slot = not found */
             if (llm_str_match(m->vocab[idx].str, m->vocab[idx].len, str, len))
                 return idx;
@@ -1228,19 +1229,10 @@ static int llm_sample(const float *logits, int vocab_size, float temperature)
             top_probs[i] *= inv_sum;
     }
 
-    /* Sample using pseudo-random (from TSC) */
-    uint32_t lo, hi;
-#if defined(__aarch64__)
-    uint64_t cnt;
-    __asm__ volatile ("mrs %0, cntpct_el0" : "=r"(cnt));
-    lo = (uint32_t)cnt;
-#else
-    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
-#endif
-    /* Better randomness: mix upper bits */
-    lo = lo ^ (lo >> 16);
-    lo = lo * 0x45d9f3bU;
-    float r = (float)(lo % 10000) / 10000.0f;
+    /* Sample using CSPRNG */
+    uint32_t rng_val;
+    crypto_random(&rng_val, sizeof(rng_val));
+    float r = (float)(rng_val % 10000) / 10000.0f;
 
     float cdf = 0.0f;
     for (int i = 0; i < p_cutoff; i++) {

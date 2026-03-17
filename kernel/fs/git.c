@@ -228,12 +228,22 @@ int git_ref_update(git_repo_t *repo, const char *name, const git_hash_t *target)
     return git_ref_create(repo, name, target);
 }
 
+static int git_ref_resolve_depth(git_repo_t *repo, const char *name,
+                                  git_hash_t *out, int depth);
+
 int git_ref_resolve(git_repo_t *repo, const char *name, git_hash_t *out)
 {
+    return git_ref_resolve_depth(repo, name, out, 0);
+}
+
+static int git_ref_resolve_depth(git_repo_t *repo, const char *name,
+                                  git_hash_t *out, int depth)
+{
+    if (depth > 10) return -1;  /* break symref cycles */
     /* Check if HEAD */
     if (kstrcmp(name, "HEAD") == 0) {
         if (repo->head.is_symbolic)
-            return git_ref_resolve(repo, repo->head.symref, out);
+            return git_ref_resolve_depth(repo, repo->head.symref, out, depth + 1);
         *out = repo->head.target;
         return 0;
     }
@@ -241,7 +251,7 @@ int git_ref_resolve(git_repo_t *repo, const char *name, git_hash_t *out)
     for (uint32_t i = 0; i < repo->ref_count; i++) {
         if (kstrcmp(repo->refs[i].name, name) == 0) {
             if (repo->refs[i].is_symbolic)
-                return git_ref_resolve(repo, repo->refs[i].symref, out);
+                return git_ref_resolve_depth(repo, repo->refs[i].symref, out, depth + 1);
             *out = repo->refs[i].target;
             return 0;
         }

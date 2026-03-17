@@ -107,7 +107,7 @@ typedef struct {
     float             *vocab_scores; /* [vocab_size] merge scores */
 
     /* Hash table for O(1) token lookup by string */
-    int16_t           *vocab_ht_slot; /* [LLM_HASH_SIZE] → vocab index or -1 */
+    int32_t           *vocab_ht_slot; /* [LLM_HASH_SIZE] → vocab index or -1 */
 
     /* Model data buffer */
     void    *data_buf;          /* Loaded GGUF file */
