@@ -34,6 +34,15 @@ static uint64_t stat_tcp_rx;
 static uint64_t stat_http_req;
 static uint64_t stat_http_infer;
 
+/* API authentication — set via net_set_api_key(); empty = no auth required */
+static char api_key[128];
+
+void net_set_api_key(const char *key)
+{
+    if (!key) { api_key[0] = '\0'; return; }
+    kstrlcpy(api_key, key, sizeof(api_key));
+}
+
 /* UDP port handlers */
 #define MAX_UDP_HANDLERS 16
 static struct {
@@ -1083,6 +1092,36 @@ static void http_handle_request(tcp_conn_t *conn)
 
     kprintf("[HTTP] %.*s %.*s (%d bytes body)\n",
             method_end, req, path_len, req + path_start, body_len);
+
+    /* API key authentication — skip for OPTIONS, GET /, GET /health */
+    int needs_auth = api_key[0] && !is_options;
+    if (needs_auth && is_get &&
+        (path_len == 1 || (path_len >= 7 && str_starts_with(req + path_start, "/health"))))
+        needs_auth = 0;
+    if (needs_auth) {
+        /* Look for "Authorization: Bearer <key>" header */
+        int auth_pos = str_find(req, hdr_end >= 0 ? hdr_end : req_len, "Authorization: Bearer ");
+        int auth_ok = 0;
+        if (auth_pos >= 0) {
+            const char *tok = req + auth_pos + 22; /* skip "Authorization: Bearer " */
+            int tok_len = 0;
+            while (tok[tok_len] && tok[tok_len] != '\r' && tok[tok_len] != '\n') tok_len++;
+            int key_len = kstrlen(api_key);
+            if (tok_len == key_len) {
+                auth_ok = 1;
+                for (int i = 0; i < key_len; i++)
+                    if (tok[i] != api_key[i]) { auth_ok = 0; break; }
+            }
+        }
+        if (!auth_ok) {
+            char err[256];
+            int epos = kprintf_to_buf(err, (int)sizeof(err),
+                "{\"error\":{\"message\":\"Invalid API key\",\"type\":\"authentication_error\",\"code\":401}}");
+            http_send_json(conn, 401, "Unauthorized", err, epos);
+            tcp_conn_close(conn);
+            return;
+        }
+    }
 
     /* Route requests */
     if (is_options) {

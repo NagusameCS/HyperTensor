@@ -314,14 +314,24 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
         /* Allocate tensor memory for the container */
         {
             uint64_t size = frame->args[0];
+            /* Cap allocation at 16 GB to prevent resource exhaustion */
+            if (size == 0 || size > (16ULL * 1024 * 1024 * 1024)) {
+                frame->ret = 0;
+                return -1;
+            }
             void *ptr = tensor_alloc(size);
             frame->ret = (uint64_t)ptr;
         }
         break;
 
     case HCALL_TENSOR_FREE:
-        tensor_free((void *)frame->args[0]);
-        frame->ret = 0;
+        {
+            void *ptr = (void *)frame->args[0];
+            /* Reject NULL and obvious invalid pointers */
+            if (!ptr) { frame->ret = (uint64_t)-1; return -1; }
+            tensor_free(ptr);
+            frame->ret = 0;
+        }
         break;
 
     case HCALL_TENSOR_MATMUL:
@@ -330,6 +340,7 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
             tensor_desc_t *C = (tensor_desc_t *)frame->args[0];
             tensor_desc_t *A = (tensor_desc_t *)frame->args[1];
             tensor_desc_t *B = (tensor_desc_t *)frame->args[2];
+            if (!C || !A || !B) { frame->ret = (uint64_t)-1; return -1; }
             uint32_t gpu_id = (uint32_t)frame->args[3];
             frame->ret = gpu_tensor_matmul(gpu_id, C, A, B);
         }
@@ -341,6 +352,7 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
             tensor_desc_t *Q = (tensor_desc_t *)frame->args[1];
             tensor_desc_t *K = (tensor_desc_t *)frame->args[2];
             tensor_desc_t *V = (tensor_desc_t *)frame->args[3];
+            if (!out || !Q || !K || !V) { frame->ret = (uint64_t)-1; return -1; }
             float scale = *(float *)&frame->args[4];
             uint32_t gpu_id = (uint32_t)frame->args[5];
             frame->ret = gpu_tensor_attention(gpu_id, out, Q, K, V, scale);
@@ -361,6 +373,7 @@ int virt_handle_hypercall(uint32_t container_id, hypercall_frame_t *frame)
         /* Git commit from within container */
         {
             const char *message = (const char *)frame->args[0];
+            if (!message) { frame->ret = (uint64_t)-1; return -1; }
             frame->ret = git_commit(&default_repo, message);
         }
         break;

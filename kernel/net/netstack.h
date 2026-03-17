@@ -236,6 +236,11 @@ const net_config_t *netstack_get_config(void);
 void netstack_print_stats(void);
 
 /**
+ * Set API key for HTTP authentication. Empty/NULL = no auth required.
+ */
+void net_set_api_key(const char *key);
+
+/**
  * Byte-swap helpers (network byte order) */
 static inline uint16_t htons(uint16_t v) { return (v >> 8) | (v << 8); }
 static inline uint16_t ntohs(uint16_t v) { return htons(v); }

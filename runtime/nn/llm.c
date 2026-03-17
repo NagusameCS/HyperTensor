@@ -1686,21 +1686,21 @@ static int llm_format_prompt(const llm_model_t *m, const char *question,
 
     if (is_chatml) {
         /* ChatML format (Qwen, SmolLM, Mistral-Instruct-v0.3+, etc.) */
-        { const char *t = "<|im_start|>system\nYou are a helpful math assistant. Give only the numeric answer.<|im_end|>\n<|im_start|>user\n"; kstrcpy(buf + pos, t); pos += kstrlen(t); }
-        { kstrcpy(buf + pos, question); pos += kstrlen(question); }
-        { const char *t = "<|im_end|>\n<|im_start|>assistant\n"; kstrcpy(buf + pos, t); pos += kstrlen(t); }
+        { const char *t = "<|im_start|>system\nYou are a helpful math assistant. Give only the numeric answer.<|im_end|>\n<|im_start|>user\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+        { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
+        { const char *t = "<|im_end|>\n<|im_start|>assistant\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
     } else if (kstrlen(m->arch) >= 5 &&
                m->arch[0] == 'g' && m->arch[1] == 'e' &&
                m->arch[2] == 'm' && m->arch[3] == 'm' && m->arch[4] == 'a') {
         /* Gemma format */
-        { const char *t = "<start_of_turn>user\n"; kstrcpy(buf + pos, t); pos += kstrlen(t); }
-        { kstrcpy(buf + pos, question); pos += kstrlen(question); }
-        { const char *t = "<end_of_turn>\n<start_of_turn>model\n"; kstrcpy(buf + pos, t); pos += kstrlen(t); }
+        { const char *t = "<start_of_turn>user\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+        { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
+        { const char *t = "<end_of_turn>\n<start_of_turn>model\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
     } else {
         /* Generic: simple text prompt (works with any model) */
-        { kstrcpy(buf + pos, question); pos += kstrlen(question); }
+        { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
     }
-    (void)max_len;
+    buf[pos < max_len ? pos : max_len - 1] = '\0';
     return pos;
 }
 
@@ -1987,7 +1987,7 @@ const char *llm_model_name(void)
 int llm_prompt(const char *user_text, char *output, int max_output)
 {
     if (!llm_is_loaded()) {
-        kstrcpy(output, "[no model loaded]");
+        kstrlcpy(output, "[no model loaded]", max_output);
         return -1;
     }
 
@@ -1995,7 +1995,15 @@ int llm_prompt(const char *user_text, char *output, int max_output)
 
     /* Build chat prompt using the model's preferred format */
     static char prompt_buf[2048];
+    const int buf_max = (int)sizeof(prompt_buf) - 1;
     int pos = 0;
+
+    /* Safe append: copies at most (buf_max - pos) bytes */
+    #define PROMPT_APPEND(s) do { \
+        const char *_s = (s); int _l = kstrlen(_s); \
+        if (pos + _l > buf_max) _l = buf_max - pos; \
+        if (_l > 0) { kmemcpy(prompt_buf + pos, _s, _l); pos += _l; } \
+    } while(0)
 
     /* Detect prompt format */
     int is_chatml = 0;
@@ -2005,33 +2013,28 @@ int llm_prompt(const char *user_text, char *output, int max_output)
         is_chatml = 1;
 
     if (is_chatml) {
-        const char *s1 = "<|im_start|>system\nYou are a helpful AI assistant running on TensorOS, a bare-metal AI operating system.<|im_end|>\n<|im_start|>user\n";
-        kstrcpy(prompt_buf + pos, s1); pos += kstrlen(s1);
-        kstrcpy(prompt_buf + pos, user_text); pos += kstrlen(user_text);
-        const char *s2 = "<|im_end|>\n<|im_start|>assistant\n";
-        kstrcpy(prompt_buf + pos, s2); pos += kstrlen(s2);
+        PROMPT_APPEND("<|im_start|>system\nYou are a helpful AI assistant running on TensorOS, a bare-metal AI operating system.<|im_end|>\n<|im_start|>user\n");
+        PROMPT_APPEND(user_text);
+        PROMPT_APPEND("<|im_end|>\n<|im_start|>assistant\n");
     } else if (kstrlen(m->arch) >= 5 &&
                m->arch[0] == 'g' && m->arch[1] == 'e' &&
                m->arch[2] == 'm' && m->arch[3] == 'm' && m->arch[4] == 'a') {
-        const char *s1 = "<start_of_turn>user\n";
-        kstrcpy(prompt_buf + pos, s1); pos += kstrlen(s1);
-        kstrcpy(prompt_buf + pos, user_text); pos += kstrlen(user_text);
-        const char *s2 = "<end_of_turn>\n<start_of_turn>model\n";
-        kstrcpy(prompt_buf + pos, s2); pos += kstrlen(s2);
+        PROMPT_APPEND("<start_of_turn>user\n");
+        PROMPT_APPEND(user_text);
+        PROMPT_APPEND("<end_of_turn>\n<start_of_turn>model\n");
     } else {
         /* Generic / LLaMA / SmolLM — simple prompt */
-        const char *s1 = "User: ";
-        kstrcpy(prompt_buf + pos, s1); pos += kstrlen(s1);
-        kstrcpy(prompt_buf + pos, user_text); pos += kstrlen(user_text);
-        const char *s2 = "\nAssistant: ";
-        kstrcpy(prompt_buf + pos, s2); pos += kstrlen(s2);
+        PROMPT_APPEND("User: ");
+        PROMPT_APPEND(user_text);
+        PROMPT_APPEND("\nAssistant: ");
     }
     prompt_buf[pos] = '\0';
+    #undef PROMPT_APPEND
 
     /* Tokenize */
     int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, LLM_MAX_TOKENS - 64);
     if (n_tokens <= 0) {
-        kstrcpy(output, "[tokenization failed]");
+        kstrlcpy(output, "[tokenization failed]", max_output);
         return -1;
     }
 

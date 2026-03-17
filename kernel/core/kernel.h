@@ -247,6 +247,7 @@ int   kstrncmp(const char *s1, const char *s2, size_t n);
 size_t kstrlen(const char *s);
 char *kstrcpy(char *dest, const char *src);
 char *kstrncpy(char *dest, const char *src, size_t n);
+size_t kstrlcpy(char *dest, const char *src, size_t size);
 
 #if defined(__aarch64__)
 /* ARM64: No port I/O — everything is MMIO via arm64_hal.h */

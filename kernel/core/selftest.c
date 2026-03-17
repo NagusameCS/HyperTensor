@@ -20,6 +20,7 @@
 #include "kernel/core/kernel.h"
 #include "kernel/core/selftest.h"
 #include "kernel/mm/tensor_arena.h"
+#include "kernel/security/crypto.h"
 
 /* External APIs we're testing */
 extern void *tensor_alloc(uint64_t size);
@@ -356,6 +357,68 @@ static int test_watchdog(void)
 }
 
 /* =============================================================================
+ * Test: kstrlcpy Bounded String Copy
+ * =============================================================================*/
+
+static int test_kstrlcpy(void)
+{
+    char buf[8];
+
+    /* Normal copy that fits */
+    kmemset(buf, 0xFF, sizeof(buf));
+    size_t ret = kstrlcpy(buf, "Hi", sizeof(buf));
+    TEST_ASSERT(ret == 2, "kstrlcpy returns src length");
+    TEST_ASSERT(kstrcmp(buf, "Hi") == 0, "kstrlcpy content");
+
+    /* Truncation: src longer than dest */
+    kmemset(buf, 0xFF, sizeof(buf));
+    ret = kstrlcpy(buf, "TensorOS rocks", sizeof(buf));
+    TEST_ASSERT(ret == 14, "kstrlcpy returns full src len on truncation");
+    TEST_ASSERT(buf[7] == '\0', "kstrlcpy NUL-terminates on truncation");
+    TEST_ASSERT(buf[6] == 'O', "kstrlcpy copies up to size-1");
+
+    /* Edge case: size=1 → only NUL */
+    buf[0] = 'X';
+    ret = kstrlcpy(buf, "abc", 1);
+    TEST_ASSERT(buf[0] == '\0', "kstrlcpy size=1 → empty");
+    TEST_ASSERT(ret == 3, "kstrlcpy size=1 returns src len");
+
+    return 1;
+}
+
+/* =============================================================================
+ * Test: SHA-256 Known-Answer Test (NIST FIPS 180-4)
+ * =============================================================================*/
+
+static int test_sha256(void)
+{
+    /* NIST test vector: SHA-256("abc") */
+    static const uint8_t expected[32] = {
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+    };
+    uint8_t digest[32];
+    sha256("abc", 3, digest);
+    for (int i = 0; i < 32; i++)
+        TEST_ASSERT(digest[i] == expected[i], "SHA-256(abc) byte mismatch");
+
+    /* Empty string: SHA-256("") */
+    static const uint8_t expected_empty[32] = {
+        0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14,
+        0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24,
+        0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c,
+        0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55
+    };
+    sha256("", 0, digest);
+    for (int i = 0; i < 32; i++)
+        TEST_ASSERT(digest[i] == expected_empty[i], "SHA-256('') byte mismatch");
+
+    return 1;
+}
+
+/* =============================================================================
  * Test Runner
  * =============================================================================*/
 
@@ -381,6 +444,8 @@ static test_case_t all_tests[] = {
     { "softmax",      test_softmax      },
     { "relu",         test_relu         },
     { "watchdog",     test_watchdog     },
+    { "kstrlcpy",     test_kstrlcpy     },
+    { "sha256",       test_sha256       },
 };
 
 #define NUM_TESTS (sizeof(all_tests) / sizeof(all_tests[0]))

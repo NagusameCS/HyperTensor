@@ -149,8 +149,11 @@ struct gpu_info *gpu_get_info(uint32_t gpu_id)
 
 /* =============================================================================
  * GPU Tensor Operations (Stubs - real implementation needs GPU firmware)
- * These demonstrate the API that would dispatch compute kernels to GPU
+ * These demonstrate the API that would dispatch compute kernels to GPU.
+ * Return -2 (not implemented) so callers know no computation was performed.
  * =============================================================================*/
+
+#define GPU_ENOSYS (-2)  /* Operation not implemented */
 
 int gpu_tensor_matmul(uint32_t gpu_id, tensor_desc_t *C,
                        const tensor_desc_t *A, const tensor_desc_t *B)
@@ -161,7 +164,7 @@ int gpu_tensor_matmul(uint32_t gpu_id, tensor_desc_t *C,
     if (A->ndim < 2 || B->ndim < 2) return -1;
     if (A->shape[A->ndim - 1] != B->shape[B->ndim - 2]) return -1;
 
-    kprintf_debug("[GPU %d] matmul: [%lu,%lu] x [%lu,%lu]\n",
+    kprintf_debug("[GPU %d] matmul: [%lu,%lu] x [%lu,%lu] — stub, not computed\n",
                   gpu_id, A->shape[0], A->shape[1], B->shape[0], B->shape[1]);
 
     /* Prepare output tensor dimensions */
@@ -169,9 +172,8 @@ int gpu_tensor_matmul(uint32_t gpu_id, tensor_desc_t *C,
     C->shape[0] = A->shape[0];
     C->shape[1] = B->shape[1];
 
-    /* GPU compute dispatch not yet available — fall back to CPU tensor engine */
-
-    return 0;
+    /* GPU compute dispatch not yet available — return not-implemented */
+    return GPU_ENOSYS;
 }
 
 int gpu_tensor_attention(uint32_t gpu_id, tensor_desc_t *output,
@@ -180,22 +182,17 @@ int gpu_tensor_attention(uint32_t gpu_id, tensor_desc_t *output,
 {
     if (gpu_id >= gpu_count) return -1;
 
-    kprintf_debug("[GPU %d] attention: Q[%lu,%lu] scale=%.4f\n",
+    kprintf_debug("[GPU %d] attention: Q[%lu,%lu] scale=%.4f — stub, not computed\n",
                   gpu_id, Q->shape[0], Q->shape[1], scale);
 
-    /* Fused attention kernel for efficiency:
-     * output = softmax(Q * K^T / scale) * V
-     * This would be a single fused kernel on modern GPUs
-     */
-
-    return 0;
+    return GPU_ENOSYS;
 }
 
 int gpu_tensor_softmax(uint32_t gpu_id, tensor_desc_t *output,
                         const tensor_desc_t *input, int axis)
 {
     if (gpu_id >= gpu_count) return -1;
-    return 0;
+    return GPU_ENOSYS;
 }
 
 int gpu_tensor_layernorm(uint32_t gpu_id, tensor_desc_t *output,
@@ -204,7 +201,7 @@ int gpu_tensor_layernorm(uint32_t gpu_id, tensor_desc_t *output,
                           const tensor_desc_t *beta, float epsilon)
 {
     if (gpu_id >= gpu_count) return -1;
-    return 0;
+    return GPU_ENOSYS;
 }
 
 int gpu_tensor_elementwise(uint32_t gpu_id, tensor_desc_t *output,
@@ -212,7 +209,7 @@ int gpu_tensor_elementwise(uint32_t gpu_id, tensor_desc_t *output,
                             int op)
 {
     if (gpu_id >= gpu_count) return -1;
-    return 0;
+    return GPU_ENOSYS;
 }
 
 int gpu_tensor_conv2d(uint32_t gpu_id, tensor_desc_t *output,
@@ -220,30 +217,31 @@ int gpu_tensor_conv2d(uint32_t gpu_id, tensor_desc_t *output,
                        uint32_t stride, uint32_t padding)
 {
     if (gpu_id >= gpu_count) return -1;
-    return 0;
+    return GPU_ENOSYS;
 }
 
 /* =============================================================================
  * GPU Power/Thermal Monitoring
+ * Returns 0 when no hardware sensor is available (stub).
  * =============================================================================*/
 
 uint32_t gpu_get_temperature(uint32_t gpu_id)
 {
     if (gpu_id >= gpu_count) return 0;
-    /* Read from GPU's thermal sensor via MMIO */
-    return 45; /* Placeholder */
+    /* No HW sensor available yet — return 0 (unknown) */
+    return 0;
 }
 
 uint32_t gpu_get_power_watts(uint32_t gpu_id)
 {
     if (gpu_id >= gpu_count) return 0;
-    return 150; /* Placeholder */
+    return 0;
 }
 
 uint32_t gpu_get_utilization(uint32_t gpu_id)
 {
     if (gpu_id >= gpu_count) return 0;
-    return 0; /* Placeholder */
+    return 0;
 }
 
 

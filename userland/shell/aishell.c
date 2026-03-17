@@ -53,6 +53,14 @@ static void shell_strcpy(char *dst, const char *src)
     *dst = 0;
 }
 
+static void shell_strncpy(char *dst, const char *src, uint64_t size)
+{
+    if (!size) return;
+    uint64_t i = 0;
+    while (i < size - 1 && src[i]) { dst[i] = src[i]; i++; }
+    dst[i] = 0;
+}
+
 static int shell_atoi(const char *s)
 {
     int neg = 0, val = 0;
@@ -156,7 +164,7 @@ static void history_add(shell_history_t *h, const char *line)
         if (shell_strcmp(h->lines[prev], line) == 0) return;
     }
     int idx = h->count % SHELL_MAX_HISTORY;
-    shell_strcpy(h->lines[idx], line);
+    shell_strncpy(h->lines[idx], line, SHELL_MAX_LINE);
     h->count++;
     h->cursor = h->count;
 }
@@ -323,7 +331,7 @@ static int shell_read_line(aishell_t *sh, char *buf, int max)
 
         /* Ctrl+D: delete at cursor or EOF */
         if (key == 4) {
-            if (len == 0) { shell_strcpy(buf, "exit"); kprintf("exit\n"); return 4; }
+            if (len == 0) { shell_strncpy(buf, "exit", SHELL_MAX_LINE); kprintf("exit\n"); return 4; }
             if (cursor < len) {
                 int ol = len;
                 for (int i = cursor; i < len - 1; i++) buf[i] = buf[i + 1];
@@ -454,7 +462,7 @@ static int shell_read_line(aishell_t *sh, char *buf, int max)
             const char *hl = history_get(&sh->history, hist_nav);
             if (hl) {
                 int ol = len;
-                shell_strcpy(buf, hl); len = (int)shell_strlen(buf); cursor = len;
+                shell_strncpy(buf, hl, SHELL_MAX_LINE); len = (int)shell_strlen(buf); cursor = len;
                 line_refresh(sh->prompt, buf, len, cursor, ol);
             }
             continue;
@@ -470,7 +478,7 @@ static int shell_read_line(aishell_t *sh, char *buf, int max)
                 len = saved_len;
             } else {
                 const char *hl = history_get(&sh->history, hist_nav);
-                if (hl) { shell_strcpy(buf, hl); len = (int)shell_strlen(buf); }
+                if (hl) { shell_strncpy(buf, hl, SHELL_MAX_LINE); len = (int)shell_strlen(buf); }
             }
             cursor = len;
             line_refresh(sh->prompt, buf, len, cursor, ol);
@@ -487,7 +495,7 @@ static int shell_read_line(aishell_t *sh, char *buf, int max)
             const char *hl = history_get(&sh->history, hist_nav);
             if (hl) {
                 int ol = len;
-                shell_strcpy(buf, hl); len = (int)shell_strlen(buf); cursor = len;
+                shell_strncpy(buf, hl, SHELL_MAX_LINE); len = (int)shell_strlen(buf); cursor = len;
                 line_refresh(sh->prompt, buf, len, cursor, ol);
             }
             continue;
@@ -2086,7 +2094,7 @@ static int cmd_cd(aishell_t *sh, int argc, char **argv)
             return 1;
         }
     }
-    shell_strcpy(sh->cwd, path);
+    shell_strncpy(sh->cwd, path, SHELL_MAX_PATH);
     return 0;
 }
 
@@ -2645,11 +2653,11 @@ static int cmd_alias(aishell_t *sh, int argc, char **argv)
         kprintf("alias: %s: not found\n", name); return 1;
     }
     for (int i = 0; i < sh->alias_count; i++) {
-        if (shell_strcmp(sh->aliases[i].name, name) == 0) { shell_strcpy(sh->aliases[i].command, cmd_str); return 0; }
+        if (shell_strcmp(sh->aliases[i].name, name) == 0) { shell_strncpy(sh->aliases[i].command, cmd_str, SHELL_MAX_LINE); return 0; }
     }
     if (sh->alias_count >= SHELL_MAX_ALIASES) { kprintf("alias: max reached\n"); return 1; }
-    shell_strcpy(sh->aliases[sh->alias_count].name, name);
-    shell_strcpy(sh->aliases[sh->alias_count].command, cmd_str);
+    shell_strncpy(sh->aliases[sh->alias_count].name, name, 32);
+    shell_strncpy(sh->aliases[sh->alias_count].command, cmd_str, SHELL_MAX_LINE);
     sh->alias_count++;
     kprintf("alias %s='%s'\n", name, cmd_str);
     return 0;
@@ -2683,10 +2691,10 @@ static int cmd_set(aishell_t *sh, int argc, char **argv)
     if (eq > 0) { for (int i = 0; i < eq && i < 31; i++) nbuf[i] = name[i]; nbuf[eq] = '\0'; name = nbuf; val = &argv[1][eq + 1]; }
     else if (argc >= 3) val = argv[2];
     for (int i = 0; i < sh->env_count; i++)
-        if (shell_strcmp(sh->env[i].name, name) == 0) { shell_strcpy(sh->env[i].value, val); return 0; }
+        if (shell_strcmp(sh->env[i].name, name) == 0) { shell_strncpy(sh->env[i].value, val, 128); return 0; }
     if (sh->env_count >= SHELL_MAX_ENV) { kprintf("set: max vars reached\n"); return 1; }
-    shell_strcpy(sh->env[sh->env_count].name, name);
-    shell_strcpy(sh->env[sh->env_count].value, val);
+    shell_strncpy(sh->env[sh->env_count].name, name, 32);
+    shell_strncpy(sh->env[sh->env_count].value, val, 128);
     sh->env_count++;
     return 0;
 }
@@ -3310,7 +3318,7 @@ static void shell_print_banner(void)
 void aishell_init(aishell_t *sh)
 {
     kmemset(sh, 0, sizeof(*sh));
-    shell_strcpy(sh->prompt, "tensor> ");
+    shell_strncpy(sh->prompt, "tensor> ", SHELL_PROMPT_MAX);
     sh->running = true;
     sh->interactive = true;
     sh->session_start_ticks = kstate.uptime_ticks;

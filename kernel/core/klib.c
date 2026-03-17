@@ -601,6 +601,17 @@ char *kstrncpy(char *dest, const char *src, size_t n)
     return dest;
 }
 
+size_t kstrlcpy(char *dest, const char *src, size_t size)
+{
+    size_t slen = kstrlen(src);
+    if (size) {
+        size_t copy = slen < size - 1 ? slen : size - 1;
+        kmemcpy(dest, src, copy);
+        dest[copy] = '\0';
+    }
+    return slen;
+}
+
 /* =============================================================================
  * Platform-Specific Hardware: Interrupt, Keyboard, IDT, PIC, PIT, CPU, PCI
  * =============================================================================*/

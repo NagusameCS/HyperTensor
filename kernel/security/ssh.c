@@ -1082,9 +1082,26 @@ void ssh_server_init(void)
     g_ssh_server.host_key_generated = 1;
     crypto_wipe(seed, 32);
 
-    /* Add default admin user */
-    ssh_add_user("root", "tensor", 0x7);  /* shell + sftp + admin */
-    ssh_add_user("tensor", "neuron", 0x1); /* shell only */
+    /* Generate a random initial admin password (printed once at first boot).
+     * No hardcoded credentials — the operator MUST read the serial log. */
+    {
+        uint8_t pw_bytes[10];
+        crypto_random(pw_bytes, sizeof(pw_bytes));
+        char init_pw[21]; /* 20 hex chars + NUL */
+        static const char hex[] = "0123456789abcdef";
+        for (int i = 0; i < 10; i++) {
+            init_pw[i * 2]     = hex[pw_bytes[i] >> 4];
+            init_pw[i * 2 + 1] = hex[pw_bytes[i] & 0xF];
+        }
+        init_pw[20] = '\0';
+        crypto_wipe(pw_bytes, sizeof(pw_bytes));
+
+        ssh_add_user("root", init_pw, 0x7);  /* shell + sftp + admin */
+
+        kprintf("[SSH] *** INITIAL ROOT PASSWORD: %s ***\n", init_pw);
+        kprintf("[SSH] Change it immediately with: ssh_passwd root <new>\n");
+        crypto_wipe(init_pw, sizeof(init_pw));
+    }
 
     kprintf("[SSH] Server initialized\n");
 
