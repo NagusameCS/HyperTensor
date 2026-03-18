@@ -50,14 +50,14 @@ SECTIONS
     .tensor_heap ALIGN(2M) (NOLOAD) :
     {
         __tensor_heap_start = .;
-        . += 256M;
+        . += 512M;
         __tensor_heap_end = .;
     }
 
     .model_cache ALIGN(2M) (NOLOAD) :
     {
         __model_cache_start = .;
-        . += 512M;
+        . += 2048M;
         __model_cache_end = .;
     }
 

@@ -32,8 +32,15 @@
 /* ─────────────────────────────────────────────────────────────────────────── */
 typedef float v4f __attribute__((vector_size(16)));
 
+#ifndef __aarch64__
+/* AVX2 8-wide float vector */
+typedef float v8f __attribute__((vector_size(32)));
+#include "kernel/core/cpu_features.h"
+#endif
+
 /* Forward declarations */
 static void llm_build_hash_table(const llm_model_t *m);
+static uint64_t llm_row_bytes(int in_dim, ggml_type_t type);
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Static Allocations                                                         */
@@ -295,6 +302,169 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
     return sum;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  AVX2+FMA Optimized Dot Products (2× throughput vs SSE2)                    */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+#ifndef __aarch64__
+
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_setzero(void) { return (v8f){0,0,0,0,0,0,0,0}; }
+
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_set1(float x) { return (v8f){x,x,x,x,x,x,x,x}; }
+
+__attribute__((target("avx2,fma")))
+static inline float v8f_reduce(v8f v) {
+    union { v8f vec; float f[8]; } u;
+    u.vec = v;
+    return (u.f[0]+u.f[1]+u.f[2]+u.f[3])+(u.f[4]+u.f[5]+u.f[6]+u.f[7]);
+}
+
+/* AVX2 Q8_0 dot: process 32 elements per block using 8-wide */
+__attribute__((target("avx2,fma")))
+static float q8_0_dot32_avx2(const ggml_q8_0_t *block, const float *x)
+{
+    float d = fp16_to_fp32(block->d);
+    const int8_t *qs = block->qs;
+
+    v8f acc0 = v8f_setzero();
+    v8f acc1 = v8f_setzero();
+    v8f acc2 = v8f_setzero();
+    v8f acc3 = v8f_setzero();
+
+    /* 32 elements in 4 groups of 8 */
+    v8f q0 = {(float)qs[0],(float)qs[1],(float)qs[2],(float)qs[3],
+              (float)qs[4],(float)qs[5],(float)qs[6],(float)qs[7]};
+    v8f x0; __builtin_memcpy(&x0, x, 32);
+    acc0 = q0 * x0;
+
+    v8f q1 = {(float)qs[8],(float)qs[9],(float)qs[10],(float)qs[11],
+              (float)qs[12],(float)qs[13],(float)qs[14],(float)qs[15]};
+    v8f x1; __builtin_memcpy(&x1, x+8, 32);
+    acc1 = q1 * x1;
+
+    v8f q2 = {(float)qs[16],(float)qs[17],(float)qs[18],(float)qs[19],
+              (float)qs[20],(float)qs[21],(float)qs[22],(float)qs[23]};
+    v8f x2; __builtin_memcpy(&x2, x+16, 32);
+    acc2 = q2 * x2;
+
+    v8f q3 = {(float)qs[24],(float)qs[25],(float)qs[26],(float)qs[27],
+              (float)qs[28],(float)qs[29],(float)qs[30],(float)qs[31]};
+    v8f x3; __builtin_memcpy(&x3, x+24, 32);
+    acc3 = q3 * x3;
+
+    v8f total = (acc0 + acc1) + (acc2 + acc3);
+    return v8f_reduce(total) * d;
+}
+
+/* AVX2 Q4_0 dot: process 32 elements per block using 8-wide */
+__attribute__((target("avx2,fma")))
+static float q4_0_dot32_avx2(const ggml_q4_0_t *block, const float *x)
+{
+    float d = fp16_to_fp32(block->d);
+    const uint8_t *qs = block->qs;
+
+    v8f acc0 = v8f_setzero();
+    v8f acc1 = v8f_setzero();
+    v8f acc2 = v8f_setzero();
+    v8f acc3 = v8f_setzero();
+
+    for (int j = 0; j < 16; j += 4) {
+        uint8_t b0=qs[j], b1=qs[j+1], b2=qs[j+2], b3=qs[j+3];
+        v8f q = {(float)((int)(b0&0xF)-8), (float)((int)(b0>>4)-8),
+                 (float)((int)(b1&0xF)-8), (float)((int)(b1>>4)-8),
+                 (float)((int)(b2&0xF)-8), (float)((int)(b2>>4)-8),
+                 (float)((int)(b3&0xF)-8), (float)((int)(b3>>4)-8)};
+        v8f xv; __builtin_memcpy(&xv, x + 2*j, 32);
+        if (j == 0) acc0 = q * xv;
+        else if (j == 4) acc1 = q * xv;
+        else if (j == 8) acc2 = q * xv;
+        else acc3 = q * xv;
+    }
+
+    v8f total = (acc0 + acc1) + (acc2 + acc3);
+    return v8f_reduce(total) * d;
+}
+
+/* AVX2 generic vec_dot: dispatches to AVX2 block kernels */
+__attribute__((target("avx2,fma")))
+static float llm_vec_dot_avx2(const void *weight, const float *x, int n, ggml_type_t type)
+{
+    int nb = n / 32;
+    switch (type) {
+    case GGML_TYPE_Q8_0: {
+        const ggml_q8_0_t *blocks = (const ggml_q8_0_t *)weight;
+        v8f acc = v8f_setzero();
+        /* Unroll 2 blocks at a time for ILP */
+        int b = 0;
+        float sum = 0.0f;
+        for (; b + 1 < nb; b += 2) {
+            sum += q8_0_dot32_avx2(&blocks[b], x + b * 32);
+            sum += q8_0_dot32_avx2(&blocks[b+1], x + (b+1) * 32);
+        }
+        for (; b < nb; b++)
+            sum += q8_0_dot32_avx2(&blocks[b], x + b * 32);
+        return sum;
+    }
+    case GGML_TYPE_Q4_0: {
+        const ggml_q4_0_t *blocks = (const ggml_q4_0_t *)weight;
+        float sum = 0.0f;
+        for (int b = 0; b < nb; b++)
+            sum += q4_0_dot32_avx2(&blocks[b], x + b * 32);
+        return sum;
+    }
+    case GGML_TYPE_F32: {
+        const float *f32 = (const float *)weight;
+        v8f s0 = v8f_setzero(), s1 = v8f_setzero();
+        int i = 0;
+        for (; i + 16 <= n; i += 16) {
+            v8f a0, a1, b0, b1;
+            __builtin_memcpy(&a0, f32+i, 32);
+            __builtin_memcpy(&a1, f32+i+8, 32);
+            __builtin_memcpy(&b0, x+i, 32);
+            __builtin_memcpy(&b1, x+i+8, 32);
+            s0 = s0 + a0 * b0;
+            s1 = s1 + a1 * b1;
+        }
+        float sum = v8f_reduce(s0 + s1);
+        for (; i < n; i++)
+            sum += f32[i] * x[i];
+        return sum;
+    }
+    default:
+        return llm_vec_dot(weight, x, n, type);
+    }
+}
+
+/* AVX2 GEMV: 4-row batched for better cache utilization */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_avx2(float *out, const void *weight, const float *x,
+                           int out_dim, int in_dim, ggml_type_t type)
+{
+    uint64_t rb = llm_row_bytes(in_dim, type);
+    int i = 0;
+
+    /* Process 4 rows at once — input vector x stays in cache */
+    for (; i + 3 < out_dim; i += 4) {
+        const void *r0 = (const uint8_t *)weight + (uint64_t)(i)   * rb;
+        const void *r1 = (const uint8_t *)weight + (uint64_t)(i+1) * rb;
+        const void *r2 = (const uint8_t *)weight + (uint64_t)(i+2) * rb;
+        const void *r3 = (const uint8_t *)weight + (uint64_t)(i+3) * rb;
+        out[i]   = llm_vec_dot_avx2(r0, x, in_dim, type);
+        out[i+1] = llm_vec_dot_avx2(r1, x, in_dim, type);
+        out[i+2] = llm_vec_dot_avx2(r2, x, in_dim, type);
+        out[i+3] = llm_vec_dot_avx2(r3, x, in_dim, type);
+    }
+    /* Remainder */
+    for (; i < out_dim; i++) {
+        const void *row = (const uint8_t *)weight + (uint64_t)i * rb;
+        out[i] = llm_vec_dot_avx2(row, x, in_dim, type);
+    }
+}
+
+#endif /* !__aarch64__ */
+
 /* Bytes per row for a quantized matrix [out_dim × in_dim] */
 static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
 {
@@ -337,6 +507,12 @@ static void llm_gemv(float *out, const void *weight, const float *x,
                      int out_dim, int in_dim, ggml_type_t type)
 {
 #ifndef __aarch64__
+    /* Use AVX2+FMA GEMV when available (2× throughput) */
+    if (cpu_features.avx2_usable) {
+        llm_gemv_avx2(out, weight, x, out_dim, in_dim, type);
+        return;
+    }
+
     /* Try JIT-compiled Q8_0 GEMV kernel */
     if (type == GGML_TYPE_Q8_0) {
         jit_gemv_q8_fn jfn = llm_get_jit_gemv(out_dim, in_dim);
@@ -459,38 +635,48 @@ static void llm_rmsnorm(float *out, const float *x, const void *w,
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/*  Rotary Position Embeddings (RoPE)                                          */
-/*  Applies complex rotation to each pair of elements in Q and K.              */
-/*  This is the key innovation behind modern LLMs like LLaMA/Qwen.            */
+/*  Rotary Position Embeddings (RoPE) — Optimized                              */
+/*  Precomputed frequency table + fast sin/cos via range-reduced polynomial.   */
 /* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Precomputed inverse-frequency table: freq[i] = base^(-2i/dim) */
+static float llm_rope_freqs[LLM_MAX_DIM / 2];
+static int   llm_rope_freqs_ready = 0;
+static float llm_rope_base_cached = 0.0f;
+static int   llm_rope_hdim_cached = 0;
+
+static float llm_log_approx(float base)
+{
+    float b = base;
+    int k = 0;
+    while (b > 2.0f) { b *= 0.5f; k++; }
+    float m1 = b - 1.0f;
+    return (float)k * 0.6931472f + m1 * (1.0f - m1 * (0.5f - m1 * 0.3333f));
+}
+
+static void llm_rope_precompute(float base, int head_dim)
+{
+    if (llm_rope_freqs_ready && llm_rope_base_cached == base &&
+        llm_rope_hdim_cached == head_dim)
+        return;
+    float log_base = llm_log_approx(base);
+    for (int i = 0; i < head_dim / 2; i++) {
+        float exponent = -(float)(2 * i) / (float)head_dim;
+        llm_rope_freqs[i] = llm_expf(exponent * log_base);
+    }
+    llm_rope_base_cached = base;
+    llm_rope_hdim_cached = head_dim;
+    llm_rope_freqs_ready = 1;
+}
 
 static void llm_rope(float *vec, int pos, int head_dim, float base)
 {
-    for (int i = 0; i < head_dim; i += 2) {
-        /* Compute rotation angle: theta_i = pos * base^(-2i/dim) */
-        float freq = 1.0f;
-        /* base^(-2i/dim) ≈ exp(-2i/dim * ln(base)) */
-        float exponent = -(float)i / (float)head_dim;
-        /* Compute base^exponent via repeated squaring approximation */
-        /* For base=10000: ln(10000)=9.21, for base=1000000: ln(1e6)=13.82 */
-        float log_base = 0.0f;
-        {
-            /* Approximate ln(base) */
-            float b = base;
-            /* ln(x) ≈ series for large x: decompose as 2^k * m */
-            int k = 0;
-            while (b > 2.0f) { b *= 0.5f; k++; }
-            /* ln(2^k * m) = k*ln(2) + ln(m), m in [1,2] */
-            /* ln(m) ≈ (m-1) - (m-1)^2/2 + (m-1)^3/3 for m near 1 */
-            float m1 = b - 1.0f;
-            log_base = (float)k * 0.6931472f +
-                       m1 * (1.0f - m1 * (0.5f - m1 * 0.3333f));
-        }
-        freq = llm_expf(exponent * log_base);
-        float theta = (float)pos * freq;
+    llm_rope_precompute(base, head_dim);
 
-        /* sin/cos via Taylor series */
-        /* Reduce theta to [-pi, pi] */
+    for (int i = 0; i < head_dim; i += 2) {
+        float theta = (float)pos * llm_rope_freqs[i / 2];
+
+        /* Fast range reduction and polynomial sin/cos */
         float pi = 3.14159265f;
         while (theta > pi) theta -= 2.0f * pi;
         while (theta < -pi) theta += 2.0f * pi;
@@ -512,16 +698,63 @@ static void llm_rope(float *vec, int pos, int head_dim, float base)
 
 static void llm_softmax(float *x, int n)
 {
-    /* Find max for numerical stability */
+    /* Vectorized find-max for numerical stability */
     float max_val = x[0];
+#ifndef __aarch64__
+    {
+        v4f mv = {x[0], x[0], x[0], x[0]};
+        int i = 0;
+        for (; i + 4 <= n; i += 4) {
+            v4f v = *(const v4f *)(x + i);
+            /* Branchless max with comparison mask */
+            v4f mask;
+            __asm__("cmpltps %2, %0" : "=x"(mask) : "0"(mv), "x"(v));
+            /* If v > mv, pick v, else mv: mv = (v & mask) | (mv & ~mask) */
+            v4f sel;
+            __asm__("andps %2, %0" : "=x"(sel) : "0"(mask), "x"(v));
+            v4f sel2;
+            __asm__("andnps %2, %0" : "=x"(sel2) : "0"(mask), "x"(mv));
+            __asm__("orps %2, %0" : "=x"(mv) : "0"(sel), "x"(sel2));
+        }
+        union { v4f v; float f[4]; } u = { .v = mv };
+        max_val = u.f[0];
+        if (u.f[1] > max_val) max_val = u.f[1];
+        if (u.f[2] > max_val) max_val = u.f[2];
+        if (u.f[3] > max_val) max_val = u.f[3];
+        for (; i < n; i++)
+            if (x[i] > max_val) max_val = x[i];
+    }
+#else
     for (int i = 1; i < n; i++)
         if (x[i] > max_val) max_val = x[i];
+#endif
 
+    /* Vectorized exp + sum */
     float sum = 0.0f;
-    for (int i = 0; i < n; i++) {
-        x[i] = llm_expf(x[i] - max_val);
-        sum += x[i];
+    {
+        int i = 0;
+#ifndef __aarch64__
+        v4f sv = {0, 0, 0, 0};
+        v4f mv = {max_val, max_val, max_val, max_val};
+        for (; i + 4 <= n; i += 4) {
+            v4f v = *(const v4f *)(x + i);
+            v4f d = v - mv;
+            /* Per-element exp via Padé */
+            union { v4f v; float f[4]; } du = { .v = d };
+            v4f e = {llm_expf(du.f[0]), llm_expf(du.f[1]),
+                     llm_expf(du.f[2]), llm_expf(du.f[3])};
+            *(v4f *)(x + i) = e;
+            sv += e;
+        }
+        union { v4f v; float f[4]; } su = { .v = sv };
+        sum = su.f[0] + su.f[1] + su.f[2] + su.f[3];
+#endif
+        for (; i < n; i++) {
+            x[i] = llm_expf(x[i] - max_val);
+            sum += x[i];
+        }
     }
+
     float inv = 1.0f / (sum + 1e-10f);
 #ifndef __aarch64__
     v4f inv_v = {inv, inv, inv, inv};
@@ -539,25 +772,122 @@ static void llm_softmax(float *x, int n)
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/*  SiLU (Sigmoid Linear Unit) — used in SwiGLU FFN                           */
+/*  SiLU (Sigmoid Linear Unit) — used in SwiGLU FFN — Vectorized              */
 /* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Fast vectorized exp for small batches (Padé with better range reduction) */
+static inline float llm_fast_sigmoid(float x)
+{
+    /* Clamp to avoid overflow */
+    if (x > 10.0f) return 1.0f;
+    if (x < -10.0f) return 0.0f;
+    float e = llm_expf(-x);
+    return 1.0f / (1.0f + e);
+}
+
+#ifndef __aarch64__
+__attribute__((target("avx2,fma")))
+static void llm_silu_avx2(float *x, int n)
+{
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        /* Load 8 floats */
+        float s0 = llm_fast_sigmoid(x[i]);
+        float s1 = llm_fast_sigmoid(x[i+1]);
+        float s2 = llm_fast_sigmoid(x[i+2]);
+        float s3 = llm_fast_sigmoid(x[i+3]);
+        float s4 = llm_fast_sigmoid(x[i+4]);
+        float s5 = llm_fast_sigmoid(x[i+5]);
+        float s6 = llm_fast_sigmoid(x[i+6]);
+        float s7 = llm_fast_sigmoid(x[i+7]);
+        x[i]   *= s0; x[i+1] *= s1; x[i+2] *= s2; x[i+3] *= s3;
+        x[i+4] *= s4; x[i+5] *= s5; x[i+6] *= s6; x[i+7] *= s7;
+    }
+    for (; i < n; i++) {
+        float s = llm_fast_sigmoid(x[i]);
+        x[i] *= s;
+    }
+}
+#endif
 
 static void llm_silu(float *x, int n)
 {
+#ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        llm_silu_avx2(x, n);
+        return;
+    }
+    /* SSE2 4-wide unrolled */
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+        float s0 = llm_fast_sigmoid(x[i]);
+        float s1 = llm_fast_sigmoid(x[i+1]);
+        float s2 = llm_fast_sigmoid(x[i+2]);
+        float s3 = llm_fast_sigmoid(x[i+3]);
+        x[i] *= s0; x[i+1] *= s1; x[i+2] *= s2; x[i+3] *= s3;
+    }
+    for (; i < n; i++) {
+        float s = llm_fast_sigmoid(x[i]);
+        x[i] *= s;
+    }
+#else
     for (int i = 0; i < n; i++) {
         float s = 1.0f / (1.0f + llm_expf(-x[i]));
         x[i] = x[i] * s;
     }
+#endif
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
-/*  SSE2-vectorized helpers for attention inner loops                           */
+/*  Vectorized helpers for attention inner loops (SSE2 + AVX2 dispatch)        */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Dot product of two float arrays, SSE2-optimized */
+#ifndef __aarch64__
+/* AVX2 dot product: 8-wide with 2× unroll */
+__attribute__((target("avx2,fma")))
+static float llm_dot_f32_avx2(const float *a, const float *b, int n)
+{
+    v8f s0 = v8f_setzero(), s1 = v8f_setzero();
+    int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        v8f a0, a1, b0, b1;
+        __builtin_memcpy(&a0, a+i, 32);
+        __builtin_memcpy(&a1, a+i+8, 32);
+        __builtin_memcpy(&b0, b+i, 32);
+        __builtin_memcpy(&b1, b+i+8, 32);
+        s0 = s0 + a0 * b0;
+        s1 = s1 + a1 * b1;
+    }
+    float sum = v8f_reduce(s0 + s1);
+    for (; i < n; i++)
+        sum += a[i] * b[i];
+    return sum;
+}
+
+/* AVX2 axpy: dst += scale * src */
+__attribute__((target("avx2,fma")))
+static void llm_axpy_f32_avx2(float *dst, float scale, const float *src, int n)
+{
+    v8f sv = v8f_set1(scale);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        v8f d, s;
+        __builtin_memcpy(&d, dst+i, 32);
+        __builtin_memcpy(&s, src+i, 32);
+        d = d + sv * s;
+        __builtin_memcpy(dst+i, &d, 32);
+    }
+    for (; i < n; i++)
+        dst[i] += scale * src[i];
+}
+#endif /* !__aarch64__ */
+
+/* Dot product of two float arrays */
 static float llm_dot_f32(const float *a, const float *b, int n)
 {
 #ifndef __aarch64__
+    if (cpu_features.avx2_usable)
+        return llm_dot_f32_avx2(a, b, n);
     v4f acc0 = {0, 0, 0, 0};
     v4f acc1 = {0, 0, 0, 0};
     int i = 0;
@@ -583,10 +913,14 @@ static float llm_dot_f32(const float *a, const float *b, int n)
 #endif
 }
 
-/* Scaled add: dst[i] += scale * src[i], SSE2-optimized */
+/* Scaled add: dst[i] += scale * src[i] */
 static void llm_axpy_f32(float *dst, float scale, const float *src, int n)
 {
 #ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        llm_axpy_f32_avx2(dst, scale, src, n);
+        return;
+    }
     v4f sv = {scale, scale, scale, scale};
     int i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -602,10 +936,22 @@ static void llm_axpy_f32(float *dst, float scale, const float *src, int n)
 #endif
 }
 
-/* Vector add: dst[i] += src[i], SSE2-optimized */
+/* Vector add: dst[i] += src[i] */
 static void llm_vadd_f32(float *dst, const float *src, int n)
 {
 #ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        int i = 0;
+        for (; i + 8 <= n; i += 8) {
+            v8f d, s;
+            __builtin_memcpy(&d, dst+i, 32);
+            __builtin_memcpy(&s, src+i, 32);
+            d = d + s;
+            __builtin_memcpy(dst+i, &d, 32);
+        }
+        for (; i < n; i++) dst[i] += src[i];
+        return;
+    }
     int i = 0;
     for (; i + 4 <= n; i += 4) {
         v4f d = *(const v4f *)(dst + i);
@@ -620,10 +966,22 @@ static void llm_vadd_f32(float *dst, const float *src, int n)
 #endif
 }
 
-/* Element-wise multiply: dst[i] *= src[i], SSE2-optimized */
+/* Element-wise multiply: dst[i] *= src[i] */
 static void llm_vmul_f32(float *dst, const float *src, int n)
 {
 #ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        int i = 0;
+        for (; i + 8 <= n; i += 8) {
+            v8f d, s;
+            __builtin_memcpy(&d, dst+i, 32);
+            __builtin_memcpy(&s, src+i, 32);
+            d = d * s;
+            __builtin_memcpy(dst+i, &d, 32);
+        }
+        for (; i < n; i++) dst[i] *= src[i];
+        return;
+    }
     int i = 0;
     for (; i + 4 <= n; i += 4) {
         v4f d = *(const v4f *)(dst + i);
@@ -677,18 +1035,16 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         for (int h = 0; h < n_kv; h++)
             llm_rope(llm_k_buf + h * hd, pos, hd, m->rope_base);
 
-        /* 2d. Store K,V in cache */
+        /* 2d. Store K,V in cache (memcpy instead of scalar loop) */
         /* KV cache layout: [layer][position][kv_head][head_dim] */
         int kv_stride = m->max_seq * kv_dim;
         float *kc = m->k_cache + L * kv_stride + pos * kv_dim;
         float *vc = m->v_cache + L * kv_stride + pos * kv_dim;
-        for (int i = 0; i < kv_dim; i++) {
-            kc[i] = llm_k_buf[i];
-            vc[i] = llm_v_buf[i];
-        }
+        kmemcpy(kc, llm_k_buf, kv_dim * sizeof(float));
+        kmemcpy(vc, llm_v_buf, kv_dim * sizeof(float));
 
         /* 2e. Multi-head attention with GQA (Grouped Query Attention) */
-        for (int i = 0; i < dim; i++) llm_attn_out[i] = 0.0f;
+        kmemset(llm_attn_out, 0, dim * sizeof(float));
 
         int heads_per_kv = n_heads / n_kv;  /* GQA group size */
 
@@ -708,7 +1064,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             llm_softmax(llm_attn_scores, seq_len);
 
             /* Weighted sum of V: head_out = sum_t(score[t] * V_t) */
-            for (int d = 0; d < hd; d++) llm_head_buf[d] = 0.0f;
+            kmemset(llm_head_buf, 0, hd * sizeof(float));
             for (int t = 0; t < seq_len; t++) {
                 float s = llm_attn_scores[t];
                 float *vt = m->v_cache + L * kv_stride + t * kv_dim + kv_h * hd;
@@ -716,8 +1072,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             }
 
             /* Copy head output to concat buffer */
-            for (int d = 0; d < hd; d++)
-                llm_attn_out[h * hd + d] = llm_head_buf[d];
+            kmemcpy(llm_attn_out + h * hd, llm_head_buf, hd * sizeof(float));
         }
 
         /* 2f. Output projection + residual */
@@ -1257,14 +1612,12 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     int start_pos = 0;
 
     if (!continue_cache) {
-        /* Reset KV cache */
+        /* Reset KV cache — fast memset instead of scalar loop */
         m->cache_len = 0;
         int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
         if (kv_total > LLM_KV_FLOATS) kv_total = LLM_KV_FLOATS;
-        for (int i = 0; i < kv_total; i++) {
-            m->k_cache[i] = 0.0f;
-            m->v_cache[i] = 0.0f;
-        }
+        kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
+        kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
     } else {
         start_pos = m->cache_len;
     }
@@ -2055,8 +2408,6 @@ void llm_reset_cache(void)
     m->cache_len = 0;
     int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
     if (kv_total > LLM_KV_FLOATS) kv_total = LLM_KV_FLOATS;
-    for (int i = 0; i < kv_total; i++) {
-        m->k_cache[i] = 0.0f;
-        m->v_cache[i] = 0.0f;
-    }
+    kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
+    kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
 }

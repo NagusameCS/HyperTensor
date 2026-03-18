@@ -129,12 +129,16 @@ static bool phys_page_is_free(uint64_t page_index)
     return !(phys_bitmap[page_index / 8] & (1 << (page_index % 8)));
 }
 
+/* Hint for phys_alloc_pages: skip past the bulk kernel region during scan */
+static uint64_t phys_alloc_search_start = 0;
+
 static uint64_t phys_alloc_pages(uint64_t count, uint64_t alignment_pages)
 {
     uint64_t consecutive = 0;
     uint64_t start = 0;
 
-    for (uint64_t i = 0; i < PHYS_PAGES_4K; i++) {
+    /* Start scanning from hint (skips kernel+tensor+model_cache pages) */
+    for (uint64_t i = phys_alloc_search_start; i < PHYS_PAGES_4K; i++) {
         if (phys_page_is_free(i)) {
             if (consecutive == 0) {
                 /* Check alignment */
@@ -557,11 +561,29 @@ void tensor_mm_init(void)
     /* Mark kernel region as used (kernel is loaded at 2MB).
      * __kernel_end includes .text, .data, .bss, tensor heap, model cache,
      * and git object store. Everything in this range is managed by the
-     * kernel's own allocators, not the physical page allocator. */
+     * kernel's own allocators, not the physical page allocator.
+     * Use bulk memset on bitmap bytes for speed (critical with multi-GB regions). */
     uint64_t kernel_start_page = (uint64_t)(uintptr_t)__text_start / MM_PAGE_SIZE_4K;
     uint64_t kernel_end_page = ((uint64_t)(uintptr_t)__kernel_end + MM_PAGE_SIZE_4K - 1) / MM_PAGE_SIZE_4K;
-    for (uint64_t i = kernel_start_page; i < kernel_end_page; i++)
-        phys_page_mark_used(i);
+    {
+        /* Handle partial first byte */
+        uint64_t first_full_byte = (kernel_start_page + 7) / 8;
+        uint64_t last_full_byte  = kernel_end_page / 8;
+        for (uint64_t i = kernel_start_page; i < first_full_byte * 8 && i < kernel_end_page; i++)
+            phys_page_mark_used(i);
+        /* Bulk-set full bytes (each byte = 8 pages) */
+        if (last_full_byte > first_full_byte)
+            kmemset(&phys_bitmap[first_full_byte], 0xFF, last_full_byte - first_full_byte);
+        /* Handle partial last byte */
+        for (uint64_t i = last_full_byte * 8; i < kernel_end_page; i++)
+            phys_page_mark_used(i);
+        /* Adjust free count in bulk */
+        uint64_t bulk_pages = (last_full_byte > first_full_byte) ? (last_full_byte - first_full_byte) * 8 : 0;
+        phys_mem_free -= bulk_pages * MM_PAGE_SIZE_4K;
+    }
+
+    /* Set allocator search hint to skip past the kernel region */
+    phys_alloc_search_start = kernel_end_page;
 
     /* Initialize tensor heap */
     tensor_heap_init();
@@ -788,6 +810,26 @@ static uint64_t vm_split_huge_page(uint64_t huge_phys_base)
 }
 
 /* Map a single 4K page: vaddr → paddr with given flags.
+/* Map a 2MB page directly in the PD (no splitting to 4K).
+ * vaddr and paddr must be 2MB-aligned.  flags should include PT_HUGE.
+ * Returns 0 on success, -1 on failure. */
+static int vm_map_2m(uint64_t vaddr, uint64_t paddr, uint64_t flags)
+{
+    if (vaddr >= 0x100000000ULL) return -1;
+    if ((vaddr & 0x1FFFFFULL) || (paddr & 0x1FFFFFULL)) return -1; /* not aligned */
+
+    uint64_t pd_index = (vaddr >> 21) & 0x1FF;
+    uint64_t gb_index = (vaddr >> 30) & 0x3;
+
+    volatile uint64_t *pd = (volatile uint64_t *)(uintptr_t)(0x3000 + gb_index * 0x1000);
+    pd[pd_index] = (paddr & 0x000FFFFFFFE00000ULL) | flags;
+
+    /* Invalidate TLB for this 2MB region */
+    __asm__ volatile ("invlpg (%0)" : : "r"(vaddr) : "memory");
+    return 0;
+}
+
+/* Map a single 4K page: vaddr → paddr with given flags.
  * If the PD entry is still a 2MB huge page, splits it first.
  * Returns 0 on success, -1 on failure. */
 int vm_map_4k(uint64_t vaddr, uint64_t paddr, uint64_t flags)
@@ -895,6 +937,7 @@ int vm_demand_fault(uint64_t fault_addr)
 
 void vmm_enforce_wx(void)
 {
+    kprintf_debug("[VMM] W^X: starting rodata\n");
     /* Apply NX to .rodata pages (read-only, no execute, no write) */
     uint64_t ro_start = (uint64_t)(uintptr_t)__rodata_start & ~0xFFFULL;
     uint64_t ro_end   = ((uint64_t)(uintptr_t)__rodata_end + 0xFFF) & ~0xFFFULL;
@@ -904,6 +947,7 @@ void vmm_enforce_wx(void)
             count_ro++;
     }
 
+    kprintf_debug("[VMM] W^X: rodata done (%lu pages), starting data\n", count_ro);
     /* Apply NX to .data pages (writable, no execute) */
     uint64_t data_start = (uint64_t)(uintptr_t)__data_start & ~0xFFFULL;
     uint64_t data_end   = ((uint64_t)(uintptr_t)__data_end + 0xFFF) & ~0xFFFULL;
@@ -913,15 +957,46 @@ void vmm_enforce_wx(void)
             count_data++;
     }
 
-    /* Apply NX to .bss pages (writable, no execute) */
+    kprintf_debug("[VMM] W^X: data done (%lu pages), starting bss (0x%lx - 0x%lx)\n", count_data,
+                  (uint64_t)(uintptr_t)__bss_start, (uint64_t)(uintptr_t)__bss_end);
+
+    /* Apply NX to .bss pages (writable, no execute).
+     * BSS can be very large (hundreds of MB for KV caches etc.),
+     * so use 2MB huge pages for the aligned interior that doesn't
+     * overlap with already-split .data or .rodata 2MB pages. */
     uint64_t bss_start = (uint64_t)(uintptr_t)__bss_start & ~0xFFFULL;
     uint64_t bss_end   = ((uint64_t)(uintptr_t)__bss_end + 0xFFF) & ~0xFFFULL;
     uint64_t count_bss = 0;
-    for (uint64_t addr = bss_start; addr < bss_end; addr += 0x1000) {
-        if (vm_map_4k(addr, addr, PT_PRESENT | PT_WRITE | PT_NX) == 0)
-            count_bss++;
+    {
+        /* First 2MB-aligned boundary AFTER data_end (to avoid PD entries
+         * that were already split for .data or .rodata 4K mappings) */
+        uint64_t safe_huge_start = (data_end + 0x1FFFFFULL) & ~0x1FFFFFULL;
+        if (safe_huge_start < ((bss_start + 0x1FFFFFULL) & ~0x1FFFFFULL))
+            safe_huge_start = (bss_start + 0x1FFFFFULL) & ~0x1FFFFFULL;
+        uint64_t huge_end = bss_end & ~0x1FFFFFULL;
+        /* Map leading 4K pages (up to first safe 2MB boundary) */
+        uint64_t lead_end = (safe_huge_start < bss_end) ? safe_huge_start : bss_end;
+        kprintf_debug("[VMM] BSS lead: 0x%lx-0x%lx (%lu 4K pages)\n", bss_start, lead_end, (lead_end - bss_start) / 0x1000);
+        for (uint64_t addr = bss_start; addr < lead_end; addr += 0x1000) {
+            if (vm_map_4k(addr, addr, PT_PRESENT | PT_WRITE | PT_NX) == 0)
+                count_bss++;
+        }
+        kprintf_debug("[VMM] BSS huge: 0x%lx-0x%lx (%lu 2M pages)\n", safe_huge_start, huge_end, (huge_end - safe_huge_start) / 0x200000);
+        /* Map interior with 2MB huge pages — only fully-within-BSS, non-split pages */
+        for (uint64_t addr = safe_huge_start; addr < huge_end; addr += 0x200000) {
+            if (vm_map_2m(addr, addr, PT_PRESENT | PT_WRITE | PT_NX | PT_HUGE) == 0)
+                count_bss += 512;
+        }
+        /* Map trailing 4K pages */
+        uint64_t trail_start = (huge_end > safe_huge_start) ? huge_end : lead_end;
+        kprintf_debug("[VMM] BSS trail: 0x%lx-0x%lx (%lu 4K pages)\n", trail_start, bss_end, (bss_end - trail_start) / 0x1000);
+        for (uint64_t addr = trail_start; addr < bss_end; addr += 0x1000) {
+            if (vm_map_4k(addr, addr, PT_PRESENT | PT_WRITE | PT_NX) == 0)
+                count_bss++;
+        }
     }
 
+    kprintf_debug("[VMM] W^X: bss done (%lu pages), starting text\n", count_bss);
     /* .text stays as-is from the split: Present + RX (no NX, no Write) —
      * It inherits Present from the huge page split.
      * Remove the Write bit from .text pages */

@@ -26,15 +26,15 @@
 #include "runtime/nn/gguf.h"
 
 /* ─── Limits ─── */
-#define LLM_MAX_LAYERS    48
-#define LLM_MAX_DIM       2048
-#define LLM_MAX_FF        8192
-#define LLM_MAX_HEADS     32
-#define LLM_MAX_KV_HEADS  32
+#define LLM_MAX_LAYERS    80
+#define LLM_MAX_DIM       4096
+#define LLM_MAX_FF        16384
+#define LLM_MAX_HEADS     64
+#define LLM_MAX_KV_HEADS  64
 #define LLM_MAX_VOCAB     160000
-#define LLM_MAX_SEQ       2048
-#define LLM_MAX_TOKENS    4096     /* Max tokens in prompt+generation */
-#define LLM_KV_FLOATS     (12 * 1024 * 1024) /* 12M floats = 48MB per K/V */
+#define LLM_MAX_SEQ       4096
+#define LLM_MAX_TOKENS    8192     /* Max tokens in prompt+generation */
+#define LLM_KV_FLOATS     (24 * 1024 * 1024) /* 24M floats = 96MB per K/V */
 
 /* ─── Hash-table tokenizer ─── */
 #define LLM_HASH_BITS     17       /* 131072 slots */

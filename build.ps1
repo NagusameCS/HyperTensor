@@ -181,7 +181,7 @@ if ($Interactive) {
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
         "-display", "gtk",
-        "-no-reboot", "-m", "4G",
+        "-no-reboot", "-m", "8G", "-cpu", "max",
         "-device", "isa-debug-exit,iobase=0x501,iosize=2"
     ) + $ModelDrive
     & $QEMU @qemuArgs
@@ -196,7 +196,7 @@ if ($Interactive) {
     $qemuArgs = @(
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
-        "-display", "none", "-no-reboot", "-m", "4G",
+        "-display", "none", "-no-reboot", "-m", "8G", "-cpu", "max",
         "-device", "isa-debug-exit,iobase=0x501,iosize=2",
         "-nic", "user,model=virtio-net-pci"
     ) + $ModelDrive
