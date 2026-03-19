@@ -26,15 +26,10 @@
 #include "runtime/nn/gguf.h"
 
 /* ─── Limits ─── */
-#define LLM_MAX_LAYERS    80
-#define LLM_MAX_DIM       4096
-#define LLM_MAX_FF        16384
-#define LLM_MAX_HEADS     64
-#define LLM_MAX_KV_HEADS  64
-#define LLM_MAX_VOCAB     160000
-#define LLM_MAX_SEQ       4096
-#define LLM_MAX_TOKENS    8192     /* Max tokens in prompt+generation */
-#define LLM_KV_FLOATS     (24 * 1024 * 1024) /* 24M floats = 96MB per K/V */
+/* No compile-time dimension caps: buffers are allocated dynamically from
+ * the tensor heap after the model's actual dimensions are known.  The only
+ * hard limit is available physical memory. */
+#define LLM_MAX_VOCAB     160000   /* logits buffer; overridden at runtime */
 
 /* ─── Hash-table tokenizer ─── */
 #define LLM_HASH_BITS     17       /* 131072 slots */
@@ -77,8 +72,9 @@ typedef struct {
     char arch[64];          /* Architecture name (e.g. "qwen2", "llama") */
     char name[128];         /* Model name */
 
-    /* Per-layer weight pointers */
-    llm_layer_t layers[LLM_MAX_LAYERS];
+    /* Per-layer weight pointers (dynamically allocated) */
+    llm_layer_t *layers;
+    int          n_layers_alloc;
 
     /* Global weights */
     const void *token_embd;     /* Embedding matrix */

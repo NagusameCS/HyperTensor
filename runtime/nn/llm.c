@@ -19,6 +19,7 @@
 
 #include "runtime/nn/llm.h"
 #include "kernel/core/kernel.h"
+#include "kernel/mm/tensor_mm.h"
 #include "kernel/core/perf.h"
 #include "runtime/nn/gguf.h"
 #include "runtime/jit/x86_jit.h"
@@ -55,28 +56,106 @@ static llm_model_t llm_model;
 /* Inference serialization: prevent concurrent use of static buffers */
 static volatile int llm_inference_active = 0;
 
-/* KV Cache — 32MB each (K and V), supports models up to ~2B params */
-static float llm_kv_k[LLM_KV_FLOATS] __attribute__((aligned(64)));
-static float llm_kv_v[LLM_KV_FLOATS] __attribute__((aligned(64)));
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  Dynamic scratch arena (allocated from tensor heap after model load)         */
+/* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Scratch buffers for forward pass */
-static float llm_x[LLM_MAX_DIM]     __attribute__((aligned(16)));   /* hidden state */
-static float llm_xn[LLM_MAX_DIM]    __attribute__((aligned(16)));   /* normalized */
-static float llm_q[LLM_MAX_DIM]     __attribute__((aligned(16)));   /* query */
-static float llm_k_buf[LLM_MAX_DIM] __attribute__((aligned(16)));   /* key (current) */
-static float llm_v_buf[LLM_MAX_DIM] __attribute__((aligned(16)));   /* value (current) */
-static float llm_attn_out[LLM_MAX_DIM] __attribute__((aligned(16)));/* attention output */
-static float llm_ffn_g[LLM_MAX_FF]  __attribute__((aligned(16)));   /* FFN gate */
-static float llm_ffn_u[LLM_MAX_FF]  __attribute__((aligned(16)));   /* FFN up */
-static float llm_ffn_d[LLM_MAX_DIM] __attribute__((aligned(16)));   /* FFN down */
-static float llm_head_buf[LLM_MAX_DIM] __attribute__((aligned(16)));
-static float llm_attn_scores[LLM_MAX_SEQ] __attribute__((aligned(16)));
+static float *llm_kv_k;        /* [n_layers * max_seq * n_kv_heads * head_dim] */
+static float *llm_kv_v;
 
-/* Logits buffer — up to 160K vocab × 4 bytes = 640KB */
-static float llm_logits[LLM_MAX_VOCAB] __attribute__((aligned(16)));
+static float *llm_x;           /* [dim]    hidden state */
+static float *llm_xn;          /* [dim]    normalized */
+static float *llm_q;           /* [dim]    query */
+static float *llm_k_buf;       /* [dim]    key (current token) */
+static float *llm_v_buf;       /* [dim]    value (current token) */
+static float *llm_attn_out;    /* [dim]    attention output */
+static float *llm_ffn_g;       /* [ff_dim] FFN gate */
+static float *llm_ffn_u;       /* [ff_dim] FFN up */
+static float *llm_ffn_d;       /* [dim]    FFN down */
+static float *llm_head_buf;    /* [dim]    LM head scratch */
+static float *llm_attn_scores; /* [max_seq] attention scores */
+static float *llm_logits;      /* [vocab_size] output logits */
+static int   *llm_tokens;      /* [max_tokens] token buffer */
+static float *llm_rope_freqs_buf; /* [head_dim/2] precomputed RoPE */
 
-/* Token buffer for generation */
-static int llm_tokens[LLM_MAX_TOKENS];
+/* Sizes cached from the loaded model (for bounds checking) */
+static int llm_alloc_dim;
+static int llm_alloc_ff;
+static int llm_alloc_seq;
+static int llm_alloc_vocab;
+static int llm_alloc_tokens;
+static int llm_alloc_kv_floats;
+
+/* Allocate all inference scratch buffers from the tensor heap.
+ * Called once after the model's dimensions are known. */
+static int llm_alloc_scratch(const llm_model_t *m)
+{
+    int dim      = m->dim;
+    int ff       = m->ff_dim;
+    int seq      = m->max_seq;
+    int vocab    = m->vocab_size;
+    int hd       = m->head_dim;
+    int kv_total = m->n_layers * seq * m->n_kv_heads * hd;
+    int max_tok  = seq * 2;  /* generous token buffer */
+
+    /* Compute total bytes needed (64-byte aligned per buffer) */
+    #define ALIGN64(x) (((x) + 63) & ~63ULL)
+    uint64_t total = 0;
+    total += ALIGN64((uint64_t)kv_total * sizeof(float)) * 2; /* k+v cache */
+    total += ALIGN64((uint64_t)dim * sizeof(float)) * 8;      /* x,xn,q,k,v,attn_out,ffn_d,head */
+    total += ALIGN64((uint64_t)ff * sizeof(float)) * 2;       /* ffn_g, ffn_u */
+    total += ALIGN64((uint64_t)seq * sizeof(float));           /* attn_scores */
+    total += ALIGN64((uint64_t)vocab * sizeof(float));         /* logits */
+    total += ALIGN64((uint64_t)max_tok * sizeof(int));         /* tokens */
+    total += ALIGN64((uint64_t)(hd / 2) * sizeof(float));     /* rope freqs */
+
+    kprintf("[LLM] Allocating %lu MB scratch arena\n",
+            (unsigned long)(total / (1024 * 1024)));
+
+    uint8_t *arena = (uint8_t *)tensor_alloc(total);
+    if (!arena) {
+        kprintf("[LLM] ERROR: Failed to allocate %lu MB for inference buffers\n",
+                (unsigned long)(total / (1024 * 1024)));
+        return -1;
+    }
+    kmemset(arena, 0, total);
+
+    /* Carve out buffers from the arena */
+    #define ARENA_NEXT(ptr, type, count) do { \
+        ptr = (type *)arena; \
+        arena += ALIGN64((uint64_t)(count) * sizeof(type)); \
+    } while (0)
+
+    ARENA_NEXT(llm_kv_k,        float, kv_total);
+    ARENA_NEXT(llm_kv_v,        float, kv_total);
+    ARENA_NEXT(llm_x,           float, dim);
+    ARENA_NEXT(llm_xn,          float, dim);
+    ARENA_NEXT(llm_q,           float, dim);
+    ARENA_NEXT(llm_k_buf,       float, dim);
+    ARENA_NEXT(llm_v_buf,       float, dim);
+    ARENA_NEXT(llm_attn_out,    float, dim);
+    ARENA_NEXT(llm_ffn_g,       float, ff);
+    ARENA_NEXT(llm_ffn_u,       float, ff);
+    ARENA_NEXT(llm_ffn_d,       float, dim);
+    ARENA_NEXT(llm_head_buf,    float, dim);
+    ARENA_NEXT(llm_attn_scores, float, seq);
+    ARENA_NEXT(llm_logits,      float, vocab);
+    ARENA_NEXT(llm_tokens,      int,   max_tok);
+    ARENA_NEXT(llm_rope_freqs_buf, float, hd / 2);
+
+    #undef ARENA_NEXT
+    #undef ALIGN64
+
+    /* Cache sizes for runtime bounds checks */
+    llm_alloc_dim      = dim;
+    llm_alloc_ff       = ff;
+    llm_alloc_seq      = seq;
+    llm_alloc_vocab    = vocab;
+    llm_alloc_tokens   = max_tok;
+    llm_alloc_kv_floats = kv_total;
+
+    return 0;
+}
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Float16 (half precision) conversion                                        */
@@ -639,8 +718,8 @@ static void llm_rmsnorm(float *out, const float *x, const void *w,
 /*  Precomputed frequency table + fast sin/cos via range-reduced polynomial.   */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Precomputed inverse-frequency table: freq[i] = base^(-2i/dim) */
-static float llm_rope_freqs[LLM_MAX_DIM / 2];
+/* Precomputed inverse-frequency table: freq[i] = base^(-2i/dim)
+ * Uses the dynamically allocated llm_rope_freqs_buf from scratch arena. */
 static int   llm_rope_freqs_ready = 0;
 static float llm_rope_base_cached = 0.0f;
 static int   llm_rope_hdim_cached = 0;
@@ -659,10 +738,11 @@ static void llm_rope_precompute(float base, int head_dim)
     if (llm_rope_freqs_ready && llm_rope_base_cached == base &&
         llm_rope_hdim_cached == head_dim)
         return;
+    if (!llm_rope_freqs_buf) return; /* not yet allocated */
     float log_base = llm_log_approx(base);
     for (int i = 0; i < head_dim / 2; i++) {
         float exponent = -(float)(2 * i) / (float)head_dim;
-        llm_rope_freqs[i] = llm_expf(exponent * log_base);
+        llm_rope_freqs_buf[i] = llm_expf(exponent * log_base);
     }
     llm_rope_base_cached = base;
     llm_rope_hdim_cached = head_dim;
@@ -674,7 +754,7 @@ static void llm_rope(float *vec, int pos, int head_dim, float base)
     llm_rope_precompute(base, head_dim);
 
     for (int i = 0; i < head_dim; i += 2) {
-        float theta = (float)pos * llm_rope_freqs[i / 2];
+        float theta = (float)pos * llm_rope_freqs_buf[i / 2];
 
         /* Fast range reduction and polynomial sin/cos */
         float pi = 3.14159265f;
@@ -1156,7 +1236,8 @@ static int llm_build_vocab(llm_model_t *m, gguf_ctx_t *ctx)
     }
 
     int n_vocab = (int)tok_kv->value.array.count;
-    if (n_vocab > LLM_MAX_VOCAB) n_vocab = LLM_MAX_VOCAB;
+    if (m->vocab_size > 0 && n_vocab > m->vocab_size)
+        n_vocab = m->vocab_size;
     m->n_vocab = n_vocab;
 
     /* Allocate vocab array in the model cache region (after GGUF data) */
@@ -1196,7 +1277,7 @@ static int llm_build_vocab(llm_model_t *m, gguf_ctx_t *ctx)
     for (int b = 0; b < 256; b++) m->byte_tokens[b] = -1;
 
     /* Check for byte tokens like <0x00>, <0x01>, ... or raw byte entries */
-    for (int i = 0; i < n_vocab && i < LLM_MAX_VOCAB; i++) {
+    for (int i = 0; i < n_vocab; i++) {
         if (m->vocab[i].len == 6 && m->vocab[i].str[0] == '<' &&
             m->vocab[i].str[1] == '0' && m->vocab[i].str[2] == 'x' &&
             m->vocab[i].str[5] == '>') {
@@ -1615,7 +1696,7 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
         /* Reset KV cache — fast memset instead of scalar loop */
         m->cache_len = 0;
         int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
-        if (kv_total > LLM_KV_FLOATS) kv_total = LLM_KV_FLOATS;
+        if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
         kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
         kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
     } else {
@@ -1892,9 +1973,15 @@ static int llm_load_from_disk(llm_model_t *m)
         m->head_dim = m->dim / m->n_heads;
     else
         m->head_dim = 64;
-    m->max_seq = LLM_MAX_SEQ;
     if (m->n_kv_heads == 0) m->n_kv_heads = m->n_heads;
     if (m->rope_base < 1.0f) m->rope_base = 10000.0f;
+
+    /* Determine max sequence length from GGUF or default */
+    int ctx_len = (int)gguf_get_u32(&llm_gguf_ctx,
+                        "llama.context_length", 0);
+    if (ctx_len < 128) ctx_len = 2048;  /* sensible default */
+    if (ctx_len > 8192) ctx_len = 8192; /* cap for memory */
+    m->max_seq = ctx_len;
 
     /* Get model name */
     const char *name = gguf_get_str(&llm_gguf_ctx, "general.name");
@@ -1916,25 +2003,22 @@ static int llm_load_from_disk(llm_model_t *m)
     kprintf("[LLM] %d layers, %d-dim, %d vocab, %d heads (%d KV)\n",
             m->n_layers, m->dim, m->vocab_size, m->n_heads, m->n_kv_heads);
 
-    /* Validate dimensions */
-    if (m->dim > LLM_MAX_DIM) {
-        kprintf("[LLM] ERROR: dim=%d exceeds LLM_MAX_DIM=%d\n", m->dim, LLM_MAX_DIM);
+    /* Validate basic sanity */
+    if (m->dim <= 0 || m->n_layers <= 0 || m->n_heads <= 0) {
+        kprintf("[LLM] ERROR: invalid model dims (dim=%d layers=%d heads=%d)\n",
+                m->dim, m->n_layers, m->n_heads);
         return -1;
     }
-    if (m->n_layers > LLM_MAX_LAYERS) {
-        kprintf("[LLM] ERROR: layers=%d exceeds LLM_MAX_LAYERS=%d\n",
-                m->n_layers, LLM_MAX_LAYERS);
+
+    /* Allocate layers array */
+    m->layers = (llm_layer_t *)tensor_alloc(
+        (uint64_t)m->n_layers * sizeof(llm_layer_t));
+    if (!m->layers) {
+        kprintf("[LLM] ERROR: failed to allocate %d layer descriptors\n", m->n_layers);
         return -1;
     }
-    if (m->ff_dim > LLM_MAX_FF) {
-        kprintf("[LLM] ERROR: ff_dim=%d exceeds LLM_MAX_FF=%d\n", m->ff_dim, LLM_MAX_FF);
-        return -1;
-    }
-    if (m->vocab_size > LLM_MAX_VOCAB) {
-        kprintf("[LLM] WARN: vocab=%d exceeds max=%d, capping\n",
-                m->vocab_size, LLM_MAX_VOCAB);
-        m->vocab_size = LLM_MAX_VOCAB;
-    }
+    kmemset(m->layers, 0, (uint64_t)m->n_layers * sizeof(llm_layer_t));
+    m->n_layers_alloc = m->n_layers;
 
     /* Map tensors */
     rc = llm_map_tensors(m, &llm_gguf_ctx);
@@ -1944,15 +2028,10 @@ static int llm_load_from_disk(llm_model_t *m)
     rc = llm_build_vocab(m, &llm_gguf_ctx);
     if (rc != 0) return rc;
 
-    /* Allocate KV cache */
-    int kv_size_needed = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
-    if (kv_size_needed > LLM_KV_FLOATS) {
-        kprintf("[LLM] WARNING: KV cache too small (%d > %d), reducing max_seq\n",
-                kv_size_needed, LLM_KV_FLOATS);
-        m->max_seq = LLM_KV_FLOATS / (m->n_layers * m->n_kv_heads * m->head_dim);
-        if (m->max_seq < 32) m->max_seq = 32;
-        kprintf("[LLM] Adjusted max_seq to %d\n", m->max_seq);
-    }
+    /* Allocate inference scratch arena (KV cache + all buffers) */
+    if (llm_alloc_scratch(m) != 0)
+        return -1;
+
     m->k_cache = llm_kv_k;
     m->v_cache = llm_kv_v;
     m->cache_len = 0;
@@ -2094,7 +2173,7 @@ static void llm_run_math_eval(llm_model_t *m)
         llm_format_prompt(m, prob->prompt, prompt_buf, sizeof(prompt_buf));
 
         /* Tokenize */
-        int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, LLM_MAX_TOKENS - 32);
+        int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, llm_alloc_tokens - 32);
 
         kprintf("  [%d/%d] %s\n", p + 1, N_MATH_PROBLEMS, prob->prompt);
         kprintf("         Tokens: %d, generating...\n", n_tokens);
@@ -2386,7 +2465,7 @@ int llm_prompt(const char *user_text, char *output, int max_output)
     #undef PROMPT_APPEND
 
     /* Tokenize */
-    int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, LLM_MAX_TOKENS - 64);
+    int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, llm_alloc_tokens - 64);
     if (n_tokens <= 0) {
         __sync_lock_release(&llm_inference_active);
         kstrlcpy(output, "[tokenization failed]", max_output);
@@ -2407,7 +2486,7 @@ void llm_reset_cache(void)
     llm_model_t *m = &llm_model;
     m->cache_len = 0;
     int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
-    if (kv_total > LLM_KV_FLOATS) kv_total = LLM_KV_FLOATS;
+    if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
     kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
     kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
 }
