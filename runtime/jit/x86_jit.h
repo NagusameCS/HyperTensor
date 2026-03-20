@@ -35,6 +35,32 @@ enum x86_gpr {
 #define XMM5  5
 #define XMM6  6
 #define XMM7  7
+#define XMM8  8
+#define XMM9  9
+#define XMM10 10
+#define XMM11 11
+#define XMM12 12
+#define XMM13 13
+#define XMM14 14
+#define XMM15 15
+
+/* YMM register IDs (AVX2 256-bit, same encoding as XMM) */
+#define YMM0  0
+#define YMM1  1
+#define YMM2  2
+#define YMM3  3
+#define YMM4  4
+#define YMM5  5
+#define YMM6  6
+#define YMM7  7
+#define YMM8  8
+#define YMM9  9
+#define YMM10 10
+#define YMM11 11
+#define YMM12 12
+#define YMM13 13
+#define YMM14 14
+#define YMM15 15
 
 /* =============================================================================
  * JIT Code Buffer
@@ -68,6 +94,28 @@ typedef void (*jit_silu_fn)(float *x, int n);
 
 /* RMSNorm: out[dim] = normalize(x) * weight */
 typedef void (*jit_rmsnorm_fn)(float *out, const float *x, const float *w, int dim);
+
+/* Softmax: in-place softmax over n elements */
+typedef void (*jit_softmax_fn)(float *x, int n);
+
+/* RoPE: rotary position encoding for one head vector */
+typedef void (*jit_rope_fn)(float *vec, int pos, int head_dim, const float *freqs);
+
+/* Dot product: returns sum(a[i]*b[i]) */
+typedef float (*jit_dot_fn)(const float *a, const float *b, int n);
+
+/* Element-wise ops */
+typedef void (*jit_ewise_fn)(float *dst, const float *src, int n);
+
+/* Scaled add: dst += scale * src */
+typedef void (*jit_axpy_fn)(float *dst, float scale, const float *src, int n);
+
+/* LayerNorm: out = normalize(x) * w + b */
+typedef void (*jit_layernorm_fn)(float *out, const float *x, const float *w,
+                                  const float *b, int dim);
+
+/* Fused SiLU*multiply: gate[i] = SiLU(gate[i]) * up[i] */
+typedef void (*jit_fused_silu_mul_fn)(float *gate, const float *up, int n);
 
 /* =============================================================================
  * Buffer Management
@@ -144,6 +192,54 @@ void jit_addss(jit_buf_t *b, int dst_xmm, int src_xmm);
 void jit_mulss(jit_buf_t *b, int dst_xmm, int src_xmm);
 void jit_maxss(jit_buf_t *b, int dst_xmm, int src_xmm);
 void jit_addss_mem(jit_buf_t *b, int xmm, int base, int32_t disp);
+void jit_subss(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_divss(jit_buf_t *b, int dst_xmm, int src_xmm);
+
+/* Additional packed SSE2 instructions */
+void jit_subps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_divps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_andps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_orps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_andnps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_minps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_rcpps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_sqrtps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_rsqrtps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_cmpps(jit_buf_t *b, int dst_xmm, int src_xmm, uint8_t pred);
+void jit_mulps_mem(jit_buf_t *b, int xmm, int base, int32_t disp);
+void jit_addps_mem(jit_buf_t *b, int xmm, int base, int32_t disp);
+void jit_subps_mem(jit_buf_t *b, int xmm, int base, int32_t disp);
+
+/* SSE2 integer and conversion instructions */
+void jit_cvtdq2ps(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_cvttps2dq(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_paddd(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_psubd(jit_buf_t *b, int dst_xmm, int src_xmm);
+void jit_pslld_imm(jit_buf_t *b, int xmm, uint8_t imm);
+void jit_psrld_imm(jit_buf_t *b, int xmm, uint8_t imm);
+void jit_psrad_imm(jit_buf_t *b, int xmm, uint8_t imm);
+void jit_movd_to_xmm(jit_buf_t *b, int xmm, int gpr);
+void jit_movd_from_xmm(jit_buf_t *b, int gpr, int xmm);
+
+/* Additional control flow */
+int  jit_jle_fwd(jit_buf_t *b);
+int  jit_jne_fwd(jit_buf_t *b);
+int  jit_je_fwd(jit_buf_t *b);
+void jit_jle_back(jit_buf_t *b, int target_offset);
+void jit_jne_back(jit_buf_t *b, int target_offset);
+
+/* Additional GP operations */
+void jit_shl_reg_imm(jit_buf_t *b, int reg, uint8_t imm);
+void jit_shr_reg_imm(jit_buf_t *b, int reg, uint8_t imm);
+void jit_and_reg_imm32(jit_buf_t *b, int reg, int32_t imm);
+void jit_or_reg_reg(jit_buf_t *b, int dst, int src);
+void jit_sub_reg_reg(jit_buf_t *b, int dst, int src);
+
+/* Embed raw 4-float constant in code stream, return offset of data */
+int jit_embed_f32x4(jit_buf_t *b, float v0, float v1, float v2, float v3);
+
+/* Load XMM from RIP-relative (data embedded in code) */
+void jit_movaps_riprel(jit_buf_t *b, int xmm, int data_offset);
 
 /* =============================================================================
  * High-Level JIT Compilation
@@ -166,6 +262,82 @@ jit_gemv_q8_fn jit_compile_q8_gemv(int rows, int cols);
 
 /* Compile vectorized SiLU kernel for given size */
 jit_silu_fn jit_compile_silu_kernel(int n);
+
+/* Compile RMSNorm kernel for given dimension */
+jit_rmsnorm_fn jit_compile_rmsnorm_kernel(int dim);
+
+/* Compile softmax kernel for given size */
+jit_softmax_fn jit_compile_softmax_kernel(int n);
+
+/* Compile RoPE kernel for given head dimension */
+jit_rope_fn jit_compile_rope_kernel(int head_dim);
+
+/* Compile dot product kernel for given size */
+jit_dot_fn jit_compile_dot_kernel(int n);
+
+/* Compile element-wise multiply: dst[i] *= src[i] */
+jit_ewise_fn jit_compile_vmul_kernel(int n);
+
+/* Compile element-wise add: dst[i] += src[i] */
+jit_ewise_fn jit_compile_vadd_kernel(int n);
+
+/* Compile scaled add: dst += scale * src */
+jit_axpy_fn jit_compile_axpy_kernel(int n);
+
+/* Compile fused SiLU(gate) * up */
+jit_fused_silu_mul_fn jit_compile_fused_silu_mul_kernel(int n);
+
+/* Compile GELU activation */
+jit_silu_fn jit_compile_gelu_kernel(int n);
+
+/* Compile LayerNorm kernel */
+jit_layernorm_fn jit_compile_layernorm_kernel(int dim);
+
+/* =============================================================================
+ * AVX2 VEX-Encoded Instructions (256-bit SIMD)
+ *
+ * All use VEX prefix encoding (2-byte C5 or 3-byte C4).
+ * 3-operand form: dst = src1 OP src2 (non-destructive).
+ * =============================================================================*/
+
+void jit_vzeroupper(jit_buf_t *b);
+
+/* 256-bit packed float loads/stores (unaligned) */
+void jit_vmovups_load256(jit_buf_t *b, int ymm, int base, int32_t disp);
+void jit_vmovups_store256(jit_buf_t *b, int base, int32_t disp, int ymm);
+
+/* 256-bit packed float arithmetic (3-operand) */
+void jit_vxorps256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vaddps256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vmulps256(jit_buf_t *b, int dst, int src1, int src2);
+
+/* Broadcast single float to all 8 YMM lanes */
+void jit_vbroadcastss(jit_buf_t *b, int ymm, int base, int32_t disp);
+void jit_vbroadcastss_reg(jit_buf_t *b, int ymm_dst, int xmm_src);
+
+/* Sign-extend 8 packed int8 from memory to 8 packed int32 in YMM */
+void jit_vpmovsxbd256(jit_buf_t *b, int ymm, int base, int32_t disp);
+
+/* Convert 8 packed int32 to 8 packed float (YMM) */
+void jit_vcvtdq2ps256(jit_buf_t *b, int dst, int src);
+
+/* Fused multiply-add: dst += src1 * src2 (AVX2+FMA) */
+void jit_vfmadd231ps256(jit_buf_t *b, int dst, int src1, int src2);
+
+/* Extract upper 128 bits of YMM to XMM */
+void jit_vextractf128(jit_buf_t *b, int xmm_dst, int ymm_src, uint8_t imm);
+
+/* 128-bit VEX-encoded ops (for horizontal sum after reduction) */
+void jit_vaddps128(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vhaddps128(jit_buf_t *b, int dst, int src1, int src2);
+
+/* VEX-encoded scalar/utility */
+void jit_vmovss_store_vex(jit_buf_t *b, int base, int32_t disp, int xmm);
+void jit_vmovd_to_xmm_vex(jit_buf_t *b, int xmm, int gpr);
+void jit_prefetcht0(jit_buf_t *b, int base, int32_t disp);
+
+/* Compile AVX2+FMA fused Q8_0 GEMV kernel (8-wide, 4-row batched) */
+jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int rows, int cols);
 
 /* Get number of JIT-compiled kernels cached */
 int jit_kernel_count(void);

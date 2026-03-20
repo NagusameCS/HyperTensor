@@ -52,15 +52,30 @@ struct multiboot_mmap_entry {
 #define MBOOT_FLAG_MEM    (1 << 0)   /* mem_lower/mem_upper valid */
 #define MBOOT_FLAG_MMAP   (1 << 6)   /* mmap_addr/mmap_length valid */
 
+/* Memory region information parsed from multiboot memory map.
+ * Tracks usable RAM below and above the PCI MMIO hole (~3GB-4GB). */
+struct mem_regions {
+    uint64_t max_addr;      /* highest physical address (for bitmap sizing) */
+    uint64_t total_usable;  /* sum of all usable bytes */
+    uint64_t low_top;       /* end of usable RAM below 4GB */
+    uint64_t high_base;     /* start of usable RAM above 4GB (0 = none) */
+    uint64_t high_end;      /* end of usable RAM above 4GB */
+};
+
 /* Detect physical memory from multiboot info structure.
- * Returns total usable bytes, or 0 if detection fails. */
-static uint64_t multiboot_detect_memory(void)
+ * Returns total usable bytes, or 0 if detection fails.
+ * Also populates *regions if non-NULL. */
+static uint64_t multiboot_detect_memory(struct mem_regions *regions)
 {
+    if (regions)
+        kmemset(regions, 0, sizeof(*regions));
+
     if (g_multiboot_info_addr == 0)
         return 0;
 
     struct multiboot_info *mbi = (struct multiboot_info *)(uintptr_t)g_multiboot_info_addr;
-    uint64_t total = 0;
+    uint64_t max_addr = 0;
+    uint64_t total_usable = 0;
 
     /* Try full memory map first (most accurate) */
     if (mbi->flags & MBOOT_FLAG_MMAP) {
@@ -70,22 +85,45 @@ static uint64_t multiboot_detect_memory(void)
         while (addr < end) {
             struct multiboot_mmap_entry *entry = (struct multiboot_mmap_entry *)(uintptr_t)addr;
             if (entry->type == 1) {  /* Available RAM */
-                uint64_t region_end = entry->base_addr + entry->length;
-                if (region_end > total)
-                    total = region_end;
+                uint64_t region_base = entry->base_addr;
+                uint64_t region_end  = region_base + entry->length;
+                total_usable += entry->length;
+                if (region_end > max_addr)
+                    max_addr = region_end;
+                if (regions) {
+                    /* Track low memory top (below 4GB) */
+                    if (region_base < 0x100000000ULL) {
+                        uint64_t low_end = region_end < 0x100000000ULL ? region_end : 0x100000000ULL;
+                        if (low_end > regions->low_top)
+                            regions->low_top = low_end;
+                    }
+                    /* Track high memory range (above 4GB) */
+                    if (region_end > 0x100000000ULL) {
+                        uint64_t high_start = region_base > 0x100000000ULL ? region_base : 0x100000000ULL;
+                        if (regions->high_base == 0 || high_start < regions->high_base)
+                            regions->high_base = high_start;
+                        if (region_end > regions->high_end)
+                            regions->high_end = region_end;
+                    }
+                }
             }
             /* Advance by entry->size + 4 (the size field itself is not included in size) */
             addr += entry->size + 4;
         }
-        if (total > 0) {
-            kprintf("[MM] Multiboot mmap: detected %lu MB RAM\n", total / (1024 * 1024));
-            return total;
+        if (max_addr > 0) {
+            if (regions) {
+                regions->max_addr = max_addr;
+                regions->total_usable = total_usable;
+            }
+            kprintf("[MM] Multiboot mmap: %lu MB usable, %lu MB address space\n",
+                    total_usable / (1024 * 1024), max_addr / (1024 * 1024));
+            return max_addr;
         }
     }
 
     /* Fallback: basic memory info */
     if (mbi->flags & MBOOT_FLAG_MEM) {
-        total = ((uint64_t)mbi->mem_upper + 1024) * 1024;  /* mem_upper is KB above 1MB */
+        uint64_t total = ((uint64_t)mbi->mem_upper + 1024) * 1024;  /* mem_upper is KB above 1MB */
         kprintf("[MM] Multiboot basic: %lu MB RAM\n", total / (1024 * 1024));
         return total;
     }
@@ -183,10 +221,10 @@ static uint64_t tensor_heap_size;
 static uint64_t tensor_heap_used;
 static heap_block_t *tensor_heap_first;
 
-static void tensor_heap_init(void)
+static void tensor_heap_init(uint8_t *base, uint64_t size)
 {
-    tensor_heap_base = (uint8_t *)__tensor_heap_start;
-    tensor_heap_size = __tensor_heap_end - __tensor_heap_start;
+    tensor_heap_base = base;
+    tensor_heap_size = size;
     tensor_heap_used = 0;
 
     /* Initialize with single free block */
@@ -199,8 +237,10 @@ static void tensor_heap_init(void)
 
 static void *tensor_heap_alloc(uint64_t size, uint32_t alignment)
 {
-    /* Round up size to alignment */
-    size = (size + alignment - 1) & ~(alignment - 1);
+    if (alignment == 0) alignment = 1;
+    /* Round up size to alignment (cast to 64-bit to preserve upper address bits) */
+    uint64_t amask = ~((uint64_t)alignment - 1);
+    size = (size + alignment - 1) & amask;
 
     /* First-fit search */
     heap_block_t *block = tensor_heap_first;
@@ -208,7 +248,7 @@ static void *tensor_heap_alloc(uint64_t size, uint32_t alignment)
         if (block->free && block->size >= size) {
             /* Calculate aligned address */
             uint64_t addr = (uint64_t)(block + 1);
-            uint64_t aligned = (addr + alignment - 1) & ~(alignment - 1);
+            uint64_t aligned = (addr + alignment - 1) & amask;
             uint64_t padding = aligned - addr;
             uint64_t total_needed = size + padding;
 
@@ -278,11 +318,13 @@ static void tensor_heap_free_block(void *ptr)
  * =============================================================================*/
 
 static model_cache_t model_cache;
+static uint8_t *model_cache_base_ptr;
 
-static void model_cache_init(void)
+static void model_cache_init(uint8_t *base, uint64_t size)
 {
     kmemset(&model_cache, 0, sizeof(model_cache));
-    model_cache.max_size = __model_cache_end - __model_cache_start;
+    model_cache_base_ptr = base;
+    model_cache.max_size = size;
 }
 
 void *model_cache_get(uint64_t model_hash, uint64_t *size)
@@ -534,10 +576,66 @@ void kfree(void *ptr)
  * Public API Implementation
  * =============================================================================*/
 
+/* Extend identity mapping beyond the initial 4 GB set up by the boot stub.
+ * Uses low-memory pages at 0x7000+ (right after boot page tables 0x1000-0x6FFF)
+ * so PD pages are always within the already-mapped first 2 MB.
+ * Must be called AFTER multiboot is parsed (so we can safely reuse low memory). */
+static void vm_extend_identity_map(uint64_t phys_mem_bytes)
+{
+    uint64_t max_gb = (phys_mem_bytes + (1ULL << 30) - 1) >> 30;
+    if (max_gb <= 4) return;            /* first 4 GB already mapped */
+    if (max_gb > 64) max_gb = 64;       /* cap to PDPT capacity */
+
+    volatile uint64_t *pdpt = (volatile uint64_t *)0x2000;
+
+    /* PD page pool at 0x7000+ (first 1 MB, identity-mapped from boot).
+     * Supports up to (0x100000 - 0x7000) / 0x1000 = 249 extra GBs. */
+    uint64_t pd_pool = 0x7000;
+
+    for (uint64_t g = 4; g < max_gb; g++) {
+        uint64_t pd_phys = pd_pool;
+        pd_pool += 0x1000;
+        if (pd_phys >= 0x100000) break;  /* safety: stay in first 1 MB */
+
+        /* Zero and fill PD: 512 × 2MB huge pages covering this GB */
+        volatile uint64_t *pd = (volatile uint64_t *)(uintptr_t)pd_phys;
+        uint64_t base = g << 30;
+        for (int i = 0; i < 512; i++)
+            pd[i] = (base + (uint64_t)i * 0x200000) | 0x83;  /* P+W+Huge */
+
+        /* Point PDPT entry at the new PD */
+        pdpt[g] = pd_phys | 0x03;      /* Present + Write */
+    }
+
+    /* Flush TLB */
+    __asm__ volatile (
+        "mov %%cr3, %%rax\n\t"
+        "mov %%rax, %%cr3"
+        : : : "rax", "memory"
+    );
+}
+
+/* Helper: bulk-mark pages [start_page, end_page) as used in bitmap. */
+static void mark_pages_used_bulk(uint64_t start_page, uint64_t end_page)
+{
+    uint64_t first_full_byte = (start_page + 7) / 8;
+    uint64_t last_full_byte  = end_page / 8;
+    for (uint64_t i = start_page; i < first_full_byte * 8 && i < end_page; i++)
+        phys_page_mark_used(i);
+    if (last_full_byte > first_full_byte) {
+        kmemset(&phys_bitmap[first_full_byte], 0xFF, last_full_byte - first_full_byte);
+        uint64_t bulk_pages = (last_full_byte - first_full_byte) * 8;
+        phys_mem_free -= bulk_pages * MM_PAGE_SIZE_4K;
+    }
+    for (uint64_t i = last_full_byte * 8; i < end_page; i++)
+        phys_page_mark_used(i);
+}
+
 void tensor_mm_init(void)
 {
-    /* Detect physical memory from multiboot info */
-    uint64_t detected = multiboot_detect_memory();
+    /* Detect physical memory and region layout from multiboot info */
+    struct mem_regions regions;
+    uint64_t detected = multiboot_detect_memory(&regions);
     if (detected > 0) {
         phys_mem_total = detected;
     } else {
@@ -558,38 +656,92 @@ void tensor_mm_init(void)
     for (uint64_t i = 0; i < 0x200; i++)
         phys_page_mark_used(i);
 
-    /* Mark kernel region as used (kernel is loaded at 2MB).
-     * __kernel_end includes .text, .data, .bss, tensor heap, model cache,
-     * and git object store. Everything in this range is managed by the
-     * kernel's own allocators, not the physical page allocator.
-     * Use bulk memset on bitmap bytes for speed (critical with multi-GB regions). */
+    /* Mark static kernel region as used (text + data + BSS, up to
+     * __kernel_end which is right after BSS). */
     uint64_t kernel_start_page = (uint64_t)(uintptr_t)__text_start / MM_PAGE_SIZE_4K;
     uint64_t kernel_end_page = ((uint64_t)(uintptr_t)__kernel_end + MM_PAGE_SIZE_4K - 1) / MM_PAGE_SIZE_4K;
-    {
-        /* Handle partial first byte */
-        uint64_t first_full_byte = (kernel_start_page + 7) / 8;
-        uint64_t last_full_byte  = kernel_end_page / 8;
-        for (uint64_t i = kernel_start_page; i < first_full_byte * 8 && i < kernel_end_page; i++)
-            phys_page_mark_used(i);
-        /* Bulk-set full bytes (each byte = 8 pages) */
-        if (last_full_byte > first_full_byte)
-            kmemset(&phys_bitmap[first_full_byte], 0xFF, last_full_byte - first_full_byte);
-        /* Handle partial last byte */
-        for (uint64_t i = last_full_byte * 8; i < kernel_end_page; i++)
-            phys_page_mark_used(i);
-        /* Adjust free count in bulk */
-        uint64_t bulk_pages = (last_full_byte > first_full_byte) ? (last_full_byte - first_full_byte) * 8 : 0;
-        phys_mem_free -= bulk_pages * MM_PAGE_SIZE_4K;
+    mark_pages_used_bulk(kernel_start_page, kernel_end_page);
+
+    /* Mark PCI MMIO hole as used (typically ~3GB-4GB, not backed by RAM).
+     * This prevents the page allocator from handing out addresses in it. */
+    if (regions.low_top > 0 && regions.low_top < 0x100000000ULL) {
+        uint64_t hole_start_page = regions.low_top / MM_PAGE_SIZE_4K;
+        uint64_t hole_end_page   = 0x100000000ULL / MM_PAGE_SIZE_4K;
+        if (hole_end_page > hole_start_page)
+            mark_pages_used_bulk(hole_start_page, hole_end_page);
     }
 
-    /* Set allocator search hint to skip past the kernel region */
-    phys_alloc_search_start = kernel_end_page;
+    /* Extend identity mapping to cover all detected RAM (boot only maps 4 GB).
+     * Uses dedicated low-memory pool, no dependency on phys allocator. */
+    vm_extend_identity_map(phys_mem_total);
+
+    /* ── Dynamic memory partitioning ──────────────────────────────────
+     * Tensor heap goes in low memory (after kernel, before MMIO hole).
+     * Model cache goes in high memory (above 4GB) to avoid the hole.
+     * If no high memory, both go in low memory.
+     *
+     * Model cache goes in low memory (weight data is read millions of
+     * times during inference — keeping it below 4GB avoids TLB overhead).
+     * Tensor heap goes in high memory (scratch buffers are sequential).
+     *
+     * Layout:  [kernel..] [model cache] [MMIO hole] [tensor heap] [free]
+     * ─────────────────────────────────────────────────────────────── */
+    uint64_t region_start = ((uint64_t)(uintptr_t)__dynamic_region_start + 0x1FFFFF) & ~0x1FFFFFULL;
+    uint64_t reserve = 128ULL * 1024 * 1024; /* keep 128 MB for kmalloc/pages */
+
+    uint64_t th_base, th_size, mc_base, mc_size;
+
+    if (regions.high_base > 0 && regions.high_end > regions.high_base + reserve) {
+        /* ── Split layout: model cache LOW, tensor heap HIGH ── */
+
+        /* Model cache: low memory from region_start to MMIO hole */
+        uint64_t low_top_2m = regions.low_top & ~0x1FFFFFULL;
+        mc_base = region_start;
+        mc_size = (low_top_2m > region_start) ? (low_top_2m - region_start) : 0;
+
+        /* Tensor heap: above 4GB */
+        th_base = (regions.high_base + 0x1FFFFF) & ~0x1FFFFFULL;
+        uint64_t high_avail = (regions.high_end > th_base + reserve)
+                            ? (regions.high_end - th_base - reserve) : 0;
+        th_size = high_avail & ~0x1FFFFFULL;
+    } else {
+        /* ── Contiguous layout: everything in low memory ── */
+        uint64_t available = 0;
+        if (phys_mem_total > region_start + reserve)
+            available = phys_mem_total - region_start - reserve;
+        mc_size = (available * 60 / 100) & ~0x1FFFFFULL;
+        th_size = (available - mc_size)   & ~0x1FFFFFULL;
+        th_base = region_start;
+        mc_base = region_start + th_size;
+    }
+
+    /* Ensure minimums */
+    if (th_size < (64ULL << 20)) th_size = 64ULL << 20;
+    if (mc_size < (64ULL << 20)) mc_size = 64ULL << 20;
+
+    /* Mark tensor heap region as used in the physical bitmap */
+    uint64_t th_start_page = th_base / MM_PAGE_SIZE_4K;
+    uint64_t th_end_page   = (th_base + th_size + MM_PAGE_SIZE_4K - 1) / MM_PAGE_SIZE_4K;
+    if (th_end_page > phys_mem_total / MM_PAGE_SIZE_4K)
+        th_end_page = phys_mem_total / MM_PAGE_SIZE_4K;
+    mark_pages_used_bulk(th_start_page, th_end_page);
+
+    /* Mark model cache region as used in the physical bitmap */
+    uint64_t mc_start_page = mc_base / MM_PAGE_SIZE_4K;
+    uint64_t mc_end_page   = (mc_base + mc_size + MM_PAGE_SIZE_4K - 1) / MM_PAGE_SIZE_4K;
+    if (mc_end_page > phys_mem_total / MM_PAGE_SIZE_4K)
+        mc_end_page = phys_mem_total / MM_PAGE_SIZE_4K;
+    mark_pages_used_bulk(mc_start_page, mc_end_page);
+
+    /* Set allocator search hint past all reserved regions */
+    uint64_t max_end_page = th_end_page > mc_end_page ? th_end_page : mc_end_page;
+    phys_alloc_search_start = max_end_page;
 
     /* Initialize tensor heap */
-    tensor_heap_init();
+    tensor_heap_init((uint8_t *)th_base, th_size);
 
     /* Initialize model cache */
-    model_cache_init();
+    model_cache_init((uint8_t *)mc_base, mc_size);
 
     /* Initialize slab caches */
     kmemset(slab_caches, 0, sizeof(slab_caches));
@@ -599,8 +751,9 @@ void tensor_mm_init(void)
 
     kprintf_debug("[MM] Initialized: %lu MB total, %lu MB free\n",
                   phys_mem_total / (1024 * 1024), phys_mem_free / (1024 * 1024));
-    kprintf_debug("[MM] Tensor heap: %lu MB, Model cache: %lu MB\n",
-                  tensor_heap_size / (1024 * 1024), model_cache.max_size / (1024 * 1024));
+    kprintf_debug("[MM] Tensor heap: %lu MB @ %p, Model cache: %lu MB @ %p\n",
+                  tensor_heap_size / (1024 * 1024), (void *)tensor_heap_base,
+                  model_cache.max_size / (1024 * 1024), (void *)model_cache_base_ptr);
 }
 
 void *tensor_mm_alloc(mm_alloc_request_t *req)
@@ -729,8 +882,18 @@ void tensor_mm_cache_warmup(void)
 }
 
 /* =============================================================================
- * Statistics
+ * Statistics & Accessors
  * =============================================================================*/
+
+void *tensor_mm_model_cache_base(void)
+{
+    return (void *)model_cache_base_ptr;
+}
+
+uint64_t tensor_mm_model_cache_max(void)
+{
+    return model_cache.max_size;
+}
 
 uint64_t tensor_mm_heap_size(void)
 {
@@ -815,11 +978,11 @@ static uint64_t vm_split_huge_page(uint64_t huge_phys_base)
  * Returns 0 on success, -1 on failure. */
 static int vm_map_2m(uint64_t vaddr, uint64_t paddr, uint64_t flags)
 {
-    if (vaddr >= 0x100000000ULL) return -1;
+    if (vaddr >= 0x1000000000ULL) return -1;  /* 64 GB limit */
     if ((vaddr & 0x1FFFFFULL) || (paddr & 0x1FFFFFULL)) return -1; /* not aligned */
 
     uint64_t pd_index = (vaddr >> 21) & 0x1FF;
-    uint64_t gb_index = (vaddr >> 30) & 0x3;
+    uint64_t gb_index = (vaddr >> 30) & 0x3F;  /* 0..63 */
 
     volatile uint64_t *pd = (volatile uint64_t *)(uintptr_t)(0x3000 + gb_index * 0x1000);
     pd[pd_index] = (paddr & 0x000FFFFFFFE00000ULL) | flags;
@@ -834,12 +997,12 @@ static int vm_map_2m(uint64_t vaddr, uint64_t paddr, uint64_t flags)
  * Returns 0 on success, -1 on failure. */
 int vm_map_4k(uint64_t vaddr, uint64_t paddr, uint64_t flags)
 {
-    /* Only works within first 4GB identity-mapped region */
-    if (vaddr >= 0x100000000ULL) return -1;
+    /* Works within 64 GB identity-mapped region */
+    if (vaddr >= 0x1000000000ULL) return -1;
 
     /* Navigate page tables */
     uint64_t pd_index  = (vaddr >> 21) & 0x1FF;    /* Which 2MB slot */
-    uint64_t gb_index  = (vaddr >> 30) & 0x3;       /* Which GB (0-3) */
+    uint64_t gb_index  = (vaddr >> 30) & 0x3F;      /* Which GB (0-63) */
     uint64_t pt_index  = (vaddr >> 12) & 0x1FF;     /* Which 4K slot within 2MB */
 
     /* PD base addresses: 0x3000 + gb_index * 0x1000 */
@@ -883,10 +1046,10 @@ int vm_map_4k(uint64_t vaddr, uint64_t paddr, uint64_t flags)
 /* Unmap a 4K page (set entry to not-present). */
 void vm_unmap_4k(uint64_t vaddr)
 {
-    if (vaddr >= 0x100000000ULL) return;
+    if (vaddr >= 0x1000000000ULL) return;
 
     uint64_t pd_index = (vaddr >> 21) & 0x1FF;
-    uint64_t gb_index = (vaddr >> 30) & 0x3;
+    uint64_t gb_index = (vaddr >> 30) & 0x3F;
     uint64_t pt_index = (vaddr >> 12) & 0x1FF;
 
     volatile uint64_t *pd = (volatile uint64_t *)(uintptr_t)(0x3000 + gb_index * 0x1000);

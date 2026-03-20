@@ -45,31 +45,11 @@ SECTIONS
     }
 
     . = ALIGN(2M);
-    __tensor_region_start = .;
 
-    .tensor_heap ALIGN(2M) (NOLOAD) :
-    {
-        __tensor_heap_start = .;
-        . += 512M;
-        __tensor_heap_end = .;
-    }
-
-    .model_cache ALIGN(2M) (NOLOAD) :
-    {
-        __model_cache_start = .;
-        . += 2048M;
-        __model_cache_end = .;
-    }
-
-    __tensor_region_end = .;
-
-    .git_objects ALIGN(4K) (NOLOAD) :
-    {
-        __git_objects_start = .;
-        . += 64M;
-        __git_objects_end = .;
-    }
-
+    /* Dynamic memory region: tensor_mm_init() partitions all RAM beyond
+     * this point into tensor-heap, model-cache, and git-object-store
+     * at runtime based on detected physical memory. */
+    __dynamic_region_start = .;
     __kernel_end = .;
 
     /DISCARD/ :

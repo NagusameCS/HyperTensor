@@ -91,8 +91,7 @@ void git_subsystem_init(void)
     kmemset(&zero_hash, 0, sizeof(zero_hash));
     git_ref_create(&default_repo, "refs/heads/main", &zero_hash);
 
-    kprintf_debug("[GIT] Native git subsystem initialized, object store at %p\n",
-                  __git_objects_start);
+    kprintf_debug("[GIT] Native git subsystem initialized\n");
 }
 
 git_repo_t *git_get_default_repo(void)

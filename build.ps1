@@ -53,6 +53,7 @@ $SOURCES = @(
     "runtime\tensor\tensor_cpu.c",
     "runtime\tensor\tensor_avx2.c",
     "runtime\jit\x86_jit.c",
+    "runtime\jit\llm_jit.c",
     "runtime\nn\inference.c",
     "runtime\nn\quantize.c",
     "runtime\nn\evolution.c",

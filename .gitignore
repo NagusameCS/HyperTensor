@@ -21,3 +21,20 @@ firmware/
 # OS junk
 Thumbs.db
 .DS_Store
+
+# Logs and debug output
+*.log
+*.pdb
+build_log.txt
+build_output.txt
+qemu_out*.txt
+qemu_sne.txt
+serial.log
+
+# Build helpers
+compile_commands.json
+zigcc.cmd
+check_tramp.pdb
+
+# Models (large binary files)
+models/

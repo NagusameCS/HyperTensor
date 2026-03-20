@@ -170,12 +170,7 @@ extern char __data_start[];
 extern char __data_end[];
 extern char __bss_start[];
 extern char __bss_end[];
-extern char __tensor_heap_start[];
-extern char __tensor_heap_end[];
-extern char __model_cache_start[];
-extern char __model_cache_end[];
-extern char __git_objects_start[];
-extern char __git_objects_end[];
+extern char __dynamic_region_start[];
 extern char __kernel_end[];
 
 /* =============================================================================

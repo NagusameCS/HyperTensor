@@ -32,12 +32,12 @@
  * Pool lives in BSS — zero-initialized, within the kernel's identity map.
  * =============================================================================*/
 
-#define JIT_POOL_SIZE  (1024 * 1024)  /* 1MB for all JIT code */
+#define JIT_POOL_SIZE  (2 * 1024 * 1024)  /* 2MB for all JIT code */
 static uint8_t jit_pool[JIT_POOL_SIZE] __attribute__((aligned(4096)));
 static int jit_pool_offset = 0;
 
-/* Statically allocate jit_buf_t structs (max 32 concurrent buffers) */
-#define JIT_MAX_BUFS 32
+/* Statically allocate jit_buf_t structs (max 64 concurrent buffers) */
+#define JIT_MAX_BUFS 64
 static jit_buf_t jit_buf_storage[JIT_MAX_BUFS];
 static int jit_buf_count = 0;
 static bool jit_buf_active[JIT_MAX_BUFS]; /* Track which slots are in use */
@@ -498,14 +498,198 @@ void jit_movaps_reg(jit_buf_t *b, int dst_xmm, int src_xmm)
     emit_sse_op(b, 0x28, dst_xmm, src_xmm, 0, 0);
 }
 
-/* Scalar SSE2: addss, mulss, maxss */
+/* Scalar SSE2: addss, mulss, maxss, subss, divss */
 void jit_addss(jit_buf_t *b, int d, int s) { jit_emit8(b, 0xF3); emit_sse_op(b, 0x58, d, s, 0, 0); }
 void jit_mulss(jit_buf_t *b, int d, int s) { jit_emit8(b, 0xF3); emit_sse_op(b, 0x59, d, s, 0, 0); }
 void jit_maxss(jit_buf_t *b, int d, int s) { jit_emit8(b, 0xF3); emit_sse_op(b, 0x5F, d, s, 0, 0); }
+void jit_subss(jit_buf_t *b, int d, int s) { jit_emit8(b, 0xF3); emit_sse_op(b, 0x5C, d, s, 0, 0); }
+void jit_divss(jit_buf_t *b, int d, int s) { jit_emit8(b, 0xF3); emit_sse_op(b, 0x5E, d, s, 0, 0); }
 void jit_addss_mem(jit_buf_t *b, int xmm, int base, int32_t disp)
 {
     jit_emit8(b, 0xF3);
     emit_sse_op(b, 0x58, xmm, base, 1, disp);
+}
+
+/* =============================================================================
+ * Additional Packed SSE2 Instructions
+ * =============================================================================*/
+
+void jit_subps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x5C, d, s, 0, 0); }
+void jit_divps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x5E, d, s, 0, 0); }
+void jit_andps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x54, d, s, 0, 0); }
+void jit_orps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x56, d, s, 0, 0); }
+void jit_andnps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x55, d, s, 0, 0); }
+void jit_minps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x5D, d, s, 0, 0); }
+void jit_rcpps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x53, d, s, 0, 0); }
+void jit_sqrtps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x51, d, s, 0, 0); }
+void jit_rsqrtps(jit_buf_t *b, int d, int s) { emit_sse_op(b, 0x52, d, s, 0, 0); }
+
+/* cmpps xmm, xmm, imm8 — predicate: 0=eq,1=lt,2=le,3=unord,4=neq,5=nlt,6=nle */
+void jit_cmpps(jit_buf_t *b, int d, int s, uint8_t pred)
+{
+    emit_sse_op(b, 0xC2, d, s, 0, 0);
+    jit_emit8(b, pred);
+}
+
+/* Memory operand packed ops */
+void jit_mulps_mem(jit_buf_t *b, int xmm, int base, int32_t disp)
+{ emit_sse_op(b, 0x59, xmm, base, 1, disp); }
+void jit_addps_mem(jit_buf_t *b, int xmm, int base, int32_t disp)
+{ emit_sse_op(b, 0x58, xmm, base, 1, disp); }
+void jit_subps_mem(jit_buf_t *b, int xmm, int base, int32_t disp)
+{ emit_sse_op(b, 0x5C, xmm, base, 1, disp); }
+
+/* =============================================================================
+ * SSE2 Integer & Conversion Instructions
+ * =============================================================================*/
+
+/* cvtdq2ps xmm, xmm — int32 to float (packed) */
+void jit_cvtdq2ps(jit_buf_t *b, int d, int s)
+{ emit_sse_op(b, 0x5B, d, s, 0, 0); }
+
+/* cvttps2dq xmm, xmm — float to int32 truncated (prefix F3) */
+void jit_cvttps2dq(jit_buf_t *b, int d, int s)
+{ jit_emit8(b, 0xF3); emit_sse_op(b, 0x5B, d, s, 0, 0); }
+
+/* paddd xmm, xmm */
+void jit_paddd(jit_buf_t *b, int d, int s)
+{
+    jit_emit8(b, 0x66);
+    int need_rex = (d >= 8 || s >= 8);
+    if (need_rex) emit_rex(b, 0, d >= 8, 0, s >= 8);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, d, s);
+}
+
+/* psubd xmm, xmm */
+void jit_psubd(jit_buf_t *b, int d, int s)
+{
+    jit_emit8(b, 0x66);
+    int need_rex = (d >= 8 || s >= 8);
+    if (need_rex) emit_rex(b, 0, d >= 8, 0, s >= 8);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0xFA);
+    emit_modrm(b, 3, d, s);
+}
+
+/* pslld xmm, imm8 — logical shift left int32 */
+void jit_pslld_imm(jit_buf_t *b, int xmm, uint8_t imm)
+{
+    jit_emit8(b, 0x66);
+    if (xmm >= 8) emit_rex(b, 0, 0, 0, 1);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x72);
+    emit_modrm(b, 3, 6, xmm); /* /6 = pslld */
+    jit_emit8(b, imm);
+}
+
+/* psrld xmm, imm8 — logical shift right int32 */
+void jit_psrld_imm(jit_buf_t *b, int xmm, uint8_t imm)
+{
+    jit_emit8(b, 0x66);
+    if (xmm >= 8) emit_rex(b, 0, 0, 0, 1);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x72);
+    emit_modrm(b, 3, 2, xmm); /* /2 = psrld */
+    jit_emit8(b, imm);
+}
+
+/* psrad xmm, imm8 — arithmetic shift right int32 */
+void jit_psrad_imm(jit_buf_t *b, int xmm, uint8_t imm)
+{
+    jit_emit8(b, 0x66);
+    if (xmm >= 8) emit_rex(b, 0, 0, 0, 1);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x72);
+    emit_modrm(b, 3, 4, xmm); /* /4 = psrad */
+    jit_emit8(b, imm);
+}
+
+/* movd xmm, r32 */
+void jit_movd_to_xmm(jit_buf_t *b, int xmm, int gpr)
+{
+    jit_emit8(b, 0x66);
+    int need_rex = (xmm >= 8 || gpr >= 8);
+    if (need_rex) emit_rex(b, 0, xmm >= 8, 0, gpr >= 8);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x6E);
+    emit_modrm(b, 3, xmm, gpr);
+}
+
+/* movd r32, xmm */
+void jit_movd_from_xmm(jit_buf_t *b, int gpr, int xmm)
+{
+    jit_emit8(b, 0x66);
+    int need_rex = (xmm >= 8 || gpr >= 8);
+    if (need_rex) emit_rex(b, 0, xmm >= 8, 0, gpr >= 8);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x7E);
+    emit_modrm(b, 3, xmm, gpr);
+}
+
+/* =============================================================================
+ * Additional Control Flow
+ * =============================================================================*/
+
+int jit_jle_fwd(jit_buf_t *b)
+{ jit_emit8(b, 0x0F); jit_emit8(b, 0x8E); int p = b->len; jit_emit32(b, 0); return p; }
+
+int jit_jne_fwd(jit_buf_t *b)
+{ jit_emit8(b, 0x0F); jit_emit8(b, 0x85); int p = b->len; jit_emit32(b, 0); return p; }
+
+int jit_je_fwd(jit_buf_t *b)
+{ jit_emit8(b, 0x0F); jit_emit8(b, 0x84); int p = b->len; jit_emit32(b, 0); return p; }
+
+void jit_jle_back(jit_buf_t *b, int t)
+{ jit_emit8(b, 0x0F); jit_emit8(b, 0x8E); int32_t r = t - (b->len + 4); jit_emit32(b, (uint32_t)r); }
+
+void jit_jne_back(jit_buf_t *b, int t)
+{ jit_emit8(b, 0x0F); jit_emit8(b, 0x85); int32_t r = t - (b->len + 4); jit_emit32(b, (uint32_t)r); }
+
+/* =============================================================================
+ * Additional GP Instructions
+ * =============================================================================*/
+
+void jit_shl_reg_imm(jit_buf_t *b, int reg, uint8_t imm)
+{ emit_rex_w(b, 0, reg); jit_emit8(b, 0xC1); emit_modrm(b, 3, 4, reg); jit_emit8(b, imm); }
+
+void jit_shr_reg_imm(jit_buf_t *b, int reg, uint8_t imm)
+{ emit_rex_w(b, 0, reg); jit_emit8(b, 0xC1); emit_modrm(b, 3, 5, reg); jit_emit8(b, imm); }
+
+void jit_and_reg_imm32(jit_buf_t *b, int reg, int32_t imm)
+{
+    emit_rex_w(b, 0, reg);
+    jit_emit8(b, 0x81); emit_modrm(b, 3, 4, reg); /* /4 = AND */
+    jit_emit32(b, (uint32_t)imm);
+}
+
+void jit_or_reg_reg(jit_buf_t *b, int dst, int src)
+{ emit_rex_w(b, src, dst); jit_emit8(b, 0x09); emit_modrm(b, 3, src, dst); }
+
+void jit_sub_reg_reg(jit_buf_t *b, int dst, int src)
+{ emit_rex_w(b, src, dst); jit_emit8(b, 0x29); emit_modrm(b, 3, src, dst); }
+
+/* =============================================================================
+ * Code Data Embedding
+ * =============================================================================*/
+
+/* Embed 4 floats in the code stream (16-byte aligned). Returns offset. */
+int jit_embed_f32x4(jit_buf_t *b, float v0, float v1, float v2, float v3)
+{
+    /* Align to 16 bytes */
+    while (b->len & 15) jit_emit8(b, 0xCC); /* int3 padding */
+    int off = b->len;
+    union { float f; uint32_t u; } u;
+    u.f = v0; jit_emit32(b, u.u);
+    u.f = v1; jit_emit32(b, u.u);
+    u.f = v2; jit_emit32(b, u.u);
+    u.f = v3; jit_emit32(b, u.u);
+    return off;
+}
+
+/* movaps xmm, [rip + offset_to_data] — load from embedded constant */
+void jit_movaps_riprel(jit_buf_t *b, int xmm, int data_offset)
+{
+    /* 0F 28 /r with ModR/M mod=00 rm=101 (RIP-relative) */
+    if (xmm >= 8) emit_rex(b, 0, 1, 0, 0);
+    jit_emit8(b, 0x0F); jit_emit8(b, 0x28);
+    emit_modrm(b, 0, xmm, 5); /* mod=00, rm=101 = RIP-relative */
+    int32_t rel = data_offset - (b->len + 4);
+    jit_emit32(b, (uint32_t)rel);
 }
 
 /* =============================================================================
@@ -1058,22 +1242,9 @@ jit_gemv_q8_fn jit_compile_q8_gemv(int rows, int cols)
 }
 
 /* =============================================================================
- * High-Level JIT: Compile SiLU Kernel
- * void silu(float *x, int n)
- * Args: x=rdi, n=esi (n is compile-time constant)
- *
- * SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x))
- * Uses fast exp approximation: exp(x) ≈ (1 + x/256)^256
+ * High-Level JIT: SiLU Kernel
+ * Implemented in llm_jit.c (mature fused path)
  * =============================================================================*/
-
-jit_silu_fn jit_compile_silu_kernel(int n)
-{
-    /* SiLU is hard to vectorize without a good exp function.
-     * For now we generate an unrolled scalar loop that's still faster
-     * than the C version due to eliminating function call overhead. */
-    (void)n;
-    return NULL; /* Use C fallback */
-}
 
 /* =============================================================================
  * Fused MatMul + ReLU (eliminates intermediate memory write)
@@ -1140,6 +1311,447 @@ int jit_selftest(void)
     return 0;  /* Success */
 }
 
+/* =============================================================================
+ * AVX2 VEX Prefix Encoding
+ *
+ * VEX replaces legacy REX+opcode prefixes with a compact 2 or 3 byte prefix:
+ *   2-byte: C5 [R~ vvvv L pp]            — for 0F-map, no REX.{X,B,W}
+ *   3-byte: C4 [R~ X~ B~ mmmmm] [W vvvv L pp] — all maps, full REX support
+ *
+ * R~/X~/B~ are INVERTED REX bits.  vvvv is COMPLEMENTED NDS register.
+ * L=0 -> 128-bit (XMM), L=1 -> 256-bit (YMM).
+ * pp: 00=none, 01=66h, 10=F3h, 11=F2h.
+ * mmmmm: 00001=0F, 00010=0F38, 00011=0F3A.
+ * =============================================================================*/
+
+/* 2-byte VEX prefix (map must be 0F, no REX.X/B/W) */
+static void emit_vex2(jit_buf_t *b, int r_ext, int vvvv_reg, int L, int pp)
+{
+    jit_emit8(b, 0xC5);
+    uint8_t byte1 = 0;
+    byte1 |= (r_ext ? 0 : 0x80);         /* R~ = NOT(REX.R) */
+    byte1 |= ((~vvvv_reg & 0xF) << 3);   /* complemented NDS */
+    byte1 |= (L ? 0x04 : 0);
+    byte1 |= (pp & 3);
+    jit_emit8(b, byte1);
+}
+
+/* 3-byte VEX prefix (any map, full REX support) */
+static void emit_vex3(jit_buf_t *b, int r_ext, int x_ext, int b_ext,
+                       int map, int W, int vvvv_reg, int L, int pp)
+{
+    jit_emit8(b, 0xC4);
+    uint8_t byte1 = 0;
+    byte1 |= (r_ext ? 0 : 0x80);
+    byte1 |= (x_ext ? 0 : 0x40);
+    byte1 |= (b_ext ? 0 : 0x20);
+    byte1 |= (map & 0x1F);
+    jit_emit8(b, byte1);
+    uint8_t byte2 = 0;
+    byte2 |= (W ? 0x80 : 0);
+    byte2 |= ((~vvvv_reg & 0xF) << 3);
+    byte2 |= (L ? 0x04 : 0);
+    byte2 |= (pp & 3);
+    jit_emit8(b, byte2);
+}
+
+/* VEX prefix for 0F map: uses 2-byte form when possible */
+static void emit_vex_0f(jit_buf_t *b, int reg, int rm, int vvvv, int L, int pp)
+{
+    int r_ext = (reg >= 8);
+    int b_ext = (rm >= 8);
+    if (!b_ext)
+        emit_vex2(b, r_ext, vvvv, L, pp);
+    else
+        emit_vex3(b, r_ext, 0, b_ext, 1/*0F*/, 0, vvvv, L, pp);
+}
+
+/* VEX prefix for 0F38 map (always 3-byte) */
+static void emit_vex_0f38(jit_buf_t *b, int reg, int rm, int vvvv, int L, int pp)
+{
+    emit_vex3(b, (reg >= 8), 0, (rm >= 8), 2/*0F38*/, 0, vvvv, L, pp);
+}
+
+/* VEX prefix for 0F3A map (always 3-byte) */
+static void emit_vex_0f3a(jit_buf_t *b, int reg, int rm, int vvvv, int L, int pp)
+{
+    emit_vex3(b, (reg >= 8), 0, (rm >= 8), 3/*0F3A*/, 0, vvvv, L, pp);
+}
+
+/* =============================================================================
+ * AVX2 VEX-Encoded Instruction Implementations
+ * =============================================================================*/
+
+void jit_vzeroupper(jit_buf_t *b)
+{
+    jit_emit8(b, 0xC5);
+    jit_emit8(b, 0xF8);
+    jit_emit8(b, 0x77);
+}
+
+/* vmovups ymm, [base+disp]: VEX.256.NP.0F.WIG 10 /r */
+void jit_vmovups_load256(jit_buf_t *b, int ymm, int base, int32_t disp)
+{
+    emit_vex_0f(b, ymm, base, 0, 1/*256*/, 0/*NP*/);
+    jit_emit8(b, 0x10);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vmovups [base+disp], ymm: VEX.256.NP.0F.WIG 11 /r */
+void jit_vmovups_store256(jit_buf_t *b, int base, int32_t disp, int ymm)
+{
+    emit_vex_0f(b, ymm, base, 0, 1, 0);
+    jit_emit8(b, 0x11);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vxorps ymm, ymm, ymm: VEX.NDS.256.NP.0F.WIG 57 /r */
+void jit_vxorps256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1, 0);
+    jit_emit8(b, 0x57);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vaddps ymm, ymm, ymm: VEX.NDS.256.NP.0F.WIG 58 /r */
+void jit_vaddps256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1, 0);
+    jit_emit8(b, 0x58);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vmulps ymm, ymm, ymm: VEX.NDS.256.NP.0F.WIG 59 /r */
+void jit_vmulps256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1, 0);
+    jit_emit8(b, 0x59);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vbroadcastss ymm, [base+disp]: VEX.256.66.0F38.W0 18 /r */
+void jit_vbroadcastss(jit_buf_t *b, int ymm, int base, int32_t disp)
+{
+    emit_vex_0f38(b, ymm, base, 0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x18);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vbroadcastss ymm, xmm: VEX.256.66.0F38.W0 18 /r (AVX2 reg source) */
+void jit_vbroadcastss_reg(jit_buf_t *b, int ymm_dst, int xmm_src)
+{
+    emit_vex_0f38(b, ymm_dst, xmm_src, 0, 1, 1);
+    jit_emit8(b, 0x18);
+    emit_modrm(b, 3, ymm_dst, xmm_src);
+}
+
+/* vpmovsxbd ymm, [base+disp]: VEX.256.66.0F38.WIG 21 /r */
+void jit_vpmovsxbd256(jit_buf_t *b, int ymm, int base, int32_t disp)
+{
+    emit_vex_0f38(b, ymm, base, 0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x21);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vcvtdq2ps ymm, ymm: VEX.256.NP.0F.WIG 5B /r */
+void jit_vcvtdq2ps256(jit_buf_t *b, int dst, int src)
+{
+    emit_vex_0f(b, dst, src, 0, 1, 0);
+    jit_emit8(b, 0x5B);
+    emit_modrm(b, 3, dst, src);
+}
+
+/* vfmadd231ps ymm, ymm, ymm: VEX.NDS.256.66.0F38.W0 B8 /r */
+void jit_vfmadd231ps256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f38(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0xB8);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vextractf128 xmm, ymm, imm8: VEX.256.66.0F3A.W0 19 /r ib */
+void jit_vextractf128(jit_buf_t *b, int xmm_dst, int ymm_src, uint8_t imm)
+{
+    emit_vex_0f3a(b, ymm_src, xmm_dst, 0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x19);
+    emit_modrm(b, 3, ymm_src, xmm_dst);
+    jit_emit8(b, imm);
+}
+
+/* vaddps xmm, xmm, xmm: VEX.NDS.128.NP.0F.WIG 58 /r */
+void jit_vaddps128(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 0/*128*/, 0);
+    jit_emit8(b, 0x58);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vhaddps xmm, xmm, xmm: VEX.NDS.128.F2.0F.WIG 7C /r */
+void jit_vhaddps128(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 0/*128*/, 3/*F2*/);
+    jit_emit8(b, 0x7C);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vmovss [base+disp], xmm: VEX.LIG.F3.0F.WIG 11 /r */
+void jit_vmovss_store_vex(jit_buf_t *b, int base, int32_t disp, int xmm)
+{
+    emit_vex_0f(b, xmm, base, 0, 0/*128*/, 2/*F3*/);
+    jit_emit8(b, 0x11);
+    emit_modrm_disp(b, xmm, base, disp);
+}
+
+/* vmovd xmm, r32: VEX.128.66.0F.W0 6E /r */
+void jit_vmovd_to_xmm_vex(jit_buf_t *b, int xmm, int gpr)
+{
+    emit_vex_0f(b, xmm, gpr, 0, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x6E);
+    emit_modrm(b, 3, xmm, gpr);
+}
+
+/* prefetcht0 [base+disp]: 0F 18 /1 */
+void jit_prefetcht0(jit_buf_t *b, int base, int32_t disp)
+{
+    if (base >= 8) emit_rex(b, 0, 0, 0, 1);
+    jit_emit8(b, 0x0F);
+    jit_emit8(b, 0x18);
+    emit_modrm_disp(b, 1, base, disp);
+}
+
+/* =============================================================================
+ * AVX2+FMA Q8_0 GEMV Kernel Compiler
+ *
+ * Generates: void gemv(float *out, const void *weight, const float *x,
+ *                      int rows, int cols)  [rows/cols baked in]
+ *
+ * Key optimizations over the compiler-generated AVX2 path:
+ *  1. Loop trip counts baked as immediate constants
+ *  2. Row byte stride baked into address computation
+ *  3. 4-row batching with shared x loads (load once, reuse 4x)
+ *  4. vfmadd231ps for single-cycle fused multiply-accumulate
+ *  5. vpmovsxbd for 8 simultaneous int8->int32 conversions
+ *  6. Branchless fp16->fp32 scale conversion inlined (7 ops)
+ *  7. Row accumulators held in ymm8-11 across all blocks (1 hsum/row)
+ *
+ * Register allocation:
+ *   R12=out, R13=weight, R14=x  (callee-saved, lifetime=entire kernel)
+ *   R15=row counter  RBX=block counter
+ *   RAX,RCX,RDX,RSI,RDI=scratch
+ *   Stack: [RSP+0..31] = 4 weight row base pointers
+ *   YMM0-3=x data  YMM4-7=weights  YMM8-11=accumulators  YMM12=scale
+ * =============================================================================*/
+
+static void emit_avx2_gemv_row_block(jit_buf_t *b, int stack_off, int ymm_acc)
+{
+    /* Load row base from stack, add block byte offset (in RAX) */
+    jit_mov_reg_mem(b, RDI, RSP, stack_off);
+    jit_add_reg_reg(b, RDI, RAX);
+
+    /* FP16 -> FP32 scale (branchless, for normal values)
+     * fp32 = ((h & 0x7FFF) << 13) + 0x38000000 | ((h & 0x8000) << 16) */
+    jit_emit8(b, 0x0F); jit_emit8(b, 0xB7); /* movzx edx, word [rdi] */
+    emit_modrm_disp(b, RDX, RDI, 0);
+
+    jit_mov_reg_reg(b, RSI, RDX);
+    jit_and_reg_imm32(b, RDX, 0x7FFF);
+    jit_shl_reg_imm(b, RDX, 13);
+    jit_add_reg_imm32(b, RDX, 0x38000000);
+    jit_and_reg_imm32(b, RSI, 0x8000);
+    jit_shl_reg_imm(b, RSI, 16);
+    jit_or_reg_reg(b, RDX, RSI);
+
+    jit_vmovd_to_xmm_vex(b, YMM12, RDX);
+    jit_vbroadcastss_reg(b, YMM12, YMM12);
+
+    /* vpmovsxbd: 8 int8 -> 8 int32, 4 times for 32 weights */
+    jit_vpmovsxbd256(b, YMM4, RDI, 2);
+    jit_vpmovsxbd256(b, YMM5, RDI, 10);
+    jit_vpmovsxbd256(b, YMM6, RDI, 18);
+    jit_vpmovsxbd256(b, YMM7, RDI, 26);
+
+    jit_vcvtdq2ps256(b, YMM4, YMM4);
+    jit_vcvtdq2ps256(b, YMM5, YMM5);
+    jit_vcvtdq2ps256(b, YMM6, YMM6);
+    jit_vcvtdq2ps256(b, YMM7, YMM7);
+
+    /* weight * x */
+    jit_vmulps256(b, YMM4, YMM4, YMM0);
+    jit_vmulps256(b, YMM5, YMM5, YMM1);
+    jit_vmulps256(b, YMM6, YMM6, YMM2);
+    jit_vmulps256(b, YMM7, YMM7, YMM3);
+
+    /* Reduce 4 products -> 1 */
+    jit_vaddps256(b, YMM4, YMM4, YMM5);
+    jit_vaddps256(b, YMM6, YMM6, YMM7);
+    jit_vaddps256(b, YMM4, YMM4, YMM6);
+
+    /* FMA: acc += product * scale */
+    jit_vfmadd231ps256(b, ymm_acc, YMM4, YMM12);
+}
+
+static void emit_avx2_hsum_store(jit_buf_t *b, int ymm_acc, int tmp_xmm,
+                                  int base, int32_t disp)
+{
+    jit_vextractf128(b, tmp_xmm, ymm_acc, 1);
+    jit_vaddps128(b, ymm_acc, ymm_acc, tmp_xmm);
+    jit_vhaddps128(b, ymm_acc, ymm_acc, ymm_acc);
+    jit_vhaddps128(b, ymm_acc, ymm_acc, ymm_acc);
+    jit_vmovss_store_vex(b, base, disp, ymm_acc);
+}
+
+#define JIT_MAX_GEMV_AVX2 16
+static struct {
+    int rows, cols;
+    jit_gemv_q8_fn fn;
+} jit_gemv_avx2_cache[JIT_MAX_GEMV_AVX2];
+static int jit_num_gemv_avx2 = 0;
+
+jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int rows, int cols)
+{
+    for (int i = 0; i < jit_num_gemv_avx2; i++) {
+        if (jit_gemv_avx2_cache[i].rows == rows &&
+            jit_gemv_avx2_cache[i].cols == cols)
+            return jit_gemv_avx2_cache[i].fn;
+    }
+
+    int nb = cols / 32;
+    if (nb < 1) return NULL;
+    int row_bytes = nb * 34;
+
+    jit_buf_t *buf = jit_create(2048);
+    if (!buf) return NULL;
+
+    jit_prologue(buf);
+    jit_sub_reg_imm32(buf, RSP, 32);
+
+    jit_mov_reg_reg(buf, R12, RDI);  /* out */
+    jit_mov_reg_reg(buf, R13, RSI);  /* weight */
+    jit_mov_reg_reg(buf, R14, RDX);  /* x */
+
+    /* === 4-row batched main loop === */
+    jit_xor_reg_reg(buf, R15, R15);
+    int row4_top = buf->len;
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_add_reg_imm32(buf, RAX, 3);
+    jit_cmp_reg_imm32(buf, RAX, rows);
+    int row4_exit = jit_jge_fwd(buf);
+
+    /* 4 row base pointers on stack */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_imul_imm32(buf, RAX, RAX, row_bytes);
+    jit_add_reg_reg(buf, RAX, R13);
+    jit_mov_mem_reg(buf, RSP, 0, RAX);
+    jit_lea(buf, RCX, RAX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 8, RCX);
+    jit_lea(buf, RCX, RCX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 16, RCX);
+    jit_lea(buf, RCX, RCX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 24, RCX);
+
+    /* Zero accumulators */
+    jit_vxorps256(buf, YMM8,  YMM8,  YMM8);
+    jit_vxorps256(buf, YMM9,  YMM9,  YMM9);
+    jit_vxorps256(buf, YMM10, YMM10, YMM10);
+    jit_vxorps256(buf, YMM11, YMM11, YMM11);
+
+    /* Block loop */
+    jit_xor_reg_reg(buf, RBX, RBX);
+    int blk_top = buf->len;
+
+    jit_imul_imm32(buf, RAX, RBX, 34);
+
+    /* Load x[b*32..+31] shared across 4 rows */
+    jit_imul_imm32(buf, RCX, RBX, 128);
+    jit_add_reg_reg(buf, RCX, R14);
+    jit_vmovups_load256(buf, YMM0, RCX, 0);
+    jit_vmovups_load256(buf, YMM1, RCX, 32);
+    jit_vmovups_load256(buf, YMM2, RCX, 64);
+    jit_vmovups_load256(buf, YMM3, RCX, 96);
+
+    emit_avx2_gemv_row_block(buf, 0,  YMM8);
+    emit_avx2_gemv_row_block(buf, 8,  YMM9);
+    emit_avx2_gemv_row_block(buf, 16, YMM10);
+    emit_avx2_gemv_row_block(buf, 24, YMM11);
+
+    jit_inc_reg(buf, RBX);
+    jit_cmp_reg_imm32(buf, RBX, nb);
+    jit_jl_back(buf, blk_top);
+
+    /* Horizontal reduce + store 4 results */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_shl_reg_imm(buf, RAX, 2);
+    jit_add_reg_reg(buf, RAX, R12);
+
+    emit_avx2_hsum_store(buf, YMM8,  XMM13, RAX, 0);
+    emit_avx2_hsum_store(buf, YMM9,  XMM13, RAX, 4);
+    emit_avx2_hsum_store(buf, YMM10, XMM13, RAX, 8);
+    emit_avx2_hsum_store(buf, YMM11, XMM13, RAX, 12);
+
+    jit_add_reg_imm32(buf, R15, 4);
+    jit_jmp_back(buf, row4_top);
+
+    /* === Tail: single rows === */
+    jit_patch_jump(buf, row4_exit);
+
+    int tail_top = buf->len;
+    jit_cmp_reg_imm32(buf, R15, rows);
+    int tail_exit = jit_jge_fwd(buf);
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_imul_imm32(buf, RAX, RAX, row_bytes);
+    jit_add_reg_reg(buf, RAX, R13);
+    jit_mov_mem_reg(buf, RSP, 0, RAX);
+
+    jit_vxorps256(buf, YMM8, YMM8, YMM8);
+
+    jit_xor_reg_reg(buf, RBX, RBX);
+    int tail_blk_top = buf->len;
+
+    jit_imul_imm32(buf, RAX, RBX, 34);
+    jit_imul_imm32(buf, RCX, RBX, 128);
+    jit_add_reg_reg(buf, RCX, R14);
+    jit_vmovups_load256(buf, YMM0, RCX, 0);
+    jit_vmovups_load256(buf, YMM1, RCX, 32);
+    jit_vmovups_load256(buf, YMM2, RCX, 64);
+    jit_vmovups_load256(buf, YMM3, RCX, 96);
+
+    emit_avx2_gemv_row_block(buf, 0, YMM8);
+
+    jit_inc_reg(buf, RBX);
+    jit_cmp_reg_imm32(buf, RBX, nb);
+    jit_jl_back(buf, tail_blk_top);
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_shl_reg_imm(buf, RAX, 2);
+    jit_add_reg_reg(buf, RAX, R12);
+    emit_avx2_hsum_store(buf, YMM8, XMM13, RAX, 0);
+
+    jit_inc_reg(buf, R15);
+    jit_jmp_back(buf, tail_top);
+
+    jit_patch_jump(buf, tail_exit);
+
+    jit_vzeroupper(buf);
+    jit_add_reg_imm32(buf, RSP, 32);
+    jit_epilogue(buf);
+
+    vmm_mark_rx(buf->code, buf->cap);
+    jit_gemv_q8_fn fn = (jit_gemv_q8_fn)(void *)buf->code;
+    if (jit_num_gemv_avx2 < JIT_MAX_GEMV_AVX2) {
+        jit_gemv_avx2_cache[jit_num_gemv_avx2].rows = rows;
+        jit_gemv_avx2_cache[jit_num_gemv_avx2].cols = cols;
+        jit_gemv_avx2_cache[jit_num_gemv_avx2].fn = fn;
+        jit_num_gemv_avx2++;
+    }
+    jit_total_bytes += buf->len;
+    jit_num_kernels++;
+
+    kprintf("[JIT] AVX2 GEMV %dx%d compiled (%d bytes)\n", rows, cols, buf->len);
+    return fn;
+}
+
 #else /* __aarch64__ */
 
 /* ARM64: JIT stubs — JIT not available, runtime uses interpreter path */
@@ -1154,6 +1766,7 @@ void jit_epilogue(jit_buf_t *b) { (void)b; }
 void jit_init(void) { kprintf("[JIT] ARM64 mode: using NEON interpreter\n"); }
 int  jit_selftest(void) { return 0; }
 jit_gemv_q8_fn jit_compile_q8_gemv(int r, int c) { (void)r; (void)c; return NULL; }
+jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int r, int c) { (void)r; (void)c; return NULL; }
 jit_silu_fn jit_compile_silu_kernel(int n) { (void)n; return NULL; }
 int jit_kernel_count(void) { return 0; }
 int jit_code_bytes(void) { return 0; }

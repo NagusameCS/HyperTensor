@@ -149,6 +149,10 @@ int   gpu_mem_copy_d2h(void *dst, uint32_t gpu_id, const void *src, uint64_t siz
 void  tensor_mm_defrag(void);
 void  tensor_mm_cache_warmup(void);
 
+/* Dynamic region accessors (addresses computed at runtime from detected RAM) */
+void    *tensor_mm_model_cache_base(void);
+uint64_t tensor_mm_model_cache_max(void);
+
 /* Statistics */
 uint64_t tensor_mm_heap_size(void);
 uint64_t tensor_mm_cache_size(void);

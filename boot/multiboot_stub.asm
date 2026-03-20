@@ -120,50 +120,17 @@ _start:
     ; PDPT[3] -> PD at 0x6000  (4th GB: 0xC0000000-0xFFFFFFFF -- LAPIC/IOAPIC)
     mov dword [0x2018], 0x6003
 
-    ; PD: 512 x 2MB huge pages = 1GB (0x00000000-0x3FFFFFFF)
+    ; Fill all 4 PDs: 4 × 512 = 2048 entries of 2MB huge pages
+    ; Maps 0x00000000 .. 0xFFFFFFFF (4 GB)
     mov edi, 0x3000
-    mov eax, 0x00000083           ; Present + Write + Huge
-    mov ecx, 512
-.fill_pd0:
+    mov eax, 0x00000083           ; addr_lo | Present+Write+Huge
+    mov ecx, 2048
+.fill_all_pds:
     mov [edi], eax
     add eax, 0x200000
     add edi, 8
     dec ecx
-    jnz .fill_pd0
-
-    ; PD: next 512 x 2MB huge pages = 1GB (0x40000000-0x7FFFFFFF)
-    mov edi, 0x4000
-    mov eax, 0x40000083
-    mov ecx, 512
-.fill_pd1:
-    mov [edi], eax
-    add eax, 0x200000
-    add edi, 8
-    dec ecx
-    jnz .fill_pd1
-
-    ; PD: next 512 x 2MB huge pages = 1GB (0x80000000-0xBFFFFFFF)
-    mov edi, 0x5000
-    mov eax, 0x80000083
-    mov ecx, 512
-.fill_pd2:
-    mov [edi], eax
-    add eax, 0x200000
-    add edi, 8
-    dec ecx
-    jnz .fill_pd2
-
-    ; PD: next 512 x 2MB huge pages = 1GB (0xC0000000-0xFFFFFFFF)
-    ; This GB contains LAPIC (0xFEE00000) and IOAPIC (0xFEC00000)
-    mov edi, 0x6000
-    mov eax, 0xC0000083
-    mov ecx, 512
-.fill_pd3:
-    mov [edi], eax
-    add eax, 0x200000
-    add edi, 8
-    dec ecx
-    jnz .fill_pd3
+    jnz .fill_all_pds
 
     ; --- Enable PAE ---
     ; Serial checkpoint: '3' = enabling long mode

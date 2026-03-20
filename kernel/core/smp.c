@@ -9,6 +9,7 @@
 #include "kernel/core/kernel.h"
 #include "kernel/core/smp.h"
 #include "kernel/core/spinlock.h"
+#include "kernel/core/cpu_features.h"
 
 /* =============================================================================
  * SMP global state
@@ -50,17 +51,11 @@ uint32_t smp_get_apic_id(void)
 
 static void smp_delay_us(uint32_t us)
 {
-    /* Use TSC for delay (calibrated in perf.c) */
-    extern uint64_t perf_tsc_mhz(void);
-    uint64_t cycles = (uint64_t)us * perf_tsc_mhz();
-    uint32_t lo, hi;
-    __asm__ volatile ("lfence; rdtsc" : "=a"(lo), "=d"(hi));
-    uint64_t start = ((uint64_t)hi << 32) | lo;
-    while (1) {
-        __asm__ volatile ("lfence; rdtsc" : "=a"(lo), "=d"(hi));
-        uint64_t now = ((uint64_t)hi << 32) | lo;
-        if (now - start >= cycles) break;
-        __asm__ volatile ("pause");
+    /* Simple I/O-port-based delay: read port 0x80 (POST diagnostic port).
+     * Each inb takes ~1 us on real hardware and is well-emulated by QEMU.
+     * This avoids TSC calibration dependency issues during early SMP boot. */
+    for (uint32_t i = 0; i < us; i++) {
+        __asm__ volatile ("inb $0x80, %%al" : : : "al");
     }
 }
 
@@ -75,7 +70,7 @@ static void smp_delay_us(uint32_t us)
  * =============================================================================*/
 
 /* AP stack: each AP gets an 8KB stack */
-#define AP_STACK_SIZE 32768   /* 32 KB per AP (needs headroom for GEMM, ISRs) */
+#define AP_STACK_SIZE 65536   /* 64 KB per AP (needs headroom for GEMV, AVX spills, ISRs) */
 static uint8_t ap_stacks[MAX_CPUS][AP_STACK_SIZE] __attribute__((aligned(16)));
 
 /* AP entry flag - set by each AP when it reaches C code */
@@ -129,10 +124,10 @@ static const uint8_t trampoline_code[] = {
     0xC0, 0x80, 0x00, 0x00,      /* address 0x80C0 */
     0x0F, 0x22, 0xD8,             /* mov cr3, eax */
 
-    /* Enable long mode in EFER MSR */
+    /* Enable long mode + NXE in EFER MSR (NXE required: BSP sets NX on BSS pages) */
     0xB9, 0x80, 0x00, 0x00, 0xC0,/* mov ecx, 0xC0000080 */
     0x0F, 0x32,                   /* rdmsr */
-    0x0D, 0x00, 0x01, 0x00, 0x00,/* or eax, 0x100 (LME) */
+    0x0D, 0x00, 0x09, 0x00, 0x00,/* or eax, 0x900 (LME | NXE) */
     0x0F, 0x30,                   /* wrmsr */
 
     /* Enable paging (CR0 bit 31) */
@@ -275,6 +270,23 @@ void ap_idle_loop(void)
         "mov %%rax, %%cr4\n"
         : : : "rax"
     );
+
+    /* Enable AVX/AVX2 on this AP so GEMV can use 8-wide vectors.
+     * Inline the CR4+XCR0 setup — cannot call cpu_enable_avx() because
+     * it uses kprintf which is not reentrant from AP context.
+     * Only attempt if BSP detected XSAVE+AVX support. */
+    if (cpu_features.has_xsave && cpu_features.has_avx) {
+        /* Set CR4.OSXSAVE (bit 18) */
+        uint64_t cr4;
+        __asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+        cr4 |= (1ULL << 18);
+        __asm__ volatile("mov %0, %%cr4" : : "r"(cr4));
+        /* Enable SSE+AVX state in XCR0 */
+        uint32_t xcr_lo, xcr_hi;
+        __asm__ volatile("xgetbv" : "=a"(xcr_lo), "=d"(xcr_hi) : "c"(0));
+        xcr_lo |= (1 << 1) | (1 << 2);  /* SSE + AVX */
+        __asm__ volatile("xsetbv" : : "a"(xcr_lo), "d"(xcr_hi), "c"(0));
+    }
 
     /* Identify which CPU we are by reading LAPIC ID */
     uint32_t my_apic_id = lapic_read(LAPIC_ID) >> 24;
@@ -600,9 +612,11 @@ uint64_t smp_lapic_ticks(void)
 
 static void lapic_send_ipi(uint8_t apic_id, uint32_t icr_lo)
 {
-    /* Wait for previous IPI to complete */
-    while (lapic_read(LAPIC_ICR_LO) & (1 << 12))
+    /* Wait for previous IPI to complete (with timeout) */
+    for (int i = 0; i < 100000; i++) {
+        if (!(lapic_read(LAPIC_ICR_LO) & (1 << 12))) break;
         __asm__ volatile ("pause");
+    }
 
     /* Set destination APIC ID */
     lapic_write(LAPIC_ICR_HI, (uint32_t)apic_id << 24);
@@ -610,9 +624,11 @@ static void lapic_send_ipi(uint8_t apic_id, uint32_t icr_lo)
     /* Send IPI */
     lapic_write(LAPIC_ICR_LO, icr_lo);
 
-    /* Wait for delivery */
-    while (lapic_read(LAPIC_ICR_LO) & (1 << 12))
+    /* Wait for delivery (with timeout) */
+    for (int i = 0; i < 100000; i++) {
+        if (!(lapic_read(LAPIC_ICR_LO) & (1 << 12))) break;
         __asm__ volatile ("pause");
+    }
 }
 
 /* =============================================================================
@@ -657,22 +673,20 @@ void smp_init(void)
 
         uint32_t prev_count = ap_running_flag;
 
-        /* Step 1: Send INIT IPI */
+        /* Step 1: Send INIT IPI (assert only; deassert is deprecated on xAPIC) */
         lapic_send_ipi(target_id, ICR_INIT | ICR_LEVEL_ASSERT);
-        smp_delay_us(200);  /* Wait 200us */
-
-        /* Deassert INIT */
-        lapic_send_ipi(target_id, ICR_INIT | ICR_LEVEL_DEASSERT);
-        smp_delay_us(10000);  /* Wait 10ms */
+        smp_delay_us(10000);  /* Wait 10ms for AP to halt */
 
         /* Step 2: Send STARTUP IPI (vector = trampoline page number) */
         uint32_t vec = TRAMPOLINE_ADDR >> 12;  /* 0x8000 >> 12 = 8 */
         lapic_send_ipi(target_id, ICR_STARTUP | vec);
         smp_delay_us(200);
 
-        /* Step 3: Send second STARTUP IPI */
-        lapic_send_ipi(target_id, ICR_STARTUP | vec);
-        smp_delay_us(200);
+        /* Step 3: Send second STARTUP IPI (per Intel MP spec) */
+        if (ap_running_flag == prev_count) {
+            lapic_send_ipi(target_id, ICR_STARTUP | vec);
+            smp_delay_us(200);
+        }
 
         /* Wait for AP to signal (up to 100ms) */
         uint64_t timeout = 100000; /* 100ms in us */
@@ -718,8 +732,10 @@ int smp_dispatch(uint32_t cpu_id, smp_work_fn_t fn, void *arg)
     __asm__ volatile ("mfence" ::: "memory");
     smp.cpus[cpu_id].work_ready = 1;
     smp.cpus[cpu_id].state = CPU_STATE_BUSY;
+    __asm__ volatile ("mfence" ::: "memory");
 
     /* Send IPI to wake the AP (vector 0xFE = work notification).
+     * The mfence above ensures work_ready is globally visible before the IPI.
      * For Fixed delivery mode, Level must be Assert (bit 14) and
      * Trigger must be Edge (bit 15 = 0) per Intel SDM Vol 3A §10.6.1. */
     if (cpu_id > 0) {
@@ -741,8 +757,11 @@ void smp_dispatch_all(smp_work_fn_t fn, void *arg)
 void smp_wait(uint32_t cpu_id)
 {
     if (cpu_id >= smp.cpu_count) return;
-    while (!smp.cpus[cpu_id].work_done)
+    while (!smp.cpus[cpu_id].work_done) {
         __asm__ volatile ("pause");
+        __asm__ volatile ("" ::: "memory"); /* compiler barrier */
+    }
+    __asm__ volatile ("mfence" ::: "memory");
     smp.cpus[cpu_id].state = CPU_STATE_IDLE;
 }
 

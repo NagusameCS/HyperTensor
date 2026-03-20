@@ -26,6 +26,7 @@
 #include "kernel/security/crypto.h"
 #ifndef __aarch64__
 #include "kernel/drivers/blk/virtio_blk.h"
+#include "kernel/core/smp.h"
 #endif
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -400,48 +401,164 @@ static inline float v8f_reduce(v8f v) {
     return (u.f[0]+u.f[1]+u.f[2]+u.f[3])+(u.f[4]+u.f[5]+u.f[6]+u.f[7]);
 }
 
-/* AVX2 Q8_0 dot: process 32 elements per block using 8-wide */
+/* AVX2 min/max per-element */
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_min(v8f a, v8f b) {
+    v8f r; __asm__("vminps %2, %1, %0" : "=x"(r) : "x"(a), "x"(b));
+    return r;
+}
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_max(v8f a, v8f b) {
+    v8f r; __asm__("vmaxps %2, %1, %0" : "=x"(r) : "x"(a), "x"(b));
+    return r;
+}
+
+/* AVX2 vectorized exp: 8 floats at once using (1+x/256)^256 */
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_expf(v8f x) {
+    x = v8f_max(x, v8f_set1(-88.0f));
+    x = v8f_min(x, v8f_set1(88.0f));
+    v8f y = v8f_set1(1.0f) + x * v8f_set1(1.0f / 256.0f);
+    y = y * y; y = y * y; y = y * y; y = y * y;
+    y = y * y; y = y * y; y = y * y; y = y * y;
+    return y;
+}
+
+/* SIMD int8→float: vpmovsxbd (sign-extend 8×i8→8×i32) + vcvtdq2ps
+ * Replaces 8 scalar (float)cast operations with 2 SIMD instructions */
+__attribute__((target("avx2,fma")))
+static inline v8f v8f_load_i8(const int8_t *src)
+{
+    v8f result;
+    __asm__ volatile(
+        "vpmovsxbd (%[s]), %[r]\n\t"
+        "vcvtdq2ps %[r], %[r]"
+        : [r] "=x"(result) : [s] "r"(src)
+    );
+    return result;
+}
+
+/* Fast branchless fp16→fp32 for quantization scales (normal values only).
+ * ~8 ops vs ~20 for the full conversion. Safe for Q8_0/Q4_0 scale values
+ * which are always normal fp16 (never denorm/inf/nan in practice). */
+static inline float fp16_to_fp32_fast(uint16_t h)
+{
+    uint32_t bits = ((uint32_t)(h & 0x8000) << 16) |
+                    ((((uint32_t)(h >> 10) & 0x1F) + 112u) << 23) |
+                    ((uint32_t)(h & 0x3FF) << 13);
+    float f;
+    __builtin_memcpy(&f, &bits, 4);
+    return f;
+}
+
+/* ─── Integer Q8×Q8 dot product (avoids ALL int→float conversion) ─── */
+
+/* Temporary quantized input block (float scale, not fp16, for speed) */
+typedef struct { float d; int8_t qs[32]; } q8_input_t;
+
+/* Pre-quantized input buffer — max 64 blocks = 2048 elements */
+#define Q8_MAX_BLOCKS 64
+static q8_input_t llm_xq_buf[Q8_MAX_BLOCKS];
+
+/* Quantize 32 floats to one q8 input block */
+__attribute__((target("avx2,fma")))
+static void q8_quantize_block(q8_input_t *out, const float *x)
+{
+    float amax = 0.0f;
+    for (int i = 0; i < 32; i++) {
+        float a = x[i] < 0 ? -x[i] : x[i];
+        if (a > amax) amax = a;
+    }
+    if (amax < 1e-30f) {
+        out->d = 0.0f;
+        __builtin_memset(out->qs, 0, 32);
+        return;
+    }
+    out->d = amax / 127.0f;
+    float id = 127.0f / amax;
+    for (int i = 0; i < 32; i++) {
+        float v = x[i] * id;
+        int iv = (int)(v + (v >= 0 ? 0.5f : -0.5f));
+        if (iv > 127) iv = 127;
+        if (iv < -127) iv = -127;
+        out->qs[i] = (int8_t)iv;
+    }
+}
+
+/* Quantize a full row of n floats to q8 blocks */
+__attribute__((target("avx2,fma")))
+static void q8_quantize_row(q8_input_t *out, const float *x, int n)
+{
+    int nb = n / 32;
+    for (int b = 0; b < nb; b++)
+        q8_quantize_block(&out[b], x + b * 32);
+}
+
+/* Integer dot: Q8_0 weight block x q8_input block
+ * Uses v8f_load_i8 (vpmovsxbd+vcvtdq2ps) for BOTH weight and input
+ * Avoids float input loads — input stays as int8, converted in-place */
+__attribute__((target("avx2,fma")))
+static float q8_0_dot_q8_avx2(const ggml_q8_0_t *w, const q8_input_t *xq)
+{
+    /* Load both sides from int8 using SIMD dequant (proven to work) */
+    v8f w0 = v8f_load_i8(w->qs);      v8f x0 = v8f_load_i8(xq->qs);
+    v8f w1 = v8f_load_i8(w->qs + 8);  v8f x1 = v8f_load_i8(xq->qs + 8);
+    v8f w2 = v8f_load_i8(w->qs + 16); v8f x2 = v8f_load_i8(xq->qs + 16);
+    v8f w3 = v8f_load_i8(w->qs + 24); v8f x3 = v8f_load_i8(xq->qs + 24);
+
+    v8f acc = w0 * x0;
+    acc += w1 * x1;
+    acc += w2 * x2;
+    acc += w3 * x3;
+
+    return v8f_reduce(acc) * fp16_to_fp32(w->d) * xq->d;
+}
+
+/* Integer Q8 vec dot: weight row × pre-quantized input */
+__attribute__((target("avx2,fma")))
+static float llm_vec_dot_avx2_q8(const void *weight, const q8_input_t *xq, int n)
+{
+    int nb = n / 32;
+    const ggml_q8_0_t *blocks = (const ggml_q8_0_t *)weight;
+    float sum = 0.0f;
+    for (int b = 0; b < nb; b++)
+        sum += q8_0_dot_q8_avx2(&blocks[b], &xq[b]);
+    return sum;
+}
+
+/* AVX2 Q8_0 dot: process 32 elements per block using SIMD dequant */
 __attribute__((target("avx2,fma")))
 static float q8_0_dot32_avx2(const ggml_q8_0_t *block, const float *x)
 {
-    float d = fp16_to_fp32(block->d);
+    float d = fp16_to_fp32_fast(block->d);
     const int8_t *qs = block->qs;
 
-    v8f acc0 = v8f_setzero();
-    v8f acc1 = v8f_setzero();
-    v8f acc2 = v8f_setzero();
-    v8f acc3 = v8f_setzero();
+    /* SIMD int8→float: 2 ops per 8 elements instead of 8 scalar casts */
+    v8f q0 = v8f_load_i8(qs);
+    v8f q1 = v8f_load_i8(qs + 8);
+    v8f q2 = v8f_load_i8(qs + 16);
+    v8f q3 = v8f_load_i8(qs + 24);
 
-    /* 32 elements in 4 groups of 8 */
-    v8f q0 = {(float)qs[0],(float)qs[1],(float)qs[2],(float)qs[3],
-              (float)qs[4],(float)qs[5],(float)qs[6],(float)qs[7]};
-    v8f x0; __builtin_memcpy(&x0, x, 32);
-    acc0 = q0 * x0;
+    v8f x0, x1, x2, x3;
+    __builtin_memcpy(&x0, x, 32);
+    __builtin_memcpy(&x1, x+8, 32);
+    __builtin_memcpy(&x2, x+16, 32);
+    __builtin_memcpy(&x3, x+24, 32);
 
-    v8f q1 = {(float)qs[8],(float)qs[9],(float)qs[10],(float)qs[11],
-              (float)qs[12],(float)qs[13],(float)qs[14],(float)qs[15]};
-    v8f x1; __builtin_memcpy(&x1, x+8, 32);
-    acc1 = q1 * x1;
+    /* FMA-friendly accumulation */
+    v8f acc = q0 * x0;
+    acc += q1 * x1;
+    acc += q2 * x2;
+    acc += q3 * x3;
 
-    v8f q2 = {(float)qs[16],(float)qs[17],(float)qs[18],(float)qs[19],
-              (float)qs[20],(float)qs[21],(float)qs[22],(float)qs[23]};
-    v8f x2; __builtin_memcpy(&x2, x+16, 32);
-    acc2 = q2 * x2;
-
-    v8f q3 = {(float)qs[24],(float)qs[25],(float)qs[26],(float)qs[27],
-              (float)qs[28],(float)qs[29],(float)qs[30],(float)qs[31]};
-    v8f x3; __builtin_memcpy(&x3, x+24, 32);
-    acc3 = q3 * x3;
-
-    v8f total = (acc0 + acc1) + (acc2 + acc3);
-    return v8f_reduce(total) * d;
+    return v8f_reduce(acc) * d;
 }
 
 /* AVX2 Q4_0 dot: process 32 elements per block using 8-wide */
 __attribute__((target("avx2,fma")))
 static float q4_0_dot32_avx2(const ggml_q4_0_t *block, const float *x)
 {
-    float d = fp16_to_fp32(block->d);
+    float d = fp16_to_fp32_fast(block->d);
     const uint8_t *qs = block->qs;
 
     v8f acc0 = v8f_setzero();
@@ -516,28 +633,260 @@ static float llm_vec_dot_avx2(const void *weight, const float *x, int n, ggml_ty
     }
 }
 
+/* ─── Fused Q8_0 GEMV: eliminates per-block horizontal reduction ─── *
+ * Key optimizations vs the generic path:
+ * 1. Single v8f accumulator per row — v8f_reduce called ONCE per row
+ *    instead of once per block (saves ~15 ops × nb per row)
+ * 2. Shared x loads across 4 rows (load x once, reuse for 4 weight rows)
+ * 3. Branchless fp16_to_fp32_fast (~8 ops vs ~20)
+ * 4. Scale broadcast + v8f multiply instead of scalar mul after reduce
+ * 5. FMA-friendly instruction ordering
+ */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q8_fused_avx2(float *out, const void *weight,
+                                     const float *x, int out_dim, int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 34;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = 0;
+
+    /* 4-row batched: shared x loads, fused accumulation */
+    for (; i + 3 < out_dim; i += 4) {
+        const ggml_q8_0_t *r0 = (const ggml_q8_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q8_0_t *r1 = (const ggml_q8_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q8_0_t *r2 = (const ggml_q8_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q8_0_t *r3 = (const ggml_q8_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < out_dim) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        v8f a0 = v8f_setzero(), a1 = v8f_setzero();
+        v8f a2 = v8f_setzero(), a3 = v8f_setzero();
+
+        for (int b = 0; b < nb; b++) {
+            /* Load x ONCE — shared across all 4 rows */
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+
+            /* Row 0 */
+            {
+                v8f d0 = v8f_set1(fp16_to_fp32_fast(r0[b].d));
+                v8f s = v8f_load_i8(r0[b].qs) * x0;
+                s += v8f_load_i8(r0[b].qs + 8)  * x1;
+                s += v8f_load_i8(r0[b].qs + 16) * x2;
+                s += v8f_load_i8(r0[b].qs + 24) * x3;
+                a0 += s * d0;
+            }
+            /* Row 1 */
+            {
+                v8f d1 = v8f_set1(fp16_to_fp32_fast(r1[b].d));
+                v8f s = v8f_load_i8(r1[b].qs) * x0;
+                s += v8f_load_i8(r1[b].qs + 8)  * x1;
+                s += v8f_load_i8(r1[b].qs + 16) * x2;
+                s += v8f_load_i8(r1[b].qs + 24) * x3;
+                a1 += s * d1;
+            }
+            /* Row 2 */
+            {
+                v8f d2 = v8f_set1(fp16_to_fp32_fast(r2[b].d));
+                v8f s = v8f_load_i8(r2[b].qs) * x0;
+                s += v8f_load_i8(r2[b].qs + 8)  * x1;
+                s += v8f_load_i8(r2[b].qs + 16) * x2;
+                s += v8f_load_i8(r2[b].qs + 24) * x3;
+                a2 += s * d2;
+            }
+            /* Row 3 */
+            {
+                v8f d3 = v8f_set1(fp16_to_fp32_fast(r3[b].d));
+                v8f s = v8f_load_i8(r3[b].qs) * x0;
+                s += v8f_load_i8(r3[b].qs + 8)  * x1;
+                s += v8f_load_i8(r3[b].qs + 16) * x2;
+                s += v8f_load_i8(r3[b].qs + 24) * x3;
+                a3 += s * d3;
+            }
+        }
+
+        out[i]   = v8f_reduce(a0);
+        out[i+1] = v8f_reduce(a1);
+        out[i+2] = v8f_reduce(a2);
+        out[i+3] = v8f_reduce(a3);
+    }
+
+    /* Tail rows */
+    for (; i < out_dim; i++) {
+        const ggml_q8_0_t *row = (const ggml_q8_0_t *)(base + (uint64_t)i * rb);
+        v8f acc = v8f_setzero();
+        for (int b = 0; b < nb; b++) {
+            v8f d = v8f_set1(fp16_to_fp32_fast(row[b].d));
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+            v8f s = v8f_load_i8(row[b].qs) * x0;
+            s += v8f_load_i8(row[b].qs + 8)  * x1;
+            s += v8f_load_i8(row[b].qs + 16) * x2;
+            s += v8f_load_i8(row[b].qs + 24) * x3;
+            acc += s * d;
+        }
+        out[i] = v8f_reduce(acc);
+    }
+}
+
+/* Fused Q8_0 GEMV for a range of rows (used by parallel workers) */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q8_fused_range_avx2(float *out, const void *weight,
+                                           const float *x, int row_start,
+                                           int row_end, int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 34;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = row_start;
+
+    for (; i + 3 < row_end; i += 4) {
+        const ggml_q8_0_t *r0 = (const ggml_q8_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q8_0_t *r1 = (const ggml_q8_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q8_0_t *r2 = (const ggml_q8_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q8_0_t *r3 = (const ggml_q8_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < row_end) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        v8f a0 = v8f_setzero(), a1 = v8f_setzero();
+        v8f a2 = v8f_setzero(), a3 = v8f_setzero();
+
+        for (int b = 0; b < nb; b++) {
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r0[b].d));
+                v8f s = v8f_load_i8(r0[b].qs) * x0;
+                s += v8f_load_i8(r0[b].qs + 8)  * x1;
+                s += v8f_load_i8(r0[b].qs + 16) * x2;
+                s += v8f_load_i8(r0[b].qs + 24) * x3;
+                a0 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r1[b].d));
+                v8f s = v8f_load_i8(r1[b].qs) * x0;
+                s += v8f_load_i8(r1[b].qs + 8)  * x1;
+                s += v8f_load_i8(r1[b].qs + 16) * x2;
+                s += v8f_load_i8(r1[b].qs + 24) * x3;
+                a1 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r2[b].d));
+                v8f s = v8f_load_i8(r2[b].qs) * x0;
+                s += v8f_load_i8(r2[b].qs + 8)  * x1;
+                s += v8f_load_i8(r2[b].qs + 16) * x2;
+                s += v8f_load_i8(r2[b].qs + 24) * x3;
+                a2 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r3[b].d));
+                v8f s = v8f_load_i8(r3[b].qs) * x0;
+                s += v8f_load_i8(r3[b].qs + 8)  * x1;
+                s += v8f_load_i8(r3[b].qs + 16) * x2;
+                s += v8f_load_i8(r3[b].qs + 24) * x3;
+                a3 += s * d;
+            }
+        }
+
+        out[i]   = v8f_reduce(a0);
+        out[i+1] = v8f_reduce(a1);
+        out[i+2] = v8f_reduce(a2);
+        out[i+3] = v8f_reduce(a3);
+    }
+
+    for (; i < row_end; i++) {
+        const ggml_q8_0_t *row = (const ggml_q8_0_t *)(base + (uint64_t)i * rb);
+        v8f acc = v8f_setzero();
+        for (int b = 0; b < nb; b++) {
+            v8f d = v8f_set1(fp16_to_fp32_fast(row[b].d));
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+            v8f s = v8f_load_i8(row[b].qs) * x0;
+            s += v8f_load_i8(row[b].qs + 8)  * x1;
+            s += v8f_load_i8(row[b].qs + 16) * x2;
+            s += v8f_load_i8(row[b].qs + 24) * x3;
+            acc += s * d;
+        }
+        out[i] = v8f_reduce(acc);
+    }
+}
+
 /* AVX2 GEMV: 4-row batched for better cache utilization */
 __attribute__((target("avx2,fma")))
 static void llm_gemv_avx2(float *out, const void *weight, const float *x,
                            int out_dim, int in_dim, ggml_type_t type)
 {
+    /* Q8_0 fast path: fully fused GEMV (no per-block reduce, shared x loads) */
+    if (type == GGML_TYPE_Q8_0) {
+        llm_gemv_q8_fused_avx2(out, weight, x, out_dim, in_dim);
+        return;
+    }
     uint64_t rb = llm_row_bytes(in_dim, type);
+    const uint8_t *base = (const uint8_t *)weight;
     int i = 0;
 
-    /* Process 4 rows at once — input vector x stays in cache */
+    /* Q8_0 pre-quantized path disabled (slower under QEMU TCG) */
+    if (0) {
+        int nb = in_dim / 32;
+        q8_input_t xq[Q8_MAX_BLOCKS];
+        q8_quantize_row(xq, x, in_dim);
+
+        for (; i + 3 < out_dim; i += 4) {
+            if (i + 7 < out_dim) {
+                __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 3);
+                __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 3);
+            }
+            out[i]   = llm_vec_dot_avx2_q8(base + (uint64_t)(i)   * rb, xq, in_dim);
+            out[i+1] = llm_vec_dot_avx2_q8(base + (uint64_t)(i+1) * rb, xq, in_dim);
+            out[i+2] = llm_vec_dot_avx2_q8(base + (uint64_t)(i+2) * rb, xq, in_dim);
+            out[i+3] = llm_vec_dot_avx2_q8(base + (uint64_t)(i+3) * rb, xq, in_dim);
+        }
+        for (; i < out_dim; i++)
+            out[i] = llm_vec_dot_avx2_q8(base + (uint64_t)i * rb, xq, in_dim);
+        return;
+    }
+
+    /* Generic float path for other types */
     for (; i + 3 < out_dim; i += 4) {
-        const void *r0 = (const uint8_t *)weight + (uint64_t)(i)   * rb;
-        const void *r1 = (const uint8_t *)weight + (uint64_t)(i+1) * rb;
-        const void *r2 = (const uint8_t *)weight + (uint64_t)(i+2) * rb;
-        const void *r3 = (const uint8_t *)weight + (uint64_t)(i+3) * rb;
+        if (i + 7 < out_dim) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 3);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 3);
+        }
+        const void *r0 = base + (uint64_t)(i)   * rb;
+        const void *r1 = base + (uint64_t)(i+1) * rb;
+        const void *r2 = base + (uint64_t)(i+2) * rb;
+        const void *r3 = base + (uint64_t)(i+3) * rb;
         out[i]   = llm_vec_dot_avx2(r0, x, in_dim, type);
         out[i+1] = llm_vec_dot_avx2(r1, x, in_dim, type);
         out[i+2] = llm_vec_dot_avx2(r2, x, in_dim, type);
         out[i+3] = llm_vec_dot_avx2(r3, x, in_dim, type);
     }
-    /* Remainder */
     for (; i < out_dim; i++) {
-        const void *row = (const uint8_t *)weight + (uint64_t)i * rb;
+        const void *row = base + (uint64_t)i * rb;
         out[i] = llm_vec_dot_avx2(row, x, in_dim, type);
     }
 }
@@ -556,13 +905,35 @@ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
     }
 }
 
-/* GEMV: out[out_dim] = weight[out_dim × in_dim] · x[in_dim]
+/* GEMV: out[out_dim] = weight[out_dim x in_dim] . x[in_dim]
  * weight is in quantized GGML format (row-major)
  * Tries JIT-compiled Q8_0 kernel first, falls back to vec_dot loop. */
 static jit_gemv_q8_fn llm_jit_gemv_cache[8] = {0};
 static int llm_jit_gemv_rows[8] = {0};
 static int llm_jit_gemv_cols[8] = {0};
 static int llm_jit_gemv_n = 0;
+
+/* AVX2 JIT GEMV cache (preferred when AVX2+FMA available) */
+static jit_gemv_q8_fn llm_jit_gemv_avx2_cache[8] = {0};
+static int llm_jit_gemv_avx2_rows[8] = {0};
+static int llm_jit_gemv_avx2_cols[8] = {0};
+static int llm_jit_gemv_avx2_n = 0;
+
+static jit_gemv_q8_fn llm_get_jit_gemv_avx2(int rows, int cols)
+{
+    for (int i = 0; i < llm_jit_gemv_avx2_n; i++) {
+        if (llm_jit_gemv_avx2_rows[i] == rows && llm_jit_gemv_avx2_cols[i] == cols)
+            return llm_jit_gemv_avx2_cache[i];
+    }
+    jit_gemv_q8_fn fn = jit_compile_q8_gemv_avx2(rows, cols);
+    if (fn && llm_jit_gemv_avx2_n < 8) {
+        llm_jit_gemv_avx2_rows[llm_jit_gemv_avx2_n] = rows;
+        llm_jit_gemv_avx2_cols[llm_jit_gemv_avx2_n] = cols;
+        llm_jit_gemv_avx2_cache[llm_jit_gemv_avx2_n] = fn;
+        llm_jit_gemv_avx2_n++;
+    }
+    return fn;
+}
 
 static jit_gemv_q8_fn llm_get_jit_gemv(int rows, int cols)
 {
@@ -582,12 +953,113 @@ static jit_gemv_q8_fn llm_get_jit_gemv(int rows, int cols)
     return fn;
 }
 
+/* ─── Parallel GEMV work item for SMP dispatch ─── */
+#ifndef __aarch64__
+typedef struct {
+    float       *out;
+    const void  *weight;
+    const float *x;
+    const q8_input_t *xq; /* Pre-quantized input for Q8_0 integer path */
+    int          out_dim;
+    int          in_dim;
+    ggml_type_t  type;
+    int          row_start;
+    int          row_end;
+} gemv_work_t;
+
+static gemv_work_t gemv_work_items[MAX_CPUS];
+
+__attribute__((target("avx2,fma")))
+static void gemv_worker_avx2(void *arg)
+{
+    gemv_work_t *w = (gemv_work_t *)arg;
+
+    /* Q8_0 fast path: fully fused (no per-block reduce, shared x loads) */
+    if (w->type == GGML_TYPE_Q8_0) {
+        llm_gemv_q8_fused_range_avx2(w->out, w->weight, w->x,
+                                      w->row_start, w->row_end, w->in_dim);
+        return;
+    }
+
+    uint64_t rb = llm_row_bytes(w->in_dim, w->type);
+    const uint8_t *base = (const uint8_t *)w->weight;
+
+    for (int i = w->row_start; i < w->row_end; i++) {
+        if (i + 1 < w->row_end)
+            __builtin_prefetch(base + (uint64_t)(i + 1) * rb, 0, 3);
+        const void *row = base + (uint64_t)i * rb;
+        w->out[i] = llm_vec_dot_avx2(row, w->x, w->in_dim, w->type);
+    }
+}
+#endif
+
 static void llm_gemv(float *out, const void *weight, const float *x,
                      int out_dim, int in_dim, ggml_type_t type)
 {
 #ifndef __aarch64__
-    /* Use AVX2+FMA GEMV when available (2× throughput) */
+    /* JIT AVX2+FMA GEMV: best single-core Q8_0 performance */
+    if (cpu_features.avx2_usable && type == GGML_TYPE_Q8_0) {
+        jit_gemv_q8_fn jfn = llm_get_jit_gemv_avx2(out_dim, in_dim);
+        if (jfn) {
+            jfn(out, weight, x, out_dim, in_dim);
+            return;
+        }
+    }
+
+    /* Use AVX2+FMA GEMV when available */
     if (cpu_features.avx2_usable) {
+        uint32_t ncpu = smp.ap_started + 1; /* Only use actually-running CPUs */
+        /* Parallel GEMV: split rows across all CPUs when worth it */
+        if (ncpu > 1 && out_dim >= 64) {
+            int rows_per_cpu = out_dim / ncpu;
+            int remainder    = out_dim % ncpu;
+            int row = 0;
+            /* BSP gets chunk 0, APs get chunks 1..ncpu-1 */
+            int bsp_chunk = rows_per_cpu + (remainder > 0 ? 1 : 0);
+            int bsp_start = 0;
+            int bsp_end   = bsp_chunk;
+            row = bsp_end;
+
+            /* Pre-quantize input for Q8_0 integer dot (once, shared by all CPUs) */
+            const q8_input_t *xq_ptr = (void *)0;
+            if (0) {
+                q8_quantize_row(llm_xq_buf, x, in_dim);
+                xq_ptr = llm_xq_buf;
+            }
+
+            /* Dispatch to APs (cpu 1..ncpu-1) */
+            for (uint32_t c = 1; c < ncpu; c++) {
+                int chunk = rows_per_cpu + ((int)c < remainder ? 1 : 0);
+                gemv_work_items[c].out      = out;
+                gemv_work_items[c].weight   = weight;
+                gemv_work_items[c].x        = x;
+                gemv_work_items[c].xq       = xq_ptr;
+                gemv_work_items[c].out_dim  = out_dim;
+                gemv_work_items[c].in_dim   = in_dim;
+                gemv_work_items[c].type     = type;
+                gemv_work_items[c].row_start = row;
+                gemv_work_items[c].row_end   = row + chunk;
+                smp_dispatch(c, gemv_worker_avx2, &gemv_work_items[c]);
+                row += chunk;
+            }
+            /* BSP does its share — use fused path for Q8_0 */
+            if (type == GGML_TYPE_Q8_0) {
+                llm_gemv_q8_fused_range_avx2(out, weight, x,
+                                              bsp_start, bsp_end, in_dim);
+            } else {
+                uint64_t rb = llm_row_bytes(in_dim, type);
+                const uint8_t *base = (const uint8_t *)weight;
+                for (int i = bsp_start; i < bsp_end; i++) {
+                    if (i + 1 < bsp_end)
+                        __builtin_prefetch(base + (uint64_t)(i + 1) * rb, 0, 3);
+                    const void *r = base + (uint64_t)i * rb;
+                    out[i] = llm_vec_dot_avx2(r, x, in_dim, type);
+                }
+            }
+            /* Wait for all APs */
+            smp_wait_all();
+            return;
+        }
         llm_gemv_avx2(out, weight, x, out_dim, in_dim, type);
         return;
     }
@@ -675,11 +1147,46 @@ static void llm_embed(float *out, const llm_model_t *m, int token_id)
 /*  RMSNorm                                                                    */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+/* AVX2 RMSNorm for F32 weights (8-wide, 2× unroll) */
+__attribute__((target("avx2,fma")))
+static void llm_rmsnorm_avx2_f32(float *out, const float *x, const float *wf, int dim)
+{
+    v8f ss0 = v8f_setzero(), ss1 = v8f_setzero();
+    int i = 0;
+    for (; i + 16 <= dim; i += 16) {
+        v8f v0, v1;
+        __builtin_memcpy(&v0, x + i, 32);
+        __builtin_memcpy(&v1, x + i + 8, 32);
+        ss0 = ss0 + v0 * v0;
+        ss1 = ss1 + v1 * v1;
+    }
+    float ss = v8f_reduce(ss0 + ss1);
+    for (; i < dim; i++)
+        ss += x[i] * x[i];
+    ss = 1.0f / llm_sqrtf(ss / (float)dim + 1e-6f);
+
+    v8f ssv = v8f_set1(ss);
+    for (i = 0; i + 8 <= dim; i += 8) {
+        v8f xv, wv;
+        __builtin_memcpy(&xv, x + i, 32);
+        __builtin_memcpy(&wv, wf + i, 32);
+        v8f r = xv * ssv * wv;
+        __builtin_memcpy(out + i, &r, 32);
+    }
+    for (; i < dim; i++)
+        out[i] = x[i] * ss * wf[i];
+}
+
 static void llm_rmsnorm(float *out, const float *x, const void *w,
                         int dim, ggml_type_t wtype)
 {
 #ifndef __aarch64__
-    /* SSE2-vectorized sum of squares */
+    if (cpu_features.avx2_usable && wtype == GGML_TYPE_F32) {
+        llm_rmsnorm_avx2_f32(out, x, (const float *)w, dim);
+        return;
+    }
+
+    /* SSE2 fallback for non-AVX2 or non-F32 weights */
     v4f ss_vec = {0, 0, 0, 0};
     int i = 0;
     for (; i + 4 <= dim; i += 4) {
@@ -756,10 +1263,12 @@ static void llm_rope(float *vec, int pos, int head_dim, float base)
     for (int i = 0; i < head_dim; i += 2) {
         float theta = (float)pos * llm_rope_freqs_buf[i / 2];
 
-        /* Fast range reduction and polynomial sin/cos */
+        /* Range reduce theta to [-pi, pi] via modular arithmetic (no loops) */
         float pi = 3.14159265f;
-        while (theta > pi) theta -= 2.0f * pi;
-        while (theta < -pi) theta += 2.0f * pi;
+        float inv_twopi = 0.15915494f;
+        theta = theta - (float)(int)(theta * inv_twopi) * (2.0f * pi);
+        if (theta > pi) theta -= 2.0f * pi;
+        if (theta < -pi) theta += 2.0f * pi;
 
         float t2 = theta * theta;
         float cos_t = 1.0f - t2 * (0.5f - t2 * (0.04166667f - t2 * 0.001388889f));
@@ -776,79 +1285,74 @@ static void llm_rope(float *vec, int pos, int head_dim, float base)
 /*  Softmax                                                                    */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-static void llm_softmax(float *x, int n)
+/* AVX2 softmax: 8-wide max, exp, and divide */
+__attribute__((target("avx2,fma")))
+static void llm_softmax_avx2(float *x, int n)
 {
-    /* Vectorized find-max for numerical stability */
-    float max_val = x[0];
-#ifndef __aarch64__
-    {
-        v4f mv = {x[0], x[0], x[0], x[0]};
-        int i = 0;
-        for (; i + 4 <= n; i += 4) {
-            v4f v = *(const v4f *)(x + i);
-            /* Branchless max with comparison mask */
-            v4f mask;
-            __asm__("cmpltps %2, %0" : "=x"(mask) : "0"(mv), "x"(v));
-            /* If v > mv, pick v, else mv: mv = (v & mask) | (mv & ~mask) */
-            v4f sel;
-            __asm__("andps %2, %0" : "=x"(sel) : "0"(mask), "x"(v));
-            v4f sel2;
-            __asm__("andnps %2, %0" : "=x"(sel2) : "0"(mask), "x"(mv));
-            __asm__("orps %2, %0" : "=x"(mv) : "0"(sel), "x"(sel2));
-        }
-        union { v4f v; float f[4]; } u = { .v = mv };
-        max_val = u.f[0];
-        if (u.f[1] > max_val) max_val = u.f[1];
-        if (u.f[2] > max_val) max_val = u.f[2];
-        if (u.f[3] > max_val) max_val = u.f[3];
-        for (; i < n; i++)
-            if (x[i] > max_val) max_val = x[i];
+    /* 8-wide find-max */
+    v8f mv = v8f_set1(x[0]);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        mv = v8f_max(mv, v);
     }
-#else
-    for (int i = 1; i < n; i++)
+    union { v8f vec; float f[8]; } mu = { .vec = mv };
+    float max_val = mu.f[0];
+    for (int j = 1; j < 8; j++)
+        if (mu.f[j] > max_val) max_val = mu.f[j];
+    for (; i < n; i++)
         if (x[i] > max_val) max_val = x[i];
-#endif
 
     /* Vectorized exp + sum */
-    float sum = 0.0f;
-    {
-        int i = 0;
-#ifndef __aarch64__
-        v4f sv = {0, 0, 0, 0};
-        v4f mv = {max_val, max_val, max_val, max_val};
-        for (; i + 4 <= n; i += 4) {
-            v4f v = *(const v4f *)(x + i);
-            v4f d = v - mv;
-            /* Per-element exp via Padé */
-            union { v4f v; float f[4]; } du = { .v = d };
-            v4f e = {llm_expf(du.f[0]), llm_expf(du.f[1]),
-                     llm_expf(du.f[2]), llm_expf(du.f[3])};
-            *(v4f *)(x + i) = e;
-            sv += e;
-        }
-        union { v4f v; float f[4]; } su = { .v = sv };
-        sum = su.f[0] + su.f[1] + su.f[2] + su.f[3];
-#endif
-        for (; i < n; i++) {
-            x[i] = llm_expf(x[i] - max_val);
-            sum += x[i];
-        }
+    v8f sv = v8f_setzero();
+    v8f mv8 = v8f_set1(max_val);
+    for (i = 0; i + 8 <= n; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        v8f e = v8f_expf(v - mv8);
+        __builtin_memcpy(x + i, &e, 32);
+        sv = sv + e;
+    }
+    float sum = v8f_reduce(sv);
+    for (; i < n; i++) {
+        x[i] = llm_expf(x[i] - max_val);
+        sum += x[i];
     }
 
+    /* Vectorized divide */
     float inv = 1.0f / (sum + 1e-10f);
-#ifndef __aarch64__
-    v4f inv_v = {inv, inv, inv, inv};
-    int i = 0;
-    for (; i + 4 <= n; i += 4) {
-        v4f v = *(const v4f *)(x + i);
-        *(v4f *)(x + i) = v * inv_v;
+    v8f inv_v = v8f_set1(inv);
+    for (i = 0; i + 8 <= n; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        v = v * inv_v;
+        __builtin_memcpy(x + i, &v, 32);
     }
     for (; i < n; i++)
         x[i] *= inv;
-#else
+}
+
+static void llm_softmax(float *x, int n)
+{
+    if (n <= 0) return;
+
+#ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        llm_softmax_avx2(x, n);
+        return;
+    }
+#endif
+
+    /* Scalar fallback */
+    float max_val = x[0];
+    for (int i = 1; i < n; i++)
+        if (x[i] > max_val) max_val = x[i];
+    float sum = 0.0f;
+    for (int i = 0; i < n; i++) {
+        x[i] = llm_expf(x[i] - max_val);
+        sum += x[i];
+    }
+    float inv = 1.0f / (sum + 1e-10f);
     for (int i = 0; i < n; i++)
         x[i] *= inv;
-#endif
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -869,19 +1373,14 @@ static inline float llm_fast_sigmoid(float x)
 __attribute__((target("avx2,fma")))
 static void llm_silu_avx2(float *x, int n)
 {
+    v8f one = v8f_set1(1.0f);
     int i = 0;
     for (; i + 8 <= n; i += 8) {
-        /* Load 8 floats */
-        float s0 = llm_fast_sigmoid(x[i]);
-        float s1 = llm_fast_sigmoid(x[i+1]);
-        float s2 = llm_fast_sigmoid(x[i+2]);
-        float s3 = llm_fast_sigmoid(x[i+3]);
-        float s4 = llm_fast_sigmoid(x[i+4]);
-        float s5 = llm_fast_sigmoid(x[i+5]);
-        float s6 = llm_fast_sigmoid(x[i+6]);
-        float s7 = llm_fast_sigmoid(x[i+7]);
-        x[i]   *= s0; x[i+1] *= s1; x[i+2] *= s2; x[i+3] *= s3;
-        x[i+4] *= s4; x[i+5] *= s5; x[i+6] *= s6; x[i+7] *= s7;
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        /* SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x)) */
+        v8f e = v8f_expf(v8f_setzero() - v);
+        v8f r = v / (one + e);
+        __builtin_memcpy(x + i, &r, 32);
     }
     for (; i < n; i++) {
         float s = llm_fast_sigmoid(x[i]);
@@ -1083,6 +1582,14 @@ static void llm_vmul_f32(float *dst, const float *src, int n)
 /*  Updates KV-cache and returns logits[vocab_size].                           */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+/* === JIT kernel cache for the forward pass (lazy-compiled once) === */
+static jit_fused_silu_mul_fn jit_fwd_fused_silu = NULL;
+static jit_ewise_fn          jit_fwd_vadd_dim   = NULL;
+static jit_dot_fn            jit_fwd_dot_hd     = NULL;
+static jit_axpy_fn           jit_fwd_axpy_hd    = NULL;
+static jit_rope_fn           jit_fwd_rope_hd    = NULL;
+static int                   jit_fwd_ready      = 0;
+
 static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos)
 {
     int dim = m->dim;
@@ -1091,6 +1598,27 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     int hd = m->head_dim;
     int ff = m->ff_dim;
     int kv_dim = n_kv * hd;
+
+    /* Lazy-compile JIT kernels on first call (dimensions fixed per model) */
+#ifndef __aarch64__
+    if (!jit_fwd_ready) {
+        /* Only use JIT for operations that don't have AVX2 C paths.
+         * The SSE2 JIT dot/axpy/vadd are 4-wide, slower than AVX2 8-wide C code.
+         * Skip them when AVX2 is available. */
+        if (!cpu_features.avx2_usable) {
+            jit_fwd_vadd_dim = jit_compile_vadd_kernel(dim);
+            jit_fwd_dot_hd   = jit_compile_dot_kernel(hd);
+            jit_fwd_axpy_hd  = jit_compile_axpy_kernel(hd);
+            if (jit_fwd_vadd_dim) kprintf("[JIT] Compiled vadd(%d)\n", dim);
+            if (jit_fwd_dot_hd)   kprintf("[JIT] Compiled dot(%d)\n", hd);
+            if (jit_fwd_axpy_hd)  kprintf("[JIT] Compiled axpy(%d)\n", hd);
+        } else {
+            kprintf("[JIT] AVX2 available — using C+AVX2 for dot/axpy/vadd\n");
+        }
+        kprintf("[JIT] %d CPUs for parallel GEMV\n", smp.cpu_count);
+        jit_fwd_ready = 1;
+    }
+#endif
 
     /* 1. Embedding lookup */
     llm_embed(llm_x, m, token_id);
@@ -1110,10 +1638,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         llm_gemv(llm_v_buf, layer->v_weight, llm_xn, kv_dim,       dim, layer->v_type);
 
         /* 2c. Apply RoPE to Q and K */
-        for (int h = 0; h < n_heads; h++)
-            llm_rope(llm_q + h * hd, pos, hd, m->rope_base);
-        for (int h = 0; h < n_kv; h++)
-            llm_rope(llm_k_buf + h * hd, pos, hd, m->rope_base);
+        if (jit_fwd_rope_hd) {
+            llm_rope_precompute(m->rope_base, hd);
+            for (int h = 0; h < n_heads; h++)
+                jit_fwd_rope_hd(llm_q + h * hd, pos, hd, llm_rope_freqs_buf);
+            for (int h = 0; h < n_kv; h++)
+                jit_fwd_rope_hd(llm_k_buf + h * hd, pos, hd, llm_rope_freqs_buf);
+        } else {
+            for (int h = 0; h < n_heads; h++)
+                llm_rope(llm_q + h * hd, pos, hd, m->rope_base);
+            for (int h = 0; h < n_kv; h++)
+                llm_rope(llm_k_buf + h * hd, pos, hd, m->rope_base);
+        }
 
         /* 2d. Store K,V in cache (memcpy instead of scalar loop) */
         /* KV cache layout: [layer][position][kv_head][head_dim] */
@@ -1137,7 +1673,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             int seq_len = pos + 1;
             for (int t = 0; t < seq_len; t++) {
                 float *kt = m->k_cache + L * kv_stride + t * kv_dim + kv_h * hd;
-                llm_attn_scores[t] = llm_dot_f32(qh, kt, hd) * scale;
+                float d = jit_fwd_dot_hd
+                    ? jit_fwd_dot_hd(qh, kt, hd)
+                    : llm_dot_f32(qh, kt, hd);
+                llm_attn_scores[t] = d * scale;
             }
 
             /* Softmax over scores */
@@ -1148,7 +1687,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             for (int t = 0; t < seq_len; t++) {
                 float s = llm_attn_scores[t];
                 float *vt = m->v_cache + L * kv_stride + t * kv_dim + kv_h * hd;
-                llm_axpy_f32(llm_head_buf, s, vt, hd);
+                if (jit_fwd_axpy_hd)
+                    jit_fwd_axpy_hd(llm_head_buf, s, vt, hd);
+                else
+                    llm_axpy_f32(llm_head_buf, s, vt, hd);
             }
 
             /* Copy head output to concat buffer */
@@ -1157,7 +1699,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* 2f. Output projection + residual */
         llm_gemv(llm_ffn_d, layer->o_weight, llm_attn_out, dim, dim, layer->o_type);
-        llm_vadd_f32(llm_x, llm_ffn_d, dim);
+        if (jit_fwd_vadd_dim)
+            jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
+        else
+            llm_vadd_f32(llm_x, llm_ffn_d, dim);
 
         /* === Feed-Forward Network (SwiGLU) === */
 
@@ -1167,12 +1712,19 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x) */
         llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, ff, dim, layer->gate_type);
         llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, ff, dim, layer->up_type);
-        llm_silu(llm_ffn_g, ff);
-        llm_vmul_f32(llm_ffn_g, llm_ffn_u, ff);
+        if (jit_fwd_fused_silu) {
+            jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, ff);
+        } else {
+            llm_silu(llm_ffn_g, ff);
+            llm_vmul_f32(llm_ffn_g, llm_ffn_u, ff);
+        }
 
         /* 2i. Down projection + residual */
         llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, ff, layer->down_type);
-        llm_vadd_f32(llm_x, llm_ffn_d, dim);
+        if (jit_fwd_vadd_dim)
+            jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
+        else
+            llm_vadd_f32(llm_x, llm_ffn_d, dim);
     }
 
     /* 3. Final RMSNorm */
@@ -1708,9 +2260,11 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     output_text[0] = '\0';
 
     /* Process prompt tokens (prefill) */
+    uint64_t t_prefill_start = rdtsc_fenced();
     for (int i = 0; i < n_prompt && (start_pos + i) < m->max_seq - 1; i++) {
         llm_forward_token(m, llm_logits, prompt_tokens[i], start_pos + i);
     }
+    uint64_t t_prefill_end = rdtsc_fenced();
 
     /* Generate new tokens */
     int last_token = (n_prompt > 0) ? prompt_tokens[n_prompt - 1] : m->bos_id;
@@ -1718,6 +2272,9 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
 
     /* Get next token from the last forward pass */
     int next = llm_sample(llm_logits, m->vocab_size, temperature);
+
+    uint64_t t_gen_start = rdtsc_fenced();
+    int consec_nl = 0;  /* consecutive newline counter */
 
     for (int g = 0; g < max_gen && pos < m->max_seq; g++) {
         /* Check for EOS BEFORE decoding its text */
@@ -1731,42 +2288,29 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
         output_text[out_pos] = '\0';
         gen_count++;
 
-        /* Check for <|im_end|> or <|endoftext|> in generated text */
+        /* Check for <|im_end|> or <|endoftext|> in recent text */
         if (out_pos >= 10) {
             const char *tail = output_text + out_pos - 10;
             int stop = 0;
-            for (int s = 0; s <= 10 && !stop; s++) {
+            for (int s = 0; s < 10 && !stop; s++) {
                 if (tail[s] == '<' && tail[s+1] == '|') {
                     stop = 1;
-                    /* Truncate at the '<' */
-                    for (int t = (int)(tail - output_text) + s; t < out_pos; t++)
-                        output_text[t] = '\0';
-                    out_pos = (int)(tail - output_text) + s;
+                    int trunc_at = (int)(tail - output_text) + s;
+                    output_text[trunc_at] = '\0';
+                    out_pos = trunc_at;
                 }
             }
             if (stop) break;
         }
 
-        /* Stop after 4 newlines (model is rambling) */
+        /* Track consecutive newlines — stop after 3 in a row (model is done) */
         {
-            int nl_count = 0;
-            for (int i = 0; i < out_pos; i++)
-                if (output_text[i] == '\n') nl_count++;
-            if (nl_count >= 4) {
-                /* Truncate at 4th newline */
-                int nl_seen = 0;
-                for (int i = 0; i < out_pos; i++) {
-                    if (output_text[i] == '\n') {
-                        nl_seen++;
-                        if (nl_seen >= 4) {
-                            output_text[i] = '\0';
-                            out_pos = i;
-                            break;
-                        }
-                    }
-                }
-                break;
-            }
+            int has_nl = 0;
+            for (int i = 0; i < tok_len; i++)
+                if (tok_buf[i] == '\n') has_nl = 1;
+            if (has_nl) consec_nl++;
+            else consec_nl = 0;
+            if (consec_nl >= 3) break;
         }
 
         /* Forward the new token */
@@ -1777,6 +2321,7 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
         last_token = next;
         next = llm_sample(llm_logits, m->vocab_size, temperature);
     }
+    uint64_t t_gen_end = rdtsc_fenced();
 
     /* Final cleanup: strip any <|...|> artifacts from output */
     {
@@ -1794,6 +2339,17 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
 
     /* Update cache length for multi-turn */
     m->cache_len = pos;
+
+    /* Print timing stats */
+    if (gen_count > 0) {
+        uint64_t prefill_us = perf_cycles_to_us(t_prefill_end - t_prefill_start);
+        uint64_t gen_us = perf_cycles_to_us(t_gen_end - t_gen_start);
+        uint64_t ms_per_tok = gen_us / (uint64_t)gen_count / 1000;
+        kprintf("\n[%d tok, %lu ms/tok, prefill %lu ms, %d cpus]\n",
+                gen_count, (unsigned long)ms_per_tok,
+                (unsigned long)(prefill_us / 1000),
+                smp.ap_started + 1);
+    }
 
     return gen_count;
 }
@@ -1899,7 +2455,7 @@ static int llm_load_from_disk(llm_model_t *m)
     }
 
     /* Cap at available model cache size */
-    uint64_t cache_size = (uint64_t)(__model_cache_end - __model_cache_start);
+    uint64_t cache_size = tensor_mm_model_cache_max();
     if (capacity > cache_size) {
         kprintf("[LLM] Model (%lu MB) exceeds cache (%lu MB)\n",
                 capacity / (1024 * 1024), cache_size / (1024 * 1024));
@@ -1908,8 +2464,8 @@ static int llm_load_from_disk(llm_model_t *m)
 
     kprintf("[LLM] Loading model from disk: %lu MB\n", capacity / (1024 * 1024));
 
-    /* Read the entire disk into model_cache_start */
-    m->data_buf = (void *)__model_cache_start;
+    /* Read the entire disk into model cache region */
+    m->data_buf = tensor_mm_model_cache_base();
     m->data_size = capacity;
 
     uint64_t n_sectors = (capacity + 511) / 512;
@@ -2472,9 +3028,9 @@ int llm_prompt(const char *user_text, char *output, int max_output)
         return -1;
     }
 
-    /* Generate: max 256 tokens, temperature 0.7 with top-k/top-p sampling */
+    /* Generate: max 1024 tokens, temperature 0.7 with top-k/top-p sampling */
     int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
-                             256, 0.7f, 0);
+                             1024, 0.7f, 0);
     __sync_lock_release(&llm_inference_active);
     return n_gen;
 }

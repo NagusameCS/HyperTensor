@@ -29,8 +29,17 @@ static void shell_print_help(void);
 
 static int shell_strcmp(const char *a, const char *b)
 {
-    while (*a && *a == *b) { a++; b++; }
-    return *(unsigned char *)a - *(unsigned char *)b;
+    while (*a && *b) {
+        char ca = *a, cb = *b;
+        if (ca >= 'A' && ca <= 'Z') ca += 32;
+        if (cb >= 'A' && cb <= 'Z') cb += 32;
+        if (ca != cb) break;
+        a++; b++;
+    }
+    char ca = *a, cb = *b;
+    if (ca >= 'A' && ca <= 'Z') ca += 32;
+    if (cb >= 'A' && cb <= 'Z') cb += 32;
+    return (unsigned char)ca - (unsigned char)cb;
 }
 
 __attribute__((unused))
@@ -1249,7 +1258,7 @@ static int cmd_llm(aishell_t *sh, int argc, char **argv)
     kprintf("[LLM] Prompt: %s\n", prompt);
     kprintf("[LLM] Generating...\n");
 
-    static char response[2048];
+    static char response[4096];
     uint64_t t0 = rdtsc_fenced();
     int n_gen = llm_prompt(prompt, response, sizeof(response));
     uint64_t t1 = rdtsc_fenced();
@@ -1594,6 +1603,8 @@ static int cmd_sysinfo(aishell_t *sh, int argc, char **argv)
 #endif
     kprintf("  CPU:        %s, %d cores @ %lu MHz\n",
             cpu_features.vendor, smp.cpu_count, perf_tsc_mhz());
+    if (smp.ap_started > 0)
+        kprintf("  SMP:        %d APs active (parallel GEMV)\n", smp.ap_started);
     kprintf("  RAM:        %lu MB total, %lu MB free\n",
             stats.total_phys / (1024*1024), stats.free_phys / (1024*1024));
     kprintf("  Heap:       %lu MB / %lu MB\n",
