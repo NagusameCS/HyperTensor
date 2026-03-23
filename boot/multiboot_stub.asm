@@ -101,33 +101,39 @@ _start:
     mov al, '2'
     out dx, al
 
-    ; --- Setup page tables: identity map first 4GB ---
-    ; Zero page tables (6 pages: PML4 + PDPT + 4 PDs)
+    ; --- Setup page tables: identity map first 8GB ---
+    ; Zero page tables (10 pages: PML4 + PDPT + 8 PDs)
     mov edi, 0x1000
     mov cr3, edi
     xor eax, eax
-    mov ecx, 6144
-    rep stosd                     ; Clear 24KB (6 pages)
+    mov ecx, 10240
+    rep stosd                     ; Clear 40KB (10 pages)
 
     ; PML4[0] -> PDPT at 0x2000
     mov dword [0x1000], 0x2003
-    ; PDPT[0] -> PD at 0x3000  (1st GB: 0x00000000-0x3FFFFFFF)
-    mov dword [0x2000], 0x3003
-    ; PDPT[1] -> PD at 0x4000  (2nd GB: 0x40000000-0x7FFFFFFF)
-    mov dword [0x2008], 0x4003
-    ; PDPT[2] -> PD at 0x5000  (3rd GB: 0x80000000-0xBFFFFFFF)
-    mov dword [0x2010], 0x5003
-    ; PDPT[3] -> PD at 0x6000  (4th GB: 0xC0000000-0xFFFFFFFF -- LAPIC/IOAPIC)
-    mov dword [0x2018], 0x6003
+    ; PDPT[0..7] -> PDs at 0x3000..0xA000 (8 × 1GB = 8GB + MMIO headroom)
+    mov dword [0x2000], 0x3003    ; 0x00000000-0x3FFFFFFF (1st GB)
+    mov dword [0x2008], 0x4003    ; 0x40000000-0x7FFFFFFF (2nd GB)
+    mov dword [0x2010], 0x5003    ; 0x80000000-0xBFFFFFFF (3rd GB)
+    mov dword [0x2018], 0x6003    ; 0xC0000000-0xFFFFFFFF (4th GB)
+    mov dword [0x2020], 0x7003    ; 0x100000000-0x13FFFFFFF (5th GB - tensor heap)
+    mov dword [0x2028], 0x8003    ; 0x140000000-0x17FFFFFFF (6th GB - tensor heap)
+    mov dword [0x2030], 0x9003    ; 0x180000000-0x1BFFFFFFF (7th GB - tensor heap)
+    mov dword [0x2038], 0xA003    ; 0x1C0000000-0x1FFFFFFFF (8th GB - tensor heap)
 
-    ; Fill all 4 PDs: 4 × 512 = 2048 entries of 2MB huge pages
-    ; Maps 0x00000000 .. 0xFFFFFFFF (4 GB)
+    ; Fill all 8 PDs: 8 × 512 = 4096 entries of 2MB huge pages
+    ; Maps 0x00000000 .. 0x1FFFFFFFF (8 GB)
     mov edi, 0x3000
     mov eax, 0x00000083           ; addr_lo | Present+Write+Huge
-    mov ecx, 2048
+    xor ebx, ebx                  ; addr_hi (starts at 0)
+    mov ecx, 4096
 .fill_all_pds:
     mov [edi], eax
+    mov [edi+4], ebx
     add eax, 0x200000
+    jnc .no_carry
+    inc ebx                       ; carry into high 32 bits past 4GB
+.no_carry:
     add edi, 8
     dec ecx
     jnz .fill_all_pds

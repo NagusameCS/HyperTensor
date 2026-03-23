@@ -1,0 +1,40 @@
+/* safetensors.h - Native safetensors format loader */
+#ifndef SAFETENSORS_H
+#define SAFETENSORS_H
+
+#include <stdint.h>
+
+typedef enum {
+    ST_DTYPE_F32 = 0, ST_DTYPE_F16 = 1, ST_DTYPE_BF16 = 2, ST_DTYPE_F64 = 3,
+    ST_DTYPE_I32 = 4, ST_DTYPE_I16 = 5, ST_DTYPE_I8 = 6, ST_DTYPE_U8 = 7,
+    ST_DTYPE_BOOL = 8, ST_DTYPE_UNKNOWN = 255,
+} st_dtype_t;
+
+#define ST_MAX_TENSORS 512
+#define ST_MAX_DIMS    8
+#define ST_MAX_NAME    128
+
+typedef struct {
+    char       name[ST_MAX_NAME];
+    st_dtype_t dtype;
+    int        ndim;
+    uint64_t   shape[ST_MAX_DIMS];
+    uint64_t   data_offset;
+    uint64_t   data_size;
+    float     *data;
+} st_tensor_info_t;
+
+typedef struct {
+    st_tensor_info_t tensors[ST_MAX_TENSORS];
+    int              n_tensors;
+    uint64_t         header_size;
+    uint64_t         data_size;
+    const uint8_t   *data_base;
+} st_file_t;
+
+int  safetensors_parse(const uint8_t *data, uint64_t file_size, st_file_t *st);
+int  safetensors_load_tensor(st_file_t *st, int tensor_idx, float **out, uint64_t *out_count);
+int  safetensors_find(const st_file_t *st, const char *name);
+void safetensors_print_info(const st_file_t *st);
+
+#endif /* SAFETENSORS_H */

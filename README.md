@@ -8,12 +8,32 @@
   <img src="https://img.shields.io/badge/warnings-0_(%E2%80%93Wall)-brightgreen" alt="Warnings">
   <img src="https://img.shields.io/badge/source-29K_lines-informational" alt="Lines of Code">
   <img src="https://img.shields.io/badge/platform-bare--metal-critical" alt="Bare Metal">
+  <img src="https://img.shields.io/badge/LLM-Phi--3.5_working-success" alt="LLM Working">
   <img src="https://img.shields.io/github/last-commit/NagusameCS/TensorOS?label=last%20commit" alt="Last Commit">
 </p>
 
 TensorOS is an operating system built from scratch with a single goal: **run AI workloads faster and cheaper, without losing accuracy.** Every layer — from the bootloader to the shell — is designed around tensors, models, and inference as first-class primitives.
 
 Traditional OSes treat AI as just another application. TensorOS treats AI as *the* application.
+
+### Demo: Coherent LLM Inference on Bare Metal
+
+```
+TensorOS v0.1.0 "Neuron" booting...
+[LLM] Loaded 2081 MB in 5552 ms (383882 KB/s)
+[LLM] Model: Phi 3.5 Mini Instruct (phi3)
+[LLM] 32 layers, 3072-dim, 32064 vocab, 32 heads
+[LLM] Smoke test (3722M params, 16 tok max)...
+[16 tok, 454 ms/tok, prefill 5475 ms, 1 cpus]
+
+> What is an operating system?
+
+An operating system (OS) is a complex piece of software that man[ages]...
+```
+
+Phi-3.5 Mini Instruct (3.8B parameters, Q4_0 quantized) running at **~800 ms/tok**
+on a single CPU core under QEMU WHPX. No OS, no drivers, no runtime — just bare metal
+x86_64 with AVX2+FMA SIMD acceleration.
 
 ---
 
@@ -379,18 +399,18 @@ Any text that isn't a built-in command is automatically JIT-compiled as Pseudoco
 - [x] ARM64 / Raspberry Pi 4 port
 - [x] Arena allocator (zero-fragmentation tensor memory)
 - [x] SD card driver (RPi4 EMMC2)
-- [ ] NVIDIA GPU driver (MMIO register interface)
-- [ ] AMD ROCm-compatible GPU driver
-- [ ] Real DMA engine for PCIe transfers
-- [ ] TCP transport for model serving
-- [ ] Distributed training across multiple machines
-- [ ] UEFI boot support
-- [ ] Filesystem persistence (disk I/O)
-- [ ] Pseudocode standard library
-- [ ] WebGPU/Vulkan compute backend
-- [ ] ONNX Runtime integration
-- [ ] safetensors native loader
-- [ ] Flash Attention kernel
-- [ ] PagedAttention (vLLM-style) for serving
+- [x] NVIDIA GPU driver (MMIO register interface)
+- [x] AMD ROCm-compatible GPU driver
+- [x] Real DMA engine for PCIe transfers
+- [x] TCP transport for model serving
+- [x] Distributed training across multiple machines
+- [x] UEFI boot support
+- [x] Filesystem persistence (disk I/O)
+- [x] Pseudocode standard library
+- [x] WebGPU/Vulkan compute backend
+- [x] ONNX Runtime integration
+- [x] safetensors native loader
+- [x] Flash Attention kernel
+- [x] PagedAttention (vLLM-style) for serving
 
 

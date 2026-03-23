@@ -170,6 +170,8 @@ void vmm_enforce_wx(void);
 /* JIT W^X transitions: flip pages between RW (for writing) and RX (for exec) */
 int  vmm_mark_rx(void *addr, uint32_t size);
 int  vmm_mark_rw(void *addr, uint32_t size);
+/* Set to 1 when running under a hypervisor (WHPX) — page table mods skipped */
+extern int vmm_hypervisor_active;
 #endif /* !__aarch64__ */
 
 #endif /* TENSOROS_TENSOR_MM_H */

@@ -216,12 +216,61 @@ static float llm_sqrtf(float x)
 
 static float llm_expf(float x)
 {
-    if (x > 88.0f) return 3.4e38f;
-    if (x < -88.0f) return 0.0f;
-    /* Pade approximant for exp(x) near 0, range-reduced */
-    float y = 1.0f + x / 256.0f;
-    for (int i = 0; i < 8; i++) y = y * y; /* y^256 */
-    return y;
+    if (x > 88.7f) return 3.4028235e38f;
+    if (x < -88.7f) return 0.0f;
+    /* Range reduction: exp(x) = 2^n * exp(r), r in [-ln2/2, ln2/2]
+     * n = round(x / ln2), r = x - n * ln2 */
+    float n = (float)(int)(x * 1.4426950408f + (x >= 0 ? 0.5f : -0.5f)); /* round(x/ln2) */
+    float r = x - n * 0.693145751953125f;   /* Cody-Waite high part */
+    r -= n * 1.428606765330187e-06f;         /* Cody-Waite low part  */
+    /* Minimax polynomial for exp(r), r in [-ln2/2, ln2/2], max err < 2e-7 */
+    float r2 = r * r;
+    float r3 = r2 * r;
+    float p = 1.0f + r + r2 * 0.5f + r3 * 0.16666666f
+            + r2 * r2 * 0.041666666f + r2 * r3 * 0.008333333f
+            + r3 * r3 * 0.001388889f;
+    /* Reconstruct: multiply by 2^n via IEEE 754 bit manipulation */
+    int ni = (int)n;
+    union { float f; unsigned int u; } scale;
+    scale.u = (unsigned int)(127 + ni) << 23;
+    return p * scale.f;
+}
+
+/* Accurate sinf/cosf using Cody-Waite range reduction + minimax polynomials.
+ * Reduces to [-pi/4, pi/4] using quadrant decomposition where Taylor series
+ * converges rapidly (max |x| = 0.785, so x^8/8! ~ 5e-7). */
+static float llm_sinf(float x)
+{
+    /* Range reduction to [-pi, pi] */
+    float pi  = 3.14159265358979f;
+    float hpi = 1.57079632679490f;
+    float itp = 0.15915494309190f; /* 1/(2*pi) */
+    x = x - (float)(int)(x * itp + (x >= 0 ? 0.5f : -0.5f)) * (2.0f * pi);
+
+    /* Quadrant decomposition: reduce to [-pi/4, pi/4] */
+    int negate = 0;
+    if (x < 0) { x = -x; negate = 1; }
+    /* x now in [0, pi] */
+    int use_cos = 0;
+    if (x > hpi) { x = pi - x; }       /* mirror: sin(pi-x) = sin(x) */
+    if (x > hpi * 0.5f) { x = hpi - x; use_cos = 1; } /* sin(pi/2-x) = cos(x) */
+
+    float x2 = x * x;
+    float r;
+    if (use_cos) {
+        /* cos(x) = 1 - x^2/2 + x^4/24 - x^6/720 + x^8/40320 */
+        r = 1.0f - x2 * (0.5f - x2 * (0.041666666f - x2 * (0.001388889f - x2 * 2.48016e-05f)));
+    } else {
+        /* sin(x) = x - x^3/6 + x^5/120 - x^7/5040 + x^9/362880 */
+        r = x * (1.0f - x2 * (0.16666667f - x2 * (0.008333333f - x2 * (0.000198413f - x2 * 2.7558e-06f))));
+    }
+    return negate ? -r : r;
+}
+
+static float llm_cosf(float x)
+{
+    /* cos(x) = sin(x + pi/2) */
+    return llm_sinf(x + 1.57079632679490f);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -236,8 +285,26 @@ static float llm_expf(float x)
 /* GGML Q4_0 block: {fp16 scale, uint8[16]} = 18 bytes for 32 elements */
 typedef struct { uint16_t d; uint8_t qs[16]; } __attribute__((packed)) ggml_q4_0_t;
 
+/* GGML Q4_1 block: {fp16 scale, fp16 min, uint8[16]} = 20 bytes for 32 elements
+ * Dequant: val = d * nibble + m  (unsigned nibble 0-15, m is minimum value) */
+typedef struct { uint16_t d; uint16_t m; uint8_t qs[16]; } __attribute__((packed)) ggml_q4_1_t;
+
 /* GGML Q8_0 block: {fp16 scale, int8[32]}  = 34 bytes for 32 elements */
 typedef struct { uint16_t d; int8_t  qs[32]; } __attribute__((packed)) ggml_q8_0_t;
+
+/* GGML Q6_K super-block: 256 elements in 210 bytes
+ * ql[128] — lower 4 bits of each 6-bit quant (2 quants per byte for first half,
+ *           then 2 quants per byte for second half)
+ * qh[64]  — upper 2 bits of each quant (4 quants packed per byte)
+ * scales[16] — int8 scale per 16-element sub-block
+ * d — fp16 super-block scale
+ */
+typedef struct {
+    uint8_t ql[128];
+    uint8_t qh[64];
+    int8_t  scales[16];
+    uint16_t d;
+} __attribute__((packed)) ggml_q6_k_t;
 
 /* Dot product: Q4_0 block · float[32] — SSE2 optimized */
 static float q4_0_dot32(const ggml_q4_0_t *block, const float *x)
@@ -246,24 +313,25 @@ static float q4_0_dot32(const ggml_q4_0_t *block, const float *x)
     const uint8_t *qs = block->qs;
 
 #ifndef __aarch64__
-    /* SSE2: process 4 bytes (8 nibbles = 8 elements) per iteration, 4 iterations */
-    v4f acc0 = {0, 0, 0, 0};
-    v4f acc1 = {0, 0, 0, 0};
+    /* SSE2: standard GGML layout — lo nibbles map to x[0..15], hi to x[16..31] */
+    v4f acc_lo0 = {0, 0, 0, 0};
+    v4f acc_lo1 = {0, 0, 0, 0};
+    v4f acc_hi0 = {0, 0, 0, 0};
+    v4f acc_hi1 = {0, 0, 0, 0};
 
     for (int j = 0; j < 16; j += 4) {
         uint8_t b0 = qs[j], b1 = qs[j+1], b2 = qs[j+2], b3 = qs[j+3];
-        /* Interleaved: lo0,hi0, lo1,hi1, lo2,hi2, lo3,hi3 = 8 floats */
-        v4f q0 = {(float)((int)(b0 & 0xF) - 8), (float)((int)(b0 >> 4) - 8),
-                  (float)((int)(b1 & 0xF) - 8), (float)((int)(b1 >> 4) - 8)};
-        v4f q1 = {(float)((int)(b2 & 0xF) - 8), (float)((int)(b2 >> 4) - 8),
-                  (float)((int)(b3 & 0xF) - 8), (float)((int)(b3 >> 4) - 8)};
-        v4f x0 = *(const v4f *)(x + 2*j);
-        v4f x1 = *(const v4f *)(x + 2*j + 4);
-        acc0 += q0 * x0;
-        acc1 += q1 * x1;
+        v4f qlo = {(float)((int)(b0 & 0xF) - 8), (float)((int)(b1 & 0xF) - 8),
+                   (float)((int)(b2 & 0xF) - 8), (float)((int)(b3 & 0xF) - 8)};
+        v4f qhi = {(float)((int)(b0 >> 4) - 8), (float)((int)(b1 >> 4) - 8),
+                   (float)((int)(b2 >> 4) - 8), (float)((int)(b3 >> 4) - 8)};
+        v4f xlo = *(const v4f *)(x + j);       /* x[j..j+3] */
+        v4f xhi = *(const v4f *)(x + j + 16);  /* x[j+16..j+19] */
+        acc_lo0 += qlo * xlo;
+        acc_hi0 += qhi * xhi;
     }
 
-    v4f acc = acc0 + acc1;
+    v4f acc = acc_lo0 + acc_hi0;
     union { v4f v; float f[4]; } u = { .v = acc };
     return (u.f[0] + u.f[1] + u.f[2] + u.f[3]) * d;
 #else
@@ -272,9 +340,58 @@ static float q4_0_dot32(const ggml_q4_0_t *block, const float *x)
         uint8_t packed = qs[j];
         int lo = (int)(packed & 0x0F) - 8;
         int hi = (int)(packed >> 4)   - 8;
-        sum += (float)lo * x[2 * j] + (float)hi * x[2 * j + 1];
+        sum += (float)lo * x[j] + (float)hi * x[j + 16];
     }
     return sum * d;
+#endif
+}
+
+/* Dot product: Q4_1 block · float[32]
+ * Each nibble is unsigned (0-15), dequant: d * nibble + m
+ * dot = sum_i (d * nibble_i + m) * x_i = d * sum(nibble_i * x_i) + m * sum(x_i) */
+static float q4_1_dot32(const ggml_q4_1_t *block, const float *x)
+{
+    float d = fp16_to_fp32(block->d);
+    float m = fp16_to_fp32(block->m);
+    const uint8_t *qs = block->qs;
+
+#ifndef __aarch64__
+    /* Standard GGML layout: lo nibbles → x[0..15], hi nibbles → x[16..31] */
+    v4f qxacc_lo = {0, 0, 0, 0};
+    v4f qxacc_hi = {0, 0, 0, 0};
+    v4f xacc_lo = {0, 0, 0, 0};
+    v4f xacc_hi = {0, 0, 0, 0};
+
+    for (int j = 0; j < 16; j += 4) {
+        uint8_t b0 = qs[j], b1 = qs[j+1], b2 = qs[j+2], b3 = qs[j+3];
+        v4f qlo = {(float)(b0 & 0xF), (float)(b1 & 0xF),
+                   (float)(b2 & 0xF), (float)(b3 & 0xF)};
+        v4f qhi = {(float)(b0 >> 4), (float)(b1 >> 4),
+                   (float)(b2 >> 4), (float)(b3 >> 4)};
+        v4f xlo = *(const v4f *)(x + j);       /* x[j..j+3] */
+        v4f xhi = *(const v4f *)(x + j + 16);  /* x[j+16..j+19] */
+        qxacc_lo += qlo * xlo;
+        qxacc_hi += qhi * xhi;
+        xacc_lo += xlo;
+        xacc_hi += xhi;
+    }
+
+    v4f qx = qxacc_lo + qxacc_hi;
+    v4f xs = xacc_lo + xacc_hi;
+    union { v4f v; float f[4]; } uq = { .v = qx };
+    union { v4f v; float f[4]; } ux = { .v = xs };
+    float qxsum = uq.f[0] + uq.f[1] + uq.f[2] + uq.f[3];
+    float xsum  = ux.f[0] + ux.f[1] + ux.f[2] + ux.f[3];
+    return d * qxsum + m * xsum;
+#else
+    float qxsum = 0.0f, xsum = 0.0f;
+    for (int j = 0; j < 16; j++) {
+        float lo = (float)(qs[j] & 0xF);
+        float hi = (float)(qs[j] >> 4);
+        qxsum += lo * x[j] + hi * x[j + 16];
+        xsum  += x[j] + x[j + 16];
+    }
+    return d * qxsum + m * xsum;
 #endif
 }
 
@@ -309,6 +426,51 @@ static float q8_0_dot32(const ggml_q8_0_t *block, const float *x)
 #endif
 }
 
+/* Q6_K super-block dot product: 256 elements
+ * Dequant: val = d * scales[sub] * q6 where q6 is 6-bit signed (-32..31)
+ * Lower 4 bits in ql[], upper 2 bits in qh[]
+ * Layout follows ggml reference: 2 halves of 128, each with 4 groups of 32.
+ * ql[0..63]: lower nibbles for quants at offsets 0..31 (lo nibble) and 64..95 (hi nibble)
+ *            in the first half, ql[32..63] for offsets 32..63 and 96..127
+ * ql[64..127]: same pattern for second half (quants 128..255)
+ * qh[0..31]: 2-bit high parts for first half (4 quants per byte, shifts 0/2/4/6)
+ * qh[32..63]: same for second half
+ * scales[0..15]: int8 scales, 2 per group of 32: sc[0]=grp0, sc[2]=grp1, etc. */
+static float q6_k_dot256(const ggml_q6_k_t *block, const float *x)
+{
+    float d = fp16_to_fp32(block->d);
+    float sum = 0.0f;
+    const uint8_t *ql = block->ql;
+    const uint8_t *qh = block->qh;
+    const int8_t *sc = block->scales;
+
+    /* Process in 2 halves of 128 quants each */
+    for (int half = 0; half < 2; half++) {
+        const uint8_t *ql_h = ql + half * 64;
+        const uint8_t *qh_h = qh + half * 32;
+        const int8_t *sc_h = sc + half * 8;
+        const float *x_h = x + half * 128;
+
+        for (int l = 0; l < 32; l++) {
+            /* 4 quants per iteration from the 4 groups of 32 in this half */
+            int q0 = (int)( ql_h[l]      & 0xF) | (int)(((qh_h[l] >> 0) & 3) << 4);
+            int q1 = (int)( ql_h[l + 32] & 0xF) | (int)(((qh_h[l] >> 2) & 3) << 4);
+            int q2 = (int)( ql_h[l]      >>  4) | (int)(((qh_h[l] >> 4) & 3) << 4);
+            int q3 = (int)( ql_h[l + 32] >>  4) | (int)(((qh_h[l] >> 6) & 3) << 4);
+
+            /* Scale mapping: each group of 32 has 2 sub-blocks of 16.
+             * sc_h[0] for l<16 in group 0, sc_h[1] for l>=16 in group 0, etc. */
+            int si0 = l / 16;        /* 0 or 1 → scale index within group 0 */
+            sum += (float)sc_h[0 + si0] * (float)(q0 - 32) * x_h[l];
+            sum += (float)sc_h[2 + si0] * (float)(q1 - 32) * x_h[l + 32];
+            sum += (float)sc_h[4 + si0] * (float)(q2 - 32) * x_h[l + 64];
+            sum += (float)sc_h[6 + si0] * (float)(q3 - 32) * x_h[l + 96];
+        }
+    }
+
+    return sum * d;
+}
+
 /* Generic vector dot product: quantized weight row · float input
  * Returns the dot product of n elements.
  * The weight pointer must be to the start of the row's block data. */
@@ -322,6 +484,12 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
         const ggml_q4_0_t *blocks = (const ggml_q4_0_t *)weight;
         for (int b = 0; b < nb; b++)
             sum += q4_0_dot32(&blocks[b], x + b * 32);
+        break;
+    }
+    case GGML_TYPE_Q4_1: {
+        const ggml_q4_1_t *blocks = (const ggml_q4_1_t *)weight;
+        for (int b = 0; b < nb; b++)
+            sum += q4_1_dot32(&blocks[b], x + b * 32);
         break;
     }
     case GGML_TYPE_Q8_0: {
@@ -376,6 +544,13 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
 #endif
         break;
     }
+    case GGML_TYPE_Q6_K: {
+        const ggml_q6_k_t *blocks = (const ggml_q6_k_t *)weight;
+        int nsb = n / 256;  /* Q6_K uses super-blocks of 256 elements */
+        for (int b = 0; b < nsb; b++)
+            sum += q6_k_dot256(&blocks[b], x + b * 256);
+        break;
+    }
     default:
         break;
     }
@@ -413,15 +588,29 @@ static inline v8f v8f_max(v8f a, v8f b) {
     return r;
 }
 
-/* AVX2 vectorized exp: 8 floats at once using (1+x/256)^256 */
+/* AVX2 vectorized exp: range reduction exp(x)=2^n * exp(r), minimax poly */
 __attribute__((target("avx2,fma")))
 static inline v8f v8f_expf(v8f x) {
-    x = v8f_max(x, v8f_set1(-88.0f));
-    x = v8f_min(x, v8f_set1(88.0f));
-    v8f y = v8f_set1(1.0f) + x * v8f_set1(1.0f / 256.0f);
-    y = y * y; y = y * y; y = y * y; y = y * y;
-    y = y * y; y = y * y; y = y * y; y = y * y;
-    return y;
+    x = v8f_max(x, v8f_set1(-88.7f));
+    x = v8f_min(x, v8f_set1(88.7f));
+    /* n = round(x / ln2) */
+    v8f nf;
+    __asm__("vroundps $0, %1, %0" : "=x"(nf) : "x"(x * v8f_set1(1.4426950408f)));
+    /* r = x - n*ln2 (Cody-Waite two-part) */
+    v8f r = x - nf * v8f_set1(0.693145751953125f);
+    r = r - nf * v8f_set1(1.428606765330187e-06f);
+    /* Polynomial: exp(r) for r in [-ln2/2, ln2/2] */
+    v8f r2 = r * r;
+    v8f r3 = r2 * r;
+    v8f p = v8f_set1(1.0f) + r + r2 * v8f_set1(0.5f)
+          + r3 * v8f_set1(0.16666666f) + r2 * r2 * v8f_set1(0.041666666f)
+          + r2 * r3 * v8f_set1(0.008333333f) + r3 * r3 * v8f_set1(0.001388889f);
+    /* 2^n: convert n to int, add 127 bias, shift into IEEE754 exponent field */
+    union { int i[8]; v8f v; } ni, scale;
+    __asm__("vcvtps2dq %1, %0" : "=x"(ni.v) : "x"(nf));
+    for (int j = 0; j < 8; j++)
+        scale.i[j] = (ni.i[j] + 127) << 23;
+    return p * scale.v;
 }
 
 /* SIMD int8→float: vpmovsxbd (sign-extend 8×i8→8×i32) + vcvtdq2ps
@@ -561,26 +750,28 @@ static float q4_0_dot32_avx2(const ggml_q4_0_t *block, const float *x)
     float d = fp16_to_fp32_fast(block->d);
     const uint8_t *qs = block->qs;
 
-    v8f acc0 = v8f_setzero();
-    v8f acc1 = v8f_setzero();
-    v8f acc2 = v8f_setzero();
-    v8f acc3 = v8f_setzero();
+    /* Standard GGML layout: lo nibbles → x[0..15], hi nibbles → x[16..31] */
+    v8f acc_lo = v8f_setzero();
+    v8f acc_hi = v8f_setzero();
 
-    for (int j = 0; j < 16; j += 4) {
+    for (int j = 0; j < 16; j += 8) {
         uint8_t b0=qs[j], b1=qs[j+1], b2=qs[j+2], b3=qs[j+3];
-        v8f q = {(float)((int)(b0&0xF)-8), (float)((int)(b0>>4)-8),
-                 (float)((int)(b1&0xF)-8), (float)((int)(b1>>4)-8),
-                 (float)((int)(b2&0xF)-8), (float)((int)(b2>>4)-8),
-                 (float)((int)(b3&0xF)-8), (float)((int)(b3>>4)-8)};
-        v8f xv; __builtin_memcpy(&xv, x + 2*j, 32);
-        if (j == 0) acc0 = q * xv;
-        else if (j == 4) acc1 = q * xv;
-        else if (j == 8) acc2 = q * xv;
-        else acc3 = q * xv;
+        uint8_t b4=qs[j+4], b5=qs[j+5], b6=qs[j+6], b7=qs[j+7];
+        v8f qlo = {(float)((int)(b0&0xF)-8), (float)((int)(b1&0xF)-8),
+                   (float)((int)(b2&0xF)-8), (float)((int)(b3&0xF)-8),
+                   (float)((int)(b4&0xF)-8), (float)((int)(b5&0xF)-8),
+                   (float)((int)(b6&0xF)-8), (float)((int)(b7&0xF)-8)};
+        v8f qhi = {(float)((int)(b0>>4)-8), (float)((int)(b1>>4)-8),
+                   (float)((int)(b2>>4)-8), (float)((int)(b3>>4)-8),
+                   (float)((int)(b4>>4)-8), (float)((int)(b5>>4)-8),
+                   (float)((int)(b6>>4)-8), (float)((int)(b7>>4)-8)};
+        v8f xlo; __builtin_memcpy(&xlo, x + j, 32);       /* x[j..j+7] */
+        v8f xhi; __builtin_memcpy(&xhi, x + j + 16, 32);  /* x[j+16..j+23] */
+        acc_lo += qlo * xlo;
+        acc_hi += qhi * xhi;
     }
 
-    v8f total = (acc0 + acc1) + (acc2 + acc3);
-    return v8f_reduce(total) * d;
+    return v8f_reduce(acc_lo + acc_hi) * d;
 }
 
 /* AVX2 generic vec_dot: dispatches to AVX2 block kernels */
@@ -610,6 +801,14 @@ static float llm_vec_dot_avx2(const void *weight, const float *x, int n, ggml_ty
             sum += q4_0_dot32_avx2(&blocks[b], x + b * 32);
         return sum;
     }
+    case GGML_TYPE_Q4_1: {
+        /* Q4_1: d * nibble + m — use scalar path for now (AVX2 TODO) */
+        const ggml_q4_1_t *blocks = (const ggml_q4_1_t *)weight;
+        float sum = 0.0f;
+        for (int b = 0; b < nb; b++)
+            sum += q4_1_dot32(&blocks[b], x + b * 32);
+        return sum;
+    }
     case GGML_TYPE_F32: {
         const float *f32 = (const float *)weight;
         v8f s0 = v8f_setzero(), s1 = v8f_setzero();
@@ -626,6 +825,14 @@ static float llm_vec_dot_avx2(const void *weight, const float *x, int n, ggml_ty
         float sum = v8f_reduce(s0 + s1);
         for (; i < n; i++)
             sum += f32[i] * x[i];
+        return sum;
+    }
+    case GGML_TYPE_Q6_K: {
+        const ggml_q6_k_t *blocks = (const ggml_q6_k_t *)weight;
+        int nsb = n / 256;
+        float sum = 0.0f;
+        for (int b = 0; b < nsb; b++)
+            sum += q6_k_dot256(&blocks[b], x + b * 256);
         return sum;
     }
     default:
@@ -835,6 +1042,223 @@ static void llm_gemv_q8_fused_range_avx2(float *out, const void *weight,
     }
 }
 
+/* ─── Q4_0 nibble unpacking helpers for standard GGML layout ─── */
+/* Extract 8 lo nibbles from 8 consecutive bytes → 8 floats (elements j..j+7) */
+__attribute__((target("avx2,fma")))
+static inline v8f q4_unpack_lo_v8f(const uint8_t *qs)
+{
+    return (v8f){(float)((int)(qs[0]&0xF)-8), (float)((int)(qs[1]&0xF)-8),
+                 (float)((int)(qs[2]&0xF)-8), (float)((int)(qs[3]&0xF)-8),
+                 (float)((int)(qs[4]&0xF)-8), (float)((int)(qs[5]&0xF)-8),
+                 (float)((int)(qs[6]&0xF)-8), (float)((int)(qs[7]&0xF)-8)};
+}
+
+/* Extract 8 hi nibbles from 8 consecutive bytes → 8 floats (elements j+16..j+23) */
+__attribute__((target("avx2,fma")))
+static inline v8f q4_unpack_hi_v8f(const uint8_t *qs)
+{
+    return (v8f){(float)((int)(qs[0]>>4)-8), (float)((int)(qs[1]>>4)-8),
+                 (float)((int)(qs[2]>>4)-8), (float)((int)(qs[3]>>4)-8),
+                 (float)((int)(qs[4]>>4)-8), (float)((int)(qs[5]>>4)-8),
+                 (float)((int)(qs[6]>>4)-8), (float)((int)(qs[7]>>4)-8)};
+}
+
+/* ─── Fused Q4_0 GEMV: 4-row batched with shared x loads ───
+ * Standard GGML layout: lo nibbles → elements 0..15, hi → 16..31
+ * For each block: qs[0..7] lo → x[0..7], qs[8..15] lo → x[8..15],
+ *                 qs[0..7] hi → x[16..23], qs[8..15] hi → x[24..31]
+ */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q4_fused_avx2(float *out, const void *weight,
+                                     const float *x, int out_dim, int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 18;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = 0;
+
+    for (; i + 3 < out_dim; i += 4) {
+        const ggml_q4_0_t *r0 = (const ggml_q4_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q4_0_t *r1 = (const ggml_q4_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q4_0_t *r2 = (const ggml_q4_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q4_0_t *r3 = (const ggml_q4_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < out_dim) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        v8f a0 = v8f_setzero(), a1 = v8f_setzero();
+        v8f a2 = v8f_setzero(), a3 = v8f_setzero();
+
+        for (int b = 0; b < nb; b++) {
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);       /* x[0..7]   → lo qs[0..7] */
+            __builtin_memcpy(&x1, xp + 8, 32);   /* x[8..15]  → lo qs[8..15] */
+            __builtin_memcpy(&x2, xp + 16, 32);  /* x[16..23] → hi qs[0..7] */
+            __builtin_memcpy(&x3, xp + 24, 32);  /* x[24..31] → hi qs[8..15] */
+
+            /* Row 0 */
+            {
+                v8f d0 = v8f_set1(fp16_to_fp32_fast(r0[b].d));
+                v8f s = q4_unpack_lo_v8f(r0[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r0[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r0[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r0[b].qs + 8) * x3;
+                a0 += s * d0;
+            }
+            /* Row 1 */
+            {
+                v8f d1 = v8f_set1(fp16_to_fp32_fast(r1[b].d));
+                v8f s = q4_unpack_lo_v8f(r1[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r1[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r1[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r1[b].qs + 8) * x3;
+                a1 += s * d1;
+            }
+            /* Row 2 */
+            {
+                v8f d2 = v8f_set1(fp16_to_fp32_fast(r2[b].d));
+                v8f s = q4_unpack_lo_v8f(r2[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r2[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r2[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r2[b].qs + 8) * x3;
+                a2 += s * d2;
+            }
+            /* Row 3 */
+            {
+                v8f d3 = v8f_set1(fp16_to_fp32_fast(r3[b].d));
+                v8f s = q4_unpack_lo_v8f(r3[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r3[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r3[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r3[b].qs + 8) * x3;
+                a3 += s * d3;
+            }
+        }
+
+        out[i]   = v8f_reduce(a0);
+        out[i+1] = v8f_reduce(a1);
+        out[i+2] = v8f_reduce(a2);
+        out[i+3] = v8f_reduce(a3);
+    }
+
+    /* Tail rows */
+    for (; i < out_dim; i++) {
+        const ggml_q4_0_t *row = (const ggml_q4_0_t *)(base + (uint64_t)i * rb);
+        v8f acc = v8f_setzero();
+        for (int b = 0; b < nb; b++) {
+            v8f d = v8f_set1(fp16_to_fp32_fast(row[b].d));
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+            v8f s = q4_unpack_lo_v8f(row[b].qs) * x0;
+            s += q4_unpack_lo_v8f(row[b].qs + 8) * x1;
+            s += q4_unpack_hi_v8f(row[b].qs) * x2;
+            s += q4_unpack_hi_v8f(row[b].qs + 8) * x3;
+            acc += s * d;
+        }
+        out[i] = v8f_reduce(acc);
+    }
+}
+
+/* Fused Q4_0 GEMV for a range of rows (used by parallel workers) */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q4_fused_range_avx2(float *out, const void *weight,
+                                           const float *x, int row_start,
+                                           int row_end, int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 18;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = row_start;
+
+    for (; i + 3 < row_end; i += 4) {
+        const ggml_q4_0_t *r0 = (const ggml_q4_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q4_0_t *r1 = (const ggml_q4_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q4_0_t *r2 = (const ggml_q4_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q4_0_t *r3 = (const ggml_q4_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < row_end) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        v8f a0 = v8f_setzero(), a1 = v8f_setzero();
+        v8f a2 = v8f_setzero(), a3 = v8f_setzero();
+
+        for (int b = 0; b < nb; b++) {
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r0[b].d));
+                v8f s = q4_unpack_lo_v8f(r0[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r0[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r0[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r0[b].qs + 8) * x3;
+                a0 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r1[b].d));
+                v8f s = q4_unpack_lo_v8f(r1[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r1[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r1[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r1[b].qs + 8) * x3;
+                a1 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r2[b].d));
+                v8f s = q4_unpack_lo_v8f(r2[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r2[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r2[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r2[b].qs + 8) * x3;
+                a2 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r3[b].d));
+                v8f s = q4_unpack_lo_v8f(r3[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r3[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r3[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r3[b].qs + 8) * x3;
+                a3 += s * d;
+            }
+        }
+
+        out[i]   = v8f_reduce(a0);
+        out[i+1] = v8f_reduce(a1);
+        out[i+2] = v8f_reduce(a2);
+        out[i+3] = v8f_reduce(a3);
+    }
+
+    for (; i < row_end; i++) {
+        const ggml_q4_0_t *row = (const ggml_q4_0_t *)(base + (uint64_t)i * rb);
+        v8f acc = v8f_setzero();
+        for (int b = 0; b < nb; b++) {
+            v8f d = v8f_set1(fp16_to_fp32_fast(row[b].d));
+            const float *xp = x + b * 32;
+            v8f x0, x1, x2, x3;
+            __builtin_memcpy(&x0, xp, 32);
+            __builtin_memcpy(&x1, xp + 8, 32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+            v8f s = q4_unpack_lo_v8f(row[b].qs) * x0;
+            s += q4_unpack_lo_v8f(row[b].qs + 8) * x1;
+            s += q4_unpack_hi_v8f(row[b].qs) * x2;
+            s += q4_unpack_hi_v8f(row[b].qs + 8) * x3;
+            acc += s * d;
+        }
+        out[i] = v8f_reduce(acc);
+    }
+}
+
 /* AVX2 GEMV: 4-row batched for better cache utilization */
 __attribute__((target("avx2,fma")))
 static void llm_gemv_avx2(float *out, const void *weight, const float *x,
@@ -843,6 +1267,11 @@ static void llm_gemv_avx2(float *out, const void *weight, const float *x,
     /* Q8_0 fast path: fully fused GEMV (no per-block reduce, shared x loads) */
     if (type == GGML_TYPE_Q8_0) {
         llm_gemv_q8_fused_avx2(out, weight, x, out_dim, in_dim);
+        return;
+    }
+    /* Q4_0 fast path: fused 4-row batched GEMV */
+    if (type == GGML_TYPE_Q4_0) {
+        llm_gemv_q4_fused_avx2(out, weight, x, out_dim, in_dim);
         return;
     }
     uint64_t rb = llm_row_bytes(in_dim, type);
@@ -898,7 +1327,9 @@ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
 {
     switch (type) {
     case GGML_TYPE_Q4_0: return (uint64_t)(in_dim / 32) * 18;
+    case GGML_TYPE_Q4_1: return (uint64_t)(in_dim / 32) * 20;
     case GGML_TYPE_Q8_0: return (uint64_t)(in_dim / 32) * 34;
+    case GGML_TYPE_Q6_K: return (uint64_t)(in_dim / 256) * 210;
     case GGML_TYPE_F16:  return (uint64_t)in_dim * 2;
     case GGML_TYPE_F32:  return (uint64_t)in_dim * 4;
     default:             return (uint64_t)in_dim * 4;
@@ -981,6 +1412,13 @@ static void gemv_worker_avx2(void *arg)
         return;
     }
 
+    /* Q4_0 fast path: fused 4-row batched */
+    if (w->type == GGML_TYPE_Q4_0) {
+        llm_gemv_q4_fused_range_avx2(w->out, w->weight, w->x,
+                                      w->row_start, w->row_end, w->in_dim);
+        return;
+    }
+
     uint64_t rb = llm_row_bytes(w->in_dim, w->type);
     const uint8_t *base = (const uint8_t *)w->weight;
 
@@ -1042,9 +1480,12 @@ static void llm_gemv(float *out, const void *weight, const float *x,
                 smp_dispatch(c, gemv_worker_avx2, &gemv_work_items[c]);
                 row += chunk;
             }
-            /* BSP does its share — use fused path for Q8_0 */
+            /* BSP does its share — use fused path for Q8_0/Q4_0 */
             if (type == GGML_TYPE_Q8_0) {
                 llm_gemv_q8_fused_range_avx2(out, weight, x,
+                                              bsp_start, bsp_end, in_dim);
+            } else if (type == GGML_TYPE_Q4_0) {
+                llm_gemv_q4_fused_range_avx2(out, weight, x,
                                               bsp_start, bsp_end, in_dim);
             } else {
                 uint64_t rb = llm_row_bytes(in_dim, type);
@@ -1114,15 +1555,15 @@ static void llm_embed(float *out, const llm_model_t *m, int token_id)
         break;
     }
     case GGML_TYPE_Q4_0: {
-        /* Dequantize Q4_0 blocks */
+        /* Dequantize Q4_0 blocks (standard GGML layout: lo→[0..15], hi→[16..31]) */
         const ggml_q4_0_t *blocks = (const ggml_q4_0_t *)row;
         int nb = dim / 32;
         for (int b = 0; b < nb; b++) {
             float d = fp16_to_fp32(blocks[b].d);
             for (int j = 0; j < 16; j++) {
                 uint8_t packed = blocks[b].qs[j];
-                out[b * 32 + 2 * j]     = (float)((int)(packed & 0x0F) - 8) * d;
-                out[b * 32 + 2 * j + 1] = (float)((int)(packed >> 4)   - 8) * d;
+                out[b * 32 + j]      = (float)((int)(packed & 0x0F) - 8) * d;
+                out[b * 32 + j + 16] = (float)((int)(packed >> 4)   - 8) * d;
             }
         }
         break;
@@ -1149,7 +1590,7 @@ static void llm_embed(float *out, const llm_model_t *m, int token_id)
 
 /* AVX2 RMSNorm for F32 weights (8-wide, 2× unroll) */
 __attribute__((target("avx2,fma")))
-static void llm_rmsnorm_avx2_f32(float *out, const float *x, const float *wf, int dim)
+static void llm_rmsnorm_avx2_f32(float *out, const float *x, const float *wf, int dim, float eps)
 {
     v8f ss0 = v8f_setzero(), ss1 = v8f_setzero();
     int i = 0;
@@ -1163,7 +1604,7 @@ static void llm_rmsnorm_avx2_f32(float *out, const float *x, const float *wf, in
     float ss = v8f_reduce(ss0 + ss1);
     for (; i < dim; i++)
         ss += x[i] * x[i];
-    ss = 1.0f / llm_sqrtf(ss / (float)dim + 1e-6f);
+    ss = 1.0f / llm_sqrtf(ss / (float)dim + eps);
 
     v8f ssv = v8f_set1(ss);
     for (i = 0; i + 8 <= dim; i += 8) {
@@ -1178,11 +1619,11 @@ static void llm_rmsnorm_avx2_f32(float *out, const float *x, const float *wf, in
 }
 
 static void llm_rmsnorm(float *out, const float *x, const void *w,
-                        int dim, ggml_type_t wtype)
+                        int dim, ggml_type_t wtype, float eps)
 {
 #ifndef __aarch64__
     if (cpu_features.avx2_usable && wtype == GGML_TYPE_F32) {
-        llm_rmsnorm_avx2_f32(out, x, (const float *)w, dim);
+        llm_rmsnorm_avx2_f32(out, x, (const float *)w, dim, eps);
         return;
     }
 
@@ -1197,7 +1638,7 @@ static void llm_rmsnorm(float *out, const float *x, const void *w,
     float ss = u.f[0] + u.f[1] + u.f[2] + u.f[3];
     for (; i < dim; i++)
         ss += x[i] * x[i];
-    ss = 1.0f / llm_sqrtf(ss / (float)dim + 1e-6f);
+    ss = 1.0f / llm_sqrtf(ss / (float)dim + eps);
 
     /* Vectorized normalize + weight multiply */
     v4f ss_v = {ss, ss, ss, ss};
@@ -1213,11 +1654,161 @@ static void llm_rmsnorm(float *out, const float *x, const void *w,
     float ss = 0.0f;
     for (int i = 0; i < dim; i++)
         ss += x[i] * x[i];
-    ss = 1.0f / llm_sqrtf(ss / (float)dim + 1e-6f);
+    ss = 1.0f / llm_sqrtf(ss / (float)dim + eps);
 
     for (int i = 0; i < dim; i++)
         out[i] = x[i] * ss * llm_get_f(w, i, wtype);
 #endif
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  LayerNorm (Phi-2): subtract mean, normalize, scale + bias                  */
+/*  out[i] = w[i] * (x[i] - mean) / sqrt(var + eps) + b[i]                   */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+__attribute__((target("avx2,fma")))
+static void llm_layernorm_avx2_f32(float *out, const float *x, const float *wf,
+                                    const float *bf, int dim)
+{
+    /* Compute mean */
+    v8f sum0 = v8f_setzero(), sum1 = v8f_setzero();
+    int i = 0;
+    for (; i + 16 <= dim; i += 16) {
+        v8f v0, v1;
+        __builtin_memcpy(&v0, x + i, 32);
+        __builtin_memcpy(&v1, x + i + 8, 32);
+        sum0 = sum0 + v0;
+        sum1 = sum1 + v1;
+    }
+    float mean = v8f_reduce(sum0 + sum1);
+    for (; i < dim; i++) mean += x[i];
+    mean /= (float)dim;
+
+    /* Compute variance */
+    v8f mv = v8f_set1(mean);
+    v8f var0 = v8f_setzero(), var1 = v8f_setzero();
+    for (i = 0; i + 16 <= dim; i += 16) {
+        v8f v0, v1;
+        __builtin_memcpy(&v0, x + i, 32);
+        __builtin_memcpy(&v1, x + i + 8, 32);
+        v8f d0 = v0 - mv, d1 = v1 - mv;
+        var0 = var0 + d0 * d0;
+        var1 = var1 + d1 * d1;
+    }
+    float var = v8f_reduce(var0 + var1);
+    for (; i < dim; i++) {
+        float d = x[i] - mean;
+        var += d * d;
+    }
+    float inv_std = 1.0f / llm_sqrtf(var / (float)dim + 1e-5f);
+
+    /* Normalize + scale + bias */
+    v8f inv_v = v8f_set1(inv_std);
+    for (i = 0; i + 8 <= dim; i += 8) {
+        v8f xv, wv, bv;
+        __builtin_memcpy(&xv, x + i, 32);
+        __builtin_memcpy(&wv, wf + i, 32);
+        v8f r = (xv - mv) * inv_v * wv;
+        if (bf) {
+            __builtin_memcpy(&bv, bf + i, 32);
+            r = r + bv;
+        }
+        __builtin_memcpy(out + i, &r, 32);
+    }
+    for (; i < dim; i++) {
+        out[i] = (x[i] - mean) * inv_std * wf[i];
+        if (bf) out[i] += bf[i];
+    }
+}
+
+static void llm_layernorm(float *out, const float *x, const void *w,
+                           const void *bias, int dim, ggml_type_t wtype)
+{
+#ifndef __aarch64__
+    if (cpu_features.avx2_usable && wtype == GGML_TYPE_F32) {
+        llm_layernorm_avx2_f32(out, x, (const float *)w,
+                                bias ? (const float *)bias : NULL, dim);
+        return;
+    }
+#endif
+    /* Scalar fallback */
+    float mean = 0.0f;
+    for (int i = 0; i < dim; i++) mean += x[i];
+    mean /= (float)dim;
+
+    float var = 0.0f;
+    for (int i = 0; i < dim; i++) {
+        float d = x[i] - mean;
+        var += d * d;
+    }
+    float inv_std = 1.0f / llm_sqrtf(var / (float)dim + 1e-5f);
+
+    for (int i = 0; i < dim; i++) {
+        out[i] = (x[i] - mean) * inv_std * llm_get_f(w, i, wtype);
+        if (bias) out[i] += llm_get_f(bias, i, GGML_TYPE_F32);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  GELU activation (Phi-2 FFN uses GELU instead of SiLU/SwiGLU)              */
+/*  GELU(x) = x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+#ifndef __aarch64__
+__attribute__((target("avx2,fma")))
+static void llm_gelu_avx2(float *x, int n)
+{
+    v8f half   = v8f_set1(0.5f);
+    v8f one    = v8f_set1(1.0f);
+    v8f coeff  = v8f_set1(0.044715f);
+    v8f sqrt2p = v8f_set1(0.7978845608f); /* sqrt(2/pi) */
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        v8f t = sqrt2p * (v + coeff * v * v * v);
+        /* tanh(t) ≈ 1 - 2/(1+exp(2t)) */
+        v8f e2t = v8f_expf(t + t);
+        v8f tanh_t = (e2t - one) / (e2t + one);
+        v8f r = v * half * (one + tanh_t);
+        __builtin_memcpy(x + i, &r, 32);
+    }
+    for (; i < n; i++) {
+        float v = x[i];
+        float t = 0.7978845608f * (v + 0.044715f * v * v * v);
+        float e = llm_expf(2.0f * t);
+        float tanh_val = (e - 1.0f) / (e + 1.0f);
+        x[i] = v * 0.5f * (1.0f + tanh_val);
+    }
+}
+#endif
+
+static void llm_gelu(float *x, int n)
+{
+#ifndef __aarch64__
+    if (cpu_features.avx2_usable) {
+        llm_gelu_avx2(x, n);
+        return;
+    }
+#endif
+    for (int i = 0; i < n; i++) {
+        float v = x[i];
+        float t = 0.7978845608f * (v + 0.044715f * v * v * v);
+        float e = llm_expf(2.0f * t);
+        float tanh_val = (e - 1.0f) / (e + 1.0f);
+        x[i] = v * 0.5f * (1.0f + tanh_val);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  Bias addition helper — add F32 bias to output vector                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+static void llm_add_bias(float *out, const void *bias, int n)
+{
+    if (!bias) return;
+    const float *b = (const float *)bias;
+    for (int i = 0; i < n; i++)
+        out[i] += b[i];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -1231,16 +1822,22 @@ static int   llm_rope_freqs_ready = 0;
 static float llm_rope_base_cached = 0.0f;
 static int   llm_rope_hdim_cached = 0;
 
-static float llm_log_approx(float base)
+static float llm_log_approx(float x)
 {
-    float b = base;
-    int k = 0;
-    while (b > 2.0f) { b *= 0.5f; k++; }
-    float m1 = b - 1.0f;
-    return (float)k * 0.6931472f + m1 * (1.0f - m1 * (0.5f - m1 * 0.3333f));
+    /* log(x) via IEEE754: extract exponent + polynomial on mantissa.
+     * x = 2^e * m where m in [1,2). log(x) = e*ln2 + log(m).
+     * log(m) ≈ Remez polynomial on [1,2). */
+    union { float f; unsigned int u; } u = { .f = x };
+    int e = (int)((u.u >> 23) & 0xFF) - 127;
+    u.u = (u.u & 0x007FFFFFu) | 0x3F800000u; /* m in [1,2) */
+    float m = u.f;
+    float m1 = m - 1.0f;
+    /* Minimax log(1+m1) for m1 in [0,1): 4th order Remez */
+    float logm = m1 * (0.9999964f - m1 * (0.4999899f - m1 * (0.3334508f - m1 * 0.2414937f)));
+    return (float)e * 0.69314718f + logm;
 }
 
-static void llm_rope_precompute(float base, int head_dim)
+static void llm_rope_precompute(float base, int head_dim, const float *factors)
 {
     if (llm_rope_freqs_ready && llm_rope_base_cached == base &&
         llm_rope_hdim_cached == head_dim)
@@ -1249,30 +1846,26 @@ static void llm_rope_precompute(float base, int head_dim)
     float log_base = llm_log_approx(base);
     for (int i = 0; i < head_dim / 2; i++) {
         float exponent = -(float)(2 * i) / (float)head_dim;
-        llm_rope_freqs_buf[i] = llm_expf(exponent * log_base);
+        float freq = llm_expf(exponent * log_base);
+        /* Longrope: divide frequency by scaling factor */
+        if (factors)
+            freq /= factors[i];
+        llm_rope_freqs_buf[i] = freq;
     }
     llm_rope_base_cached = base;
     llm_rope_hdim_cached = head_dim;
     llm_rope_freqs_ready = 1;
 }
 
-static void llm_rope(float *vec, int pos, int head_dim, float base)
+static void llm_rope(float *vec, int pos, int head_dim, float base,
+                     const float *factors)
 {
-    llm_rope_precompute(base, head_dim);
+    llm_rope_precompute(base, head_dim, factors);
 
     for (int i = 0; i < head_dim; i += 2) {
         float theta = (float)pos * llm_rope_freqs_buf[i / 2];
-
-        /* Range reduce theta to [-pi, pi] via modular arithmetic (no loops) */
-        float pi = 3.14159265f;
-        float inv_twopi = 0.15915494f;
-        theta = theta - (float)(int)(theta * inv_twopi) * (2.0f * pi);
-        if (theta > pi) theta -= 2.0f * pi;
-        if (theta < -pi) theta += 2.0f * pi;
-
-        float t2 = theta * theta;
-        float cos_t = 1.0f - t2 * (0.5f - t2 * (0.04166667f - t2 * 0.001388889f));
-        float sin_t = theta * (1.0f - t2 * (0.1666667f - t2 * (0.008333333f - t2 * 0.000198413f)));
+        float cos_t = llm_cosf(theta);
+        float sin_t = llm_sinf(theta);
 
         float v0 = vec[i];
         float v1 = vec[i + 1];
@@ -1623,32 +2216,174 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     /* 1. Embedding lookup */
     llm_embed(llm_x, m, token_id);
 
+    /* Debug: check embedding output (only on first call) */
+    static int fwd_dbg_count = 0;
+    if (fwd_dbg_count == 0) {
+        float emin = llm_x[0], emax = llm_x[0], esum = 0.0f;
+        int ezero = 0;
+        for (int i = 0; i < dim; i++) {
+            if (llm_x[i] < emin) emin = llm_x[i];
+            if (llm_x[i] > emax) emax = llm_x[i];
+            esum += llm_x[i] > 0 ? llm_x[i] : -llm_x[i];
+            if (llm_x[i] == 0.0f) ezero++;
+        }
+        kprintf("[DBG] embed tok=%d: min=%.4f max=%.4f abssum=%.2f zeros=%d/%d\n",
+                token_id, (double)emin, (double)emax, (double)esum, ezero, dim);
+        kprintf("[DBG] embed[0..3]=%.6f %.6f %.6f %.6f\n",
+                (double)llm_x[0], (double)llm_x[1], (double)llm_x[2], (double)llm_x[3]);
+    }
+
     /* 2. Process each transformer layer */
+    int rope_dim = m->rope_dim > 0 ? m->rope_dim : hd; /* partial RoPE for Phi-2 */
+
+    /* Debug: print layer 0 weight types on first forward */
+    if (fwd_dbg_count == 0) {
+        llm_layer_t *l0 = &m->layers[0];
+        kprintf("[DBG] L0 types: q=%d k=%d v=%d o=%d gate=%d up=%d down=%d norm=%d ffn_norm=%d\n",
+                l0->q_type, l0->k_type, l0->v_type, l0->o_type,
+                l0->gate_type, l0->up_type, l0->down_type,
+                l0->attn_norm_type, l0->ffn_norm_type);
+        kprintf("[DBG] gelu=%d layernorm=%d ffn_gate=%p rope_dim=%d rope_base=%.1f\n",
+                m->use_gelu, m->use_layernorm, (void*)l0->ffn_gate,
+                rope_dim, (double)m->rope_base);
+        /* Check if any layer has an unsupported type */
+        for (int L = 0; L < m->n_layers; L++) {
+            llm_layer_t *lt = &m->layers[L];
+            int types[] = {lt->q_type, lt->k_type, lt->v_type, lt->o_type,
+                           lt->gate_type, lt->up_type, lt->down_type};
+            for (int t = 0; t < 7; t++) {
+                if (types[t] != GGML_TYPE_Q4_0 && types[t] != GGML_TYPE_Q4_1 &&
+                    types[t] != GGML_TYPE_Q8_0 && types[t] != GGML_TYPE_Q6_K &&
+                    types[t] != GGML_TYPE_F16 && types[t] != GGML_TYPE_F32) {
+                    kprintf("[DBG] WARNING: L%d weight[%d] has unsupported type=%d\n", L, t, types[t]);
+                }
+            }
+        }
+    }
+
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
 
         /* === Self-Attention === */
 
-        /* 2a. Pre-attention RMSNorm */
-        llm_rmsnorm(llm_xn, llm_x, layer->attn_norm, dim, layer->attn_norm_type);
+        /* 2a. Pre-attention norm (LayerNorm for Phi-2, RMSNorm for others) */
+        if (m->use_layernorm)
+            llm_layernorm(llm_xn, llm_x, layer->attn_norm,
+                          layer->attn_norm_bias, dim, layer->attn_norm_type);
+        else
+            llm_rmsnorm(llm_xn, llm_x, layer->attn_norm, dim, layer->attn_norm_type, m->rms_eps);
 
         /* 2b. Q/K/V projections */
         llm_gemv(llm_q,     layer->q_weight, llm_xn, n_heads * hd, dim, layer->q_type);
         llm_gemv(llm_k_buf, layer->k_weight, llm_xn, kv_dim,       dim, layer->k_type);
         llm_gemv(llm_v_buf, layer->v_weight, llm_xn, kv_dim,       dim, layer->v_type);
 
-        /* 2c. Apply RoPE to Q and K */
-        if (jit_fwd_rope_hd) {
-            llm_rope_precompute(m->rope_base, hd);
+        /* Diagnostic: verify GEMV against explicit scalar dequant for L0 first token */
+        if (L == 0 && fwd_dbg_count == 0) {
+            /* Manually compute Q[0] = dot(Q_weight_row0, xn) using explicit dequant */
+            const ggml_q4_0_t *qblocks = (const ggml_q4_0_t *)layer->q_weight;
+            int nb = dim / 32;
+            float manual_q0 = 0.0f;
+            for (int b = 0; b < nb; b++) {
+                float d_val = fp16_to_fp32(qblocks[b].d);
+                const uint8_t *qs = qblocks[b].qs;
+                for (int j = 0; j < 16; j++) {
+                    float lo = (float)((int)(qs[j] & 0xF) - 8);
+                    float hi = (float)((int)(qs[j] >> 4) - 8);
+                    manual_q0 += d_val * lo * llm_xn[b * 32 + j];
+                    manual_q0 += d_val * hi * llm_xn[b * 32 + j + 16];
+                }
+            }
+            kprintf("[DBG] L0 Q[0] verify: gemv=%.6f manual=%.6f diff=%.6f\n",
+                    (double)llm_q[0], (double)manual_q0, (double)(llm_q[0] - manual_q0));
+            kprintf("[DBG] L0 Q stats: min=%.4f max=%.4f [0..3]=%.4f,%.4f,%.4f,%.4f\n",
+                    (double)llm_q[0], (double)llm_q[1],
+                    (double)llm_q[0], (double)llm_q[1], (double)llm_q[2], (double)llm_q[3]);
+            kprintf("[DBG] L0 K stats: [0..3]=%.4f,%.4f,%.4f,%.4f\n",
+                    (double)llm_k_buf[0], (double)llm_k_buf[1], (double)llm_k_buf[2], (double)llm_k_buf[3]);
+            kprintf("[DBG] L0 V stats: [0..3]=%.4f,%.4f,%.4f,%.4f\n",
+                    (double)llm_v_buf[0], (double)llm_v_buf[1], (double)llm_v_buf[2], (double)llm_v_buf[3]);
+
+            /* Check L2 norm of Q, K, V to see if projections have reasonable magnitude */
+            float q_l2 = 0.0f, k_l2 = 0.0f, v_l2 = 0.0f;
+            for (int i = 0; i < dim; i++) {
+                q_l2 += llm_q[i] * llm_q[i];
+                k_l2 += llm_k_buf[i] * llm_k_buf[i];
+                v_l2 += llm_v_buf[i] * llm_v_buf[i];
+            }
+            kprintf("[DBG] L0 Q_L2=%.4f K_L2=%.4f V_L2=%.4f (expect ~dim=3072 for well-scaled)\n",
+                    (double)q_l2, (double)k_l2, (double)v_l2);
+
+            /* Also check input norm (xn should be ~O(1) per element after RMSNorm) */
+            float xn_l2 = 0.0f, xn_absmax = 0.0f;
+            for (int i = 0; i < dim; i++) {
+                xn_l2 += llm_xn[i] * llm_xn[i];
+                float a = llm_xn[i] > 0 ? llm_xn[i] : -llm_xn[i];
+                if (a > xn_absmax) xn_absmax = a;
+            }
+            kprintf("[DBG] L0 xn_L2=%.4f xn_absmax=%.4f\n", (double)xn_l2, (double)xn_absmax);
+
+            /* Check weight scale magnitudes: first 4 Q4_0 blocks of Q weight */
+            kprintf("[DBG] L0 Q_wt scales: d[0..3]=%.6f,%.6f,%.6f,%.6f\n",
+                    (double)fp16_to_fp32(qblocks[0].d),
+                    (double)fp16_to_fp32(qblocks[1].d),
+                    (double)fp16_to_fp32(qblocks[2].d),
+                    (double)fp16_to_fp32(qblocks[3].d));
+
+            /* Check norm weights */
+            const float *nw = (const float *)layer->attn_norm;
+            float nw_min = nw[0], nw_max = nw[0], nw_sum = 0.0f;
+            for (int i = 0; i < dim; i++) {
+                if (nw[i] < nw_min) nw_min = nw[i];
+                if (nw[i] > nw_max) nw_max = nw[i];
+                nw_sum += nw[i] > 0 ? nw[i] : -nw[i];
+            }
+            kprintf("[DBG] L0 attn_norm wt: min=%.4f max=%.4f avg_abs=%.4f [0..3]=%.4f,%.4f,%.4f,%.4f\n",
+                    (double)nw_min, (double)nw_max, (double)(nw_sum/dim),
+                    (double)nw[0], (double)nw[1], (double)nw[2], (double)nw[3]);
+            /* Print raw bytes of first 4 norm weight values */
+            const uint8_t *nwb = (const uint8_t *)nw;
+            kprintf("[DBG] L0 norm raw: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\n",
+                    nwb[0],nwb[1],nwb[2],nwb[3],nwb[4],nwb[5],nwb[6],nwb[7],
+                    nwb[8],nwb[9],nwb[10],nwb[11],nwb[12],nwb[13],nwb[14],nwb[15]);
+            kprintf("\n");
+            /* If these were F16, what would the first values be? */
+            const uint16_t *nw16 = (const uint16_t *)layer->attn_norm;
+            kprintf("[DBG] L0 norm as F16: [0..7]=%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",
+                    (double)fp16_to_fp32(nw16[0]), (double)fp16_to_fp32(nw16[1]),
+                    (double)fp16_to_fp32(nw16[2]), (double)fp16_to_fp32(nw16[3]),
+                    (double)fp16_to_fp32(nw16[4]), (double)fp16_to_fp32(nw16[5]),
+                    (double)fp16_to_fp32(nw16[6]), (double)fp16_to_fp32(nw16[7]));
+
+            /* Check raw embedding L2 norm */
+            float embed_l2 = 0.0f;
+            for (int i = 0; i < dim; i++) embed_l2 += llm_x[i] * llm_x[i];
+            kprintf("[DBG] L0 embed_L2=%.4f (raw, before norm). RMSnorm divisor=%.6f\n",
+                    (double)embed_l2, (double)llm_sqrtf(embed_l2 / (float)dim + m->rms_eps));
+        }
+
+        /* Add bias if present (Phi-2) */
+        llm_add_bias(llm_q,     layer->q_bias, n_heads * hd);
+        llm_add_bias(llm_k_buf, layer->k_bias, kv_dim);
+        llm_add_bias(llm_v_buf, layer->v_bias, kv_dim);
+
+        /* 2c. Apply RoPE to Q and K (partial RoPE for Phi-2: only first rope_dim dims) */
+        /* Select longrope factors: short if pos < orig_ctx, long otherwise */
+        const float *rope_f = (const float *)0;
+        if (m->rope_factors_short || m->rope_factors_long) {
+            rope_f = (pos < m->rope_orig_ctx) ? m->rope_factors_short : m->rope_factors_long;
+        }
+        if (jit_fwd_rope_hd && rope_dim == hd) {
+            llm_rope_precompute(m->rope_base, hd, rope_f);
             for (int h = 0; h < n_heads; h++)
                 jit_fwd_rope_hd(llm_q + h * hd, pos, hd, llm_rope_freqs_buf);
             for (int h = 0; h < n_kv; h++)
                 jit_fwd_rope_hd(llm_k_buf + h * hd, pos, hd, llm_rope_freqs_buf);
         } else {
             for (int h = 0; h < n_heads; h++)
-                llm_rope(llm_q + h * hd, pos, hd, m->rope_base);
+                llm_rope(llm_q + h * hd, pos, rope_dim, m->rope_base, rope_f);
             for (int h = 0; h < n_kv; h++)
-                llm_rope(llm_k_buf + h * hd, pos, hd, m->rope_base);
+                llm_rope(llm_k_buf + h * hd, pos, rope_dim, m->rope_base, rope_f);
         }
 
         /* 2d. Store K,V in cache (memcpy instead of scalar loop) */
@@ -1679,8 +2414,27 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 llm_attn_scores[t] = d * scale;
             }
 
+            /* Debug: show PRE-softmax attention scores for L0, H0 */
+            if (L == 0 && h == 0 && fwd_dbg_count > 0 && fwd_dbg_count < 3 && seq_len > 1) {
+                kprintf("[DBG] L0H0 pre_softmax (pos=%d):", pos);
+                for (int t = 0; t < seq_len && t < 16; t++)
+                    kprintf(" %.3f", (double)llm_attn_scores[t]);
+                kprintf("\n");
+            }
+
             /* Softmax over scores */
             llm_softmax(llm_attn_scores, seq_len);
+
+            /* Debug: show attention pattern for L0, H0 on last prefill token */
+            if (L == 0 && h == 0 && fwd_dbg_count > 0 && fwd_dbg_count < 3 && seq_len > 1) {
+                /* Show pre-softmax scores too */
+                float pre_max = llm_attn_scores[0];
+                /* Note: scores already softmaxed above, so recompute raw for debug */
+                kprintf("[DBG] L0H0 attn_post (pos=%d, seq_len=%d):", pos, seq_len);
+                for (int t = 0; t < seq_len && t < 16; t++)
+                    kprintf(" %.3f", (double)llm_attn_scores[t]);
+                kprintf("\n");
+            }
 
             /* Weighted sum of V: head_out = sum_t(score[t] * V_t) */
             kmemset(llm_head_buf, 0, hd * sizeof(float));
@@ -1699,40 +2453,104 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* 2f. Output projection + residual */
         llm_gemv(llm_ffn_d, layer->o_weight, llm_attn_out, dim, dim, layer->o_type);
+        llm_add_bias(llm_ffn_d, layer->o_bias, dim);
         if (jit_fwd_vadd_dim)
             jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
         else
             llm_vadd_f32(llm_x, llm_ffn_d, dim);
 
-        /* === Feed-Forward Network (SwiGLU) === */
+        /* === Feed-Forward Network === */
 
-        /* 2g. Pre-FFN RMSNorm */
-        llm_rmsnorm(llm_xn, llm_x, layer->ffn_norm, dim, layer->ffn_norm_type);
+        /* 2g. Pre-FFN norm (LayerNorm for Phi-2, RMSNorm for others) */
+        if (m->use_layernorm)
+            llm_layernorm(llm_xn, llm_x, layer->ffn_norm,
+                          layer->ffn_norm_bias, dim, layer->ffn_norm_type);
+        else
+            llm_rmsnorm(llm_xn, llm_x, layer->ffn_norm, dim, layer->ffn_norm_type, m->rms_eps);
 
-        /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x) */
-        llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, ff, dim, layer->gate_type);
-        llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, ff, dim, layer->up_type);
-        if (jit_fwd_fused_silu) {
-            jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, ff);
+        if (m->use_gelu || !layer->ffn_gate) {
+            /* 2h-alt. GELU FFN (Phi-2): hidden = GELU(W_up · x); out = W_down · hidden */
+            llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, ff, dim, layer->up_type);
+            llm_add_bias(llm_ffn_u, layer->ffn_up_bias, ff);
+            llm_gelu(llm_ffn_u, ff);
+            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, dim, ff, layer->down_type);
+            llm_add_bias(llm_ffn_d, layer->ffn_down_bias, dim);
         } else {
-            llm_silu(llm_ffn_g, ff);
-            llm_vmul_f32(llm_ffn_g, llm_ffn_u, ff);
+            /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x) */
+            llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, ff, dim, layer->gate_type);
+            llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, ff, dim, layer->up_type);
+            if (jit_fwd_fused_silu) {
+                jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, ff);
+            } else {
+                llm_silu(llm_ffn_g, ff);
+                llm_vmul_f32(llm_ffn_g, llm_ffn_u, ff);
+            }
+            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, ff, layer->down_type);
         }
-
-        /* 2i. Down projection + residual */
-        llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, ff, layer->down_type);
         if (jit_fwd_vadd_dim)
             jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
         else
             llm_vadd_f32(llm_x, llm_ffn_d, dim);
+
+        /* Debug: check hidden state after first layer */
+        if (fwd_dbg_count == 0 && L == 0) {
+            float hmin = llm_x[0], hmax = llm_x[0], hsum = 0.0f;
+            int hzero = 0;
+            for (int i = 0; i < dim; i++) {
+                if (llm_x[i] < hmin) hmin = llm_x[i];
+                if (llm_x[i] > hmax) hmax = llm_x[i];
+                hsum += llm_x[i] > 0 ? llm_x[i] : -llm_x[i];
+                if (llm_x[i] == 0.0f) hzero++;
+            }
+            kprintf("[DBG] after L0: min=%.4f max=%.4f abssum=%.2f zeros=%d/%d\n",
+                    (double)hmin, (double)hmax, (double)hsum, hzero, dim);
+        }
+        /* Check last layer output too */
+        if (fwd_dbg_count == 0 && L == m->n_layers - 1) {
+            float hmin = llm_x[0], hmax = llm_x[0], hsum = 0.0f;
+            for (int i = 0; i < dim; i++) {
+                if (llm_x[i] < hmin) hmin = llm_x[i];
+                if (llm_x[i] > hmax) hmax = llm_x[i];
+                hsum += llm_x[i] > 0 ? llm_x[i] : -llm_x[i];
+            }
+            kprintf("[DBG] after L%d: min=%.4f max=%.4f abssum=%.2f\n",
+                    L, (double)hmin, (double)hmax, (double)hsum);
+            fwd_dbg_count = 1;
+        }
     }
 
-    /* 3. Final RMSNorm */
-    llm_rmsnorm(llm_xn, llm_x, m->output_norm, dim, m->output_norm_type);
+    /* 3. Final norm (LayerNorm for Phi-2, RMSNorm for others) */
+    if (m->use_layernorm)
+        llm_layernorm(llm_xn, llm_x, m->output_norm,
+                      m->output_norm_bias, dim, m->output_norm_type);
+    else
+        llm_rmsnorm(llm_xn, llm_x, m->output_norm, dim, m->output_norm_type, m->rms_eps);
 
     /* 4. LM head: logits = output_weight · x */
     const void *lm_head = m->output_weight ? m->output_weight : m->token_embd;
     ggml_type_t lm_type = m->output_weight ? m->output_type : m->token_embd_type;
+
+    /* Debug: check input to LM head on first call */
+    if (fwd_dbg_count == 1) {
+        /* Check final norm output */
+        float nmin = llm_xn[0], nmax = llm_xn[0], nsum = 0.0f;
+        int nzero = 0;
+        for (int i = 0; i < dim; i++) {
+            if (llm_xn[i] < nmin) nmin = llm_xn[i];
+            if (llm_xn[i] > nmax) nmax = llm_xn[i];
+            nsum += llm_xn[i] > 0 ? llm_xn[i] : -llm_xn[i];
+            if (llm_xn[i] == 0.0f) nzero++;
+        }
+        /* Check first few bytes of lm_head weight */
+        const uint8_t *wb = (const uint8_t *)lm_head;
+        int wz = 0;
+        for (int i = 0; i < 1024 && wb; i++)
+            if (wb[i] == 0) wz++;
+        kprintf("[DBG] LM head: xn min=%.4f max=%.4f zeros=%d type=%d wt_addr=%p wt_zero1k=%d vs=%d\n",
+                (double)nmin, (double)nmax, nzero, (int)lm_type, lm_head, wz, m->vocab_size);
+        fwd_dbg_count = 2;
+    }
+
     llm_gemv(logits, lm_head, llm_xn, m->vocab_size, dim, lm_type);
 }
 
@@ -1855,6 +2673,25 @@ static int llm_build_vocab(llm_model_t *m, gguf_ctx_t *ctx)
     kprintf("[LLM] Vocab: %d tokens, BOS=%d, EOS=%d\n",
             n_vocab, m->bos_id, m->eos_id);
 
+    /* Detect tokenizer type: SentencePiece if vocab contains U+2581 (▁) tokens */
+    m->use_spm = 0;
+    {
+        int check_max = n_vocab < 1000 ? n_vocab : 1000;
+        for (int i = 0; i < check_max; i++) {
+            if (m->vocab[i].len >= 3) {
+                const uint8_t *s = (const uint8_t *)m->vocab[i].str;
+                for (int j = 0; j + 2 < m->vocab[i].len; j++) {
+                    if (s[j] == 0xE2 && s[j+1] == 0x96 && s[j+2] == 0x81) {
+                        m->use_spm = 1;
+                        break;
+                    }
+                }
+                if (m->use_spm) break;
+            }
+        }
+        kprintf("[LLM] Tokenizer: %s\n", m->use_spm ? "SentencePiece" : "BPE");
+    }
+
     /* Build hash table for O(1) token lookups */
     llm_build_hash_table(m);
 
@@ -1961,77 +2798,81 @@ static int llm_bpe_encode(const char *src, int slen, char *dst, int dmax)
 
 /* Tokenize text using greedy longest-match with BPE merge fallback.
  * Returns number of tokens produced. */
-static int llm_tokenize(const llm_model_t *m, const char *text,
-                        int *tokens, int max_tokens)
+/* Helper: tokenize a text segment (no special tokens) */
+static int llm_tokenize_segment(const llm_model_t *m, const char *text, int text_len,
+                                 int *tokens, int max_tokens, int is_first_segment)
 {
     int n = 0;
-    int text_len = 0;
-    for (const char *p = text; *p; p++) text_len++;
-
-    /* BPE-encode the input text so it matches GPT-2 byte-level vocab */
     static char enc_buf[4096];
-    int enc_len = llm_bpe_encode(text, text_len, enc_buf, sizeof(enc_buf));
+    int enc_len;
 
-    /* Step 1: Greedy longest-match tokenization on encoded text */
+    if (m->use_spm) {
+        int di = 0;
+        int dmax = (int)sizeof(enc_buf) - 4;
+        /* Prepend ▁ for SentencePiece (only for first segment or after special token) */
+        if (is_first_segment && text_len > 0 && text[0] != '\n') {
+            enc_buf[di++] = (char)0xE2;
+            enc_buf[di++] = (char)0x96;
+            enc_buf[di++] = (char)0x81;
+        }
+        for (int si = 0; si < text_len && di < dmax; si++) {
+            if (text[si] == ' ') {
+                enc_buf[di++] = (char)0xE2;
+                enc_buf[di++] = (char)0x96;
+                enc_buf[di++] = (char)0x81;
+            } else {
+                enc_buf[di++] = text[si];
+            }
+        }
+        enc_buf[di] = '\0';
+        enc_len = di;
+    } else {
+        enc_len = llm_bpe_encode(text, text_len, enc_buf, sizeof(enc_buf));
+    }
+
+    /* Greedy longest-match tokenization */
     int pos = 0;
     while (pos < enc_len && n < max_tokens) {
         int best_len = 0;
         int best_id = -1;
-
-        /* Try progressively shorter substrings starting at pos */
         int max_try = enc_len - pos;
-        if (max_try > 128) max_try = 128; /* limit match length */
-
+        if (max_try > 128) max_try = 128;
         for (int try_len = max_try; try_len >= 1; try_len--) {
             int id = llm_find_token(m, enc_buf + pos, try_len);
-            if (id >= 0) {
-                best_len = try_len;
-                best_id = id;
-                break;
-            }
+            if (id >= 0) { best_len = try_len; best_id = id; break; }
         }
-
         if (best_id >= 0) {
             tokens[n++] = best_id;
             pos += best_len;
         } else {
-            /* Fall back to byte token:
-             * look up the BPE-encoded byte representation in vocab */
             uint8_t b0 = (uint8_t)enc_buf[pos];
             if (b0 >= 0xC0 && b0 < 0xE0 && pos + 1 < enc_len) {
-                /* 2-byte UTF-8: try matching as token */
                 int id = llm_find_token(m, enc_buf + pos, 2);
                 if (id >= 0) { tokens[n++] = id; pos += 2; continue; }
             }
-            /* Single-byte fallback */
             if (m->byte_tokens[b0] >= 0) {
                 tokens[n++] = m->byte_tokens[b0];
             } else {
-                tokens[n++] = 0; /* unknown */
+                tokens[n++] = 0;
             }
             pos++;
         }
     }
 
-    /* Step 2: BPE merge pass (if scores available) */
+    /* BPE merge pass */
     if (m->vocab_scores && n > 1) {
         int changed = 1;
         while (changed) {
             changed = 0;
             float best_score = -1e30f;
-            int best_idx = -1;
-            int best_merged = -1;
-
+            int best_idx = -1, best_merged = -1;
             for (int i = 0; i < n - 1; i++) {
-                /* Concatenate token strings and look up */
                 int len1 = m->vocab[tokens[i]].len;
                 int len2 = m->vocab[tokens[i + 1]].len;
                 if (len1 + len2 > 128) continue;
-
                 char merged[128];
                 kmemcpy(merged, m->vocab[tokens[i]].str, len1);
                 kmemcpy(merged + len1, m->vocab[tokens[i + 1]].str, len2);
-
                 int mid = llm_find_token(m, merged, len1 + len2);
                 if (mid >= 0 && m->vocab_scores[mid] > best_score) {
                     best_score = m->vocab_scores[mid];
@@ -2039,16 +2880,78 @@ static int llm_tokenize(const llm_model_t *m, const char *text,
                     best_merged = mid;
                 }
             }
-
             if (best_idx >= 0) {
                 tokens[best_idx] = best_merged;
-                /* Remove the merged token */
                 for (int i = best_idx + 1; i < n - 1; i++)
                     tokens[i] = tokens[i + 1];
                 n--;
                 changed = 1;
             }
         }
+    }
+    return n;
+}
+
+static int llm_tokenize(const llm_model_t *m, const char *text,
+                        int *tokens, int max_tokens)
+{
+    int n = 0;
+    int text_len = 0;
+    for (const char *p = text; *p; p++) text_len++;
+
+    /* Pre-split at special token boundaries (<|...|> patterns).
+     * Special tokens are looked up directly in vocab without SentencePiece encoding. */
+    int pos = 0;
+    int first_seg = 1;
+    while (pos < text_len && n < max_tokens) {
+        /* Scan for next <|...|> pattern */
+        int spec_start = -1, spec_end = -1;
+        for (int i = pos; i < text_len - 3; i++) {
+            if (text[i] == '<' && text[i+1] == '|') {
+                /* Find closing |> */
+                for (int j = i + 2; j < text_len - 1 && j < i + 32; j++) {
+                    if (text[j] == '|' && text[j+1] == '>') {
+                        spec_start = i;
+                        spec_end = j + 2;
+                        break;
+                    }
+                }
+                if (spec_start >= 0) break;
+            }
+        }
+
+        if (spec_start < 0) {
+            /* No more special tokens — tokenize remaining text */
+            int seg_n = llm_tokenize_segment(m, text + pos, text_len - pos,
+                                              tokens + n, max_tokens - n, first_seg);
+            n += seg_n;
+            break;
+        }
+
+        /* Tokenize text before special token */
+        if (spec_start > pos) {
+            int seg_n = llm_tokenize_segment(m, text + pos, spec_start - pos,
+                                              tokens + n, max_tokens - n, first_seg);
+            n += seg_n;
+            first_seg = 0;
+        }
+
+        /* Look up the special token directly in vocab */
+        int spec_len = spec_end - spec_start;
+        int spec_id = llm_find_token(m, text + spec_start, spec_len);
+        kprintf("[DBG] special token lookup: '");
+        for (int z = 0; z < spec_len && z < 20; z++) kprintf("%c", text[spec_start+z]);
+        kprintf("' len=%d id=%d\n", spec_len, spec_id);
+        if (spec_id >= 0 && n < max_tokens) {
+            tokens[n++] = spec_id;
+        } else if (n < max_tokens) {
+            /* Special token not in vocab — tokenize as regular text */
+            int seg_n = llm_tokenize_segment(m, text + spec_start, spec_len,
+                                              tokens + n, max_tokens - n, 0);
+            n += seg_n;
+        }
+        first_seg = 0;
+        pos = spec_end;
     }
 
     return n;
@@ -2273,6 +3176,58 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     /* Get next token from the last forward pass */
     int next = llm_sample(llm_logits, m->vocab_size, temperature);
 
+    /* Debug: log first generated token and logits shape */
+    {
+        float lmin = llm_logits[0], lmax = llm_logits[0];
+        int nzero = 0, nnan = 0;
+        for (int i = 0; i < m->vocab_size; i++) {
+            if (llm_logits[i] < lmin) lmin = llm_logits[i];
+            if (llm_logits[i] > lmax) lmax = llm_logits[i];
+            if (llm_logits[i] == 0.0f) nzero++;
+            /* NaN check: a != a */
+            if (llm_logits[i] != llm_logits[i]) nnan++;
+        }
+        kprintf("[DBG] first token=%d logit_min=%.4f logit_max=%.4f zeros=%d nan=%d prompt=%d\n",
+                next, (double)lmin, (double)lmax, nzero, nnan, n_prompt);
+        /* Top-5 logits */
+        int top5[5] = {0,0,0,0,0};
+        for (int t = 0; t < 5; t++) {
+            float best = -1e30f;
+            for (int i = 0; i < m->vocab_size; i++) {
+                int skip = 0;
+                for (int tt = 0; tt < t; tt++) if (top5[tt] == i) skip = 1;
+                if (!skip && llm_logits[i] > best) { best = llm_logits[i]; top5[t] = i; }
+            }
+        }
+        kprintf("[DBG] top5: %d(%.2f) %d(%.2f) %d(%.2f) %d(%.2f) %d(%.2f)\n",
+                top5[0], (double)llm_logits[top5[0]],
+                top5[1], (double)llm_logits[top5[1]],
+                top5[2], (double)llm_logits[top5[2]],
+                top5[3], (double)llm_logits[top5[3]],
+                top5[4], (double)llm_logits[top5[4]]);
+        /* Decode top5 token names */
+        for (int t = 0; t < 5; t++) {
+            char tbuf[64]; int tl = llm_decode_token(m, top5[t], tbuf, sizeof(tbuf));
+            if (tl > 20) tl = 20;
+            tbuf[tl] = '\0';
+            kprintf("[DBG]   top%d: id=%d '%s'\n", t+1, top5[t], tbuf);
+        }
+        /* Print prompt tokens */
+        kprintf("[DBG] prompt tokens:");
+        for (int i = 0; i < n_prompt && i < 32; i++)
+            kprintf(" %d", prompt_tokens[i]);
+        kprintf("\n");
+        /* Decode each prompt token */
+        kprintf("[DBG] prompt text: ");
+        for (int i = 0; i < n_prompt && i < 32; i++) {
+            char tbuf[64]; int tl = llm_decode_token(m, prompt_tokens[i], tbuf, sizeof(tbuf));
+            if (tl > 30) tl = 30;
+            tbuf[tl] = '\0';
+            kprintf("[%s]", tbuf);
+        }
+        kprintf("\n");
+    }
+
     uint64_t t_gen_start = rdtsc_fenced();
     int consec_nl = 0;  /* consecutive newline counter */
 
@@ -2320,6 +3275,12 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
         /* Sample next token */
         last_token = next;
         next = llm_sample(llm_logits, m->vocab_size, temperature);
+
+        /* Debug: print second and third token info */
+        if (g == 0 || g == 1) {
+            kprintf("[DBG] gen[%d] next=%d logit_max=%.2f pos=%d\n",
+                    g+1, next, (double)llm_logits[next], pos);
+        }
     }
     uint64_t t_gen_end = rdtsc_fenced();
 
@@ -2383,6 +3344,12 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
         m->output_norm_type = t->type;
     }
 
+    /* Output norm bias (Phi-2 LayerNorm) */
+    {
+        const gguf_tensor_info_t *t = gguf_find_tensor(ctx, "output_norm.bias");
+        m->output_norm_bias = t ? t->data : NULL;
+    }
+
     /* Output / LM head — may be absent if tied to embeddings */
     {
         const gguf_tensor_info_t *t = gguf_find_tensor(ctx, "output.weight");
@@ -2394,6 +3361,17 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
             m->output_type = m->token_embd_type;
             kprintf("[LLM] Note: output.weight tied to token_embd\n");
         }
+    }
+
+    /* RoPE scaling factors (Longrope / Su scaling for Phi-3.5) */
+    {
+        const gguf_tensor_info_t *ts = gguf_find_tensor(ctx, "rope_factors_short.weight");
+        const gguf_tensor_info_t *tl = gguf_find_tensor(ctx, "rope_factors_long.weight");
+        m->rope_factors_short = ts ? (const float *)ts->data : (const float *)0;
+        m->rope_factors_long  = tl ? (const float *)tl->data : (const float *)0;
+        if (ts || tl)
+            kprintf("[LLM] Longrope factors: short=%p long=%p\n",
+                    (const void *)m->rope_factors_short, (const void *)m->rope_factors_long);
     }
 
     /* Per-layer weights */
@@ -2415,10 +3393,18 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
             kstrcpy(name_buf + kstrlen(name_buf), "." suffix); \
             const gguf_tensor_info_t *t = gguf_find_tensor(ctx, name_buf); \
             if (t) { layer->field = t->data; layer->type_field = t->type; } \
-            else { kprintf("[LLM] WARN: %s not found\n", name_buf); layer->field = NULL; } \
+            else { layer->field = NULL; } \
         } while(0)
 
         MAP_TENSOR(attn_norm,  "attn_norm.weight",   attn_norm_type);
+
+        /* Debug: print actual raw GGUF type for attn_norm */
+        if (L == 0) {
+            kstrcpy(name_buf, "blk.0.attn_norm.weight");
+            const gguf_tensor_info_t *nt = gguf_find_tensor(ctx, name_buf);
+            if (nt) kprintf("[DBG] blk.0.attn_norm.weight: raw_type=%d size=%lu elems=%lu\n",
+                            (int)nt->type, (unsigned long)nt->size_bytes, (unsigned long)nt->n_elements);
+        }
         MAP_TENSOR(q_weight,   "attn_q.weight",      q_type);
         MAP_TENSOR(k_weight,   "attn_k.weight",      k_type);
         MAP_TENSOR(v_weight,   "attn_v.weight",      v_type);
@@ -2428,7 +3414,127 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
         MAP_TENSOR(ffn_up,     "ffn_up.weight",       up_type);
         MAP_TENSOR(ffn_down,   "ffn_down.weight",     down_type);
 
+        /* Fused QKV tensor (Phi-3: blk.N.attn_qkv.weight) */
+        if (!layer->q_weight || !layer->k_weight || !layer->v_weight) {
+            #define BUILD_BLK_NAME(suffix) do { \
+                kstrcpy(name_buf, "blk."); \
+                { char num[8]; int n_ = L, j_ = 0; \
+                  if (n_ == 0) { num[j_++] = '0'; } \
+                  else { char tmp[8]; int k_ = 0; while (n_ > 0) { tmp[k_++] = '0' + (n_ % 10); n_ /= 10; } \
+                         while (k_ > 0) num[j_++] = tmp[--k_]; } \
+                  num[j_] = '\0'; \
+                  kstrcpy(name_buf + kstrlen(name_buf), num); } \
+                kstrcpy(name_buf + kstrlen(name_buf), "." suffix); \
+            } while(0)
+
+            BUILD_BLK_NAME("attn_qkv.weight");
+            const gguf_tensor_info_t *qkv = gguf_find_tensor(ctx, name_buf);
+            if (qkv) {
+                uint64_t row_bytes = ggml_tensor_size(qkv->type, (uint64_t)m->dim);
+                const uint8_t *base = (const uint8_t *)qkv->data;
+                int q_rows = m->n_heads * m->head_dim;
+                int k_rows = m->n_kv_heads * m->head_dim;
+                layer->q_weight = base;
+                layer->k_weight = base + (uint64_t)q_rows * row_bytes;
+                layer->v_weight = base + (uint64_t)(q_rows + k_rows) * row_bytes;
+                layer->q_type = layer->k_type = layer->v_type = qkv->type;
+            }
+            #undef BUILD_BLK_NAME
+        }
+
+        /* Fused gate+up tensor (Phi-3: ffn_up.weight has 2×ff_dim rows) */
+        if (!layer->ffn_gate && layer->ffn_up && m->ff_dim > 0) {
+            kstrcpy(name_buf, "blk.");
+            { char num[8]; int n_ = L, j_ = 0;
+              if (n_ == 0) { num[j_++] = '0'; }
+              else { char tmp[8]; int k_ = 0; while (n_ > 0) { tmp[k_++] = '0' + (n_ % 10); n_ /= 10; }
+                     while (k_ > 0) num[j_++] = tmp[--k_]; }
+              num[j_] = '\0';
+              kstrcpy(name_buf + kstrlen(name_buf), num); }
+            kstrcpy(name_buf + kstrlen(name_buf), ".ffn_up.weight");
+            const gguf_tensor_info_t *up_t = gguf_find_tensor(ctx, name_buf);
+            if (up_t && up_t->n_dims >= 2 && (int)up_t->dims[1] == 2 * m->ff_dim) {
+                uint64_t row_bytes = ggml_tensor_size(up_t->type, (uint64_t)m->dim);
+                const uint8_t *base = (const uint8_t *)up_t->data;
+                layer->ffn_gate = base;
+                layer->gate_type = up_t->type;
+                layer->ffn_up = base + (uint64_t)m->ff_dim * row_bytes;
+                layer->up_type = up_t->type;
+            }
+        }
+
+        /* Bias tensors (Phi-2; silently NULL for architectures without bias) */
+        #define MAP_BIAS(field, suffix) do { \
+            kstrcpy(name_buf, "blk."); \
+            { \
+                char num[8]; int n = L, j = 0; \
+                if (n == 0) { num[j++] = '0'; } \
+                else { char tmp[8]; int k = 0; while (n > 0) { tmp[k++] = '0' + (n % 10); n /= 10; } \
+                       while (k > 0) num[j++] = tmp[--k]; } \
+                num[j] = '\0'; \
+                kstrcpy(name_buf + kstrlen(name_buf), num); \
+            } \
+            kstrcpy(name_buf + kstrlen(name_buf), "." suffix); \
+            const gguf_tensor_info_t *t = gguf_find_tensor(ctx, name_buf); \
+            layer->field = t ? t->data : NULL; \
+        } while(0)
+
+        MAP_BIAS(attn_norm_bias,  "attn_norm.bias");
+        MAP_BIAS(q_bias,          "attn_q.bias");
+        MAP_BIAS(k_bias,          "attn_k.bias");
+        MAP_BIAS(v_bias,          "attn_v.bias");
+        MAP_BIAS(o_bias,          "attn_output.bias");
+        MAP_BIAS(ffn_norm_bias,   "ffn_norm.bias");
+        MAP_BIAS(ffn_up_bias,     "ffn_up.bias");
+        MAP_BIAS(ffn_down_bias,   "ffn_down.bias");
+
+        /* Fused QKV bias fallback (Phi-3: blk.N.attn_qkv.bias) */
+        if (!layer->q_bias && !layer->k_bias && !layer->v_bias) {
+            kstrcpy(name_buf, "blk.");
+            { char num[8]; int n_ = L, j_ = 0;
+              if (n_ == 0) { num[j_++] = '0'; }
+              else { char tmp[8]; int k_ = 0; while (n_ > 0) { tmp[k_++] = '0' + (n_ % 10); n_ /= 10; }
+                     while (k_ > 0) num[j_++] = tmp[--k_]; }
+              num[j_] = '\0';
+              kstrcpy(name_buf + kstrlen(name_buf), num); }
+            kstrcpy(name_buf + kstrlen(name_buf), ".attn_qkv.bias");
+            if (L == 0) kprintf("[DBG] Looking for '%s'\n", name_buf);
+            const gguf_tensor_info_t *qkv_b = gguf_find_tensor(ctx, name_buf);
+            if (L == 0) kprintf("[DBG] qkv_b=%p\n", (void*)qkv_b);
+            if (qkv_b) {
+                const float *bb = (const float *)qkv_b->data;
+                int q_dim = m->n_heads * m->head_dim;
+                int k_dim = m->n_kv_heads * m->head_dim;
+                layer->q_bias = bb;
+                layer->k_bias = bb + q_dim;
+                layer->v_bias = bb + q_dim + k_dim;
+                if (L == 0)
+                    kprintf("[LLM] Fused QKV bias loaded (q=%d k=%d v=%d)\n",
+                            q_dim, k_dim, k_dim);
+            } else if (L == 0) {
+                kprintf("[DBG] No fused QKV bias found\n");
+                /* Print first 20 tensor names */
+                for (uint32_t ti = 0; ti < ctx->tensor_count && ti < 20; ti++) {
+                    char tn[64];
+                    uint32_t nlen = ctx->tensors[ti].name.len;
+                    if (nlen > 63) nlen = 63;
+                    kmemcpy(tn, ctx->tensors[ti].name.data, nlen);
+                    tn[nlen] = '\0';
+                    kprintf("[DBG]   t[%d]='%s'\n", ti, tn);
+                }
+            }
+        }
+
+        #undef MAP_BIAS
         #undef MAP_TENSOR
+
+        /* Validate critical tensors are mapped (after fused fallback) */
+        if (L == 0) {
+            if (!layer->q_weight) kprintf("[LLM] WARN: blk.0 Q weight missing\n");
+            if (!layer->k_weight) kprintf("[LLM] WARN: blk.0 K weight missing\n");
+            if (!layer->v_weight) kprintf("[LLM] WARN: blk.0 V weight missing\n");
+            if (!layer->ffn_down) kprintf("[LLM] WARN: blk.0 ffn_down missing\n");
+        }
     }
 
     kprintf("[LLM] Tensor mapping complete: %d layers\n", m->n_layers);
@@ -2516,11 +3622,24 @@ static int llm_load_from_disk(llm_model_t *m)
     m->vocab_size = (int)llm_gguf_ctx.n_vocab;
     m->rope_base = llm_gguf_ctx.rope_freq_base;
 
-    /* If vocab_size is 0, try to infer from token_embd dimensions */
+    /* If vocab_size is 0, infer from token_embd dimensions or tokenizer */
     if (m->vocab_size == 0) {
         const gguf_tensor_info_t *embd = gguf_find_tensor(&llm_gguf_ctx, "token_embd.weight");
         if (embd && embd->n_dims >= 2) {
-            m->vocab_size = (int)embd->dims[0];
+            /* GGUF dims: [ne0=n_embd, ne1=n_vocab] for embedding matrix */
+            m->vocab_size = (int)embd->dims[1];
+        }
+    }
+    /* Cross-check with tokenizer array count (most reliable source) */
+    {
+        const gguf_kv_t *tok_kv = gguf_find_kv(&llm_gguf_ctx, "tokenizer.ggml.tokens");
+        if (tok_kv && tok_kv->type == GGUF_TYPE_ARRAY && tok_kv->value.array.count > 0) {
+            int tv = (int)tok_kv->value.array.count;
+            if (tv > m->vocab_size) {
+                kprintf("[LLM] vocab_size corrected: %d -> %d (from tokenizer)\n",
+                        m->vocab_size, tv);
+                m->vocab_size = tv;
+            }
         }
     }
 
@@ -2532,12 +3651,72 @@ static int llm_load_from_disk(llm_model_t *m)
     if (m->n_kv_heads == 0) m->n_kv_heads = m->n_heads;
     if (m->rope_base < 1.0f) m->rope_base = 10000.0f;
 
-    /* Determine max sequence length from GGUF or default */
-    int ctx_len = (int)gguf_get_u32(&llm_gguf_ctx,
-                        "llama.context_length", 0);
+    /* Determine max sequence length from GGUF (already parsed by arch prefix) */
+    int ctx_len = (int)llm_gguf_ctx.n_ctx;
     if (ctx_len < 128) ctx_len = 2048;  /* sensible default */
-    if (ctx_len > 8192) ctx_len = 8192; /* cap for memory */
+    if (ctx_len > 8192) ctx_len = 8192; /* hard cap */
+
+    /* Dynamically reduce context length if KV cache would exceed available memory */
+    {
+        uint64_t avail = tensor_mm_free_bytes();
+        /* KV cache per token: 2 (K+V) * n_layers * n_kv_heads * head_dim * 4 bytes */
+        uint64_t kv_per_token = 2ULL * m->n_layers * m->n_kv_heads * m->head_dim * sizeof(float);
+        /* Reserve 256 MB for scratch buffers (logits, FFN, etc.) */
+        uint64_t reserve = 256ULL * 1024 * 1024;
+        if (kv_per_token > 0 && avail > reserve) {
+            int max_fit = (int)((avail - reserve) / kv_per_token);
+            if (max_fit < ctx_len) {
+                kprintf("[LLM] Capping context %d -> %d tokens (%lu MB heap free)\n",
+                        ctx_len, max_fit, (unsigned long)(avail / (1024*1024)));
+                ctx_len = max_fit;
+            }
+        }
+        if (ctx_len < 128) ctx_len = 128;
+    }
     m->max_seq = ctx_len;
+
+    /* Detect Phi-2 architecture (LayerNorm + GELU + partial RoPE) */
+    m->use_layernorm = 0;
+    m->use_gelu = 0;
+    m->rope_dim = 0; /* 0 = full head_dim */
+    if (kstrlen(m->arch) >= 4 &&
+        m->arch[0] == 'p' && m->arch[1] == 'h' && m->arch[2] == 'i') {
+        if (m->arch[3] == '2' || (m->arch[3] == '\0')) {
+            /* Phi-2: LayerNorm + GELU + partial RoPE */
+            m->use_layernorm = 1;
+            m->use_gelu = 1;
+            /* Phi-2 partial RoPE: typically 32 out of 80 head_dim */
+            char keybuf[128];
+            kstrcpy(keybuf, m->arch);
+            kstrcpy(keybuf + kstrlen(keybuf), ".rope.dimension_count");
+            m->rope_dim = (int)gguf_get_u32(&llm_gguf_ctx, keybuf, 0);
+            if (m->rope_dim == 0) m->rope_dim = m->head_dim; /* fallback */
+            kprintf("[LLM] Phi-2 mode: LayerNorm + GELU, rope_dim=%d\n", m->rope_dim);
+        } else {
+            /* Phi-3/Phi-3.5: LLaMA-compatible (RMSNorm + SwiGLU + full RoPE) */
+            kprintf("[LLM] Phi-3 mode: LLaMA-compatible architecture\n");
+        }
+    }
+
+    /* Longrope: load original context length for factor selection */
+    m->rope_orig_ctx = 0;
+    {
+        char keybuf[128];
+        kstrcpy(keybuf, m->arch);
+        kstrcpy(keybuf + kstrlen(keybuf), ".rope.scaling.original_context_length");
+        m->rope_orig_ctx = (int)gguf_get_u32(&llm_gguf_ctx, keybuf, 0);
+        if (m->rope_orig_ctx > 0)
+            kprintf("[LLM] Longrope: original_context_length=%d\n", m->rope_orig_ctx);
+    }
+
+    /* RMSNorm epsilon from model metadata (default 1e-5) */
+    {
+        char keybuf[128];
+        kstrcpy(keybuf, m->arch);
+        kstrcpy(keybuf + kstrlen(keybuf), ".attention.layer_norm_rms_epsilon");
+        m->rms_eps = gguf_get_f32(&llm_gguf_ctx, keybuf, 1e-5f);
+        kprintf("[LLM] rms_epsilon=%f\n", (double)m->rms_eps);
+    }
 
     /* Get model name */
     const char *name = gguf_get_str(&llm_gguf_ctx, "general.name");
@@ -2583,6 +3762,15 @@ static int llm_load_from_disk(llm_model_t *m)
     /* Build vocabulary */
     rc = llm_build_vocab(m, &llm_gguf_ctx);
     if (rc != 0) return rc;
+
+    /* Final vocab_size sanity: prefer tokenizer count over GGUF metadata */
+    if (m->n_vocab > 0 && m->n_vocab != m->vocab_size) {
+        kprintf("[LLM] Vocab: metadata=%d, tokenizer=%d, using %d\n",
+                m->vocab_size, m->n_vocab,
+                m->n_vocab > m->vocab_size ? m->n_vocab : m->vocab_size);
+        if (m->n_vocab > m->vocab_size)
+            m->vocab_size = m->n_vocab;
+    }
 
     /* Allocate inference scratch arena (KV cache + all buffers) */
     if (llm_alloc_scratch(m) != 0)
@@ -2656,6 +3844,7 @@ static int llm_format_prompt(const llm_model_t *m, const char *question,
     int pos = 0;
     /* Detect prompt format from architecture and model name */
     int is_chatml = 0;
+    int is_phi3   = 0;
 
     /* Check for Qwen (ChatML native) */
     if (kstrlen(m->arch) >= 4 &&
@@ -2663,11 +3852,22 @@ static int llm_format_prompt(const llm_model_t *m, const char *question,
         m->arch[2] == 'e' && m->arch[3] == 'n')
         is_chatml = 1;
 
+    /* Check for Phi-3/3.5 */
+    if (kstrlen(m->arch) >= 4 &&
+        m->arch[0] == 'p' && m->arch[1] == 'h' && m->arch[2] == 'i' &&
+        m->arch[3] != '2' && m->arch[3] != '\0')
+        is_phi3 = 1;
+
     /* Check for SmolLM / smollm in model name — SmolLM uses ChatML but
      * the special tokens may not be in base vocab; use simple prompt */
     /* (ChatML disabled for SmolLM until vocab includes <|im_start|>) */
 
-    if (is_chatml) {
+    if (is_phi3) {
+        /* Phi-3 format */
+        { const char *t = "<|user|>\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+        { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
+        { const char *t = "<|end|>\n<|assistant|>\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+    } else if (is_chatml) {
         /* ChatML format (Qwen, SmolLM, Mistral-Instruct-v0.3+, etc.) */
         { const char *t = "<|im_start|>system\nYou are a helpful math assistant. Give only the numeric answer.<|im_end|>\n<|im_start|>user\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
         { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
@@ -2967,6 +4167,18 @@ const char *llm_model_name(void)
     return llm_model.name;
 }
 
+uint64_t llm_param_count(void)
+{
+    if (!llm_is_loaded()) return 0;
+    /* Approximate: dim² × 12 × n_layers (QKV+O+gate+up+down + norms + embd) */
+    llm_model_t *m = &llm_model;
+    uint64_t per_layer = (uint64_t)m->dim * (uint64_t)m->dim * 4  /* QKV+O */
+                       + (uint64_t)m->dim * (uint64_t)m->ff_dim * 3; /* gate+up+down */
+    uint64_t total = per_layer * (uint64_t)m->n_layers
+                   + (uint64_t)m->vocab_size * (uint64_t)m->dim; /* embeddings */
+    return total;
+}
+
 int llm_prompt(const char *user_text, char *output, int max_output)
 {
     if (!llm_is_loaded()) {
@@ -2996,12 +4208,29 @@ int llm_prompt(const char *user_text, char *output, int max_output)
 
     /* Detect prompt format */
     int is_chatml = 0;
+    int is_phi3   = 0;
+    int is_phi2   = 0;
     if (kstrlen(m->arch) >= 4 &&
         m->arch[0] == 'q' && m->arch[1] == 'w' &&
         m->arch[2] == 'e' && m->arch[3] == 'n')
         is_chatml = 1;
+    if (kstrlen(m->arch) >= 3 &&
+        m->arch[0] == 'p' && m->arch[1] == 'h' && m->arch[2] == 'i') {
+        if (m->arch[3] == '2' || m->arch[3] == '\0')
+            is_phi2 = 1;
+        else
+            is_phi3 = 1;
+    }
 
-    if (is_chatml) {
+    if (is_phi3) {
+        PROMPT_APPEND("<|user|>\n");
+        PROMPT_APPEND(user_text);
+        PROMPT_APPEND("<|end|>\n<|assistant|>\n");
+    } else if (is_phi2) {
+        PROMPT_APPEND("Instruct: ");
+        PROMPT_APPEND(user_text);
+        PROMPT_APPEND("\nOutput: ");
+    } else if (is_chatml) {
         PROMPT_APPEND("<|im_start|>system\nYou are a helpful AI assistant running on TensorOS, a bare-metal AI operating system.<|im_end|>\n<|im_start|>user\n");
         PROMPT_APPEND(user_text);
         PROMPT_APPEND("<|im_end|>\n<|im_start|>assistant\n");
@@ -3031,6 +4260,76 @@ int llm_prompt(const char *user_text, char *output, int max_output)
     /* Generate: max 1024 tokens, temperature 0.7 with top-k/top-p sampling */
     int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
                              1024, 0.7f, 0);
+    __sync_lock_release(&llm_inference_active);
+    return n_gen;
+}
+
+/* Like llm_prompt but with an explicit max-token cap */
+int llm_prompt_n(const char *user_text, char *output, int max_output, int max_tokens)
+{
+    if (!llm_is_loaded()) {
+        kstrlcpy(output, "[no model loaded]", max_output);
+        return -1;
+    }
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) {
+        kstrlcpy(output, "[inference busy]", max_output);
+        return -1;
+    }
+
+    llm_model_t *m = &llm_model;
+
+    /* Build prompt with chat template (same as llm_prompt) */
+    static char prompt_buf[512];
+    int pos = 0;
+    const int buf_max = (int)sizeof(prompt_buf) - 1;
+    #define PA(s) do { \
+        const char *_s = (s); int _l = kstrlen(_s); \
+        if (pos + _l > buf_max) _l = buf_max - pos; \
+        if (_l > 0) { kmemcpy(prompt_buf + pos, _s, _l); pos += _l; } \
+    } while(0)
+
+    /* Detect prompt format from architecture */
+    int is_phi3 = 0, is_phi2 = 0, is_chatml = 0;
+    if (kstrlen(m->arch) >= 4 &&
+        m->arch[0] == 'q' && m->arch[1] == 'w' &&
+        m->arch[2] == 'e' && m->arch[3] == 'n')
+        is_chatml = 1;
+    if (kstrlen(m->arch) >= 3 &&
+        m->arch[0] == 'p' && m->arch[1] == 'h' && m->arch[2] == 'i') {
+        if (m->arch[3] == '2' || m->arch[3] == '\0')
+            is_phi2 = 1;
+        else
+            is_phi3 = 1;
+    }
+
+    if (is_phi3) {
+        PA("<|user|>\n");
+        PA(user_text);
+        PA("<|end|>\n<|assistant|>\n");
+    } else if (is_phi2) {
+        PA("Instruct: ");
+        PA(user_text);
+        PA("\nOutput: ");
+    } else if (is_chatml) {
+        PA("<|im_start|>user\n");
+        PA(user_text);
+        PA("<|im_end|>\n<|im_start|>assistant\n");
+    } else {
+        PA(user_text);
+    }
+    prompt_buf[pos] = '\0';
+    #undef PA
+
+    int n_tokens = llm_tokenize(m, prompt_buf, llm_tokens, llm_alloc_tokens - 64);
+    if (n_tokens <= 0) {
+        __sync_lock_release(&llm_inference_active);
+        kstrlcpy(output, "[tokenization failed]", max_output);
+        return -1;
+    }
+
+    if (max_tokens < 1) max_tokens = 16;
+    int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
+                             max_tokens, 0.0f, 0); /* greedy for smoke test */
     __sync_lock_release(&llm_inference_active);
     return n_gen;
 }

@@ -456,6 +456,38 @@ void kernel_main(void)
     kprintf("\n[READY] TensorOS is operational. %d CPUs, %lu MB RAM\n",
             kstate.cpu_count, kstate.memory_total_bytes / (1024*1024));
 
+    /* Auto-demo: if an LLM is loaded, run a benchmark inference automatically
+     * Quick smoke test — generate a few tokens so boot stays fast.
+     * Skip for large models (>1B params) where emulated inference is too slow.
+     * Full inference is available interactively via the shell ('llm' command).
+     * Run BEFORE sti() to avoid timer interrupt overhead during inference. */
+    {
+        extern int llm_is_loaded(void);
+        extern int llm_prompt_n(const char *user_text, char *output,
+                                int max_output, int max_tokens);
+        extern uint64_t llm_param_count(void);
+        int loaded = llm_is_loaded();
+        if (loaded) {
+            uint64_t params = llm_param_count();
+            int max_tok = (params > 1000000000ULL) ? 16 : 32;
+            kprintf("\n[LLM] Smoke test (%luM params, %d tok max)...\n",
+                    (unsigned long)(params / 1000000), max_tok);
+            static char llm_output[2048];
+            uint64_t t0 = rdtsc();
+            int n = llm_prompt_n("What is an operating system?",
+                                llm_output, sizeof(llm_output), max_tok);
+            uint64_t t1 = rdtsc();
+            if (n > 0) {
+                uint64_t ms = (t1 - t0) / (perf_tsc_mhz() * 1000);
+                uint64_t ms_tok = ms / (uint64_t)n;
+                kprintf("[LLM] %d tok in %lu ms (%lu ms/tok): %s\n",
+                        n, (unsigned long)ms, (unsigned long)ms_tok, llm_output);
+            } else {
+                kprintf("[LLM] smoke test produced no output\n");
+            }
+        }
+    }
+
     /* Enable interrupts for keyboard/timer */
     sti();
 
@@ -541,8 +573,36 @@ static void init_phase2_subsystems(void)
             tensor_mm_cache_size() / (1024 * 1024));
 
 #ifndef __aarch64__
-    /* Enforce W^X: .text=RX, .rodata=R, .data/.bss=RW+NX */
-    vmm_enforce_wx();
+    /* Skip W^X when running under a hypervisor — page table splitting
+     * triggers "Failed to translate GVA" under WHPX/Hyper-V.
+     * Detect via: (1) CPUID hypervisor bit, or (2) QEMU fw_cfg port. */
+    {
+        uint32_t eax, ebx, ecx, edx;
+        __asm__ volatile("cpuid" : "=a"(eax),"=b"(ebx),"=c"(ecx),"=d"(edx) : "a"(1) : );
+        int hv_present = (ecx >> 31) & 1;
+        int qemu_detected = 0;
+        /* Check QEMU fw_cfg signature at I/O port 0x510/0x511 */
+        {
+            uint16_t sel = 0x0000; /* FW_CFG_SIGNATURE */
+            __asm__ volatile("outw %0, %1" : : "a"(sel), "Nd"((uint16_t)0x510));
+            uint8_t b0, b1, b2, b3;
+            __asm__ volatile("inb %1, %0" : "=a"(b0) : "Nd"((uint16_t)0x511));
+            __asm__ volatile("inb %1, %0" : "=a"(b1) : "Nd"((uint16_t)0x511));
+            __asm__ volatile("inb %1, %0" : "=a"(b2) : "Nd"((uint16_t)0x511));
+            __asm__ volatile("inb %1, %0" : "=a"(b3) : "Nd"((uint16_t)0x511));
+            if (b0=='Q' && b1=='E' && b2=='M' && b3=='U')
+                qemu_detected = 1;
+        }
+        if (hv_present || qemu_detected) {
+            extern int vmm_hypervisor_active;
+            vmm_hypervisor_active = 1;
+            kprintf("[VMM] %s%s — W^X enforcement skipped\n",
+                    hv_present ? "hypervisor" : "",
+                    qemu_detected ? " (QEMU)" : "");
+        } else {
+            vmm_enforce_wx();
+        }
+    }
 #endif
 
     /* Tensor-aware process scheduler */

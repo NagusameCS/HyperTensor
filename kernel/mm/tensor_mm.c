@@ -124,8 +124,66 @@ static uint64_t multiboot_detect_memory(struct mem_regions *regions)
     /* Fallback: basic memory info */
     if (mbi->flags & MBOOT_FLAG_MEM) {
         uint64_t total = ((uint64_t)mbi->mem_upper + 1024) * 1024;  /* mem_upper is KB above 1MB */
-        kprintf("[MM] Multiboot basic: %lu MB RAM\n", total / (1024 * 1024));
-        return total;
+        /* Sanity: Q35 machine type often gives garbage mem_upper.
+         * If it claims > 16 GB, fall through to CMOS detection. */
+        if (total <= 16ULL * 1024 * 1024 * 1024) {
+            kprintf("[MM] Multiboot basic: %lu MB RAM\n", total / (1024 * 1024));
+            return total;
+        }
+        kprintf("[MM] Multiboot basic: %lu MB (suspicious, trying CMOS)\n",
+                total / (1024 * 1024));
+    }
+
+    /* CMOS-based memory detection (QEMU always populates these registers).
+     * Reads extended memory (16 MB – 4 GB) from registers 0x34/0x35 in
+     * 64 KB units, and high memory (above 4 GB) from 0x5b/0x5c/0x5d. */
+    {
+        uint8_t v;
+        /* Extended memory above 16 MB (64KB units) → covers up to ~4 GB */
+        __asm__ volatile("outb %0,%1" : : "a"((uint8_t)0x34), "Nd"((uint16_t)0x70));
+        __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"((uint16_t)0x71));
+        uint64_t ext16_lo = v;
+        __asm__ volatile("outb %0,%1" : : "a"((uint8_t)0x35), "Nd"((uint16_t)0x70));
+        __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"((uint16_t)0x71));
+        uint64_t ext16_hi = v;
+        uint64_t ext_above16m = (ext16_lo | (ext16_hi << 8)) * 65536ULL; /* bytes */
+
+        /* High memory above 4 GB (64KB units) */
+        __asm__ volatile("outb %0,%1" : : "a"((uint8_t)0x5b), "Nd"((uint16_t)0x70));
+        __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"((uint16_t)0x71));
+        uint64_t hi_b0 = v;
+        __asm__ volatile("outb %0,%1" : : "a"((uint8_t)0x5c), "Nd"((uint16_t)0x70));
+        __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"((uint16_t)0x71));
+        uint64_t hi_b1 = v;
+        __asm__ volatile("outb %0,%1" : : "a"((uint8_t)0x5d), "Nd"((uint16_t)0x70));
+        __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"((uint16_t)0x71));
+        uint64_t hi_b2 = v;
+        uint64_t high_mem = (hi_b0 | (hi_b1 << 8) | (hi_b2 << 16)) * 65536ULL;
+
+        /* Total = first 16 MB + extended + high */
+        uint64_t cmos_total = 16ULL * 1024 * 1024 + ext_above16m + high_mem;
+        uint64_t cmos_max   = cmos_total; /* max address ~ total for layout */
+
+        if (cmos_total > 32ULL * 1024 * 1024) {
+            if (regions) {
+                regions->total_usable = cmos_total;
+                /* Low RAM top: 16 MB + extended, capped at PCI hole (~3.25 GB) */
+                uint64_t low = 16ULL * 1024 * 1024 + ext_above16m;
+                if (low > 0xC0000000ULL) low = 0xC0000000ULL; /* cap at ~3 GB */
+                regions->low_top = low;
+                if (high_mem > 0) {
+                    regions->high_base = 0x100000000ULL;        /* 4 GB */
+                    regions->high_end  = 0x100000000ULL + high_mem;
+                    cmos_max = regions->high_end;
+                }
+                regions->max_addr = cmos_max;
+            }
+            kprintf("[MM] CMOS: %lu MB below 4G, %lu MB above 4G, %lu MB total\n",
+                    (16ULL * 1024 * 1024 + ext_above16m) / (1024 * 1024),
+                    high_mem / (1024 * 1024),
+                    cmos_total / (1024 * 1024));
+            return cmos_max;
+        }
     }
 
     return 0;
@@ -676,15 +734,11 @@ void tensor_mm_init(void)
     vm_extend_identity_map(phys_mem_total);
 
     /* ── Dynamic memory partitioning ──────────────────────────────────
-     * Tensor heap goes in low memory (after kernel, before MMIO hole).
-     * Model cache goes in high memory (above 4GB) to avoid the hole.
-     * If no high memory, both go in low memory.
+     * Model cache goes in high memory (above 4GB) where there is more
+     * contiguous space for large GGUF files (2+ GB).
+     * Tensor heap goes in low memory (scratch buffers are small).
      *
-     * Model cache goes in low memory (weight data is read millions of
-     * times during inference — keeping it below 4GB avoids TLB overhead).
-     * Tensor heap goes in high memory (scratch buffers are sequential).
-     *
-     * Layout:  [kernel..] [model cache] [MMIO hole] [tensor heap] [free]
+     * Layout:  [kernel..] [tensor heap] [MMIO hole] [model cache] [free]
      * ─────────────────────────────────────────────────────────────── */
     uint64_t region_start = ((uint64_t)(uintptr_t)__dynamic_region_start + 0x1FFFFF) & ~0x1FFFFFULL;
     uint64_t reserve = 128ULL * 1024 * 1024; /* keep 128 MB for kmalloc/pages */
@@ -692,18 +746,18 @@ void tensor_mm_init(void)
     uint64_t th_base, th_size, mc_base, mc_size;
 
     if (regions.high_base > 0 && regions.high_end > regions.high_base + reserve) {
-        /* ── Split layout: model cache LOW, tensor heap HIGH ── */
+        /* ── Split layout: tensor heap LOW, model cache HIGH ── */
 
-        /* Model cache: low memory from region_start to MMIO hole */
+        /* Tensor heap: low memory from region_start to MMIO hole */
         uint64_t low_top_2m = regions.low_top & ~0x1FFFFFULL;
-        mc_base = region_start;
-        mc_size = (low_top_2m > region_start) ? (low_top_2m - region_start) : 0;
+        th_base = region_start;
+        th_size = (low_top_2m > region_start) ? (low_top_2m - region_start) : 0;
 
-        /* Tensor heap: above 4GB */
-        th_base = (regions.high_base + 0x1FFFFF) & ~0x1FFFFFULL;
-        uint64_t high_avail = (regions.high_end > th_base + reserve)
-                            ? (regions.high_end - th_base - reserve) : 0;
-        th_size = high_avail & ~0x1FFFFFULL;
+        /* Model cache: above 4GB (plenty of room for large GGUF files) */
+        mc_base = (regions.high_base + 0x1FFFFF) & ~0x1FFFFFULL;
+        uint64_t high_avail = (regions.high_end > mc_base + reserve)
+                            ? (regions.high_end - mc_base - reserve) : 0;
+        mc_size = high_avail & ~0x1FFFFFULL;
     } else {
         /* ── Contiguous layout: everything in low memory ── */
         uint64_t available = 0;
@@ -935,7 +989,7 @@ void tensor_mm_get_stats(mm_stats_t *stats)
  * Page table layout (set up by multiboot_stub.asm):
  *   PML4   @ 0x1000
  *   PDPT   @ 0x2000
- *   PD0-3  @ 0x3000-0x6000  (each PD covers 1GB with 512 × 2MB entries)
+ *   PD0-7  @ 0x3000-0xA000  (each PD covers 1GB with 512 × 2MB entries)
  * =============================================================================*/
 
 #define PT_PRESENT   0x001ULL
@@ -1175,6 +1229,11 @@ void vmm_enforce_wx(void)
             count_text, count_ro, count_data, count_bss);
 }
 
+/* When running under a hypervisor (WHPX/Hyper-V), page table modifications
+ * crash the VM.  W^X enforcement is skipped so all pages remain RWX via
+ * 2MB huge pages — vmm_mark_rx/rw become no-ops. */
+int vmm_hypervisor_active = 0;
+
 /* =============================================================================
  * vmm_mark_rx() — Transition pages from RW+NX to RX (W^X compliant).
  * Used by JIT compiler: write code first, then flip to executable.
@@ -1182,6 +1241,7 @@ void vmm_enforce_wx(void)
  * =============================================================================*/
 int vmm_mark_rx(void *addr, uint32_t size)
 {
+    if (vmm_hypervisor_active) return 0;  /* pages already RWX under hypervisor */
     uint64_t start = (uint64_t)(uintptr_t)addr & ~0xFFFULL;
     uint64_t end   = ((uint64_t)(uintptr_t)addr + size + 0xFFF) & ~0xFFFULL;
     int count = 0;
@@ -1198,6 +1258,7 @@ int vmm_mark_rx(void *addr, uint32_t size)
 /* vmm_mark_rw() — Transition pages back to RW+NX (for re-compilation) */
 int vmm_mark_rw(void *addr, uint32_t size)
 {
+    if (vmm_hypervisor_active) return 0;  /* pages already RWX under hypervisor */
     uint64_t start = (uint64_t)(uintptr_t)addr & ~0xFFFULL;
     uint64_t end   = ((uint64_t)(uintptr_t)addr + size + 0xFFF) & ~0xFFFULL;
     int count = 0;

@@ -80,7 +80,15 @@ $SOURCES = @(
     "runtime\nn\braniac.c",
     "kernel\drivers\bt\rpi_bt.c",
     "kernel\drivers\blk\rpi_sd.c",
-    "kernel\update\ota.c"
+    "kernel\update\ota.c",
+    "kernel\drivers\dma\pcie_dma.c",
+    "runtime\nn\flash_attn.c",
+    "runtime\nn\paged_attn.c",
+    "runtime\nn\safetensors.c",
+    "runtime\nn\onnx.c",
+    "runtime\pseudocode\pseudo_stdlib.c",
+    "runtime\compute\vulkan_compute.c",
+    "kernel\net\distributed.c"
 )
 
 if ($Clean) {
@@ -174,15 +182,17 @@ if ($ModelFile) {
 }
 
 if ($Interactive) {
-    Write-Host "`n=== Booting TensorOS (Interactive) ===" -ForegroundColor Yellow
-    Write-Host "  QEMU window will open. Type commands in the VGA console." -ForegroundColor DarkGray
+    Write-Host "`n=== Booting TensorOS (Interactive, WHPX) ===" -ForegroundColor Yellow
+    Write-Host "  Serial output only (VGA disabled for WHPX compatibility)." -ForegroundColor DarkGray
     Write-Host "  Type 'exit' in the shell to shut down." -ForegroundColor DarkGray
     Remove-Item "$BUILD\serial.log" -Force -ErrorAction SilentlyContinue
     $qemuArgs = @(
+        "-machine", "q35,accel=whpx",
+        "-cpu", "EPYC-v4",
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
-        "-display", "gtk",
-        "-no-reboot", "-m", "8G", "-cpu", "max",
+        "-display", "none", "-vga", "none",
+        "-no-reboot", "-m", "8G",
         "-device", "isa-debug-exit,iobase=0x501,iosize=2"
     ) + $ModelDrive
     & $QEMU @qemuArgs
@@ -190,20 +200,24 @@ if ($Interactive) {
     if (Test-Path "$BUILD\serial.log") {
         $log = [System.IO.File]::ReadAllBytes("$PWD\$BUILD\serial.log")
         Write-Host "Serial log: $($log.Length) bytes saved to build\serial.log"
+        [System.Text.Encoding]::ASCII.GetString($log)
     }
 } elseif ($Run) {
-    Write-Host "`n=== Booting TensorOS in QEMU ===" -ForegroundColor Yellow
+    Write-Host "`n=== Booting TensorOS in QEMU (WHPX) ===" -ForegroundColor Yellow
     Remove-Item "$BUILD\serial.log" -Force -ErrorAction SilentlyContinue
     $qemuArgs = @(
+        "-machine", "q35,accel=whpx",
+        "-cpu", "EPYC-v4",
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
-        "-display", "none", "-no-reboot", "-m", "8G", "-cpu", "max",
+        "-display", "none", "-vga", "none",
+        "-no-reboot", "-m", "8G",
         "-device", "isa-debug-exit,iobase=0x501,iosize=2",
         "-nic", "user,model=virtio-net-pci"
     ) + $ModelDrive
     $proc = Start-Process -FilePath $QEMU -ArgumentList $qemuArgs -PassThru
-    $timeout = if ($ModelFile) { 600 } else { 90 }
-    Write-Host "  Waiting ${timeout}s for boot" -ForegroundColor DarkGray
+    $timeout = if ($ModelFile -and $ModelFile.Length -gt 500MB) { 600 } elseif ($ModelFile) { 300 } else { 90 }
+    Write-Host "  WHPX: near-native speed. Waiting ${timeout}s for boot" -ForegroundColor DarkGray
     Start-Sleep $timeout
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep 1

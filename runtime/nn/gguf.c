@@ -440,7 +440,7 @@ void gguf_print_info(const gguf_ctx_t *ctx)
             ctx->total_param_count);
 
     /* Print first few tensors */
-    uint32_t show = ctx->tensor_count < 8 ? ctx->tensor_count : 8;
+    uint32_t show = ctx->tensor_count < 20 ? ctx->tensor_count : 20;
     for (uint32_t i = 0; i < show; i++) {
         const gguf_tensor_info_t *t = &ctx->tensors[i];
         const ggml_type_info_t *ti = ggml_get_type_info(t->type);

@@ -33,8 +33,8 @@ _start:
     ; Setup initial stack
     mov esp, stack_top
 
-    ; Verify multiboot2 magic
-    cmp esi, 0x36d76289
+    ; Verify multiboot1 magic (GRUB passes 0x2BADB002 in EAX)
+    cmp esi, 0x2BADB002
     jne .no_multiboot
 
     ; Check for long mode support

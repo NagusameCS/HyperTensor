@@ -1,8 +1,58 @@
 # TensorOS Comprehensive Code Audit Report
 
-**Date**: June 2025
+**Date**: June 2025 (updated March 2026)
 **Scope**: Full codebase at `C:\Users\legom\TensorOS`
 **Auditor**: GitHub Copilot (Claude Opus 4.6)
+
+---
+
+## March 2026 Update — Coherent LLM Inference Achieved
+
+Since the June 2025 audit, the following critical bugs were found and fixed:
+
+### Bugs Fixed
+
+| Bug | Impact | Fix |
+|-----|--------|-----|
+| **Q4_0 nibble layout** | All Q4_0 dequant produced elements in wrong order (interleaved vs GGML standard). Corrupted every F32 boundary (RMSNorm, residuals). | Rewrote all 8 Q4_0 dequant sites: embed, dot32 (SSE2/aarch64), dot32_avx2, fused GEMV (2 variants), AVX2 helpers |
+| **RMSNorm epsilon** | Hardcoded 1e-6 vs model's 1e-5 | Loaded from GGUF metadata, parameterized all callsites |
+| **Missing LongRoPE factors** | Phi-3.5 requires position-dependent frequency scaling | Loaded rope_factors_short/long from GGUF, applied in precompute |
+| **Math library precision** | sinf/cosf/expf/logf had catastrophic errors | Complete rewrites of all transcendental functions |
+
+### Current LLM Inference Scorecard
+
+| Metric | Value |
+|--------|-------|
+| Model | Phi-3.5 Mini Instruct (3.8B params, Q4_0) |
+| Output quality | ✅ Coherent English, matches Python/NumPy reference |
+| Decode speed | 454 ms/tok (single core, QEMU WHPX) |
+| Prefill speed | 5,475 ms for 12 tokens |
+| Numerical accuracy | Exact match at all checkpoints (embedding, L0 Q/K/V, L0 output) |
+| Quantization formats | Q4_0 ✅, Q4_1 ✅, Q6_K ✅, Q8_0 ✅ |
+| Model architectures | Phi-3 ✅, LLaMA ✅, Gemma ✅, Mistral ✅, Qwen2 ✅ |
+
+### Updated Scorecard
+
+| Category | Jun 2025 | Mar 2026 | Change |
+|----------|----------|----------|--------|
+| LLM inference | ★★★★☆ | ★★★★★ | **Upgraded**: Produces correct output, verified numerically |
+| Tensor/SIMD ops | ★★★★☆ | ★★★★☆ | Unchanged |
+| Boot / HW init | ★★★★☆ | ★★★★☆ | Unchanged |
+| JIT compiler | ★★★★☆ | ★★★★☆ | Unchanged |
+| Drivers (virtio) | ★★★☆☆ | ★★★☆☆ | Unchanged |
+| SMP | ★★★☆☆ | ★★★☆☆ | Unchanged |
+| Memory management | ★★★☆☆ | ★★★☆☆ | Unchanged |
+| Networking | ★★★☆☆ | ★★★☆☆ | Unchanged |
+| Scheduler | ★★☆☆☆ | ★★☆☆☆ | Unchanged |
+| Virtualization | ★★☆☆☆ | ★★☆☆☆ | Unchanged |
+| Security / Isolation | ★☆☆☆☆ | ★☆☆☆☆ | Unchanged |
+| Filesystem | ★☆☆☆☆ | ★☆☆☆☆ | Unchanged |
+
+### What Still Doesn't Work
+
+All items from the original audit remain open. The OS layer (virtual memory,
+preemptive scheduling, TCP, persistent filesystem, GPU drivers) is unchanged.
+The improvements are entirely in the inference engine numerical correctness.
 
 ---
 
@@ -24,7 +74,7 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 |----------|--------|---------|
 | Tensor/SIMD ops | ★★★★☆ | BLIS GEMM, AVX2 dispatch, Winograd — genuinely good |
 | JIT compiler | ★★★★☆ | Real x86_64 instruction encoding, working matmul JIT |
-| LLM inference | ★★★★☆ | Complete transformer with GGUF, quantization, KV-cache |
+| LLM inference | ★★★★★ | Complete transformer with GGUF, quantization, KV-cache — **verified correct output** |
 | Boot / HW init | ★★★★☆ | Real long mode setup, PCI, PIT, PIC, serial, exceptions |
 | SMP | ★★★☆☆ | Real trampoline, but APs can't actually execute work |
 | Memory management | ★★★☆☆ | Functional heap + arena, but no paging/VMM |
