@@ -352,7 +352,7 @@ jit_rmsnorm_fn jit_compile_rmsnorm_kernel(int dim)
 
     jit_add_reg_imm32(b, RBX, vecs >= 2 ? 32 : 16);
     jit_add_reg_imm32(b, RCX, vecs >= 2 ? 2 : 1);
-    jit_cmp_reg_imm32(b, RCX, vecs >= 2 ? vecs / 2 : vecs);
+    jit_cmp_reg_imm32(b, RCX, vecs);
     jit_jl_back(b, ss_top);
 
     /* Combine dual accumulators */
@@ -892,7 +892,7 @@ jit_ewise_fn jit_compile_vmul_kernel(int n)
     jit_add_reg_imm32(b, R12, step);
     jit_add_reg_imm32(b, R13, step);
     jit_add_reg_imm32(b, RBX, inc);
-    jit_cmp_reg_imm32(b, RBX, vecs >= 2 ? vecs / 2 : vecs);
+    jit_cmp_reg_imm32(b, RBX, vecs);
     jit_jl_back(b, loop_top);
 
     /* Handle final odd vector if unrolled */
@@ -961,7 +961,7 @@ jit_ewise_fn jit_compile_vadd_kernel(int n)
     jit_add_reg_imm32(b, R12, step);
     jit_add_reg_imm32(b, R13, step);
     jit_add_reg_imm32(b, RBX, inc);
-    jit_cmp_reg_imm32(b, RBX, vecs >= 2 ? vecs / 2 : vecs);
+    jit_cmp_reg_imm32(b, RBX, vecs);
     jit_jl_back(b, loop_top);
 
     if (vecs >= 2 && (vecs % 2)) {
@@ -1031,7 +1031,7 @@ jit_dot_fn jit_compile_dot_kernel(int n)
     jit_add_reg_imm32(b, R12, step);
     jit_add_reg_imm32(b, R13, step);
     jit_add_reg_imm32(b, RBX, inc);
-    jit_cmp_reg_imm32(b, RBX, vecs >= 2 ? vecs / 2 : vecs);
+    jit_cmp_reg_imm32(b, RBX, vecs);
     jit_jl_back(b, loop_top);
 
     /* Handle odd vector */

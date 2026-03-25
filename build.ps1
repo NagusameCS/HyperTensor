@@ -189,6 +189,7 @@ if ($Interactive) {
     $qemuArgs = @(
         "-machine", "q35,accel=whpx",
         "-cpu", "EPYC-v4",
+        "-smp", "4,cores=4,threads=1",
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
         "-display", "none", "-vga", "none",
@@ -208,6 +209,7 @@ if ($Interactive) {
     $qemuArgs = @(
         "-machine", "q35,accel=whpx",
         "-cpu", "EPYC-v4",
+        "-smp", "4,cores=4,threads=1",
         "-kernel", "$BUILD\tensoros.elf",
         "-serial", "file:$BUILD\serial.log",
         "-display", "none", "-vga", "none",

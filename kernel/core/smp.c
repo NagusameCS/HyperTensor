@@ -163,10 +163,13 @@ static const uint8_t trampoline_code[] = {
     0x0F, 0x01, 0x1C, 0x25,      /* lidt [abs32] */
     0x00, 0x81, 0x00, 0x00,      /* address = 0x8100 */
 
-    /* Jump to C ap_idle_loop function (address at offset 0xA8, patched) */
+    /* Call C ap_idle_loop function (address at offset 0xA8, patched).
+     * Must use CALL (not JMP) so the return address push gives the callee
+     * the ABI-required RSP ≡ 8 (mod 16) alignment.  ap_idle_loop never
+     * returns, so the stale return-address on the stack is harmless. */
     0x48, 0x8B, 0x04, 0x25,      /* mov rax, [abs32] */
     0xA8, 0x80, 0x00, 0x00,      /* address = 0x80A8 */
-    0xFF, 0xE0,                   /* jmp rax */
+    0xFF, 0xD0,                   /* call rax */
 };
 
 /* GDT for trampoline (at offset 0xD0 in trampoline page) */

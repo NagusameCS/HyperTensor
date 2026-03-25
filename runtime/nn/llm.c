@@ -645,19 +645,28 @@ static inline float fp16_to_fp32_fast(uint16_t h)
 /* Temporary quantized input block (float scale, not fp16, for speed) */
 typedef struct { float d; int8_t qs[32]; } q8_input_t;
 
-/* Pre-quantized input buffer — max 64 blocks = 2048 elements */
-#define Q8_MAX_BLOCKS 64
+/* Pre-quantized input buffer — max 512 blocks = 16384 elements (covers 9216-dim FFN) */
+#define Q8_MAX_BLOCKS 512
 static q8_input_t llm_xq_buf[Q8_MAX_BLOCKS];
 
-/* Quantize 32 floats to one q8 input block */
+/* AVX2 quantize 32 floats → Q8_0 block (8-wide SIMD abs-max + rounding) */
 __attribute__((target("avx2,fma")))
 static void q8_quantize_block(q8_input_t *out, const float *x)
 {
-    float amax = 0.0f;
-    for (int i = 0; i < 32; i++) {
-        float a = x[i] < 0 ? -x[i] : x[i];
-        if (a > amax) amax = a;
+    /* Find absmax with 8-wide AVX2 */
+    v8f sign_mask = v8f_set1(-0.0f);
+    v8f mx = v8f_setzero();
+    for (int i = 0; i < 32; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        v8f av;
+        __asm__("vandnps %2, %1, %0" : "=x"(av) : "x"(sign_mask), "x"(v)); /* abs */
+        mx = v8f_max(mx, av);
     }
+    /* Horizontal max of 8 lanes */
+    union { v8f vec; float f[8]; } mu = { .vec = mx };
+    float amax = mu.f[0];
+    for (int j = 1; j < 8; j++) if (mu.f[j] > amax) amax = mu.f[j];
+
     if (amax < 1e-30f) {
         out->d = 0.0f;
         __builtin_memset(out->qs, 0, 32);
@@ -665,12 +674,24 @@ static void q8_quantize_block(q8_input_t *out, const float *x)
     }
     out->d = amax / 127.0f;
     float id = 127.0f / amax;
-    for (int i = 0; i < 32; i++) {
-        float v = x[i] * id;
-        int iv = (int)(v + (v >= 0 ? 0.5f : -0.5f));
-        if (iv > 127) iv = 127;
-        if (iv < -127) iv = -127;
-        out->qs[i] = (int8_t)iv;
+    v8f vid = v8f_set1(id);
+    /* Quantize 32 floats with rounding via vcvtps2dq (banker's rounding) */
+    for (int i = 0; i < 32; i += 8) {
+        v8f v; __builtin_memcpy(&v, x + i, 32);
+        v8f scaled = v * vid;
+        /* vcvtps2dq rounds to nearest-even (same as llama.cpp) */
+        typedef int v8i __attribute__((vector_size(32)));
+        v8i iv;
+        __asm__("vcvtps2dq %1, %0" : "=x"(iv) : "x"(scaled));
+        /* Pack int32→int16→int8: vpackssdw + vpacksswb */
+        /* For simplicity, extract and clamp (compiler optimizes well) */
+        union { v8i vec; int i[8]; } u = { .vec = iv };
+        for (int j = 0; j < 8; j++) {
+            int q = u.i[j];
+            if (q > 127) q = 127;
+            if (q < -127) q = -127;
+            out->qs[i + j] = (int8_t)q;
+        }
     }
 }
 
@@ -1042,6 +1063,141 @@ static void llm_gemv_q8_fused_range_avx2(float *out, const void *weight,
     }
 }
 
+/* ─── Q4_0 × Q8_0 integer dot product (llama.cpp approach) ─── */
+/* Uses vpmaddubsw (unsigned×signed→int16) + vpmaddwd (int16→int32).
+ * 32 MACs in ~4 SIMD instructions vs ~16 for the float path.
+ * Q4 nibbles are treated as unsigned [0,15], bias of 8 is folded into sum. */
+typedef int   v8i  __attribute__((vector_size(32)));
+typedef short v16s __attribute__((vector_size(32)));
+typedef char  v32b __attribute__((vector_size(32)));
+
+__attribute__((target("avx2,fma")))
+static inline float q4_0_q8_dot_avx2(const ggml_q4_0_t *w, const q8_input_t *xq)
+{
+    /* Unpack 16 Q4_0 bytes → 32 unsigned nibbles [0..15] in GGML layout:
+     * positions 0..15 = lo nibbles, positions 16..31 = hi nibbles */
+    uint8_t q4u[32];
+    for (int j = 0; j < 16; j++) {
+        q4u[j]      = w->qs[j] & 0x0F;
+        q4u[j + 16] = w->qs[j] >> 4;
+    }
+
+    /* Load into SIMD vectors */
+    v32b q4_unsigned;
+    __builtin_memcpy(&q4_unsigned, q4u, 32);
+    v32b xq_bytes;
+    __builtin_memcpy(&xq_bytes, xq->qs, 32);
+
+    /* vpmaddubsw: unsigned Q4 × signed Q8 → 16 × int16 */
+    v16s prod16;
+    __asm__("vpmaddubsw %2, %1, %0" : "=x"(prod16) : "x"(q4_unsigned), "x"(xq_bytes));
+
+    /* vpmaddwd: adjacent int16 pairs → 8 × int32 */
+    v16s ones = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    v8i sum32;
+    __asm__("vpmaddwd %2, %1, %0" : "=x"(sum32) : "x"(prod16), "x"(ones));
+
+    /* Horizontal sum of 8 int32s */
+    union { v8i vec; int i[8]; } su = { .vec = sum32 };
+    int isum = (su.i[0]+su.i[1]+su.i[2]+su.i[3]) + (su.i[4]+su.i[5]+su.i[6]+su.i[7]);
+
+    /* Correction: Q4 values are unsigned [0,15] but should be signed [-8,7].
+     * The dot product includes an extra: sum_i(8 * xq[i]).
+     * Subtract: bias = 8 * sum(xq[0..31]) */
+    int xsum = 0;
+    for (int j = 0; j < 32; j++) xsum += xq->qs[j];
+
+    float wd = fp16_to_fp32_fast(w->d);
+    return wd * xq->d * (float)(isum - 8 * xsum);
+}
+
+/* Fused Q4_0×Q8_0 integer GEMV: 4 rows at a time with shared Q8 input */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q4_q8_fused_avx2(float *out, const void *weight,
+                                       const q8_input_t *xq, int out_dim,
+                                       int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 18; /* Q4_0 row bytes */
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = 0;
+
+    for (; i + 3 < out_dim; i += 4) {
+        const ggml_q4_0_t *r0 = (const ggml_q4_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q4_0_t *r1 = (const ggml_q4_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q4_0_t *r2 = (const ggml_q4_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q4_0_t *r3 = (const ggml_q4_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < out_dim) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f, s3 = 0.0f;
+        for (int b = 0; b < nb; b++) {
+            s0 += q4_0_q8_dot_avx2(&r0[b], &xq[b]);
+            s1 += q4_0_q8_dot_avx2(&r1[b], &xq[b]);
+            s2 += q4_0_q8_dot_avx2(&r2[b], &xq[b]);
+            s3 += q4_0_q8_dot_avx2(&r3[b], &xq[b]);
+        }
+        out[i]   = s0;
+        out[i+1] = s1;
+        out[i+2] = s2;
+        out[i+3] = s3;
+    }
+    for (; i < out_dim; i++) {
+        const ggml_q4_0_t *row = (const ggml_q4_0_t *)(base + (uint64_t)i * rb);
+        float s = 0.0f;
+        for (int b = 0; b < nb; b++)
+            s += q4_0_q8_dot_avx2(&row[b], &xq[b]);
+        out[i] = s;
+    }
+}
+
+/* Fused Q4_0×Q8_0 integer GEMV for a range of rows (SMP workers) */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q4_q8_fused_range_avx2(float *out, const void *weight,
+                                             const q8_input_t *xq,
+                                             int row_start, int row_end,
+                                             int in_dim)
+{
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 18;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = row_start;
+
+    for (; i + 3 < row_end; i += 4) {
+        const ggml_q4_0_t *r0 = (const ggml_q4_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q4_0_t *r1 = (const ggml_q4_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q4_0_t *r2 = (const ggml_q4_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q4_0_t *r3 = (const ggml_q4_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < row_end) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f, s3 = 0.0f;
+        for (int b = 0; b < nb; b++) {
+            s0 += q4_0_q8_dot_avx2(&r0[b], &xq[b]);
+            s1 += q4_0_q8_dot_avx2(&r1[b], &xq[b]);
+            s2 += q4_0_q8_dot_avx2(&r2[b], &xq[b]);
+            s3 += q4_0_q8_dot_avx2(&r3[b], &xq[b]);
+        }
+        out[i]   = s0;
+        out[i+1] = s1;
+        out[i+2] = s2;
+        out[i+3] = s3;
+    }
+    for (; i < row_end; i++) {
+        const ggml_q4_0_t *row = (const ggml_q4_0_t *)(base + (uint64_t)i * rb);
+        float s = 0.0f;
+        for (int b = 0; b < nb; b++)
+            s += q4_0_q8_dot_avx2(&row[b], &xq[b]);
+        out[i] = s;
+    }
+}
+
 /* ─── Q4_0 nibble unpacking helpers for standard GGML layout ─── */
 /* Extract 8 lo nibbles from 8 consecutive bytes → 8 floats (elements j..j+7) */
 __attribute__((target("avx2,fma")))
@@ -1269,7 +1425,7 @@ static void llm_gemv_avx2(float *out, const void *weight, const float *x,
         llm_gemv_q8_fused_avx2(out, weight, x, out_dim, in_dim);
         return;
     }
-    /* Q4_0 fast path: fused 4-row batched GEMV */
+    /* Q4_0 fast path: float fused GEMV */
     if (type == GGML_TYPE_Q4_0) {
         llm_gemv_q4_fused_avx2(out, weight, x, out_dim, in_dim);
         return;
@@ -1384,6 +1540,28 @@ static jit_gemv_q8_fn llm_get_jit_gemv(int rows, int cols)
     return fn;
 }
 
+/* AVX2 JIT cache for Q4_0×Q8_0 integer GEMV */
+static jit_gemv_q8_fn llm_jit_gemv_q4q8_cache[8] = {0};
+static int llm_jit_gemv_q4q8_rows[8] = {0};
+static int llm_jit_gemv_q4q8_cols[8] = {0};
+static int llm_jit_gemv_q4q8_n = 0;
+
+static jit_gemv_q8_fn llm_get_jit_gemv_q4q8(int rows, int cols)
+{
+    for (int i = 0; i < llm_jit_gemv_q4q8_n; i++) {
+        if (llm_jit_gemv_q4q8_rows[i] == rows && llm_jit_gemv_q4q8_cols[i] == cols)
+            return llm_jit_gemv_q4q8_cache[i];
+    }
+    jit_gemv_q8_fn fn = jit_compile_q4_q8_gemv_avx2(rows, cols);
+    if (fn && llm_jit_gemv_q4q8_n < 8) {
+        llm_jit_gemv_q4q8_rows[llm_jit_gemv_q4q8_n] = rows;
+        llm_jit_gemv_q4q8_cols[llm_jit_gemv_q4q8_n] = cols;
+        llm_jit_gemv_q4q8_cache[llm_jit_gemv_q4q8_n] = fn;
+        llm_jit_gemv_q4q8_n++;
+    }
+    return fn;
+}
+
 /* ─── Parallel GEMV work item for SMP dispatch ─── */
 #ifndef __aarch64__
 typedef struct {
@@ -1412,7 +1590,7 @@ static void gemv_worker_avx2(void *arg)
         return;
     }
 
-    /* Q4_0 fast path: fused 4-row batched */
+    /* Q4_0 fast path: float fused GEMV */
     if (w->type == GGML_TYPE_Q4_0) {
         llm_gemv_q4_fused_range_avx2(w->out, w->weight, w->x,
                                       w->row_start, w->row_end, w->in_dim);
@@ -1444,6 +1622,20 @@ static void llm_gemv(float *out, const void *weight, const float *x,
         }
     }
 
+    /* JIT AVX2 Q4_0×Q8_0 integer GEMV: DISABLED — debugging correctness */
+    if (0 && cpu_features.avx2_usable && type == GGML_TYPE_Q4_0) {
+        int nb = in_dim / 32;
+        if (nb <= Q8_MAX_BLOCKS) {
+            jit_gemv_q8_fn jfn = llm_get_jit_gemv_q4q8(out_dim, in_dim);
+            if (jfn) {
+                q8_quantize_row(llm_xq_buf, x, in_dim);
+                /* JIT fn takes q8_input_t* as 3rd arg (same pointer type as float*) */
+                jfn(out, weight, (const float *)(void *)llm_xq_buf, out_dim, in_dim);
+                return;
+            }
+        }
+    }
+
     /* Use AVX2+FMA GEMV when available */
     if (cpu_features.avx2_usable) {
         uint32_t ncpu = smp.ap_started + 1; /* Only use actually-running CPUs */
@@ -1458,12 +1650,8 @@ static void llm_gemv(float *out, const void *weight, const float *x,
             int bsp_end   = bsp_chunk;
             row = bsp_end;
 
-            /* Pre-quantize input for Q8_0 integer dot (once, shared by all CPUs) */
+            /* Q4×Q8 integer path disabled — correctness under investigation */
             const q8_input_t *xq_ptr = (void *)0;
-            if (0) {
-                q8_quantize_row(llm_xq_buf, x, in_dim);
-                xq_ptr = llm_xq_buf;
-            }
 
             /* Dispatch to APs (cpu 1..ncpu-1) */
             for (uint32_t c = 1; c < ncpu; c++) {
@@ -2178,9 +2366,12 @@ static void llm_vmul_f32(float *dst, const float *src, int n)
 /* === JIT kernel cache for the forward pass (lazy-compiled once) === */
 static jit_fused_silu_mul_fn jit_fwd_fused_silu = NULL;
 static jit_ewise_fn          jit_fwd_vadd_dim   = NULL;
+static jit_ewise_fn          jit_fwd_vmul_ff    = NULL;
 static jit_dot_fn            jit_fwd_dot_hd     = NULL;
 static jit_axpy_fn           jit_fwd_axpy_hd    = NULL;
 static jit_rope_fn           jit_fwd_rope_hd    = NULL;
+static jit_rmsnorm_fn        jit_fwd_rmsnorm    = NULL;
+static jit_softmax_fn        jit_fwd_softmax    = NULL;
 static int                   jit_fwd_ready      = 0;
 
 static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos)
@@ -2195,19 +2386,21 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     /* Lazy-compile JIT kernels on first call (dimensions fixed per model) */
 #ifndef __aarch64__
     if (!jit_fwd_ready) {
-        /* Only use JIT for operations that don't have AVX2 C paths.
-         * The SSE2 JIT dot/axpy/vadd are 4-wide, slower than AVX2 8-wide C code.
-         * Skip them when AVX2 is available. */
-        if (!cpu_features.avx2_usable) {
-            jit_fwd_vadd_dim = jit_compile_vadd_kernel(dim);
-            jit_fwd_dot_hd   = jit_compile_dot_kernel(hd);
-            jit_fwd_axpy_hd  = jit_compile_axpy_kernel(hd);
-            if (jit_fwd_vadd_dim) kprintf("[JIT] Compiled vadd(%d)\n", dim);
-            if (jit_fwd_dot_hd)   kprintf("[JIT] Compiled dot(%d)\n", hd);
-            if (jit_fwd_axpy_hd)  kprintf("[JIT] Compiled axpy(%d)\n", hd);
-        } else {
-            kprintf("[JIT] AVX2 available — using C+AVX2 for dot/axpy/vadd\n");
-        }
+        /* Compile ALL JIT kernels — baked dimensions eliminate loop overhead.
+         * SSE2 JIT with constants often beats generic AVX2 C for small ops. */
+        jit_fwd_vadd_dim   = jit_compile_vadd_kernel(dim);
+        jit_fwd_dot_hd     = jit_compile_dot_kernel(hd);
+        jit_fwd_axpy_hd    = jit_compile_axpy_kernel(hd);
+        jit_fwd_fused_silu  = jit_compile_fused_silu_mul_kernel(ff);
+        jit_fwd_rope_hd    = jit_compile_rope_kernel(hd);
+        jit_fwd_rmsnorm    = jit_compile_rmsnorm_kernel(dim);
+        jit_fwd_softmax    = NULL; /* softmax has variable length (seq_len) — skip */
+        if (jit_fwd_vadd_dim)  kprintf("[JIT] Compiled vadd(%d)\n", dim);
+        if (jit_fwd_dot_hd)    kprintf("[JIT] Compiled dot(%d)\n", hd);
+        if (jit_fwd_axpy_hd)   kprintf("[JIT] Compiled axpy(%d)\n", hd);
+        if (jit_fwd_fused_silu) kprintf("[JIT] Compiled fused_silu_mul(%d)\n", ff);
+        if (jit_fwd_rope_hd)   kprintf("[JIT] Compiled rope(%d)\n", hd);
+        if (jit_fwd_rmsnorm)   kprintf("[JIT] Compiled rmsnorm(%d)\n", dim);
         kprintf("[JIT] %d CPUs for parallel GEMV\n", smp.cpu_count);
         jit_fwd_ready = 1;
     }
@@ -2216,8 +2409,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     /* 1. Embedding lookup */
     llm_embed(llm_x, m, token_id);
 
-    /* Debug: check embedding output (only on first call) */
-    static int fwd_dbg_count = 0;
+    /* Debug: check embedding output (disabled for performance) */
+    static int fwd_dbg_count = 99;
     if (fwd_dbg_count == 0) {
         float emin = llm_x[0], emax = llm_x[0], esum = 0.0f;
         int ezero = 0;
@@ -3176,8 +3369,8 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     /* Get next token from the last forward pass */
     int next = llm_sample(llm_logits, m->vocab_size, temperature);
 
-    /* Debug: log first generated token and logits shape */
-    {
+    /* Debug: log first generated token and logits shape (disabled for performance) */
+    if (0) {
         float lmin = llm_logits[0], lmax = llm_logits[0];
         int nzero = 0, nnan = 0;
         for (int i = 0; i < m->vocab_size; i++) {
@@ -3276,8 +3469,8 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
         last_token = next;
         next = llm_sample(llm_logits, m->vocab_size, temperature);
 
-        /* Debug: print second and third token info */
-        if (g == 0 || g == 1) {
+        /* Debug: print second and third token info (disabled for performance) */
+        if (0 && (g == 0 || g == 1)) {
             kprintf("[DBG] gen[%d] next=%d logit_max=%.2f pos=%d\n",
                     g+1, next, (double)llm_logits[next], pos);
         }

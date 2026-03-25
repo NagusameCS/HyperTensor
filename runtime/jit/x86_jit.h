@@ -336,8 +336,23 @@ void jit_vmovss_store_vex(jit_buf_t *b, int base, int32_t disp, int xmm);
 void jit_vmovd_to_xmm_vex(jit_buf_t *b, int xmm, int gpr);
 void jit_prefetcht0(jit_buf_t *b, int base, int32_t disp);
 
+/* AVX2 integer SIMD emitters (for Q4_0×Q8_0 integer dot product) */
+void jit_vpand256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vpsrlw256_imm(jit_buf_t *b, int ymm, int src, uint8_t imm);
+void jit_vpunpcklbw256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vpunpckhbw256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vpmaddubsw256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vpmaddwd256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vpaddd256(jit_buf_t *b, int dst, int src1, int src2);
+void jit_vmovdqu_load256(jit_buf_t *b, int ymm, int base, int32_t disp);
+void jit_vmovdqu_store256(jit_buf_t *b, int base, int32_t disp, int ymm);
+void jit_vpxor256(jit_buf_t *b, int dst, int src1, int src2);
+
 /* Compile AVX2+FMA fused Q8_0 GEMV kernel (8-wide, 4-row batched) */
 jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int rows, int cols);
+
+/* Compile AVX2 Q4_0×Q8_0 integer GEMV kernel */
+jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int rows, int cols);
 
 /* Get number of JIT-compiled kernels cached */
 int jit_kernel_count(void);

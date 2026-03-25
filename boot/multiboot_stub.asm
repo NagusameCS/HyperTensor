@@ -101,32 +101,40 @@ _start:
     mov al, '2'
     out dx, al
 
-    ; --- Setup page tables: identity map first 8GB ---
-    ; Zero page tables (10 pages: PML4 + PDPT + 8 PDs)
-    mov edi, 0x1000
+    ; --- Setup page tables: identity map first 16GB ---
+    ; 18 pages: PML4 + PDPT + 16 PDs (at 0x10000, above SMP trampoline at 0x8000)
+    mov edi, 0x10000
     mov cr3, edi
     xor eax, eax
-    mov ecx, 10240
-    rep stosd                     ; Clear 40KB (10 pages)
+    mov ecx, 18432                ; 18 pages × 1024 dwords = 18432
+    rep stosd                     ; Clear 72KB
 
-    ; PML4[0] -> PDPT at 0x2000
-    mov dword [0x1000], 0x2003
-    ; PDPT[0..7] -> PDs at 0x3000..0xA000 (8 × 1GB = 8GB + MMIO headroom)
-    mov dword [0x2000], 0x3003    ; 0x00000000-0x3FFFFFFF (1st GB)
-    mov dword [0x2008], 0x4003    ; 0x40000000-0x7FFFFFFF (2nd GB)
-    mov dword [0x2010], 0x5003    ; 0x80000000-0xBFFFFFFF (3rd GB)
-    mov dword [0x2018], 0x6003    ; 0xC0000000-0xFFFFFFFF (4th GB)
-    mov dword [0x2020], 0x7003    ; 0x100000000-0x13FFFFFFF (5th GB - tensor heap)
-    mov dword [0x2028], 0x8003    ; 0x140000000-0x17FFFFFFF (6th GB - tensor heap)
-    mov dword [0x2030], 0x9003    ; 0x180000000-0x1BFFFFFFF (7th GB - tensor heap)
-    mov dword [0x2038], 0xA003    ; 0x1C0000000-0x1FFFFFFFF (8th GB - tensor heap)
+    ; PML4[0] -> PDPT at 0x11000
+    mov dword [0x10000], 0x11003
+    ; PDPT[0..15] -> PDs at 0x12000..0x21000 (16 × 1GB = 16GB)
+    mov dword [0x11000], 0x12003  ; 0x00000000-0x3FFFFFFF  (1st GB)
+    mov dword [0x11008], 0x13003  ; 0x40000000-0x7FFFFFFF  (2nd GB)
+    mov dword [0x11010], 0x14003  ; 0x80000000-0xBFFFFFFF  (3rd GB)
+    mov dword [0x11018], 0x15003  ; 0xC0000000-0xFFFFFFFF  (4th GB)
+    mov dword [0x11020], 0x16003  ; 0x100000000-0x13FFFFFFF (5th GB)
+    mov dword [0x11028], 0x17003  ; 0x140000000-0x17FFFFFFF (6th GB)
+    mov dword [0x11030], 0x18003  ; 0x180000000-0x1BFFFFFFF (7th GB)
+    mov dword [0x11038], 0x19003  ; 0x1C0000000-0x1FFFFFFFF (8th GB)
+    mov dword [0x11040], 0x1A003  ; 0x200000000-0x23FFFFFFF (9th GB)
+    mov dword [0x11048], 0x1B003  ; 0x240000000-0x27FFFFFFF (10th GB)
+    mov dword [0x11050], 0x1C003  ; 0x280000000-0x2BFFFFFFF (11th GB)
+    mov dword [0x11058], 0x1D003  ; 0x2C0000000-0x2FFFFFFFF (12th GB)
+    mov dword [0x11060], 0x1E003  ; 0x300000000-0x33FFFFFFF (13th GB)
+    mov dword [0x11068], 0x1F003  ; 0x340000000-0x37FFFFFFF (14th GB)
+    mov dword [0x11070], 0x20003  ; 0x380000000-0x3BFFFFFFF (15th GB)
+    mov dword [0x11078], 0x21003  ; 0x3C0000000-0x3FFFFFFFF (16th GB)
 
-    ; Fill all 8 PDs: 8 × 512 = 4096 entries of 2MB huge pages
-    ; Maps 0x00000000 .. 0x1FFFFFFFF (8 GB)
-    mov edi, 0x3000
+    ; Fill all 16 PDs: 16 × 512 = 8192 entries of 2MB huge pages
+    ; Maps 0x00000000 .. 0x3FFFFFFFF (16 GB)
+    mov edi, 0x12000
     mov eax, 0x00000083           ; addr_lo | Present+Write+Huge
     xor ebx, ebx                  ; addr_hi (starts at 0)
-    mov ecx, 4096
+    mov ecx, 8192
 .fill_all_pds:
     mov [edi], eax
     mov [edi+4], ebx

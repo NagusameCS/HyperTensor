@@ -1520,6 +1520,93 @@ void jit_prefetcht0(jit_buf_t *b, int base, int32_t disp)
 }
 
 /* =============================================================================
+ * AVX2 Integer SIMD Emitters (for Q4_0×Q8_0 integer dot product)
+ * =============================================================================*/
+
+/* vpand ymm, ymm, ymm: VEX.256.66.0F.WIG DB /r */
+void jit_vpand256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0xDB);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vpsrlw ymm, ymm, imm8: VEX.256.66.0F.WIG 71 /2 ib */
+void jit_vpsrlw256_imm(jit_buf_t *b, int ymm, int src, uint8_t imm)
+{
+    emit_vex_0f(b, 2, src, ymm, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x71);
+    emit_modrm(b, 3, 2, src);
+    jit_emit8(b, imm);
+}
+
+/* vpunpcklbw ymm, ymm, ymm: VEX.256.66.0F.WIG 60 /r */
+void jit_vpunpcklbw256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x60);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vpunpckhbw ymm, ymm, ymm: VEX.256.66.0F.WIG 68 /r */
+void jit_vpunpckhbw256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x68);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vpmaddubsw ymm, ymm, ymm: VEX.256.66.0F38.WIG 04 /r */
+void jit_vpmaddubsw256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f38(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x04);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vpmaddwd ymm, ymm, ymm: VEX.256.66.0F.WIG F5 /r */
+void jit_vpmaddwd256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0xF5);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vpaddd ymm, ymm, ymm: VEX.256.66.0F.WIG FE /r */
+void jit_vpaddd256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vmovdqu ymm, [base+disp]: VEX.256.F3.0F.WIG 6F /r */
+void jit_vmovdqu_load256(jit_buf_t *b, int ymm, int base, int32_t disp)
+{
+    emit_vex_0f(b, ymm, base, 0, 1/*256*/, 2/*F3*/);
+    jit_emit8(b, 0x6F);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vmovdqu [base+disp], ymm: VEX.256.F3.0F.WIG 7F /r */
+void jit_vmovdqu_store256(jit_buf_t *b, int base, int32_t disp, int ymm)
+{
+    emit_vex_0f(b, ymm, base, 0, 1/*256*/, 2/*F3*/);
+    jit_emit8(b, 0x7F);
+    emit_modrm_disp(b, ymm, base, disp);
+}
+
+/* vpxor ymm, ymm, ymm: VEX.256.66.0F.WIG EF /r */
+void jit_vpxor256(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_vex_0f(b, dst, src2, src1, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0xEF);
+    emit_modrm(b, 3, dst, src2);
+}
+
+/* vcvtdq2ps ymm, ymm (just vpaddd for completeness, int32->float already exists) */
+
+/* =============================================================================
  * AVX2+FMA Q8_0 GEMV Kernel Compiler
  *
  * Generates: void gemv(float *out, const void *weight, const float *x,
@@ -1752,6 +1839,416 @@ jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int rows, int cols)
     return fn;
 }
 
+/* =============================================================================
+ * AVX2 Q4_0×Q8_0 Integer GEMV Kernel Compiler
+ *
+ * Generates: void gemv_q4q8(float *out, const void *q4_weight,
+ *                           const void *q8_input, int rows, int cols)
+ *   q8_input = array of {float d; int8_t qs[32]} blocks (36 bytes each)
+ *   q4_weight = array of rows, each row = nb blocks of {uint16_t d; uint8_t qs[16]} (18 bytes)
+ *
+ * Algorithm per block (llama.cpp integer approach):
+ *   1. Load 16 Q4 bytes → unpack to 32 unsigned nibbles [0,15]
+ *   2. vpmaddubsw(q4_unsigned, q8_signed) → 16×int16
+ *   3. vpmaddwd(result, all_ones) → 8×int32
+ *   4. Accumulate int32 sum
+ *   5. Also track xq_sum for bias correction: dot - 8*sum(xq)
+ *   6. At end: float result = scale_w * scale_x * (isum - 8*xsum)
+ * =============================================================================*/
+
+/* Helper: emit Q4×Q8 block processing for one row.
+ * Inputs: RDI = current block ptr of Q4 row, R9 = current Q8 block ptr
+ * Uses: YMM0 (low nibbles), YMM1 (high nibbles), YMM2 (q8 bytes),
+ *        YMM3 (ones constant, pre-loaded), YMM4 (0x0F mask, pre-loaded)
+ * Outputs: adds block int32 sum to ymm_acc (int32 accumulator)
+ *          adds block float contribution to ymm_facc (float accumulator)
+ * Clobbers: YMM5, YMM6, YMM7, RDX, RSI */
+static void emit_q4q8_row_block(jit_buf_t *b, int ymm_iacc, int ymm_facc)
+{
+    /* Load 16 Q4 bytes from [RDI+2] (skip 2-byte scale) into XMM5 low 128 bits,
+     * then unpack nibbles to 32 unsigned bytes in YMM0.
+     * Strategy: load 16 bytes, vpunpcklbw with shifted version to interleave,
+     * then mask. Actually simpler: put same 16B in both halves, mask lo, shift+mask hi.
+     *
+     * Simpler approach: load 16B into low 128 of YMM5, copy to YMM6,
+     * mask YMM5 with 0x0F → lo nibbles in low 128
+     * shift YMM6 right by 4, mask with 0x0F → hi nibbles in low 128
+     * We need [lo0..lo15, hi0..hi15] in one YMM register.
+     * Use vinserti128 to combine them.
+     *
+     * Actually, even simpler: broadcast the 16 bytes to both halves,
+     * then lo half: vpand with 0x0F → lo nibbles
+     * hi half: shift+mask → hi nibbles
+     * But we can't differentiate halves easily.
+     *
+     * SIMPLEST: scalar unpack to stack, load back. For a JIT kernel with baked
+     * constants, the overhead is small vs the memory bandwidth bottleneck.
+     * BUT: we're generating code, so let's do it properly in registers.
+     *
+     * Correct approach:
+     * - vmovdqu xmm5, [rdi+2]  (16 bytes into low 128)
+     * - vpand xmm0, xmm5, xmm4_lo128  (lo nibbles, 16 bytes, low lane)
+     * - vpsrlw xmm1, xmm5, 4; vpand xmm1, xmm1, xmm4_lo128  (hi nibbles, 16 bytes, low lane)
+     * - vinserti128 ymm0, ymm0, xmm1, 1  (combine: lo in low128, hi in hi128)
+     * Now YMM0 has 32 unsigned bytes [lo0..lo15, hi0..hi15]
+     *
+     * For vinserti128: VEX.256.66.0F3A.W0 38 /r ib
+     */
+
+    /* Load 16 Q4 weight bytes from [RDI+2] — use 128-bit load into low half of YMM5 */
+    /* vmovdqu xmm5, [rdi+2]: VEX.128.F3.0F.WIG 6F /r */
+    emit_vex_0f(b, YMM5, RDI, 0, 0/*128*/, 2/*F3*/);
+    jit_emit8(b, 0x6F);
+    emit_modrm_disp(b, YMM5, RDI, 2);
+
+    /* vpand xmm0, xmm5, xmm4 (lo nibbles): VEX.128.66.0F DB /r */
+    emit_vex_0f(b, YMM0, YMM4 & 7, YMM5, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xDB);
+    emit_modrm(b, 3, YMM0, YMM4 & 7);
+
+    /* vpsrlw xmm1, xmm5, 4 */
+    emit_vex_0f(b, 2, YMM5, YMM1, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x71);
+    emit_modrm(b, 3, 2, YMM5);
+    jit_emit8(b, 4);
+
+    /* vpand xmm1, xmm1, xmm4 (hi nibbles) */
+    emit_vex_0f(b, YMM1, YMM4 & 7, YMM1, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xDB);
+    emit_modrm(b, 3, YMM1, YMM4 & 7);
+
+    /* vinserti128 ymm0, ymm0, xmm1, 1: VEX.256.66.0F3A.W0 38 /r 01 */
+    emit_vex_0f3a(b, YMM0, YMM1, YMM0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x38);
+    emit_modrm(b, 3, YMM0, YMM1);
+    jit_emit8(b, 1);
+
+    /* Now YMM0 = 32 unsigned Q4 nibbles [lo0..lo15, hi0..hi15] */
+
+    /* Load 32 Q8 signed bytes from [R9+4] (skip 4-byte float scale) */
+    /* vmovdqu ymm2, [r9+4] */
+    jit_vmovdqu_load256(b, YMM2, R9, 4);
+
+    /* vpmaddubsw ymm5, ymm0, ymm2 → 16×int16 (unsigned Q4 × signed Q8) */
+    jit_vpmaddubsw256(b, YMM5, YMM0, YMM2);
+
+    /* vpmaddwd ymm5, ymm5, ymm3 (all-ones) → 8×int32 */
+    jit_vpmaddwd256(b, YMM5, YMM5, YMM3);
+
+    /* vpaddd ymm_iacc, ymm_iacc, ymm5 — accumulate int32 partial sums */
+    jit_vpaddd256(b, ymm_iacc, ymm_iacc, YMM5);
+
+    /* We also need the bias correction: sum of Q8 bytes for this block.
+     * Use vpmaddubsw with all-ones to sum bytes pairwise.
+     * Actually, we need sum(xq[0..31]) as a scalar int.
+     * For efficiency: vpmaddubsw(all_ones_unsigned, xq_signed) gives pair sums,
+     * then vpmaddwd with int16 all-ones gives 8 int32 partial sums.
+     * Or we can fold the bias into the final scalar calculation.
+     *
+     * For now: compute xq_sum separately per block and accumulate a float correction.
+     * The scale product scale_w * scale_x * (-8 * xq_sum) adds per block.
+     *
+     * Actually, let's compute it: xq_sum = sum of 32 signed bytes.
+     * vpmaddubsw(all_1_unsigned, signed_xq) = pairwise: 1*xq[0]+1*xq[1] as int16
+     * Then vpmaddwd(result, all_1_int16) = sum pairs of int16 → 8 int32
+     * This gives a vector of partial sums that we accumulate.
+     */
+
+    /* Load constant pointers — YMM14 is all-1-unsigned-bytes (pre-loaded) */
+    /* vpmaddubsw ymm6, ymm14, ymm2 → pairwise byte sums as int16 */
+    jit_vpmaddubsw256(b, YMM6, YMM14, YMM2);
+
+    /* vpmaddwd ymm6, ymm6, ymm3 → 8×int32 partial sums of Q8 bytes */
+    jit_vpmaddwd256(b, YMM6, YMM6, YMM3);
+
+    /* Now ymm6 has 8 int32s whose total = sum of all 32 Q8 signed bytes this block */
+    /* Multiply by -8: we'll do this as float later. For now accumulate int sum. */
+    /* Actually, let's keep a separate int32 accumulator for xq_sums. */
+    /* But we need per-block scale weighting... hmm. */
+
+    /* REVISED APPROACH: compute the per-block float contribution directly.
+     * result_block = scale_w * scale_x * (isum - 8 * xqsum)
+     * = scale_w * scale_x * isum - 8 * scale_w * scale_x * xqsum
+     *
+     * Since we need per-block scale factors anyway, let's:
+     * 1. Horizontal-sum the int32 iacc for THIS block (ymm5 value)
+     * 2. Horizontal-sum the xqsum for THIS block (ymm6 value)
+     * 3. dot_block = scale_w * scale_x * (isum_block - 8 * xqsum_block)
+     * 4. Accumulate as float scalar
+     *
+     * But horizontal sums per block are expensive. Better approach:
+     * Keep int32 accumulators across all blocks, then do ONE h-sum at end.
+     * BUT: scale varies per block, so we can't just accumulate raw int32s.
+     *
+     * OK, llama.cpp approach: float result = sum over blocks of:
+     *   fp16_to_f32(w->d) * xq->d * (isum_block - 8 * xqsum_block)
+     * Each block has different scales. So we MUST convert to float per block.
+     *
+     * Efficient per-block approach:
+     * 1. h-sum ymm5 (8 int32) → scalar isum
+     * 2. h-sum ymm6 (8 int32) → scalar xqsum
+     * 3. isum - 8*xqsum → scalar int
+     * 4. cvt to float, multiply by scale_w * scale_x
+     * 5. accumulate into float scalar
+     */
+
+    /* Horizontal sum of ymm5 into eax (isum) */
+    /* vextracti128 xmm7, ymm5, 1 */
+    emit_vex_0f3a(b, YMM7 & 7, YMM5, 0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x39);            /* VEXTRACTI128 */
+    emit_modrm(b, 3, YMM7 & 7, YMM5);
+    jit_emit8(b, 1);
+
+    /* vpaddd xmm5, xmm5, xmm7 (128-bit) */
+    emit_vex_0f(b, YMM5, YMM7 & 7, YMM5, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM5, YMM7 & 7);
+
+    /* pshufd xmm7, xmm5, 0x4E (swap hi64/lo64) */
+    emit_vex_0f(b, YMM7, YMM5, 0, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x70);
+    emit_modrm(b, 3, YMM7, YMM5);
+    jit_emit8(b, 0x4E);
+
+    /* vpaddd xmm5, xmm5, xmm7 */
+    emit_vex_0f(b, YMM5, YMM7, YMM5, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM5, YMM7);
+
+    /* pshufd xmm7, xmm5, 0x01 */
+    emit_vex_0f(b, YMM7, YMM5, 0, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x70);
+    emit_modrm(b, 3, YMM7, YMM5);
+    jit_emit8(b, 0x01);
+
+    /* vpaddd xmm5, xmm5, xmm7 → xmm5[0] = total isum */
+    emit_vex_0f(b, YMM5, YMM7, YMM5, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM5, YMM7);
+
+    /* vmovd edx, xmm5 → isum in EDX */
+    jit_movd_from_xmm(b, RDX, YMM5);
+
+    /* Same horizontal sum for ymm6 → xqsum in ESI */
+    /* vextracti128 xmm7, ymm6, 1 */
+    emit_vex_0f3a(b, YMM7 & 7, YMM6, 0, 1/*256*/, 1/*66*/);
+    jit_emit8(b, 0x39);
+    emit_modrm(b, 3, YMM7 & 7, YMM6);
+    jit_emit8(b, 1);
+
+    /* vpaddd xmm6, xmm6, xmm7 */
+    emit_vex_0f(b, YMM6, YMM7, YMM6, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM6, YMM7);
+
+    emit_vex_0f(b, YMM7, YMM6, 0, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x70);
+    emit_modrm(b, 3, YMM7, YMM6);
+    jit_emit8(b, 0x4E);
+
+    emit_vex_0f(b, YMM6, YMM7, YMM6, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM6, YMM7);
+
+    emit_vex_0f(b, YMM7, YMM6, 0, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0x70);
+    emit_modrm(b, 3, YMM7, YMM6);
+    jit_emit8(b, 0x01);
+
+    emit_vex_0f(b, YMM6, YMM7, YMM6, 0/*128*/, 1/*66*/);
+    jit_emit8(b, 0xFE);
+    emit_modrm(b, 3, YMM6, YMM7);
+
+    /* vmovd esi, xmm6 → xqsum in ESI */
+    jit_movd_from_xmm(b, RSI, YMM6);
+
+    /* EDX = isum, ESI = xqsum.  Compute isum - 8*xqsum */
+    jit_shl_reg_imm(b, RSI, 3);      /* ESI *= 8 */
+    jit_sub_reg_reg(b, RDX, RSI);     /* EDX = isum - 8*xqsum */
+
+    /* Convert to float: vcvtsi2ss xmm5, xmm5, edx */
+    /* VEX.LIG.F3.0F.W0 2A /r */
+    emit_vex_0f(b, YMM5, RDX, YMM5, 0, 2/*F3*/);
+    jit_emit8(b, 0x2A);
+    emit_modrm(b, 3, YMM5, RDX);
+
+    /* Load Q4 scale: fp16 at [RDI+0] → float */
+    /* movzx edx, word [rdi] */
+    jit_emit8(b, 0x0F); jit_emit8(b, 0xB7);
+    emit_modrm_disp(b, RDX, RDI, 0);
+
+    /* Branchless fp16→fp32 */
+    jit_mov_reg_reg(b, RSI, RDX);
+    jit_and_reg_imm32(b, RDX, 0x7FFF);
+    jit_shl_reg_imm(b, RDX, 13);
+    jit_add_reg_imm32(b, RDX, 0x38000000);
+    jit_and_reg_imm32(b, RSI, 0x8000);
+    jit_shl_reg_imm(b, RSI, 16);
+    jit_or_reg_reg(b, RDX, RSI);
+
+    /* vmovd xmm6, edx → fp32 weight scale */
+    jit_vmovd_to_xmm_vex(b, YMM6, RDX);
+
+    /* Load Q8 scale: float at [R9+0] */
+    /* vmovss xmm7, [r9+0] */
+    jit_movss_load(b, YMM7, R9, 0);
+
+    /* xmm6 = scale_w * scale_x */
+    jit_mulss(b, YMM6, YMM7);
+
+    /* xmm5 = (isum - 8*xqsum) as float, xmm6 = scale_w * scale_x */
+    jit_mulss(b, YMM5, YMM6);
+
+    /* Accumulate into ymm_facc (scalar float in lane 0) */
+    jit_addss(b, ymm_facc, YMM5);
+}
+
+/* Q4×Q8 GEMV JIT cache */
+#define JIT_MAX_GEMV_Q4Q8 16
+static struct {
+    int rows, cols;
+    jit_gemv_q8_fn fn;
+} jit_gemv_q4q8_cache[JIT_MAX_GEMV_Q4Q8];
+static int jit_num_gemv_q4q8 = 0;
+
+/* Compile a Q4_0×Q8_0 integer GEMV kernel.
+ * Signature: void gemv(float *out, const void *q4_weight, const void *q8_input,
+ *                      int rows, int cols)
+ * q8_input is a q8_input_t array: {float d; int8_t qs[32]} = 36 bytes per block
+ * q4_weight rows: nb blocks of {uint16_t d; uint8_t qs[16]} = 18 bytes per block */
+jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int rows, int cols)
+{
+    /* Cache check */
+    for (int i = 0; i < jit_num_gemv_q4q8; i++) {
+        if (jit_gemv_q4q8_cache[i].rows == rows &&
+            jit_gemv_q4q8_cache[i].cols == cols)
+            return jit_gemv_q4q8_cache[i].fn;
+    }
+
+    int nb = cols / 32;
+    if (nb < 1) return NULL;
+    int q4_row_bytes = nb * 18;       /* Q4_0: 18 bytes per block */
+    int q8_block_bytes = 36;          /* q8_input_t: 4B float + 32B qs = 36 bytes */
+
+    /* This kernel is large due to per-block scalar h-sum. Allocate generously. */
+    jit_buf_t *buf = jit_create(16384);
+    if (!buf) return NULL;
+
+    jit_prologue(buf);
+    jit_sub_reg_imm32(buf, RSP, 8);   /* align stack */
+
+    /* Save args: R12=out, R13=q4_weight, R14=q8_input */
+    jit_mov_reg_reg(buf, R12, RDI);
+    jit_mov_reg_reg(buf, R13, RSI);
+    jit_mov_reg_reg(buf, R14, RDX);
+
+    /* Pre-load constants into callee-usable YMMs */
+    /* YMM3 = all int16 ones {1,1,...,1} for vpmaddwd */
+    /* YMM4 = all bytes 0x0F for nibble masking (low 128 only needed) */
+    /* YMM14 = all bytes 0x01 for xqsum calculation */
+
+    /* Build 0x0F mask: load 0x0F0F0F0F into EDX, broadcast */
+    jit_mov_reg_imm64(buf, RAX, 0x0F0F0F0F0F0F0F0FULL);
+    jit_vmovd_to_xmm_vex(buf, YMM4, RAX);
+    /* Need to broadcast to full xmm. Use vpbroadcastq or just movq+unpack.
+     * Simpler: push to stack, load 128-bit. */
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    /* vmovdqu xmm4, [rsp] */
+    emit_vex_0f(buf, YMM4, RSP, 0, 0/*128*/, 2/*F3*/);
+    jit_emit8(buf, 0x6F);
+    emit_modrm_disp(buf, YMM4, RSP, 0);
+    jit_add_reg_imm32(buf, RSP, 16);
+
+    /* Build all-ones int16 {1,1,...,1}: 0x0001 repeated 16 times */
+    jit_mov_reg_imm64(buf, RAX, 0x0001000100010001ULL);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    /* vmovdqu ymm3, [rsp] */
+    jit_vmovdqu_load256(buf, YMM3, RSP, 0);
+    jit_add_reg_imm32(buf, RSP, 32);
+
+    /* Build all-ones unsigned bytes for xqsum: 0x01 repeated 32 */
+    jit_mov_reg_imm64(buf, RAX, 0x0101010101010101ULL);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    jit_push(buf, RAX);
+    jit_vmovdqu_load256(buf, YMM14, RSP, 0);
+    jit_add_reg_imm32(buf, RSP, 32);
+
+    /* === Row loop === */
+    jit_xor_reg_reg(buf, R15, R15);   /* row = 0 */
+
+    int row_top = buf->len;
+    jit_cmp_reg_imm32(buf, R15, rows);
+    int row_exit = jit_jge_fwd(buf);
+
+    /* Compute Q4 row pointer: RCX = weight + row * q4_row_bytes */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_imul_imm32(buf, RAX, RAX, q4_row_bytes);
+    jit_add_reg_reg(buf, RAX, R13);
+    /* Store row base in RDI for the block helper */
+
+    /* Zero float accumulator for this row (scalar in XMM8 lane 0) */
+    jit_xorps(buf, YMM8, YMM8);
+
+    /* Block loop */
+    jit_xor_reg_reg(buf, RBX, RBX);   /* block = 0 */
+    jit_mov_reg_reg(buf, RCX, RAX);    /* RCX = Q4 row base */
+
+    int blk_top = buf->len;
+
+    /* RDI = Q4 block ptr = row_base + block * 18 */
+    jit_mov_reg_reg(buf, RDI, RCX);
+    jit_mov_reg_reg(buf, RAX, RBX);
+    jit_imul_imm32(buf, RAX, RAX, 18);
+    jit_add_reg_reg(buf, RDI, RAX);
+
+    /* R9 = Q8 block ptr = q8_input + block * 36 */
+    jit_mov_reg_reg(buf, R9, R14);
+    jit_imul_imm32(buf, RAX, RBX, q8_block_bytes);
+    jit_add_reg_reg(buf, R9, RAX);
+
+    /* Process one block */
+    emit_q4q8_row_block(buf, YMM15, YMM8);
+
+    jit_inc_reg(buf, RBX);
+    jit_cmp_reg_imm32(buf, RBX, nb);
+    jit_jl_back(buf, blk_top);
+
+    /* Store result: out[row] = xmm8 lane 0 */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_shl_reg_imm(buf, RAX, 2);     /* row * 4 */
+    jit_add_reg_reg(buf, RAX, R12);    /* &out[row] */
+    jit_vmovss_store_vex(buf, RAX, 0, YMM8);
+
+    jit_inc_reg(buf, R15);
+    jit_jmp_back(buf, row_top);
+
+    jit_patch_jump(buf, row_exit);
+
+    jit_vzeroupper(buf);
+    jit_add_reg_imm32(buf, RSP, 8);
+    jit_epilogue(buf);
+
+    vmm_mark_rx(buf->code, buf->cap);
+    jit_gemv_q8_fn fn = (jit_gemv_q8_fn)(void *)buf->code;
+    if (jit_num_gemv_q4q8 < JIT_MAX_GEMV_Q4Q8) {
+        jit_gemv_q4q8_cache[jit_num_gemv_q4q8].rows = rows;
+        jit_gemv_q4q8_cache[jit_num_gemv_q4q8].cols = cols;
+        jit_gemv_q4q8_cache[jit_num_gemv_q4q8].fn = fn;
+        jit_num_gemv_q4q8++;
+    }
+    jit_total_bytes += buf->len;
+    jit_num_kernels++;
+
+    kprintf("[JIT] AVX2 Q4xQ8 GEMV %dx%d compiled (%d bytes)\n", rows, cols, buf->len);
+    return fn;
+}
+
 #else /* __aarch64__ */
 
 /* ARM64: JIT stubs — JIT not available, runtime uses interpreter path */
@@ -1767,6 +2264,7 @@ void jit_init(void) { kprintf("[JIT] ARM64 mode: using NEON interpreter\n"); }
 int  jit_selftest(void) { return 0; }
 jit_gemv_q8_fn jit_compile_q8_gemv(int r, int c) { (void)r; (void)c; return NULL; }
 jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int r, int c) { (void)r; (void)c; return NULL; }
+jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int r, int c) { (void)r; (void)c; return NULL; }
 jit_silu_fn jit_compile_silu_kernel(int n) { (void)n; return NULL; }
 int jit_kernel_count(void) { return 0; }
 int jit_code_bytes(void) { return 0; }
