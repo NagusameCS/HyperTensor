@@ -1613,7 +1613,7 @@ static void gemv_worker_avx2(void *arg)
 static void llm_gemv(float *out, const void *weight, const float *x,
                      int out_dim, int in_dim, ggml_type_t type)
 {
-#ifndef __aarch64__
+#if !defined(__aarch64__) && !defined(HYPERTENSOR_HOSTED)
     /* JIT AVX2+FMA GEMV: best single-core Q8_0 performance */
     if (cpu_features.avx2_usable && type == GGML_TYPE_Q8_0) {
         jit_gemv_q8_fn jfn = llm_get_jit_gemv_avx2(out_dim, in_dim);
@@ -1636,6 +1636,9 @@ static void llm_gemv(float *out, const void *weight, const float *x,
             }
         }
     }
+#endif /* JIT GEMV disabled for hosted mode (ABI mismatch) */
+
+#ifndef __aarch64__
 
     /* Use AVX2+FMA GEMV when available */
     if (cpu_features.avx2_usable) {
@@ -1695,6 +1698,7 @@ static void llm_gemv(float *out, const void *weight, const float *x,
     }
 
     /* Try JIT-compiled Q8_0 GEMV kernel */
+#ifndef HYPERTENSOR_HOSTED
     if (type == GGML_TYPE_Q8_0) {
         jit_gemv_q8_fn jfn = llm_get_jit_gemv(out_dim, in_dim);
         if (jfn) {
@@ -1702,6 +1706,7 @@ static void llm_gemv(float *out, const void *weight, const float *x,
             return;
         }
     }
+#endif
 #endif
 
     uint64_t rb = llm_row_bytes(in_dim, type);
@@ -2385,16 +2390,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     int kv_dim = n_kv * hd;
 
     /* Lazy-compile JIT kernels on first call (dimensions fixed per model) */
-#ifndef __aarch64__
+#if !defined(__aarch64__) && !defined(HYPERTENSOR_HOSTED)
+    kprintf("[FWD] enter tok=%d pos=%d dim=%d ff=%d\n", token_id, pos, dim, ff);
     if (!jit_fwd_ready) {
+        kprintf("[FWD] JIT compile start\n");
         /* Compile ALL JIT kernels — baked dimensions eliminate loop overhead.
          * SSE2 JIT with constants often beats generic AVX2 C for small ops. */
+        kprintf("[FWD] compiling vadd(%d)...\n", dim);
         jit_fwd_vadd_dim   = jit_compile_vadd_kernel(dim);
+        kprintf("[FWD] compiling dot(%d)...\n", hd);
         jit_fwd_dot_hd     = jit_compile_dot_kernel(hd);
+        kprintf("[FWD] compiling axpy(%d)...\n", hd);
         jit_fwd_axpy_hd    = jit_compile_axpy_kernel(hd);
+        kprintf("[FWD] compiling silu(%d)...\n", ff);
         jit_fwd_fused_silu  = jit_compile_fused_silu_mul_kernel(ff);
+        kprintf("[FWD] compiling rope(%d)...\n", hd);
         jit_fwd_rope_hd    = jit_compile_rope_kernel(hd);
+        kprintf("[FWD] compiling rmsnorm(%d)...\n", dim);
         jit_fwd_rmsnorm    = jit_compile_rmsnorm_kernel(dim);
+        kprintf("[FWD] all JIT kernels compiled\n");
         jit_fwd_softmax    = NULL; /* softmax has variable length (seq_len) — skip */
         if (jit_fwd_vadd_dim)  kprintf("[JIT] Compiled vadd(%d)\n", dim);
         if (jit_fwd_dot_hd)    kprintf("[JIT] Compiled dot(%d)\n", hd);
@@ -2404,6 +2418,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         if (jit_fwd_rmsnorm)   kprintf("[JIT] Compiled rmsnorm(%d)\n", dim);
         kprintf("[JIT] %d CPUs for parallel GEMV\n", smp.cpu_count);
         jit_fwd_ready = 1;
+        kprintf("[FWD] JIT compile done\n");
     }
 #endif
 
@@ -2804,12 +2819,23 @@ static int llm_build_vocab(llm_model_t *m, gguf_ctx_t *ctx)
         n_vocab = m->vocab_size;
     m->n_vocab = n_vocab;
 
-    /* Allocate vocab array in the model cache region (after GGUF data) */
+#ifdef HYPERTENSOR_HOSTED
+    /* Hosted mode: mmap is read-only and exactly file-sized, so we can't
+     * place the vocab array past the end of the buffer.  Heap-allocate. */
+    m->vocab = (llm_vocab_entry_t *)tensor_alloc(
+        (uint64_t)n_vocab * sizeof(llm_vocab_entry_t));
+    if (!m->vocab) {
+        kprintf("[LLM] ERROR: Failed to allocate vocab (%d entries)\n", n_vocab);
+        return -1;
+    }
+#else
+    /* Bare-metal: allocate in the model cache region (after GGUF data) */
     uint8_t *alloc_ptr = (uint8_t *)m->data_buf + m->data_size;
     /* Align to 8 bytes */
     alloc_ptr = (uint8_t *)(((uint64_t)alloc_ptr + 7) & ~7ULL);
     m->vocab = (llm_vocab_entry_t *)alloc_ptr;
     alloc_ptr += n_vocab * sizeof(llm_vocab_entry_t);
+#endif
 
     /* Walk the string array and populate vocab entries */
     const uint8_t *p = (const uint8_t *)tok_kv->value.array.data;
@@ -3133,9 +3159,6 @@ static int llm_tokenize(const llm_model_t *m, const char *text,
         /* Look up the special token directly in vocab */
         int spec_len = spec_end - spec_start;
         int spec_id = llm_find_token(m, text + spec_start, spec_len);
-        kprintf("[DBG] special token lookup: '");
-        for (int z = 0; z < spec_len && z < 20; z++) kprintf("%c", text[spec_start+z]);
-        kprintf("' len=%d id=%d\n", spec_len, spec_id);
         if (spec_id >= 0 && n < max_tokens) {
             tokens[n++] = spec_id;
         } else if (n < max_tokens) {
@@ -3592,13 +3615,6 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
 
         MAP_TENSOR(attn_norm,  "attn_norm.weight",   attn_norm_type);
 
-        /* Debug: print actual raw GGUF type for attn_norm */
-        if (L == 0) {
-            kstrcpy(name_buf, "blk.0.attn_norm.weight");
-            const gguf_tensor_info_t *nt = gguf_find_tensor(ctx, name_buf);
-            if (nt) kprintf("[DBG] blk.0.attn_norm.weight: raw_type=%d size=%lu elems=%lu\n",
-                            (int)nt->type, (unsigned long)nt->size_bytes, (unsigned long)nt->n_elements);
-        }
         MAP_TENSOR(q_weight,   "attn_q.weight",      q_type);
         MAP_TENSOR(k_weight,   "attn_k.weight",      k_type);
         MAP_TENSOR(v_weight,   "attn_v.weight",      v_type);
@@ -3692,9 +3708,7 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
               num[j_] = '\0';
               kstrcpy(name_buf + kstrlen(name_buf), num); }
             kstrcpy(name_buf + kstrlen(name_buf), ".attn_qkv.bias");
-            if (L == 0) kprintf("[DBG] Looking for '%s'\n", name_buf);
             const gguf_tensor_info_t *qkv_b = gguf_find_tensor(ctx, name_buf);
-            if (L == 0) kprintf("[DBG] qkv_b=%p\n", (void*)qkv_b);
             if (qkv_b) {
                 const float *bb = (const float *)qkv_b->data;
                 int q_dim = m->n_heads * m->head_dim;
@@ -3705,17 +3719,6 @@ static int llm_map_tensors(llm_model_t *m, gguf_ctx_t *ctx)
                 if (L == 0)
                     kprintf("[LLM] Fused QKV bias loaded (q=%d k=%d v=%d)\n",
                             q_dim, k_dim, k_dim);
-            } else if (L == 0) {
-                kprintf("[DBG] No fused QKV bias found\n");
-                /* Print first 20 tensor names */
-                for (uint32_t ti = 0; ti < ctx->tensor_count && ti < 20; ti++) {
-                    char tn[64];
-                    uint32_t nlen = ctx->tensors[ti].name.len;
-                    if (nlen > 63) nlen = 63;
-                    kmemcpy(tn, ctx->tensors[ti].name.data, nlen);
-                    tn[nlen] = '\0';
-                    kprintf("[DBG]   t[%d]='%s'\n", ti, tn);
-                }
             }
         }
 
@@ -4535,6 +4538,16 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
             is_phi2 = 1;
         else
             is_phi3 = 1;
+    }
+    /* SmolLM instruct models use ChatML */
+    {
+        const char *n = m->name;
+        for (int i = 0; n[i] && n[i+1] && n[i+2] && n[i+3] && n[i+4]; i++) {
+            if ((n[i]=='S'||n[i]=='s') && (n[i+1]=='m'||n[i+1]=='M') &&
+                n[i+2]=='o' && n[i+3]=='l' && n[i+4]=='l') {
+                is_chatml = 1; break;
+            }
+        }
     }
 
     if (is_phi3) {

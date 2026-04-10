@@ -103,9 +103,6 @@ extern int vmm_hypervisor_active;
 
 uint64_t hal_rdtsc(void);
 uint64_t hal_timer_us(void);   /* Microsecond wall-clock timer */
-
-/* Bare-metal perf API (mapped to HAL timers) */
-static inline uint64_t rdtsc_fenced(void) { return hal_rdtsc(); }
 uint64_t perf_cycles_to_us(uint64_t cycles);
 
 /* ── Cryptographic RNG ─────────────────────────────────────────────────── */
@@ -126,6 +123,10 @@ void       hal_munmap(hal_mmap_t *m);
 
 void hal_init(void);
 void hal_shutdown(void);
+
+/* ── Crypto ────────────────────────────────────────────────────────────── */
+
+void crypto_random(void *buf, uint32_t len);
 
 #ifdef __cplusplus
 }

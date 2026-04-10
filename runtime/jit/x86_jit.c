@@ -52,6 +52,7 @@ jit_buf_t *jit_create(int capacity)
         if (!jit_buf_active[i] && jit_buf_storage[i].cap >= capacity) {
             jit_buf_active[i] = true;
             jit_buf_storage[i].len = 0;
+            vmm_mark_rw(jit_buf_storage[i].code, jit_buf_storage[i].cap);
             return &jit_buf_storage[i];
         }
     }
@@ -66,6 +67,8 @@ jit_buf_t *jit_create(int capacity)
     b->cap = capacity;
     jit_pool_offset += capacity;
     jit_buf_active[idx] = true;
+    /* Ensure buffer is writable (previous vmm_mark_rx may have made page RX) */
+    vmm_mark_rw(b->code, capacity);
     return b;
 }
 

@@ -328,7 +328,7 @@ void cpu_features_detect(void) {
     cpu_features.has_xsave  = !!(ecx & (1 << 26));
 
   #ifdef _WIN32
-    __cpuid(info, 7);
+    __cpuidex(info, 7, 0);
     ebx = info[1];
   #else
     __cpuid_count(7, 0, eax, ebx, ecx, edx);

@@ -2,4 +2,14 @@
 #ifndef SHIM_PERF_H
 #define SHIM_PERF_H
 #include "host/hal.h"
+
+/* Inline wrappers matching the bare-metal perf API */
+static inline uint64_t rdtsc_fenced(void) { return hal_rdtsc(); }
+static inline uint64_t rdtsc(void)        { return hal_rdtsc(); }
+
+/* perf_cycles_to_us is declared in hal.h and defined in hal.c */
+
+/* No-op calibration in hosted mode */
+static inline void perf_calibrate(void) {}
+
 #endif
