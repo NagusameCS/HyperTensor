@@ -1,249 +1,48 @@
 
-<img width="1280" height="640" alt="IRIS-MD (1)" src="https://github.com/user-attachments/assets/8f3c9f14-b653-47bf-9ad7-bedadf578e58" />
+<p align="center">
+  <h1 align="center">HyperTensor</h1>
+  <p align="center"><b>High-Performance AI Inference Runtime</b></p>
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/lang-C11-blue?logo=c&logoColor=white" alt="Language">
   <img src="https://img.shields.io/badge/arch-x86__64_%7C_ARM64-orange" alt="Architecture">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
-  <img src="https://img.shields.io/badge/warnings-0_(%E2%80%93Wall)-brightgreen" alt="Warnings">
-  <img src="https://img.shields.io/badge/source-54K_lines-informational" alt="Lines of Code">
-  <img src="https://img.shields.io/badge/platform-bare--metal-critical" alt="Bare Metal">
+  <img src="https://img.shields.io/badge/mode-hosted_%7C_bare--metal-informational" alt="Mode">
   <img src="https://img.shields.io/badge/LLM-Phi--3.5_working-success" alt="LLM Working">
-  <img src="https://img.shields.io/github/last-commit/NagusameCS/TensorOS?label=last%20commit" alt="Last Commit">
+  <img src="https://img.shields.io/github/last-commit/NagusameCS/HyperTensor?label=last%20commit" alt="Last Commit">
 </p>
 
-TensorOS is an operating system built from scratch with a single goal: **run AI workloads faster and cheaper, without losing accuracy.** Every layer — from the bootloader to the shell — is designed around tensors, models, and inference as first-class primitives.
+HyperTensor is a minimal, high-performance AI inference runtime that runs GGUF language models on **any platform** — from bare-metal x86_64 with zero OS overhead to a native Windows/Linux application. Born from [TensorOS](https://github.com/NagusameCS/TensorOS), it inherits a battle-tested GGUF parser, BPE tokenizer, JIT compiler, and SMP-parallel forward pass, now packaged as a portable host-mode runtime.
 
-Traditional OSes treat AI as just another application. TensorOS treats AI as *the* application.
+### Key Features
 
-### Demo: Coherent LLM Inference on Bare Metal
+- **GGUF model loading** — Qwen, LLaMA, Gemma, SmolLM, Mistral, Phi-2/3/3.5
+- **Quantization** — Q4_0, Q8_0, F16, F32 weight formats
+- **JIT-compiled kernels** — Native x86_64 SSE2/AVX2 forward pass kernels
+- **SMP parallel GEMV** — Multi-threaded matrix-vector multiply across all CPU cores
+- **Host-mode runtime** — Memory-mapped model loading, native threads, cross-platform
+- **Bare-metal mode** — Still boots as a standalone OS via Multiboot1
+
+### Demo: Hosted Inference
 
 ```
-TensorOS v0.1.0 "Neuron" booting...
-[SMP] 4 CPUs online
-[JIT] Compiled 6 forward kernels (vadd, dot, axpy, fused_silu_mul, rope, rmsnorm)
-[LLM] Loaded 2081 MB in 5552 ms (383882 KB/s)
+$ ./hypertensor phi3.5-mini-q4_0.gguf -p "What is an operating system?"
+
+  HyperTensor v0.4.0 "Axon"
+  High-Performance AI Inference Runtime
+
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
+[SMP] 8 CPUs online (7 workers + BSP)
+[HT] Loading model: phi3.5-mini-q4_0.gguf
+[HT] Mapped 2081 MB
 [LLM] Model: Phi 3.5 Mini Instruct (phi3)
 [LLM] 32 layers, 3072-dim, 32064 vocab, 32 heads
-[LLM] Smoke test (3722M params, 16 tok max)...
-[16 tok, 162 ms/tok, prefill 5475 ms, 4 cpus]
+[HT] Model loaded in 1240 ms
+[HT] Prompt: "What is an operating system?"
 
-> What is an operating system?
-
-An operating system (OS) is a complex piece of software that man[ages]...
+An operating system (OS) is a complex piece of software that manages...
 ```
-
-Phi-3.5 Mini Instruct (3.8B parameters, Q4_0 quantized) running at **~162 ms/tok**
-across 4 CPU cores under QEMU WHPX with JIT-compiled forward kernels and SMP parallel
-GEMV. No OS, no drivers, no runtime — just bare metal x86_64 with AVX2+FMA SIMD.
-
----
-
-## Architecture Overview
-
-```mermaid
-graph TB
-    subgraph Userland["<b>Userland</b>"]
-        direction LR
-        Shell["AI Shell<br/><small>model load &#x2502; infer &#x2502; deploy</small>"]
-        Monitor["Monitor<br/><small>GPU/Mem/MEU stats</small>"]
-        Deploy["Deploy Service<br/><small>A/B &#x2502; autoscale</small>"]
-        Train["Train Service<br/><small>backprop &#x2502; checkpoints</small>"]
-    end
-
-    subgraph Runtime["<b>Runtime</b>"]
-        direction LR
-        Engine["Tensor Engine<br/><small>eager ops &#x2502; compute graphs</small>"]
-        JIT["Pseudocode JIT<br/><small>4-tier compilation</small>"]
-        NN["Neural Network Libs<br/><small>inference &#x2502; quantize &#x2502; GGUF</small>"]
-        SNE["Speculative Neural<br/>Execution<br/><small>5 techniques</small>"]
-    end
-
-    subgraph Kernel["<b>Kernel</b>"]
-        direction LR
-        Sched["Tensor Scheduler<br/><small>MEU-based &#x2502; GPU scoring</small>"]
-        MM["Memory Manager<br/><small>tensor zones &#x2502; model cache</small>"]
-        Git["Native Git<br/><small>SHA-256 &#x2502; tensor objects</small>"]
-        IPC["IPC<br/><small>zero-copy channels</small>"]
-        Security["Sandbox<br/><small>permissions &#x2502; audit</small>"]
-        Virt["Virtualization<br/><small>VT-x &#x2502; EPT &#x2502; hypercalls</small>"]
-    end
-
-    subgraph Drivers["<b>Drivers</b>"]
-        direction LR
-        GPU["GPU Driver<br/><small>PCI detect &#x2502; dispatch</small>"]
-        BT["Bluetooth SPP<br/><small>HCI &#x2502; L2CAP &#x2502; RFCOMM</small>"]
-        Net["Network Stack<br/><small>ARP &#x2502; IPv4 &#x2502; UDP &#x2502; ICMP</small>"]
-        SD["SD / Block<br/><small>RPi SD &#x2502; virtio-blk</small>"]
-        FS["TensorFS<br/><small>AI-aware VFS</small>"]
-    end
-
-    subgraph Boot["<b>Boot</b>"]
-        direction LR
-        x86["x86_64 Multiboot1<br/><small>long mode &#x2502; SSE2 &#x2502; SIMD</small>"]
-        arm["ARM64 Boot Stub<br/><small>EL2→EL1 &#x2502; MMU &#x2502; UART</small>"]
-        SMP["SMP Bootstrap<br/><small>LAPIC / PSCI</small>"]
-    end
-
-    Userland --> Runtime
-    Runtime --> Kernel
-    Kernel --> Drivers
-    Drivers --> Boot
-
-    style Userland fill:#1a1a2e,stroke:#e94560,color:#fff
-    style Runtime fill:#16213e,stroke:#0f3460,color:#fff
-    style Kernel fill:#0f3460,stroke:#533483,color:#fff
-    style Drivers fill:#533483,stroke:#e94560,color:#fff
-    style Boot fill:#2c2c54,stroke:#474787,color:#fff
-```
-
-### Component Interaction
-
-```mermaid
-flowchart LR
-    A[AI Shell] -->|"model load"| B[Tensor Engine]
-    B -->|"dispatch ops"| C[Tensor Scheduler]
-    C -->|"GPU score"| D[GPU Driver]
-    C -->|"allocate"| E[Memory Manager]
-    B -->|"run inference"| F[NN Libs]
-    F -->|"speculative"| G[SNE Engine]
-    F -->|"quantized"| H[INT4/INT16]
-    A -->|"train bert"| I[Train Service]
-    I -->|"backprop"| F
-    A -->|"deploy"| J[Deploy Service]
-    A -->|"git commit"| K[Native Git]
-
-    style A fill:#e94560,stroke:#fff,color:#fff
-    style B fill:#0f3460,stroke:#fff,color:#fff
-    style F fill:#533483,stroke:#fff,color:#fff
-    style G fill:#533483,stroke:#fff,color:#fff
-```
-
-## Key Innovations
-
-### 1. Model Execution Units (MEUs) Replace Processes
-
-Traditional OSes schedule processes and threads. TensorOS schedules **Model Execution Units** — each MEU encapsulates a model with its weights, compute graph, and I/O. The scheduler understands tensor operations and can:
-
-- **Batch-coalesce** similar operations across MEUs
-- **GPU-score** devices based on VRAM, utilization, temperature, and weight locality
-- **Priority-schedule** with 6 levels: REALTIME → CRITICAL → HIGH → NORMAL → LOW → IDLE
-
-### 2. Tensor-Aware Memory Manager
-
-Memory is organized into zones optimized for AI:
-
-| Zone | Purpose | Page Size |
-|------|---------|-----------|
-| `TENSOR` | Active tensor computation | 2MB huge pages |
-| `MODEL` | Model weight cache (LRU) | 2MB huge pages |
-| `DMA` | GPU/TPU DMA transfers | 4KB, pinned |
-| `GIT` | Git object store | 4KB |
-| `KERNEL` | Kernel data structures | Slab allocator |
-
-The model weight cache uses LRU eviction with 64 entries, so switching between models is near-instant when weights are already cached.
-
-### 3. Native Kernel-Level Git
-
-Git is not an application — it's a kernel subsystem. Benefits:
-
-- SHA-256 (not SHA-1) computed in kernel space
-- Extended object types: `GIT_OBJ_TENSOR` and `GIT_OBJ_MODEL` for native versioning of tensors and model checkpoints
-- Training runs automatically create git commits at checkpoint intervals
-- Zero-copy: git objects share memory with the tensor heap
-
-### 4. Pseudocode as Default Language
-
-The default runtime uses **Pseudocode** (inspired by [NaguSamecs' Pseudocode](https://github.com/NaguSamecs/Pseudocode)), a language designed to look like natural algorithmic descriptions but compile to efficient tensor operations:
-
-```pseudocode
-model transformer:
-    layer attention(Q, K, V):
-        scores = matmul(Q, transpose(K))
-        weights = softmax(scores / sqrt(dim))
-        return matmul(weights, V)
-
-    layer feedforward(x):
-        h = relu(matmul(x, W1) + b1)
-        return matmul(h, W2) + b2
-
-load "llama-3-8b" as llm
-result = infer llm with "Explain quantum computing"
-print result
-
-train llm on "dataset.jsonl":
-    epochs = 3
-    learning_rate = 0.0003
-    optimizer = adamw
-    save every 500 steps
-
-deploy llm on port 8080
-
-git commit "trained llama-3 on custom data"
-```
-
-The Pseudocode runtime includes:
-- **60+ token types** with AI-specific keywords (`model`, `layer`, `tensor`, `train`, `infer`, `deploy`)
-- **Recursive descent parser** producing an AST
-- **Tensor IR** with 28 opcodes (MATMUL, CONV2D, ATTENTION, SOFTMAX, etc.)
-- **4-tier JIT**: Interpreter → Basic compilation → Optimized → Fully optimized
-- **Optimization passes**: Op fusion (matmul+bias+relu), precision auto-downgrade (FP32→FP16)
-
-### 5. Near-Zero-Cost Virtualization
-
-VT-x/AMD-V with EPT/NPT for hardware-accelerated containers:
-
-- **Paravirtualized tensor hypercalls** — guest VMs can request tensor operations from the host without full device emulation
-- **IOMMU GPU passthrough** — direct GPU access for containers with near-native performance
-- **Shared tensor memory** — containers share a mapped memory region for zero-copy tensor transfer
-
-### 6. Model Package Manager
-
-Like apt/npm but for AI models:
-
-```
-tensor> pkg install llama-3-8b
-[PKG] Resolving llama-3-8b from tensoros-hub...
-[PKG] Downloading: llama-3-8b (4.5 GB, Q4_K_M quantized)
-[PKG] Verifying SHA-256...
-[PKG] Installing to /models/llama-3-8b/
-[PKG] Auto-optimizing for detected hardware (NVIDIA RTX 4090)...
-[PKG] Done.
-
-tensor> pkg search "code generation"
-Found 12 packages:
-  codellama-34b     34B params  Code generation  ★★★★★
-  starcoder2-15b    15B params  Code generation  ★★★★☆
-  deepseek-coder-v2 16B params  Code + reasoning ★★★★★
-```
-
-Registries: `tensoros-hub` (default), `huggingface`.
-Supports automatic quantization and hardware-specific optimization on install.
-
-### 7. JIT-Compiled Forward Kernels
-
-The LLM forward pass lazy-compiles six native x86_64 kernels on first inference:
-
-| Kernel | Operation | Size |
-|--------|-----------|------|
-| `vadd` | Residual connections | dim (3072) |
-| `dot` | Attention scores | head_dim (96) |
-| `axpy` | Value accumulation | head_dim (96) |
-| `fused_silu_mul` | FFN gate ⊙ up | ff_dim (8192) |
-| `rope` | Rotary position encoding | head_dim (96) |
-| `rmsnorm` | RMS normalization | dim (3072) |
-
-Kernels are emitted into a 2 MB W^X code pool (max 64 concurrent buffers). The JIT
-eliminates per-element function call overhead and enables loop-level SIMD scheduling.
-
-### 8. SMP Parallel GEMV
-
-Multi-core GEMV dispatch across all online CPUs:
-
-- INIT-SIPI-SIPI bootstrap brings up to 64 APs online (4 CPUs in current QEMU config)
-- `smp_dispatch()` splits GEMV rows across cores when `ncpu > 1 && out_dim >= 64`
-- BSP + all APs execute their row ranges in parallel, synchronized via `smp_wait_all()`
-- Achieved **2.8× speedup** (454 → 162 ms/tok) on the Phi-3.5 forward pass
 
 ---
 
@@ -253,177 +52,162 @@ Multi-core GEMV dispatch across all online CPUs:
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| `zig` (0.15+) | Cross-compiler (C → x86_64-freestanding) | [ziglang.org/download](https://ziglang.org/download/) |
-| `nasm` | Assembler | `apt install nasm` / `choco install nasm` |
-| `qemu-system-x86_64` | Emulator | `apt install qemu-system-x86` / `choco install qemu` |
+| `zig` (0.15+) | C compiler | [ziglang.org/download](https://ziglang.org/download/) |
 
-### Build & Run (PowerShell)
+### Host Mode (Windows/Linux)
 
 ```powershell
-# Build the kernel (compiles 61 C sources + asm via Zig CC)
-.\build.ps1
+# Build the hosted runtime
+.\build_host.ps1
 
-# QEMU flags used:
-#   -machine q35,accel=whpx -cpu EPYC-v4
-#   -smp 4,cores=4,threads=1 -m 8G
-#   -drive file=phi3.5.gguf,format=raw,if=virtio
+# Run with a GGUF model
+.\build_host\hypertensor.exe phi3.5.gguf -p "Hello world"
+
+# Interactive chat mode
+.\build_host\hypertensor.exe phi3.5.gguf -i
 ```
 
-The build system uses Zig as a C cross-compiler targeting `x86_64-freestanding-none`
-with `-O2 -msse2 -mavx2 -mfma -ffreestanding`. No GCC cross-toolchain required.
+Or with CMake (if GCC/Clang available):
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+./hypertensor phi3.5.gguf -i
+```
+
+### Bare-Metal Mode (QEMU)
+
+```powershell
+# Build the bare-metal kernel + run in QEMU
+.\build.ps1 -Run
+
+# QEMU flags: -machine q35,accel=whpx -cpu EPYC-v4 -smp 4 -m 8G
+#             -drive file=phi3.5.gguf,format=raw,if=virtio
+```
+
+---
+
+## Usage
+
+```
+hypertensor <model.gguf> [options]
+
+Options:
+  -p, --prompt <text>    Prompt text (default: interactive)
+  -n, --tokens <num>     Max tokens to generate (default: 128)
+  -t, --threads <num>    Thread count (default: all CPUs)
+  --temp <float>         Temperature (default: 0.7)
+  --top-k <int>          Top-K sampling (default: 40)
+  --top-p <float>        Nucleus sampling (default: 0.9)
+  -i, --interactive      Interactive chat mode
+  -h, --help             Show this help
+```
+
+---
+
+## Architecture
+
+HyperTensor operates in two modes:
+
+### Host Mode (new)
+
+```
+┌─────────────────────────────────────────────────┐
+│  hypertensor.exe / hypertensor                  │
+│  CLI: model load, prompt, interactive chat      │
+├─────────────────────────────────────────────────┤
+│  HAL (Hardware Abstraction Layer)               │
+│  ┌───────────┬───────────┬──────────────────┐   │
+│  │ Memory    │ Threading │ CPU Detection    │   │
+│  │ malloc    │ Win32/    │ CPUID: SSE2,    │   │
+│  │ aligned   │ pthreads  │ AVX2, FMA,      │   │
+│  │ mmap      │ workers   │ AVX-512         │   │
+│  └───────────┴───────────┴──────────────────┘   │
+├─────────────────────────────────────────────────┤
+│  Inference Engine (shared with bare-metal)      │
+│  ┌──────┬─────────┬──────┬──────┬───────────┐   │
+│  │ GGUF │ BPE     │ JIT  │ SMP  │ Forward   │   │
+│  │parse │tokenize │ x86  │GEMV  │ pass      │   │
+│  └──────┴─────────┴──────┴──────┴───────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+### Bare-Metal Mode (original TensorOS)
+
+The full TensorOS kernel boots via Multiboot1, runs on x86_64/ARM64, and includes the AI shell, tensor scheduler, native git, GPU drivers, and everything documented in the [TensorOS README](https://github.com/NagusameCS/TensorOS).
 
 ---
 
 ## Project Structure
 
 ```
-TensorOS/
-├── boot/
-│   ├── boot.asm              # Multiboot1 bootloader (x86_64 long mode)
-│   ├── arm64/boot.S          # ARM64 boot stub (EL2→EL1, MMU, UART)
-│   └── linker.ld             # Linker script with tensor memory regions
-├── kernel/
-│   ├── core/
-│   │   ├── kernel.h          # Core types (tensor_desc_t, MEU, kernel_state)
-│   │   ├── main.c            # Kernel entry, 20-phase boot sequence
-│   │   ├── klib.c            # Platform HAL (UART, VGA, IDT, PIC, keyboard)
-│   │   ├── smp.c             # SMP multi-core bootstrap (LAPIC/PSCI)
-│   │   ├── perf.c            # Cycle-accurate performance counters
-│   │   ├── exception.c       # ARM64 exception vectors
-│   │   ├── watchdog.c        # Hardware watchdog timer
-│   │   ├── selftest.c        # Boot-time self-tests
-│   │   └── cpu_features.c    # CPUID / feature detection
-│   ├── sched/
-│   │   └── tensor_sched.c    # MEU scheduling, GPU scoring, batch coalescing
-│   ├── mm/
-│   │   ├── tensor_mm.c       # Tensor heap, model cache, slab allocator
-│   │   └── tensor_arena.c    # Zero-fragmentation arena allocator
-│   ├── drivers/
-│   │   ├── gpu/gpu.c         # PCI GPU detection, tensor op dispatch
-│   │   ├── tpu/tpu.c         # TPU driver stub
-│   │   ├── bt/rpi_bt.c       # Bluetooth SPP (PL011→HCI→L2CAP→RFCOMM)
-│   │   ├── blk/rpi_sd.c      # RPi4 SD card (EMMC2) driver
-│   │   ├── blk/virtio_blk.c  # Virtio block device driver
-│   │   ├── blk/sdlog.h       # FAT32 SD boot logger
-│   │   └── net/virtio_net.c  # Virtio network device driver
-│   ├── net/
-│   │   └── netstack.c        # ARP, IPv4, UDP, ICMP, HTTP inference server
-│   ├── fs/
-│   │   ├── git.c             # Native kernel git (SHA-256, tensor objects)
-│   │   └── tensorfs.c        # AI-aware virtual filesystem
-│   ├── security/
-│   │   └── sandbox.c         # Permissions, audit, deterministic mode
-│   ├── ipc/
-│   │   └── tensor_ipc.c      # Zero-copy channels, tensor pipelines
-│   └── update/
-│       └── ota.c             # OTA firmware update (UART/BT)
-├── virt/
-│   └── virt.c                # VT-x/EPT, GPU passthrough, hypercalls
+HyperTensor/
+├── host/                      # Host-mode runtime (NEW)
+│   ├── hal.h                  # Hardware Abstraction Layer header
+│   ├── hal.c                  # Cross-platform HAL implementation
+│   ├── main.c                 # CLI entry point
+│   └── shims/                 # Include shims (kernel→HAL redirect)
+│       └── kernel/...         # Shim headers for all kernel includes
 ├── runtime/
-│   ├── pseudocode/
-│   │   └── pseudocode_jit.c  # Lexer, parser, IR, 4-tier JIT, optimizer
-│   ├── tensor/
-│   │   ├── tensor_engine.c   # Eager ops, compute graphs, backend selection
-│   │   ├── tensor_cpu.c      # SIMD tensor ops (SSE2 / NEON)
-│   │   └── tensor_avx2.c     # AVX2-accelerated tensor kernels
-│   ├── jit/
-│   │   ├── x86_jit.c         # x86_64 JIT code emitter (SSE2 + AVX2)
-│   │   └── llm_jit.c         # JIT forward kernels (vadd, dot, axpy, silu, rope, rmsnorm)
-│   └── nn/
-│       ├── inference.c        # Forward pass, model loading, benchmarks
-│       ├── train.c            # Backpropagation + Adam optimizer
-│       ├── quantize.c         # INT16 quantization engine
-│       ├── quantize4.c        # INT4 / Q4_K quantization engine
-│       ├── gguf.c             # GGUF model format parser + writer
-│       ├── speculative.c      # Speculative Neural Execution (5 techniques)
-│       ├── transformer.c      # Multi-head attention, transformer blocks
-│       └── evolution.c        # Neuroevolution with genetic algorithms
-├── pkg/
-│   └── modelpkg.c            # Model package manager (registry, install)
-├── userland/
-│   ├── shell/aishell.c       # Interactive AI shell with 20+ commands
-│   ├── monitor/tensor_monitor.c  # GPU/memory/MEU monitoring, alerts
-│   ├── deploy/deploy_service.c   # Auto-scaling, health checks, A/B testing
-│   └── train/train_service.c     # Distributed training orchestration
-├── scripts/
-│   ├── run-qemu.sh           # QEMU launcher (Linux/macOS)
-│   └── run-qemu.ps1          # QEMU launcher (Windows)
-├── build.ps1                  # x86_64 build system (Zig CC cross-compiler)
-├── build_rpi.ps1             # ARM64 / RPi4 build script (Zig toolchain)
-└── README.md
+│   ├── nn/
+│   │   ├── llm.c             # Full LLM inference engine
+│   │   ├── llm.h             # Model types and API
+│   │   └── gguf.c            # GGUF format parser
+│   └── jit/
+│       ├── x86_jit.c         # x86_64 JIT code emitter
+│       └── llm_jit.c         # JIT forward kernels
+├── kernel/                    # Bare-metal kernel (TensorOS heritage)
+├── boot/                      # Bootloader (Multiboot1, ARM64)
+├── build_host.ps1             # Host-mode build script (Zig CC)
+├── build.ps1                  # Bare-metal build script
+└── CMakeLists.txt             # CMake build (GCC/Clang)
 ```
 
 ---
 
-## AI Shell Quick Reference
+## How It Works
 
-```
-tensor> model load llama-3-8b          # Load model into MEU
-tensor> model list                      # Show running MEUs
-tensor> infer llama-3-8b "Hello"        # Run inference
-tensor> train bert dataset.json         # Launch training
-tensor> deploy llama-3-8b --port 8080   # Deploy as service
-tensor> git init                        # Initialize git repo
-tensor> git commit -m "checkpoint"      # Commit state
-tensor> pkg install mistral-7b          # Install model
-tensor> monitor                         # System dashboard
-tensor> run script.pseudo               # Execute Pseudocode file
-tensor> help                            # Full command list
-```
+1. **Model Loading**: Memory-maps the GGUF file (no copy), parses metadata, maps tensor pointers directly into the file.
 
-Any text that isn't a built-in command is automatically JIT-compiled as Pseudocode.
+2. **Tokenization**: BPE tokenizer built from GGUF vocabulary with an O(1) hash table lookup and merge-based encoding.
+
+3. **Forward Pass**: Full transformer forward pass with RMSNorm → QKV projection → RoPE → GQA attention → SwiGLU FFN → LM head.
+
+4. **JIT Compilation**: On first inference, six x86_64 SIMD kernels are JIT-compiled (vadd, dot, axpy, fused_silu_mul, rope, rmsnorm) — eliminating per-element function call overhead.
+
+5. **SMP Dispatch**: Matrix-vector multiplies are partitioned across all CPU cores via the HAL's thread pool.
+
+6. **Sampling**: Temperature-scaled softmax with top-k/top-p nucleus sampling and optional greedy decoding.
 
 ---
 
-## Design Principles
+## Supported Models
 
-1. **Tensors are first-class** — Memory, scheduling, IPC, and filesystems all understand tensor shapes and dtypes natively.
+Any LLaMA-architecture GGUF model works:
 
-2. **Models are the unit of execution** — No processes, threads, or PIDs. Everything is an MEU with a model, weights, and a compute graph.
+| Model | Architecture | Tested |
+|-------|-------------|--------|
+| Phi-3.5 Mini Instruct | phi3 | ✅ 162 ms/tok |
+| Qwen2.5 | qwen2 | ✅ |
+| LLaMA 3 | llama | ✅ |
+| Gemma 2 | gemma | ✅ |
+| SmolLM 2 | llama | ✅ |
+| Mistral | llama | ✅ |
+| Phi-2 | phi2 | ✅ |
 
-3. **Zero-copy everywhere** — IPC uses shared memory, git objects live in the tensor heap, GPU passthrough avoids host copies.
-
-4. **Git is infrastructure** — Every training run, deployment, and model change is automatically version-controlled at the kernel level.
-
-5. **Hardware-aware by default** — The scheduler, memory manager, and package manager all auto-optimize for detected hardware (GPU VRAM, tensor cores, thermal limits).
-
-6. **Pseudocode is the interface** — Write what you mean, not how the machine wants it. The JIT figures out the rest.
+Quantization: Q4_0, Q8_0, F16, F32
 
 ---
 
-## Roadmap
+## Origin
 
-- [x] Interrupt handler (IDT, PIC/APIC, ARM64 exception vectors)
-- [x] PS/2 keyboard driver with scancode set 2
-- [x] PCI Express enumeration for GPUs
-- [x] Network stack (ARP/IPv4/UDP/ICMP + HTTP inference server)
-- [x] GGUF native loader (parse + round-trip)
-- [x] Model quantization engine (INT16 + INT4/Q4_K)
-- [x] Speculative Neural Execution (5 techniques)
-- [x] Backpropagation training engine (SGD + Adam)
-- [x] Neuroevolution engine (genetic algorithms)
-- [x] SMP multi-core bootstrap (LAPIC + PSCI)
-- [x] SMP parallel GEMV dispatch (row partitioning across CPUs)
-- [x] JIT-compiled forward kernels (vadd, dot, axpy, silu, rope, rmsnorm)
-- [x] TLS 1.3 with ChaCha20-Poly1305 + X25519 + Ed25519
-- [x] Bluetooth SPP serial console (HCI → L2CAP → RFCOMM)
-- [x] OTA firmware update (ARM64)
-- [x] Transformer architecture (multi-head attention)
-- [x] ARM64 / Raspberry Pi 4 port
-- [x] Arena allocator (zero-fragmentation tensor memory)
-- [x] SD card driver (RPi4 EMMC2)
-- [x] NVIDIA GPU driver (MMIO register interface)
-- [x] AMD ROCm-compatible GPU driver
-- [x] Real DMA engine for PCIe transfers
-- [x] TCP transport for model serving
-- [x] Distributed training across multiple machines
-- [x] UEFI boot support
-- [x] Filesystem persistence (disk I/O)
-- [x] Pseudocode standard library
-- [x] WebGPU/Vulkan compute backend
-- [x] ONNX Runtime integration
-- [x] safetensors native loader
-- [x] Flash Attention kernel
-- [x] PagedAttention (vLLM-style) for serving
+HyperTensor evolved from [TensorOS](https://github.com/NagusameCS/TensorOS), a bare-metal AI operating system. The core inference engine, GGUF parser, BPE tokenizer, JIT compiler, and SMP parallel GEMV are shared between both projects. HyperTensor adds the HAL layer to run the same inference code as a native application on Windows and Linux.
+
+---
+
+## License
+
+MIT
 
 

@@ -43,6 +43,7 @@ typedef float v8f __attribute__((vector_size(32)));
 /* Forward declarations */
 static void llm_build_hash_table(const llm_model_t *m);
 static uint64_t llm_row_bytes(int in_dim, ggml_type_t type);
+static int llm_init_parsed_model(llm_model_t *m);
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Static Allocations                                                         */
@@ -3796,6 +3797,17 @@ static int llm_load_from_disk(llm_model_t *m)
     kprintf("[LLM] Loaded %lu MB in %lu ms (%lu KB/s)\n",
             capacity / (1024 * 1024), load_ms, mbps);
 
+    return llm_init_parsed_model(m);
+#endif /* __aarch64__ */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  Common model init: GGUF parse → arch extraction → tensor map → vocab       */
+/*  Called after m->data_buf / m->data_size are set (from disk or buffer).     */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+static int llm_init_parsed_model(llm_model_t *m)
+{
     /* Parse GGUF */
     kprintf("[LLM] Parsing GGUF...\n");
     int rc = gguf_parse(&llm_gguf_ctx, m->data_buf, m->data_size);
@@ -3976,7 +3988,37 @@ static int llm_load_from_disk(llm_model_t *m)
     kprintf("[LLM] Model loaded successfully! Ready for inference.\n");
 
     return 0;
-#endif /* __aarch64__ */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  Public hosted-mode loader: load from a memory buffer (e.g. mmap)           */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+int llm_load_from_buffer(void *data, uint64_t size)
+{
+    if (!data || size < 1024) {
+        kprintf("[LLM] Invalid buffer (ptr=%p, size=%lu)\n", data, (unsigned long)size);
+        return -1;
+    }
+
+    /* Verify GGUF magic */
+    uint32_t magic = (uint32_t)((uint8_t *)data)[0] |
+                     ((uint32_t)((uint8_t *)data)[1] << 8) |
+                     ((uint32_t)((uint8_t *)data)[2] << 16) |
+                     ((uint32_t)((uint8_t *)data)[3] << 24);
+    if (magic != GGUF_MAGIC) {
+        kprintf("[LLM] Not a GGUF file (magic=0x%08x)\n", magic);
+        return -1;
+    }
+
+    kmemset(&llm_model, 0, sizeof(llm_model));
+    llm_model.data_buf = data;
+    llm_model.data_size = size;
+
+    kprintf("[LLM] Loading model from buffer: %lu MB\n",
+            (unsigned long)(size / (1024 * 1024)));
+
+    return llm_init_parsed_model(&llm_model);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */

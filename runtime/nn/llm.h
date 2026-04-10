@@ -138,6 +138,12 @@ typedef struct {
 void llm_boot_load(void);
 
 /**
+ * Hosted-mode loader: load model from a pre-mapped memory buffer.
+ * The buffer must contain a valid GGUF file. Returns 0 on success.
+ */
+int llm_load_from_buffer(void *data, uint64_t size);
+
+/**
  * Full eval: load model + run benchmark + math eval (legacy, slow).
  */
 void llm_run_eval(void);
