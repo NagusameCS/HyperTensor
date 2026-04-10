@@ -1,7 +1,7 @@
 # TensorOS Comprehensive Code Audit Report
 
 **Date**: June 2025 (updated March 2026)
-**Scope**: Full codebase at `C:\Users\legom\TensorOS`
+**Scope**: Full codebase at `C:\Users\legom\TensorOS` (~54K lines)
 **Auditor**: GitHub Copilot (Claude Opus 4.6)
 
 ---
@@ -10,7 +10,7 @@
 
 Since the June 2025 audit, the following critical bugs were found and fixed:
 
-### Bugs Fixed
+### Bugs Fixed (v0.2.0)
 
 | Bug | Impact | Fix |
 |-----|--------|-----|
@@ -19,13 +19,22 @@ Since the June 2025 audit, the following critical bugs were found and fixed:
 | **Missing LongRoPE factors** | Phi-3.5 requires position-dependent frequency scaling | Loaded rope_factors_short/long from GGUF, applied in precompute |
 | **Math library precision** | sinf/cosf/expf/logf had catastrophic errors | Complete rewrites of all transcendental functions |
 
+### Bugs Fixed (v0.3.0)
+
+| Bug | Impact | Fix |
+|-----|--------|-----|
+| **SMP page tables at 0x1000** | Collided with BIOS Data Area, AP bootstrap failures | Relocated to `0x10000` (18 pages), 16 GB identity map with 2 MB huge pages |
+| **JIT loop counters halved** | `vadd`, `dot`, `vmul`, `rmsnorm` emitted `vecs/2` instead of `vecs`, halving computation | Changed all loop counts from `vecs/2` to `vecs` |
+| **SMP trampoline alignment** | `jmp rax` left stack misaligned, SSE2 `movaps` faulted on APs | Changed to `call rax` for 16-byte alignment per System V ABI |
+| **SMP IPI dispatch** | APs stuck in `cli; jmp $`, no IPI handler for vector 0xFE | Installed IPI handler, APs now execute work via `smp_dispatch()` |
+
 ### Current LLM Inference Scorecard
 
 | Metric | Value |
 |--------|-------|
 | Model | Phi-3.5 Mini Instruct (3.8B params, Q4_0) |
 | Output quality | ✅ Coherent English, matches Python/NumPy reference |
-| Decode speed | 454 ms/tok (single core, QEMU WHPX) |
+| Decode speed | 162 ms/tok (4 cores, QEMU WHPX) |
 | Prefill speed | 5,475 ms for 12 tokens |
 | Numerical accuracy | Exact match at all checkpoints (embedding, L0 Q/K/V, L0 output) |
 | Quantization formats | Q4_0 ✅, Q4_1 ✅, Q6_K ✅, Q8_0 ✅ |
@@ -38,9 +47,9 @@ Since the June 2025 audit, the following critical bugs were found and fixed:
 | LLM inference | ★★★★☆ | ★★★★★ | **Upgraded**: Produces correct output, verified numerically |
 | Tensor/SIMD ops | ★★★★☆ | ★★★★☆ | Unchanged |
 | Boot / HW init | ★★★★☆ | ★★★★☆ | Unchanged |
-| JIT compiler | ★★★★☆ | ★★★★☆ | Unchanged |
+| JIT compiler | ★★★★☆ | ★★★★★ | **Upgraded**: 6 forward kernels compiled and verified working |
 | Drivers (virtio) | ★★★☆☆ | ★★★☆☆ | Unchanged |
-| SMP | ★★★☆☆ | ★★★☆☆ | Unchanged |
+| SMP | ★★★☆☆ | ★★★★☆ | **Upgraded**: APs execute work, parallel GEMV dispatch working |
 | Memory management | ★★★☆☆ | ★★★☆☆ | Unchanged |
 | Networking | ★★★☆☆ | ★★★☆☆ | Unchanged |
 | Scheduler | ★★☆☆☆ | ★★☆☆☆ | Unchanged |
@@ -50,9 +59,10 @@ Since the June 2025 audit, the following critical bugs were found and fixed:
 
 ### What Still Doesn't Work
 
-All items from the original audit remain open. The OS layer (virtual memory,
+Most items from the original audit remain open. The OS layer (virtual memory,
 preemptive scheduling, TCP, persistent filesystem, GPU drivers) is unchanged.
-The improvements are entirely in the inference engine numerical correctness.
+The v0.3.0 improvements are in SMP work dispatch, JIT forward kernels, and
+performance optimization (454 → 162 ms/tok).
 
 ---
 
@@ -73,10 +83,10 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 | Category | Rating | Summary |
 |----------|--------|---------|
 | Tensor/SIMD ops | ★★★★☆ | BLIS GEMM, AVX2 dispatch, Winograd — genuinely good |
-| JIT compiler | ★★★★☆ | Real x86_64 instruction encoding, working matmul JIT |
-| LLM inference | ★★★★★ | Complete transformer with GGUF, quantization, KV-cache — **verified correct output** |
+| JIT compiler | ★★★★★ | Real x86_64 instruction encoding, SSE2+AVX2 emitters, 6 working forward kernels |
+| LLM inference | ★★★★★ | Complete transformer with GGUF, quantization, KV-cache — **verified correct output, 162 ms/tok** |
 | Boot / HW init | ★★★★☆ | Real long mode setup, PCI, PIT, PIC, serial, exceptions |
-| SMP | ★★★☆☆ | Real trampoline, but APs can't actually execute work |
+| SMP | ★★★★☆ | Real trampoline, APs execute work via smp_dispatch(), parallel GEMV working |
 | Memory management | ★★★☆☆ | Functional heap + arena, but no paging/VMM |
 | Drivers (virtio) | ★★★☆☆ | virtio-blk and virtio-net work; GPU/TPU are stubs |
 | Networking | ★★★☆☆ | Real ARP/IPv4/UDP/ICMP; no TCP |
@@ -145,11 +155,13 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
    - No TCP means no HTTP, no SSH, no TLS, no standard network services
    - The "HTTP inference server" is actually UDP with a custom text protocol
 
-5. **SMP Application Processors Cannot Execute Work**
+5. **~~SMP Application Processors Cannot Execute Work~~ (FIXED in v0.3.0)**
    - `kernel/core/smp.c` correctly sends INIT-SIPI-SIPI and APs boot into the trampoline
-   - But APs end up in a `cli; jmp $` (halt) loop — the trampoline code has `lock inc` to signal arrival then loops forever
-   - `smp_dispatch()` sends IPI 0xFE but **no ISR is installed for vector 0xFE** on APs, and APs have interrupts disabled
-   - Impact: SMP boot detection works but additional cores are completely wasted
+   - ~~But APs end up in a `cli; jmp $` (halt) loop~~ → APs now enter an idle loop with IPI handler installed
+   - `smp_dispatch()` sends IPI 0xFE and APs wake to execute the dispatched work function
+   - Page tables relocated from `0x1000` to `0x10000` to avoid BIOS Data Area collision
+   - Trampoline entry changed from `jmp rax` to `call rax` for 16-byte stack alignment
+   - Impact: **4 CPUs working**, parallel GEMV dispatch achieves 2.8× speedup
 
 ### 2.2 IMPORTANT
 
@@ -179,7 +191,7 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 | File | Line(s) | Bug | Impact |
 |------|---------|-----|--------|
 | `kernel/core/smp.c` | ~95 | Uses HTT (Hyper-Threading Technology) CPUID bit to detect core count — this bit indicates HT *capability*, not actual core count. A 16-core CPU without HT reports `g_smp_ap_count = 1` | Wrong CPU count, SMP underutilized |
-| `kernel/core/smp.c` | ~180 | `smp_dispatch()` sends IPI to vector 0xFE but no handler is installed for this vector. APs have `cli` set so they can't receive IPIs anyway. | Work dispatch to APs is dead code |
+| `kernel/core/smp.c` | ~180 | ~~`smp_dispatch()` sends IPI to vector 0xFE but no handler is installed~~ **FIXED in v0.3.0** — IPI handler installed, APs execute dispatched work | ~~Work dispatch to APs is dead code~~ Now working |
 | `boot/boot.asm` | 38 | Checks for Multiboot**2** magic (`0x36d76289`) but header declares Multiboot**1** magic (`0x1BADB002`). GRUB loads with Multiboot1, so `eax` will be `0x2BADB002`, not `0x36d76289` — the check always fails and falls through to `.no_multiboot` error. | **Boot may hang** on real GRUB. Works in QEMU because QEMU's `-kernel` flag bypasses multiboot. |
 | `runtime/nn/llm.c` | ~880 | `llm_sample()` uses `rdtsc % 10000` as random number — extremely low entropy, deterministic across similar inputs, biased toward low token IDs | Sampling quality severely degraded |
 | `runtime/tensor/tensor_cpu.c` | ~680 | `tensor_cpu_attention()` uses `static float attn_scores[1024*1024]` — a 4MB static buffer limiting `seq_len` to ~1024 and making the function non-reentrant | Silently corrupts data if called from multiple contexts |
@@ -201,10 +213,10 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 | `kernel/fs/tensorfs.c` | `TFS_MAX_INODES` hard cap (likely 64-256). No graceful handling when full. |
 | `kernel/ipc/tensor_ipc.c` | Linear scan for channel lookup — O(n) per send/recv |
 | `kernel/security/sandbox.c` | Audit log is fixed 256-entry ring buffer — old entries silently overwritten |
-| `runtime/jit/x86_jit.c` | Static 1MB JIT code pool, never freed (`jit_destroy` is a no-op), no code cache eviction |
+| `runtime/jit/x86_jit.c` | Static 2MB JIT code pool (upgraded from 1MB in v0.3.0), max 64 buffers, never freed (`jit_destroy` is a no-op) |
 | `runtime/nn/llm.c` | `llm_find_token()` is O(vocab_size) linear scan — should use hash table for 32K+ vocab |
 | `kernel/mm/tensor_mm.c` | `phys_alloc_pages()` is O(n) bitmap linear scan on every allocation |
-| `kernel/mm/tensor_mm.c` | Memory hardcoded to 4GB (`MM_MAX_PAGES * 4K`) — no BIOS/UEFI memory map parsing |
+| `kernel/mm/tensor_mm.c` | Physical bitmap supports up to 64GB (16M pages). Heap/cache sizes derived from Multiboot1 mmap. |
 | `runtime/nn/llm.c` | BPE tokenizer merge is O(n² × vocab_size) — extremely slow for long inputs |
 
 ### 3.4 NICE-TO-HAVE — Style / Maintainability
@@ -291,7 +303,7 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 
 - No NUMA awareness in memory allocator
 - No prefetch hints in GGUF model loading (sequential read pattern)
-- JIT compiler doesn't emit AVX2 instructions (SSE2 only)
+- JIT compiler now emits AVX2 integer SIMD (7 emitters added in v0.3.0); floating-point kernels still use SSE2
 - No batch inference path for the full LLM (only token-at-a-time)
 - No multi-threaded model loading (single core reads from disk)
 
@@ -303,9 +315,10 @@ several subsystems are incomplete or purely aspirational, and critical OS infras
 
 These deserve recognition — they're real implementations, not just ideas:
 
-1. **JIT-compiled neural network inference** (`runtime/jit/x86_jit.c`, `runtime/nn/inference.c`)
-   - A real x86_64 JIT compiler that emits native matmul/relu kernels at runtime
-   - Full instruction encoder with REX, ModR/M, SIB, displacement, and SSE2 opcodes
+1. **JIT-compiled neural network inference** (`runtime/jit/x86_jit.c`, `runtime/jit/llm_jit.c`, `runtime/nn/inference.c`)
+   - A real x86_64 JIT compiler that emits native kernels at runtime (SSE2 + AVX2 integer SIMD)
+   - Full instruction encoder with REX, ModR/M, SIB, displacement, SSE2, and AVX2 opcodes
+   - 6 forward kernels (vadd, dot, axpy, fused_silu_mul, rope, rmsnorm) lazy-compiled for LLM inference
    - The graph JIT in `inference.c` compiles entire models into single native functions
 
 2. **Bare-metal LLM inference** (`runtime/nn/llm.c`, `runtime/nn/gguf.c`)
@@ -340,13 +353,13 @@ These deserve recognition — they're real implementations, not just ideas:
    - Mmap model weights directly from NVMe — first access triggers page fault + DMA read, subsequent accesses are zero-cost
    - Cache-aware eviction: model LRU already exists in `tensor_mm.c`, just needs disk backing
 
-4. **SMP Tensor Parallelism**
-   - The SMP trampoline already works — fix AP dispatch (install IPI handler, add per-CPU stacks)
-   - Partition GEMM panels across cores: core 0 does rows 0-N/4, core 1 does N/4-N/2, etc.
-   - Could provide near-linear speedup for large matmuls with minimal OS overhead
+4. **~~SMP Tensor Parallelism~~ (IMPLEMENTED in v0.3.0)**
+   - ~~The SMP trampoline already works — fix AP dispatch~~ → AP dispatch fixed, IPI handler installed, per-CPU stacks allocated
+   - GEMV rows partitioned across cores: `smp_dispatch()` assigns row ranges to each AP
+   - Achieved **2.8× speedup** (454 → 162 ms/tok) with 4 CPUs on Phi-3.5 forward pass
 
 5. **Ring-Buffer JIT Code Cache**
-   - Replace the fixed 1MB pool with a ring-buffer eviction policy
+   - Replace the fixed 2MB pool with a ring-buffer eviction policy
    - Track kernel hit count; keep hot kernels, evict cold ones
    - Profile-guided JIT: recompile hot kernels with AVX2 after detecting CPU support
 
@@ -371,7 +384,7 @@ These deserve recognition — they're real implementations, not just ideas:
 |------|--------|-------|
 | `kernel/core/main.c` (917 lines) | ★★★☆☆ | Extensive 21-phase boot. Too many demo phases that should be deferred. |
 | `kernel/core/klib.c` (902 lines) | ★★★★☆ | Real VGA, serial, IDT, PIC, PIT, keyboard. `memset`/`memcpy` need SIMD. |
-| `kernel/core/smp.c` (495 lines) | ★★★☆☆ | Real trampoline but APs stuck in HLT. IPI dispatch broken. |
+| `kernel/core/smp.c` (495 lines) | ★★★★☆ | Real trampoline, APs execute work via smp_dispatch(). Parallel GEMV working (4 CPUs). |
 | `kernel/core/exception.c` (390 lines) | ★★★★★ | Production-quality exception handlers with register dumps and stack traces. |
 | `kernel/core/cpu_features.c` (205 lines) | ★★★★☆ | Correct CPUID + XCR0 enable for AVX/AVX2. |
 | `kernel/core/watchdog.c` (157 lines) | ★★★★☆ | Real PIT ISR with inline asm, proper EOI, working tick counter. |
@@ -432,12 +445,12 @@ These deserve recognition — they're real implementations, not just ideas:
 ### Runtime — JIT
 | File | Status | Notes |
 |------|--------|-------|
-| `runtime/jit/x86_jit.c` (825 lines) | ★★★★☆ | **Real JIT compiler**. Proper REX/ModRM/SIB encoding, SSE2 instructions, working matmul/relu compilation. |
+| `runtime/jit/x86_jit.c` (825 lines) | ★★★★★ | **Real JIT compiler**. Proper REX/ModRM/SIB encoding, SSE2 + AVX2 integer SIMD emitters, 6 forward kernels compiled and verified. |
 
 ### Runtime — Neural Networks
 | File | Status | Notes |
 |------|--------|-------|
-| `runtime/nn/llm.c` (1567 lines) | ★★★★☆ | **Complete** transformer inference. GGUF loading, tokenizer, GQA, KV-cache. |
+| `runtime/nn/llm.c` (4099 lines) | ★★★★★ | **Complete** transformer inference. GGUF loading, tokenizer, GQA, KV-cache, SMP parallel GEMV, JIT forward kernels. 162 ms/tok. |
 | `runtime/nn/gguf.c` (611 lines) | ★★★★☆ | **Real** GGUF v2/v3 parser with full type support and tensor mapping. |
 | `runtime/nn/inference.c` (1309 lines) | ★★★★☆ | Eager + batched + graph JIT forward passes. Real SIMD code. |
 | `runtime/nn/train.c` (810 lines) | ★★★☆☆ | Real backpropagation with Adam optimizer. Limited to small models. |
@@ -460,7 +473,7 @@ These deserve recognition — they're real implementations, not just ideas:
 1. **Fix boot.asm multiboot magic check** — change `0x36d76289` to `0x2BADB002` or remove the check
 2. **Fix `kfree()` slab path** — implement slab free-list pushback to prevent memory leaks
 3. **Remove "GPU compute" claims** — gpu.c tensor ops are stubs; document this honestly
-4. **Fix SMP AP dispatch** — install IPI handler at vector 0xFE, give APs per-CPU stacks, and add `sti` in trampoline
+4. **~~Fix SMP AP dispatch~~** ✅ **FIXED in v0.3.0** — IPI handler installed, per-CPU stacks allocated, `call rax` for alignment
 
 ### Should Fix (For a credible OS)
 
@@ -483,4 +496,4 @@ These deserve recognition — they're real implementations, not just ideas:
 
 ---
 
-*End of audit. ~30 source files analyzed, ~15,000 lines of code reviewed.*
+*End of audit. 61 source files analyzed, ~54,000 lines of code reviewed.*

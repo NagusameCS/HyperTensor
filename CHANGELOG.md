@@ -4,6 +4,64 @@ All notable changes to TensorOS are documented in this file.
 
 ---
 
+## [0.3.0] — 2026-03-24
+
+### Summary
+
+**2.8× performance improvement.** Decode speed improved from 454 ms/tok to 162 ms/tok
+through SMP parallel GEMV, JIT-compiled forward kernels, and critical bug fixes in
+both the JIT loop counters and the SMP trampoline.
+
+### Critical Fixes
+
+#### SMP Page Table Relocation
+Page tables relocated from `0x1000` to `0x10000` (18 pages). The original address
+collided with the BIOS Data Area, causing AP bootstrap failures. All 4 CPUs now
+come online reliably.
+
+#### JIT Loop Counter Bugs
+All JIT forward kernels (`vadd`, `dot`, `vmul`, `rmsnorm`) emitted `vecs/2` as the
+loop count instead of `vecs`. This halved the computation, producing incorrect results
+for every JIT-accelerated operation.
+
+#### SMP Trampoline Stack Alignment
+Changed AP entry from `jmp rax` to `call rax` to ensure 16-byte stack alignment
+required by the System V ABI. Misalignment caused SSE2 `movaps` faults on APs.
+
+### New Features
+
+#### JIT Forward Kernels
+Six native x86_64 kernels lazy-compiled on first LLM inference:
+- `vadd` (dim=3072) — residual connections
+- `dot` (head_dim=96) — attention score computation
+- `axpy` (head_dim=96) — attention value accumulation
+- `fused_silu_mul` (ff_dim=8192) — FFN gate ⊙ up projection
+- `rope` (head_dim=96) — rotary position encoding
+- `rmsnorm` (dim=3072) — RMS normalization
+
+Emitted into a 2 MB W^X code pool (max 64 concurrent buffers).
+
+#### SMP Parallel GEMV
+- `smp_dispatch()` partitions GEMV rows across all online CPUs
+- Supports Q4_0 and Q8_0 fused AVX2 GEMV paths
+- Dispatches when `ncpu > 1 && out_dim >= 64`
+- BSP + APs synchronized via `smp_wait_all()`
+
+#### AVX2 Integer SIMD Emitters
+7 new AVX2 integer SIMD instruction emitters added to the JIT engine.
+Integer Q4×Q8 GEMV compiler implemented (disabled pending correctness verification).
+
+### Performance
+
+| Metric | v0.2.0 | v0.3.0 | Improvement |
+|--------|--------|--------|-------------|
+| Decode speed | 454 ms/tok | 162 ms/tok | 2.8× faster |
+| CPUs used | 1 | 4 | SMP dispatch |
+| JIT kernels | 0 | 6 | Forward pass JIT |
+| JIT pool | 1 MB | 2 MB | Doubled capacity |
+
+---
+
 ## [0.2.0] — 2026-03-23
 
 ### Summary
@@ -100,7 +158,7 @@ Previously, Q[0] was -0.014042 (30× too small) and L0 output range was
 ## [0.1.0] — 2025 (Initial Release)
 
 ### Features
-- Multiboot2 bootloader with x86_64 long mode + SSE2
+- Multiboot1 bootloader with x86_64 long mode + SSE2
 - SMP bootstrap (INIT-SIPI-SIPI)
 - Tensor-aware memory manager (heap + arena + slab)
 - GGUF model format parser

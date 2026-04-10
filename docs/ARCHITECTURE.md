@@ -5,25 +5,27 @@
 ## Boot Sequence
 
 ```
-BIOS/UEFI → GRUB (Multiboot2) → boot.asm → kernel_main() → AI Shell
+BIOS → multiboot_stub.asm (Multiboot1) → boot.asm → entry64.asm → kernel_main() → AI Shell
 ```
 
-### Phase 1: Hardware Init (boot.asm)
-1. Multiboot2 header validated by GRUB
-2. GDT loaded (64-bit long mode segments)
-3. Page tables: identity-map first 1GB + tensor memory region (4GB-8GB)
-4. Enable PAE, long mode (IA32_EFER.LME), paging
-5. Jump to 64-bit `kernel_main`
+### Phase 1: Hardware Init (multiboot_stub.asm + boot.asm)
+1. Multiboot1 header validated (magic `0x1BADB002`)
+2. `multiboot_stub.asm`: serial checkpoints, CPUID checks, builds 16 GB identity map
+   with 2 MB huge pages (PML4 → PDPT → PD at `0x10000`, 18 pages)
+3. Loads `kernel64.bin` at `0x200000`, jumps to 32-bit `boot.asm`
+4. `boot.asm`: GDT loaded, PAE + long mode (IA32_EFER.LME) enabled
+5. Jump to 64-bit `entry64.asm` → `kernel_main`
 
 ### Phase 2: Kernel Subsystem Init (main.c)
 1. `tensor_mm_init()` — physical bitmap, tensor heap, model cache, slab allocator
-2. `tensor_sched_init()` — priority queues, GPU device state
-3. `gpu_init()` / `tpu_init()` — PCI bus scan, capability detection
-4. `git_init()` — kernel-level git object store
-5. `tensorfs_init()` — AI-aware virtual filesystem
-6. `sandbox_init()` — security subsystem
-7. `tensor_ipc_init()` — IPC channels
-8. `virt_init()` — VT-x/AMD-V detection, container support
+2. `smp_init()` — LAPIC enable, AP bootstrap via INIT-SIPI-SIPI (up to 64 CPUs)
+3. `tensor_sched_init()` — priority queues, GPU device state
+4. `gpu_init()` / `tpu_init()` — PCI bus scan, capability detection
+5. `git_init()` — kernel-level git object store
+6. `tensorfs_init()` — AI-aware virtual filesystem
+7. `sandbox_init()` — security subsystem
+8. `tensor_ipc_init()` — IPC channels
+9. `virt_init()` — VT-x/AMD-V detection, container support
 
 ### Phase 3: Runtime Init
 1. `tensor_engine_init()` — eager ops, compute graph engine
@@ -38,28 +40,40 @@ BIOS/UEFI → GRUB (Multiboot2) → boot.asm → kernel_main() → AI Shell
 
 ## Memory Layout
 
+Page tables are built by `multiboot_stub.asm` at physical address `0x10000` (18 pages).
+The first 16 GB of physical memory is identity-mapped using 2 MB huge pages.
+
 ```
 0x0000_0000_0000_0000  ┌──────────────────────────────┐
-                       │  Identity-mapped first 1GB    │
-                       │  (kernel code, stack, data)   │
-0x0000_0000_4000_0000  ├──────────────────────────────┤
-                       │  ...                          │
-0x0000_0001_0000_0000  ├──────────────────────────────┤  (4 GB)
-                       │  Tensor Memory Region         │
-                       │  (4 GB, mapped in boot.asm)   │
+                       │  Kernel code + data           │
+                       │  (loaded at 0x200000)         │
+0x0000_0000_0001_0000  │  Page tables (18 pages)       │
+                       │  PML4, PDPT, 8× PD            │
+                       ├──────────────────────────────┤
+                       │  SMP trampoline (0x8000)      │
+                       │  AP stacks (65 KB each)       │
+                       ├──────────────────────────────┤
+                       │  Identity-mapped first 16 GB  │
+                       │  (2 MB huge pages)            │
                        │  ┌────────────────────────┐   │
-                       │  │ Tensor Heap (256 MB)   │   │
-                       │  │ (2MB huge pages)       │   │
+                       │  │ Tensor Heap            │   │
+                       │  │ (dynamic, 2MB pages)   │   │
                        │  ├────────────────────────┤   │
-                       │  │ Model Cache (512 MB)   │   │
-                       │  │ (LRU, 64 entries)      │   │
+                       │  │ Model Cache (LRU, 64)  │   │
                        │  ├────────────────────────┤   │
-                       │  │ Git Object Store (64MB)│   │
+                       │  │ JIT Code Pool (2 MB)   │   │
+                       │  │ W^X, max 64 buffers    │   │
+                       │  ├────────────────────────┤   │
+                       │  │ Git Object Store       │   │
                        │  ├────────────────────────┤   │
                        │  │ IPC Shared Buffers     │   │
                        │  └────────────────────────┘   │
-0x0000_0002_0000_0000  └──────────────────────────────┘  (8 GB)
+0x0000_0004_0000_0000  └──────────────────────────────┘  (16 GB)
 ```
+
+Actual heap/cache sizes depend on available RAM (detected from Multiboot1 mmap):
+- **8 GB config**: tensor heap ~4992 MB, model cache ~2976 MB
+- **4 GB config**: tensor heap ~256 MB, model cache ~512 MB
 
 ### Tensor Heap
 - Bump allocator with free-list fallback
@@ -156,3 +170,55 @@ Three sandbox policies:
 - Audit ring buffer logs all security-relevant operations
 - Deterministic mode: fixed random seeds, no timing side channels
 - Resource accounting: per-MEU memory and compute time tracking
+
+
+## SMP Architecture
+
+### Bootstrap
+- BSP enables LAPIC, copies trampoline to physical `0x8000`
+- Sends INIT-SIPI-SIPI to all APs (up to `MAX_CPUS=64`)
+- Each AP: enters real mode at `0x8000`, transitions to protected → long mode,
+  gets a 65 KB stack, increments `smp.ap_started`, enters idle loop
+
+### Work Dispatch
+```
+BSP                     AP 0                  AP 1                  AP 2
+  │                      │                     │                     │
+  ├─ smp_dispatch(fn) ──►│ wake via IPI 0xFE  │                     │
+  │                      ├─ execute fn(arg)    │                     │
+  ├─ smp_dispatch(fn) ──►│                     ├─ execute fn(arg)    │
+  ├─ smp_dispatch(fn) ──►│                     │                     ├─ execute fn(arg)
+  │  (BSP does own share)│                     │                     │
+  ├─ smp_wait_all() ─────┤─── barrier ─────────┤─── barrier ─────────┤
+  │                      │                     │                     │
+```
+
+### Parallel GEMV
+When `ncpu > 1 && out_dim >= 64`, GEMV rows are partitioned across CPUs:
+- CPU `c` processes rows `[c * rows_per_cpu, (c+1) * rows_per_cpu)`
+- BSP executes its share directly, APs receive work via `smp_dispatch()`
+- All CPUs join via `smp_wait_all()` before the result is used
+- Supports both Q4_0 and Q8_0 fused AVX2 GEMV paths
+
+
+## JIT Compilation
+
+### x86_64 JIT Engine (`x86_jit.c`)
+- 2 MB executable code pool with W^X protection
+- Max 64 concurrent JIT buffers
+- Full x86_64 instruction encoder: REX, ModR/M, SIB, SSE2, AVX2 opcodes
+- Register allocator using System V calling convention
+
+### LLM Forward Kernels (`llm_jit.c`)
+Lazy-compiled on first inference call. Kernel cache holds up to 32 entries.
+
+| Kernel | Op | Vector Size | Used For |
+|--------|----|-------------|----------|
+| vadd | a[i] + b[i] | dim (3072) | Residual connections |
+| dot | Σ a[i]×b[i] | head_dim (96) | Attention score computation |
+| axpy | a[i] + α×b[i] | head_dim (96) | Attention value accumulation |
+| fused_silu_mul | silu(a[i])×b[i] | ff_dim (8192) | FFN gate ⊙ up projection |
+| rope | Rotary encoding | head_dim (96) | Position encoding for Q/K |
+| rmsnorm | RMS normalize | dim (3072) | Layer normalization |
+
+Softmax is not JIT-compiled because sequence length varies per token.

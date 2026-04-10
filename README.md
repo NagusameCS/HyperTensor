@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/arch-x86__64_%7C_ARM64-orange" alt="Architecture">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
   <img src="https://img.shields.io/badge/warnings-0_(%E2%80%93Wall)-brightgreen" alt="Warnings">
-  <img src="https://img.shields.io/badge/source-29K_lines-informational" alt="Lines of Code">
+  <img src="https://img.shields.io/badge/source-54K_lines-informational" alt="Lines of Code">
   <img src="https://img.shields.io/badge/platform-bare--metal-critical" alt="Bare Metal">
   <img src="https://img.shields.io/badge/LLM-Phi--3.5_working-success" alt="LLM Working">
   <img src="https://img.shields.io/github/last-commit/NagusameCS/TensorOS?label=last%20commit" alt="Last Commit">
@@ -20,20 +20,22 @@ Traditional OSes treat AI as just another application. TensorOS treats AI as *th
 
 ```
 TensorOS v0.1.0 "Neuron" booting...
+[SMP] 4 CPUs online
+[JIT] Compiled 6 forward kernels (vadd, dot, axpy, fused_silu_mul, rope, rmsnorm)
 [LLM] Loaded 2081 MB in 5552 ms (383882 KB/s)
 [LLM] Model: Phi 3.5 Mini Instruct (phi3)
 [LLM] 32 layers, 3072-dim, 32064 vocab, 32 heads
 [LLM] Smoke test (3722M params, 16 tok max)...
-[16 tok, 454 ms/tok, prefill 5475 ms, 1 cpus]
+[16 tok, 162 ms/tok, prefill 5475 ms, 4 cpus]
 
 > What is an operating system?
 
 An operating system (OS) is a complex piece of software that man[ages]...
 ```
 
-Phi-3.5 Mini Instruct (3.8B parameters, Q4_0 quantized) running at **~800 ms/tok**
-on a single CPU core under QEMU WHPX. No OS, no drivers, no runtime — just bare metal
-x86_64 with AVX2+FMA SIMD acceleration.
+Phi-3.5 Mini Instruct (3.8B parameters, Q4_0 quantized) running at **~162 ms/tok**
+across 4 CPU cores under QEMU WHPX with JIT-compiled forward kernels and SMP parallel
+GEMV. No OS, no drivers, no runtime — just bare metal x86_64 with AVX2+FMA SIMD.
 
 ---
 
@@ -78,7 +80,7 @@ graph TB
 
     subgraph Boot["<b>Boot</b>"]
         direction LR
-        x86["x86_64 Multiboot2<br/><small>long mode &#x2502; SSE2 &#x2502; SIMD</small>"]
+        x86["x86_64 Multiboot1<br/><small>long mode &#x2502; SSE2 &#x2502; SIMD</small>"]
         arm["ARM64 Boot Stub<br/><small>EL2→EL1 &#x2502; MMU &#x2502; UART</small>"]
         SMP["SMP Bootstrap<br/><small>LAPIC / PSCI</small>"]
     end
@@ -218,6 +220,31 @@ Found 12 packages:
 Registries: `tensoros-hub` (default), `huggingface`.
 Supports automatic quantization and hardware-specific optimization on install.
 
+### 7. JIT-Compiled Forward Kernels
+
+The LLM forward pass lazy-compiles six native x86_64 kernels on first inference:
+
+| Kernel | Operation | Size |
+|--------|-----------|------|
+| `vadd` | Residual connections | dim (3072) |
+| `dot` | Attention scores | head_dim (96) |
+| `axpy` | Value accumulation | head_dim (96) |
+| `fused_silu_mul` | FFN gate ⊙ up | ff_dim (8192) |
+| `rope` | Rotary position encoding | head_dim (96) |
+| `rmsnorm` | RMS normalization | dim (3072) |
+
+Kernels are emitted into a 2 MB W^X code pool (max 64 concurrent buffers). The JIT
+eliminates per-element function call overhead and enables loop-level SIMD scheduling.
+
+### 8. SMP Parallel GEMV
+
+Multi-core GEMV dispatch across all online CPUs:
+
+- INIT-SIPI-SIPI bootstrap brings up to 64 APs online (4 CPUs in current QEMU config)
+- `smp_dispatch()` splits GEMV rows across cores when `ncpu > 1 && out_dim >= 64`
+- BSP + all APs execute their row ranges in parallel, synchronized via `smp_wait_all()`
+- Achieved **2.8× speedup** (454 → 162 ms/tok) on the Phi-3.5 forward pass
+
 ---
 
 ## Building
@@ -226,42 +253,24 @@ Supports automatic quantization and hardware-specific optimization on install.
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| `x86_64-elf-gcc` | Cross-compiler | See [OSDev GCC Cross-Compiler](https://wiki.osdev.org/GCC_Cross-Compiler) |
+| `zig` (0.15+) | Cross-compiler (C → x86_64-freestanding) | [ziglang.org/download](https://ziglang.org/download/) |
 | `nasm` | Assembler | `apt install nasm` / `choco install nasm` |
 | `qemu-system-x86_64` | Emulator | `apt install qemu-system-x86` / `choco install qemu` |
-| `grub-mkrescue` | ISO builder (optional) | `apt install grub-pc-bin xorriso` |
-| `gdb` | Debugger (optional) | `apt install gdb` |
 
-### Build & Run
-
-```bash
-# Build the kernel
-make
-
-# Run in QEMU (4GB RAM, 4 CPUs, virtio-gpu)
-make run
-
-# Build bootable ISO
-make iso
-
-# Debug with GDB
-make debug
-# In another terminal:
-gdb -x .gdbinit build/tensoros.bin
-```
-
-### Windows (PowerShell)
+### Build & Run (PowerShell)
 
 ```powershell
-# Run in QEMU
-.\scripts\run-qemu.ps1
+# Build the kernel (compiles 61 C sources + asm via Zig CC)
+.\build.ps1
 
-# Debug mode
-.\scripts\run-qemu.ps1 -Debug
-
-# Boot from ISO
-.\scripts\run-qemu.ps1 -Iso
+# QEMU flags used:
+#   -machine q35,accel=whpx -cpu EPYC-v4
+#   -smp 4,cores=4,threads=1 -m 8G
+#   -drive file=phi3.5.gguf,format=raw,if=virtio
 ```
+
+The build system uses Zig as a C cross-compiler targeting `x86_64-freestanding-none`
+with `-O2 -msse2 -mavx2 -mfma -ffreestanding`. No GCC cross-toolchain required.
 
 ---
 
@@ -270,7 +279,7 @@ gdb -x .gdbinit build/tensoros.bin
 ```
 TensorOS/
 ├── boot/
-│   ├── boot.asm              # Multiboot2 bootloader (x86_64 long mode)
+│   ├── boot.asm              # Multiboot1 bootloader (x86_64 long mode)
 │   ├── arm64/boot.S          # ARM64 boot stub (EL2→EL1, MMU, UART)
 │   └── linker.ld             # Linker script with tensor memory regions
 ├── kernel/
@@ -318,7 +327,8 @@ TensorOS/
 │   │   ├── tensor_cpu.c      # SIMD tensor ops (SSE2 / NEON)
 │   │   └── tensor_avx2.c     # AVX2-accelerated tensor kernels
 │   ├── jit/
-│   │   └── x86_jit.c         # x86_64 JIT code emitter
+│   │   ├── x86_jit.c         # x86_64 JIT code emitter (SSE2 + AVX2)
+│   │   └── llm_jit.c         # JIT forward kernels (vadd, dot, axpy, silu, rope, rmsnorm)
 │   └── nn/
 │       ├── inference.c        # Forward pass, model loading, benchmarks
 │       ├── train.c            # Backpropagation + Adam optimizer
@@ -338,8 +348,8 @@ TensorOS/
 ├── scripts/
 │   ├── run-qemu.sh           # QEMU launcher (Linux/macOS)
 │   └── run-qemu.ps1          # QEMU launcher (Windows)
+├── build.ps1                  # x86_64 build system (Zig CC cross-compiler)
 ├── build_rpi.ps1             # ARM64 / RPi4 build script (Zig toolchain)
-├── Makefile                   # x86_64 build system
 └── README.md
 ```
 
@@ -393,6 +403,9 @@ Any text that isn't a built-in command is automatically JIT-compiled as Pseudoco
 - [x] Backpropagation training engine (SGD + Adam)
 - [x] Neuroevolution engine (genetic algorithms)
 - [x] SMP multi-core bootstrap (LAPIC + PSCI)
+- [x] SMP parallel GEMV dispatch (row partitioning across CPUs)
+- [x] JIT-compiled forward kernels (vadd, dot, axpy, silu, rope, rmsnorm)
+- [x] TLS 1.3 with ChaCha20-Poly1305 + X25519 + Ed25519
 - [x] Bluetooth SPP serial console (HCI → L2CAP → RFCOMM)
 - [x] OTA firmware update (ARM64)
 - [x] Transformer architecture (multi-head attention)
