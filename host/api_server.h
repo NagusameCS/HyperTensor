@@ -1,19 +1,18 @@
 /*
  * HyperTensor HTTP API Server
  *
- * Provides an Ollama-compatible REST API for model inference,
- * enabling integration with Open WebUI, LangChain, and other tools.
+ * Native HyperTensor REST API for model inference.
  *
  * Endpoints:
- *   POST /api/generate    - Generate completion from prompt
- *   POST /api/chat        - Multi-turn chat (with message history)
- *   GET  /api/tags        - List available models
- *   GET  /api/version     - Server version info
- *   GET  /                - Health check
+ *   POST /v1/generate    - Generate completion from prompt
+ *   POST /v1/chat        - Multi-turn chat (with message history)
+ *   GET  /v1/models      - List available models
+ *   GET  /v1/version     - Server version info
+ *   GET  /               - Health check
  *
- * Usage: hypertensor <model.gguf> --serve [--port 11434]
+ * Usage: hypertensor <model.gguf> --serve [--port 8080]
  *
- * Protocol: HTTP/1.1 with streaming NDJSON responses
+ * Protocol: HTTP/1.1 synchronous JSON responses
  */
 
 #ifndef HT_API_SERVER_H

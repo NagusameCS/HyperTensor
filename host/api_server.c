@@ -1,7 +1,7 @@
 /*
  * HyperTensor HTTP API Server
  *
- * Minimal HTTP/1.1 server with Ollama-compatible REST API.
+ * Native HyperTensor REST API for LLM inference.
  * Uses raw Winsock2 — no external dependencies.
  */
 
@@ -226,7 +226,7 @@ static int parse_request(socket_t sock, http_request_t *req) {
 /* ─── API Handlers ─── */
 
 static void handle_version(socket_t sock) {
-    send_json(sock, 200, "{\"version\":\"0.4.0\"}");
+    send_json(sock, 200, "{\"name\":\"HyperTensor\",\"version\":\"0.5.0\",\"backend\":\"cuda\"}");
 }
 
 static void handle_health(socket_t sock) {
@@ -347,7 +347,7 @@ static void handle_chat(socket_t sock, http_request_t *req) {
     output[0] = '\0';
     int n = llm_chat_turn(content, output, (int)sizeof(output), max_tokens, 0.7f);
 
-    /* Build Ollama-compatible chat response */
+    /* Build chat response */
     char resp[MAX_RESP_SIZE];
     int rp = 0;
     rp = json_append(resp, rp, sizeof(resp), "{");
@@ -382,20 +382,20 @@ static void handle_request(socket_t client) {
         return;
     }
 
-    /* Route */
+    /* Route — HyperTensor native API */
     if (strcmp(req.path, "/") == 0 || strcmp(req.path, "/health") == 0) {
         handle_health(client);
-    } else if (strcmp(req.path, "/api/version") == 0) {
+    } else if (strcmp(req.path, "/v1/version") == 0) {
         handle_version(client);
-    } else if (strcmp(req.path, "/api/tags") == 0) {
+    } else if (strcmp(req.path, "/v1/models") == 0) {
         handle_tags(client);
-    } else if (strcmp(req.path, "/api/generate") == 0) {
+    } else if (strcmp(req.path, "/v1/generate") == 0) {
         if (strcmp(req.method, "POST") != 0) {
             send_json(client, 405, "{\"error\":\"POST required\"}");
         } else {
             handle_generate(client, &req);
         }
-    } else if (strcmp(req.path, "/api/chat") == 0) {
+    } else if (strcmp(req.path, "/v1/chat") == 0) {
         if (strcmp(req.method, "POST") != 0) {
             send_json(client, 405, "{\"error\":\"POST required\"}");
         } else {
@@ -444,9 +444,9 @@ int ht_api_serve(int port) {
         return -1;
     }
 
-    kprintf("[API] Serving on http://0.0.0.0:%d\n", port);
-    kprintf("[API] Endpoints: /api/generate, /api/chat, /api/tags\n");
-    kprintf("[API] Compatible with Ollama API clients\n\n");
+    kprintf("[API] HyperTensor serving on http://0.0.0.0:%d\n", port);
+    kprintf("[API] Endpoints: /v1/generate, /v1/chat, /v1/models, /v1/version\n");
+    kprintf("[API] Ready for inference\n\n");
 
     g_running = 1;
     while (g_running) {

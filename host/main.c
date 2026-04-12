@@ -21,9 +21,9 @@
 #endif
 
 #define HT_VERSION_MAJOR 0
-#define HT_VERSION_MINOR 4
+#define HT_VERSION_MINOR 5
 #define HT_VERSION_PATCH 0
-#define HT_CODENAME      "Axon"
+#define HT_CODENAME      "Synapse"
 
 static void print_banner(void) {
     kprintf("\n");
@@ -45,8 +45,8 @@ static void print_usage(const char *argv0) {
     kprintf("  --top-k <int>          Top-K sampling (default: 40)\n");
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
-    kprintf("  --serve                Start HTTP API server (Ollama-compatible)\n");
-    kprintf("  --port <num>           API server port (default: 11434)\n");
+    kprintf("  --serve                Start HyperTensor HTTP API server\n");
+    kprintf("  --port <num>           API server port (default: 8080)\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
@@ -76,7 +76,7 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->top_p       = 0.9f;
     args->interactive = 0;
     args->serve       = 0;
-    args->port        = 11434;
+    args->port        = 8080;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
