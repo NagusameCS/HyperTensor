@@ -11,10 +11,14 @@
 
 /* Forward declarations from TensorOS inference engine */
 #include "../runtime/nn/llm.h"
+#include "api_server.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#  include <windows.h>
+#endif
 
 #define HT_VERSION_MAJOR 0
 #define HT_VERSION_MINOR 4
@@ -41,6 +45,8 @@ static void print_usage(const char *argv0) {
     kprintf("  --top-k <int>          Top-K sampling (default: 40)\n");
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
+    kprintf("  --serve                Start HTTP API server (Ollama-compatible)\n");
+    kprintf("  --port <num>           API server port (default: 11434)\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
@@ -56,6 +62,8 @@ typedef struct {
     int         top_k;
     float       top_p;
     int         interactive;
+    int         serve;
+    int         port;
 } ht_args_t;
 
 static int parse_args(int argc, char **argv, ht_args_t *args) {
@@ -67,6 +75,8 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->top_k       = 40;
     args->top_p       = 0.9f;
     args->interactive = 0;
+    args->serve       = 0;
+    args->port        = 11434;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -91,6 +101,11 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
             args->top_p = (float)atof(argv[i]);
         } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interactive") == 0) {
             args->interactive = 1;
+        } else if (strcmp(argv[i], "--serve") == 0) {
+            args->serve = 1;
+        } else if (strcmp(argv[i], "--port") == 0) {
+            if (++i >= argc) { kprintf("Error: --port requires argument\n"); return -1; }
+            args->port = atoi(argv[i]);
         } else if (argv[i][0] != '-' && !args->model_path) {
             args->model_path = argv[i];
         } else {
@@ -107,34 +122,149 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     return 0;
 }
 
-static void interactive_loop(const char *model_path, ht_args_t *args) {
-    char line[2048];
-    static char output[65536];
 
-    kprintf("\nInteractive mode. Type 'quit' to exit.\n\n");
+/* ── Streaming token callback ──────────────────────────────────────────── */
+static void ht_stream_cb(const char *text, int len, void *ud) {
+    (void)ud;
+    fwrite(text, 1, (size_t)len, stdout);
+    fflush(stdout);
+}
+
+/* ANSI escape helpers */
+#define HT_RESET   "\033[0m"
+#define HT_BOLD    "\033[1m"
+#define HT_DIM     "\033[2m"
+#define HT_GREEN   "\033[32m"
+#define HT_CYAN    "\033[36m"
+#define HT_LBLUE   "\033[94m"
+#define HT_YELLOW  "\033[33m"
+#define HT_RED     "\033[31m"
+
+static void ht_ansi_enable(void) {
+#ifdef _WIN32
+    HANDLE h    = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD  mode = 0;
+    if (GetConsoleMode(h, &mode))
+        SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+#endif
+}
+
+static void print_chat_help(void) {
+    printf(HT_CYAN "  Commands:\n" HT_RESET);
+    printf(HT_CYAN "    /help       " HT_RESET "show this message\n");
+    printf(HT_CYAN "    /reset      " HT_RESET "clear conversation (new context)\n");
+    printf(HT_CYAN "    /stats      " HT_RESET "show context usage\n");
+    printf(HT_CYAN "    /temp <n>   " HT_RESET "set sampling temperature   (e.g. /temp 0.8)\n");
+    printf(HT_CYAN "    /tokens <n> " HT_RESET "set max tokens per reply   (e.g. /tokens 512)\n");
+    printf(HT_CYAN "    /quit       " HT_RESET "exit\n\n");
+}
+
+static void interactive_loop(const char *model_path, ht_args_t *args) {
+    (void)model_path;
+    char line[2048];
+    static char output[131072]; /* 128 KB — holds full reply if needed */
+    float temperature = args->temperature;
+    int   max_tokens  = args->max_tokens;
+
+    ht_ansi_enable();
+
+    /* Welcome header */
+    printf("\n"
+           HT_CYAN HT_BOLD
+           "  ╔══════════════════════════════════════════════════╗\n"
+           "  ║  HyperTensor Chat                                ║\n"
+           HT_RESET);
+    printf(HT_CYAN HT_BOLD "  ║  Model : %-41s║\n" HT_RESET, llm_model_name());
+    printf(HT_CYAN HT_BOLD "  ║  Context: %-6d tokens  |  All CPUs active       ║\n"
+           HT_RESET, llm_chat_context_max());
+    printf(HT_CYAN HT_BOLD
+           "  ╚══════════════════════════════════════════════════╝\n"
+           HT_RESET "\n");
+    printf(HT_DIM "  Type /help for commands.\n\n" HT_RESET);
+
+    llm_set_stream_cb(ht_stream_cb, (void *)0);
 
     for (;;) {
-        kprintf("> ");
+        /* User input prompt */
+        printf(HT_GREEN HT_BOLD "You: " HT_RESET);
         fflush(stdout);
 
-        if (!fgets(line, sizeof(line), stdin)) break;
+        if (!fgets(line, (int)sizeof(line), stdin)) break;
 
-        /* Strip trailing newline */
-        size_t len = strlen(line);
+        /* Strip trailing newline/CR */
+        int len = (int)strlen(line);
         while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
             line[--len] = '\0';
 
         if (len == 0) continue;
-        if (strcmp(line, "quit") == 0 || strcmp(line, "exit") == 0) break;
 
-        /* Run inference */
-        int n = llm_prompt_n(line, output, (int)sizeof(output), args->max_tokens);
+        /* ── Commands ──────────────────────────────────────── */
+        if (line[0] == '/') {
+            if (strcmp(line, "/quit") == 0 || strcmp(line, "/exit") == 0 ||
+                strcmp(line, "/q")    == 0) break;
+
+            if (strcmp(line, "/help") == 0 || strcmp(line, "/?") == 0) {
+                print_chat_help();
+                continue;
+            }
+            if (strcmp(line, "/reset") == 0) {
+                llm_chat_reset();
+                printf(HT_DIM "  [Conversation reset — new context started]\n\n" HT_RESET);
+                continue;
+            }
+            if (strcmp(line, "/stats") == 0) {
+                int ctx    = llm_chat_context_tokens();
+                int ctxmax = llm_chat_context_max();
+                printf(HT_DIM "  [Context: %d / %d tokens (%.1f%%)  |  "
+                       "temp=%.2f  max_tok=%d]\n\n" HT_RESET,
+                       ctx, ctxmax,
+                       ctxmax > 0 ? 100.0f * ctx / ctxmax : 0.0f,
+                       temperature, max_tokens);
+                continue;
+            }
+            if (strncmp(line, "/temp ", 6) == 0) {
+                temperature = (float)atof(line + 6);
+                if (temperature < 0.0f) temperature = 0.0f;
+                if (temperature > 2.0f) temperature = 2.0f;
+                printf(HT_DIM "  [Temperature set to %.2f]\n\n" HT_RESET, temperature);
+                continue;
+            }
+            if (strncmp(line, "/tokens ", 8) == 0) {
+                max_tokens = atoi(line + 8);
+                if (max_tokens < 1)    max_tokens = 1;
+                if (max_tokens > 8192) max_tokens = 8192;
+                printf(HT_DIM "  [Max tokens set to %d]\n\n" HT_RESET, max_tokens);
+                continue;
+            }
+            printf(HT_YELLOW "  [Unknown command: %s — try /help]\n\n" HT_RESET, line);
+            continue;
+        }
+
+        /* ── Generate response ─────────────────────────────── */
+        printf("\n" HT_LBLUE HT_BOLD "AI: " HT_RESET);
+        fflush(stdout);
+
+        uint64_t t0 = hal_timer_us();
+        output[0]   = '\0';
+        int n = llm_chat_turn(line, output, (int)sizeof(output), max_tokens, temperature);
+        uint64_t t1 = hal_timer_us();
+
+        printf("\n");
+
         if (n > 0) {
-            kprintf("%s\n\n", output);
+            uint64_t total_ms   = (t1 - t0) / 1000;
+            float    ms_per_tok = n > 0 ? (float)total_ms / (float)n : 0.0f;
+            int ctx    = llm_chat_context_tokens();
+            int ctxmax = llm_chat_context_max();
+            printf(HT_DIM "  [%d tok  %.1f ms/tok  %llu ms  ctx %d/%d]\n\n" HT_RESET,
+                   n, ms_per_tok, (unsigned long long)total_ms, ctx, ctxmax);
         } else {
-            kprintf("[error generating response]\n\n");
+            printf(HT_RED "  [error generating response (code %d)]\n\n" HT_RESET, n);
         }
     }
+
+    llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
+    printf("\n" HT_DIM "  [Session ended]\n" HT_RESET "\n");
 }
 
 int main(int argc, char **argv) {
@@ -176,7 +306,10 @@ int main(int argc, char **argv) {
     kprintf("[HT] Model: %s\n", llm_model_name());
 
     /* Run inference */
-    if (args.interactive) {
+    if (args.serve) {
+        kprintf("[HT] Starting API server on port %d...\n", args.port);
+        ht_api_serve(args.port);
+    } else if (args.interactive) {
         interactive_loop(args.model_path, &args);
     } else {
         const char *prompt = args.prompt ? args.prompt : "Hello";

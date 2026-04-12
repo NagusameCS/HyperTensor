@@ -33,14 +33,19 @@ $CFLAGS = @(
 $SOURCES = @(
     "host/hal.c",
     "host/main.c",
+    "host/api_server.c",
     "runtime/nn/llm.c",
     "runtime/nn/gguf.c",
+    "runtime/nn/backend.c",
+    "runtime/nn/model_meta.c",
+    "runtime/nn/tensor_bridge.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
 )
 
 $LDFLAGS = @(
-    "-ladvapi32"
+    "-ladvapi32",
+    "-lws2_32"
 )
 
 # Clean
