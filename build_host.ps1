@@ -7,6 +7,7 @@
 param(
     [switch]$Run,
     [switch]$Clean,
+    [switch]$Cuda,
     [string]$Model
 )
 
@@ -47,6 +48,13 @@ $LDFLAGS = @(
     "-ladvapi32",
     "-lws2_32"
 )
+
+# Optional CUDA backend
+if ($Cuda) {
+    $CFLAGS += "-DENABLE_CUDA"
+    $SOURCES += "runtime/nn/backend_cuda.c"
+    Write-Host '  CUDA backend enabled' -ForegroundColor Yellow
+}
 
 # Clean
 if ($Clean) {
