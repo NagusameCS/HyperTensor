@@ -56,6 +56,7 @@ typedef struct {
     int      geodesic_steps;     /* RK4 integration steps */
     int      geodesic_test_tokens; /* Tokens for geodesic vs forward-pass comparison */
     int      geodesic_vocab_probe; /* Candidate tokens for endpoint->token projection */
+    int      use_gpu_phase5;      /* 1 = enable CUDA-backed Phase-5 scoring when available */
 
     /* General */
     uint64_t seed;               /* Deterministic seed (0 = default) */
@@ -123,6 +124,7 @@ typedef struct {
     int    geodesic_top1_hits;
     double geodesic_top1_match_rate;
     double geodesic_target_mrr;
+    int    used_gpu_scoring;
 } axiom_phase5_t;
 
 /* ─── Full report ─── */

@@ -61,6 +61,8 @@ static void print_usage(const char *argv0) {
     kprintf("  --axiom-report <path>  Write beta report JSON (default: axiom_beta_report.json)\n");
     kprintf("  --axiom-samples <n>    Embedding samples for manifold identification (default: 256)\n");
     kprintf("  --axiom-probe <n>      Phase 5 endpoint token probe count (default: 1024)\n");
+    kprintf("  --axiom-gpu            Enable GPU acceleration for Phase 5 scorer\n");
+    kprintf("  --axiom-no-gpu         Force CPU-only Phase 5 scorer\n");
     kprintf("  --axiom-seed <n>       Beta deterministic seed\n");
     kprintf("  --axiom-skip-geodesic  Skip geodesic pilot (Phase 5)\n");
     kprintf("  -h, --help             Show this help\n");
@@ -110,6 +112,7 @@ typedef struct {
     int         axiom_beta_only;
     int         axiom_samples;
     int         axiom_vocab_probe;
+    int         axiom_use_gpu_phase5;
     uint64_t    axiom_seed;
     int         axiom_skip_geodesic;
     const char *axiom_report_path;
@@ -136,6 +139,7 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->axiom_beta_only = 0;
     args->axiom_samples = 256;
     args->axiom_vocab_probe = 1024;
+    args->axiom_use_gpu_phase5 = -1;
     args->axiom_seed = 0;
     args->axiom_skip_geodesic = 0;
     args->axiom_report_path = "axiom_beta_report.json";
@@ -199,6 +203,10 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
         } else if (strcmp(argv[i], "--axiom-probe") == 0) {
             if (++i >= argc) { kprintf("Error: --axiom-probe requires number\n"); return -1; }
             args->axiom_vocab_probe = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axiom-gpu") == 0) {
+            args->axiom_use_gpu_phase5 = 1;
+        } else if (strcmp(argv[i], "--axiom-no-gpu") == 0) {
+            args->axiom_use_gpu_phase5 = 0;
         } else if (strcmp(argv[i], "--axiom-seed") == 0) {
             if (++i >= argc) { kprintf("Error: --axiom-seed requires number\n"); return -1; }
 #ifdef _WIN32
@@ -459,6 +467,7 @@ int main(int argc, char **argv) {
         axiom_beta_default_config(&cfg);
         if (args.axiom_samples > 0) cfg.embedding_samples = args.axiom_samples;
         if (args.axiom_vocab_probe > 0) cfg.geodesic_vocab_probe = args.axiom_vocab_probe;
+        if (args.axiom_use_gpu_phase5 >= 0) cfg.use_gpu_phase5 = args.axiom_use_gpu_phase5;
         cfg.seed = args.axiom_seed;
         cfg.verbose = args.verbose;
         cfg.skip_geodesic = args.axiom_skip_geodesic;
@@ -496,12 +505,13 @@ int main(int argc, char **argv) {
                     rep.phase5.geodesic_cosine_similarity,
                     rep.phase5.geodesic_reconstruction_error);
         if (rep.supports_geodesic_pilot)
-            kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d\n",
+            kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d, gpu=%s\n",
                     rep.phase5.geodesic_top1_match_rate,
                     rep.phase5.geodesic_top1_hits,
                     rep.phase5.pilot_tokens_tested,
                     rep.phase5.geodesic_target_mrr,
-                    rep.phase5.geodesic_vocab_probe);
+                rep.phase5.geodesic_vocab_probe,
+                rep.phase5.used_gpu_scoring ? "yes" : "no");
         kprintf("  Total time    : %llu ms\n",
                 (unsigned long long)(rep.total_us / 1000));
         kprintf("[AXIOM-BETA-3] ======================================\n");

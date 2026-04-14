@@ -39,6 +39,7 @@
 #include "runtime/nn/axiom_linalg.h"
 #include "runtime/nn/axiom_geo.h"
 #include "runtime/nn/llm.h"
+#include "runtime/nn/backend.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -92,6 +93,7 @@ void axiom_beta_default_config(axiom_beta_config_t *cfg)
     cfg->geodesic_steps       = 200;
     cfg->geodesic_test_tokens = 8;
     cfg->geodesic_vocab_probe = 1024;
+    cfg->use_gpu_phase5       = 1;
     cfg->seed                 = 0xA110CAFEBEEFULL;
     cfg->verbose              = 0;
     cfg->skip_geodesic        = 0;
@@ -1010,24 +1012,49 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
     int pca_full = phase1_pca.n_components;
     float *emb_f32 = (float *)tensor_alloc((uint64_t)dim * sizeof(float));
     double *emb_f64 = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
-    double *cand_f64 = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    float *cand_mat_f32 = (float *)tensor_alloc((uint64_t)n_probe * dim * sizeof(float));
+    float *cand_norms = (float *)tensor_alloc((uint64_t)n_probe * sizeof(float));
+    float *score_f32 = (float *)tensor_alloc((uint64_t)n_probe * sizeof(float));
+    int   *probe_tokens = (int *)tensor_alloc((uint64_t)n_probe * sizeof(int));
     double *proj_full = (double *)tensor_alloc((uint64_t)pca_full * sizeof(double));
     double *proj_a = (double *)tensor_alloc((uint64_t)sub_dim * sizeof(double));
     double *proj_b = (double *)tensor_alloc((uint64_t)sub_dim * sizeof(double));
 
-    if (!emb_f32 || !emb_f64 || !cand_f64 || !proj_full || !proj_a || !proj_b) {
+    if (!emb_f32 || !emb_f64 || !cand_mat_f32 || !cand_norms || !score_f32 ||
+        !probe_tokens || !proj_full || !proj_a || !proj_b) {
         if (!using_real_metric) {
             axgeo_christoffel_destroy(&ch);
             axgeo_metric_field_destroy(&mf);
         }
         if (emb_f32) tensor_free(emb_f32);
         if (emb_f64) tensor_free(emb_f64);
-        if (cand_f64) tensor_free(cand_f64);
+        if (cand_mat_f32) tensor_free(cand_mat_f32);
+        if (cand_norms) tensor_free(cand_norms);
+        if (score_f32) tensor_free(score_f32);
+        if (probe_tokens) tensor_free(probe_tokens);
         if (proj_full) tensor_free(proj_full);
         if (proj_a) tensor_free(proj_a);
         if (proj_b) tensor_free(proj_b);
         r->phase5_us = hal_timer_us() - t0;
         return -1;
+    }
+
+    /* Optional GPU acceleration for Phase-5 candidate scoring. */
+    const backend_t *be = backend_get();
+    int use_gpu_scoring = 0;
+    void *d_cands = 0, *d_query = 0, *d_scores = 0;
+    if (cfg->use_gpu_phase5 && llm_get_backend() == LLM_BACKEND_CUDA && be) {
+        d_cands = be->mem.alloc((uint64_t)n_probe * dim * sizeof(float));
+        d_query = be->mem.alloc((uint64_t)dim * sizeof(float));
+        d_scores = be->mem.alloc((uint64_t)n_probe * sizeof(float));
+        if (d_cands && d_query && d_scores) {
+            use_gpu_scoring = 1;
+        } else {
+            if (d_cands) be->mem.free(d_cands);
+            if (d_query) be->mem.free(d_query);
+            if (d_scores) be->mem.free(d_scores);
+            d_cands = d_query = d_scores = 0;
+        }
     }
 
     double total_cos_sim = 0.0;
@@ -1112,14 +1139,55 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
                             tries++;
                         }
                     }
+                    probe_tokens[p] = tok_probe;
 
-                    if (llm_get_embedding_vec(tok_probe, emb_f32, dim) != 0) continue;
-                    for (int j = 0; j < dim; j++) cand_f64[j] = (double)emb_f32[j];
+                    if (llm_get_embedding_vec(tok_probe, emb_f32, dim) != 0) {
+                        probe_tokens[p] = -1;
+                        cand_norms[p] = 0.0f;
+                        memset(cand_mat_f32 + (uint64_t)p * dim, 0,
+                               (uint64_t)dim * sizeof(float));
+                        continue;
+                    }
 
-                    double cand_norm = ax_vec_norm(cand_f64, dim);
+                    float *crow = cand_mat_f32 + (uint64_t)p * dim;
+                    double nrm2 = 0.0;
+                    for (int j = 0; j < dim; j++) {
+                        float v = emb_f32[j];
+                        crow[j] = v;
+                        nrm2 += (double)v * (double)v;
+                    }
+                    cand_norms[p] = (float)sqrt(nrm2);
+                }
+
+                if (use_gpu_scoring) {
+                    for (int j = 0; j < dim; j++) emb_f32[j] = (float)emb_f64[j];
+                    be->mem.upload(d_cands, cand_mat_f32,
+                                   (uint64_t)n_probe * dim * sizeof(float));
+                    be->mem.upload(d_query, emb_f32, (uint64_t)dim * sizeof(float));
+                    be->compute.gemv((float *)d_scores, d_cands, (const float *)d_query,
+                                     n_probe, dim, GGML_TYPE_F32);
+                    be->mem.download(score_f32, d_scores,
+                                     (uint64_t)n_probe * sizeof(float));
+                }
+
+                for (int p = 0; p < n_probe; p++) {
+                    int tok_probe = probe_tokens[p];
+                    if (tok_probe < 0) continue;
+
+                    double cand_norm = (double)cand_norms[p];
                     if (cand_norm <= 1e-12) continue;
 
-                    double score = ax_vec_dot(emb_f64, cand_f64, dim) / (rec_norm * cand_norm);
+                    double dot;
+                    if (use_gpu_scoring) {
+                        dot = (double)score_f32[p];
+                    } else {
+                        float *crow = cand_mat_f32 + (uint64_t)p * dim;
+                        dot = 0.0;
+                        for (int j = 0; j < dim; j++)
+                            dot += (double)crow[j] * emb_f64[j];
+                    }
+
+                    double score = dot / (rec_norm * cand_norm);
                     if (score > best_score) {
                         best_score = score;
                         best_tok = tok_probe;
@@ -1155,6 +1223,7 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
     r->phase5.pilot_tokens_tested = n_test;
     r->phase5.geodesic_vocab_probe = n_probe;
     r->phase5.geodesic_top1_hits = top1_hits;
+    r->phase5.used_gpu_scoring = use_gpu_scoring;
     if (converged_count > 0) {
         r->phase5.geodesic_top1_match_rate =
             (double)top1_hits / (double)converged_count;
@@ -1176,12 +1245,13 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
 
     if (cfg->verbose)
         kprintf("[AXIOM-P5] Geodesic: %d/%d converged, cos_sim=%.4f, "
-            "L2_err=%.4f, top1=%.3f, mrr=%.3f, speedup=%.1fx\n",
+            "L2_err=%.4f, top1=%.3f, mrr=%.3f, gpu=%s, speedup=%.1fx\n",
                 converged_count, n_test,
                 r->phase5.geodesic_cosine_similarity,
                 r->phase5.geodesic_reconstruction_error,
             r->phase5.geodesic_top1_match_rate,
             r->phase5.geodesic_target_mrr,
+            use_gpu_scoring ? "yes" : "no",
                 r->phase5.projected_speedup);
 
     /* Cleanup */
@@ -1191,10 +1261,19 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
     }
     tensor_free(emb_f32);
     tensor_free(emb_f64);
-    tensor_free(cand_f64);
+    tensor_free(cand_mat_f32);
+    tensor_free(cand_norms);
+    tensor_free(score_f32);
+    tensor_free(probe_tokens);
     tensor_free(proj_full);
     tensor_free(proj_a);
     tensor_free(proj_b);
+
+    if (use_gpu_scoring && be) {
+        be->mem.free(d_cands);
+        be->mem.free(d_query);
+        be->mem.free(d_scores);
+    }
 
     r->phase5_us = hal_timer_us() - t0;
     return 0;
@@ -1286,11 +1365,12 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
     rc = phase5_geodesic(cfg, report, &seed);
     if (report->supports_geodesic_pilot) {
         kprintf("[AXIOM-BETA-3] Phase 5: cos_sim=%.4f, L2_err=%.4f, "
-            "top1=%.3f, mrr=%.3f, speedup=%.1fx, %.1f ms\n",
+            "top1=%.3f, mrr=%.3f, gpu=%s, speedup=%.1fx, %.1f ms\n",
                 report->phase5.geodesic_cosine_similarity,
                 report->phase5.geodesic_reconstruction_error,
             report->phase5.geodesic_top1_match_rate,
             report->phase5.geodesic_target_mrr,
+            report->phase5.used_gpu_scoring ? "yes" : "no",
                 report->phase5.projected_speedup,
                 (double)report->phase5_us / 1000.0);
     } else {
@@ -1350,6 +1430,7 @@ axiom_beta_status_t axiom_beta_write_json(const char *path,
     fprintf(f, "    \"oracle_calls_max\": %d,\n", cfg->oracle_calls_max);
     fprintf(f, "    \"geodesic_steps\": %d,\n", cfg->geodesic_steps);
     fprintf(f, "    \"geodesic_vocab_probe\": %d,\n", cfg->geodesic_vocab_probe);
+    fprintf(f, "    \"use_gpu_phase5\": %d,\n", cfg->use_gpu_phase5);
     fprintf(f, "    \"seed\": %llu\n", (unsigned long long)cfg->seed);
     fprintf(f, "  },\n");
 
@@ -1417,6 +1498,7 @@ axiom_beta_status_t axiom_beta_write_json(const char *path,
             r->phase5.geodesic_top1_match_rate);
         fprintf(f, "    \"geodesic_target_mrr\": %.6f,\n",
             r->phase5.geodesic_target_mrr);
+            fprintf(f, "    \"used_gpu_scoring\": %d,\n", r->phase5.used_gpu_scoring);
     fprintf(f, "    \"supports_geodesic_pilot\": %d\n", r->supports_geodesic_pilot);
     fprintf(f, "  },\n");
 
