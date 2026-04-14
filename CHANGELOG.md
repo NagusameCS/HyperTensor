@@ -4,26 +4,6 @@ All notable changes to TensorOS are documented in this file.
 
 ---
 
-## [0.5.1] - 2026-04-13
-
-### Summary
-
-Checkpoint release for host-runtime expansion and decode-path optimization work.
-
-### Included
-
-- CUDA/LLM hot-path updates and host runtime performance tuning.
-- New host-side components: MCP server, embedded web UI, and runtime download helpers.
-- New beta-ready runtime modules: token communication, modification packaging, and MLIR-style optimizer scaffolding.
-- Added runtime and regression harness tests for chat/token-native and CUDA lmhead paths.
-
-### Notes
-
-- This is a tracking checkpoint to preserve active integration progress.
-- Internal planning notes are now excluded from version control under docs/internal.
-
----
-
 ## [0.3.0] — 2026-03-24
 
 ### Summary

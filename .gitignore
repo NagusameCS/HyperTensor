@@ -46,8 +46,11 @@ build_host/
 # Generated/temporary
 iq2xxs_grid_correct.txt
 
-# Internal planning/ideas (local-only)
+# Internal planning/notes (local-only)
 docs/internal/
+docs/IMPLEMENTATION_PLANNING.md
+docs/TOKEN_NATIVE_PIPELINE.md
+docs/EVOLUTION.md
 *.ideas.md
 *.scratch.md
 
