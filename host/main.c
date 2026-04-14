@@ -1,10 +1,10 @@
 /*
- * HyperTensor — Hosted Main Entry Point
+ * Geodessical — Hosted Main Entry Point
  *
  * Loads a GGUF model from disk via memory-mapped I/O and runs LLM inference
  * using the TensorOS inference engine on the host CPU, with native threading.
  *
- * Usage: hypertensor <model.gguf> [prompt]
+ * Usage: geodessical <model.gguf> [prompt]
  */
 #define _CRT_SECURE_NO_WARNINGS
 #include "hal.h"
@@ -22,16 +22,16 @@
 #  include <windows.h>
 #endif
 
-#define HT_VERSION_MAJOR 0
-#define HT_VERSION_MINOR 5
-#define HT_VERSION_PATCH 0
-#define HT_CODENAME      "Synapse"
+#define GD_VERSION_MAJOR 0
+#define GD_VERSION_MINOR 5
+#define GD_VERSION_PATCH 0
+#define GD_CODENAME      "Synapse"
 
 static void print_banner(void) {
     kprintf("\n");
     kprintf("  ╔═══════════════════════════════════════════╗\n");
-    kprintf("  ║  HyperTensor v%d.%d.%d \"%s\"              ║\n",
-            HT_VERSION_MAJOR, HT_VERSION_MINOR, HT_VERSION_PATCH, HT_CODENAME);
+    kprintf("  ║  Geodessical v%d.%d.%d \"%s\"              ║\n",
+            GD_VERSION_MAJOR, GD_VERSION_MINOR, GD_VERSION_PATCH, GD_CODENAME);
     kprintf("  ║  High-Performance AI Inference Runtime    ║\n");
     kprintf("  ╚═══════════════════════════════════════════╝\n");
     kprintf("\n");
@@ -47,7 +47,7 @@ static void print_usage(const char *argv0) {
     kprintf("  --top-k <int>          Top-K sampling (default: 40)\n");
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
-    kprintf("  --serve                Start HyperTensor HTTP API server\n");
+    kprintf("  --serve                Start Geodessical HTTP API server\n");
     kprintf("  --port <num>           API server port (default: 8080)\n");
     kprintf("  --download <repo>      Download model from HuggingFace\n");
     kprintf("  --quant <type>         Quantization hint for download (default: q4_0)\n");
@@ -56,11 +56,13 @@ static void print_usage(const char *argv0) {
     kprintf("  --no-think             Disable thinking (strip <|think|> blocks)\n");
     kprintf("  --force-think          Force thinking on all prompts\n");
     kprintf("  --show-think           Show thinking tokens in output\n");
-    kprintf("  --axiom-beta-run       Run autonomous axiomatic beta survey\n");
+    kprintf("  --axiom-beta-run       Run autonomous axiomatic beta-3 survey\n");
     kprintf("  --axiom-beta-only      Run axiomatic beta survey then exit\n");
     kprintf("  --axiom-report <path>  Write beta report JSON (default: axiom_beta_report.json)\n");
-    kprintf("  --axiom-samples <n>    Beta manifold samples (default: 4096)\n");
+    kprintf("  --axiom-samples <n>    Embedding samples for manifold identification (default: 256)\n");
+    kprintf("  --axiom-probe <n>      Phase 5 endpoint token probe count (default: 1024)\n");
     kprintf("  --axiom-seed <n>       Beta deterministic seed\n");
+    kprintf("  --axiom-skip-geodesic  Skip geodesic pilot (Phase 5)\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
@@ -107,11 +109,13 @@ typedef struct {
     int         axiom_beta_run;
     int         axiom_beta_only;
     int         axiom_samples;
+    int         axiom_vocab_probe;
     uint64_t    axiom_seed;
+    int         axiom_skip_geodesic;
     const char *axiom_report_path;
-} ht_args_t;
+} GD_args_t;
 
-static int parse_args(int argc, char **argv, ht_args_t *args) {
+static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->model_path  = NULL;
     args->prompt      = NULL;
     args->download_repo = NULL;
@@ -130,8 +134,10 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->show_think  = 0;
     args->axiom_beta_run = 0;
     args->axiom_beta_only = 0;
-    args->axiom_samples = 4096;
+    args->axiom_samples = 256;
+    args->axiom_vocab_probe = 1024;
     args->axiom_seed = 0;
+    args->axiom_skip_geodesic = 0;
     args->axiom_report_path = "axiom_beta_report.json";
 
     for (int i = 1; i < argc; i++) {
@@ -190,6 +196,9 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
         } else if (strcmp(argv[i], "--axiom-samples") == 0) {
             if (++i >= argc) { kprintf("Error: --axiom-samples requires number\n"); return -1; }
             args->axiom_samples = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axiom-probe") == 0) {
+            if (++i >= argc) { kprintf("Error: --axiom-probe requires number\n"); return -1; }
+            args->axiom_vocab_probe = atoi(argv[i]);
         } else if (strcmp(argv[i], "--axiom-seed") == 0) {
             if (++i >= argc) { kprintf("Error: --axiom-seed requires number\n"); return -1; }
 #ifdef _WIN32
@@ -197,6 +206,8 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
 #else
             args->axiom_seed = strtoull(argv[i], NULL, 10);
 #endif
+        } else if (strcmp(argv[i], "--axiom-skip-geodesic") == 0) {
+            args->axiom_skip_geodesic = 1;
         } else if (argv[i][0] != '-' && !args->model_path) {
             args->model_path = argv[i];
         } else {
@@ -215,23 +226,23 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
 
 
 /* ── Streaming token callback ──────────────────────────────────────────── */
-static void ht_stream_cb(const char *text, int len, void *ud) {
+static void GD_stream_cb(const char *text, int len, void *ud) {
     (void)ud;
     fwrite(text, 1, (size_t)len, stdout);
     fflush(stdout);
 }
 
 /* ANSI escape helpers */
-#define HT_RESET   "\033[0m"
-#define HT_BOLD    "\033[1m"
-#define HT_DIM     "\033[2m"
-#define HT_GREEN   "\033[32m"
-#define HT_CYAN    "\033[36m"
-#define HT_LBLUE   "\033[94m"
-#define HT_YELLOW  "\033[33m"
-#define HT_RED     "\033[31m"
+#define GD_RESET   "\033[0m"
+#define GD_BOLD    "\033[1m"
+#define GD_DIM     "\033[2m"
+#define GD_GREEN   "\033[32m"
+#define GD_CYAN    "\033[36m"
+#define GD_LBLUE   "\033[94m"
+#define GD_YELLOW  "\033[33m"
+#define GD_RED     "\033[31m"
 
-static void ht_ansi_enable(void) {
+static void GD_ansi_enable(void) {
 #ifdef _WIN32
     HANDLE h    = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD  mode = 0;
@@ -241,43 +252,43 @@ static void ht_ansi_enable(void) {
 }
 
 static void print_chat_help(void) {
-    printf(HT_CYAN "  Commands:\n" HT_RESET);
-    printf(HT_CYAN "    /help       " HT_RESET "show this message\n");
-    printf(HT_CYAN "    /reset      " HT_RESET "clear conversation (new context)\n");
-    printf(HT_CYAN "    /stats      " HT_RESET "show context usage\n");
-    printf(HT_CYAN "    /temp <n>   " HT_RESET "set sampling temperature   (e.g. /temp 0.8)\n");
-    printf(HT_CYAN "    /tokens <n> " HT_RESET "set max tokens per reply   (e.g. /tokens 512)\n");
-    printf(HT_CYAN "    /quit       " HT_RESET "exit\n\n");
+    printf(GD_CYAN "  Commands:\n" GD_RESET);
+    printf(GD_CYAN "    /help       " GD_RESET "show this message\n");
+    printf(GD_CYAN "    /reset      " GD_RESET "clear conversation (new context)\n");
+    printf(GD_CYAN "    /stats      " GD_RESET "show context usage\n");
+    printf(GD_CYAN "    /temp <n>   " GD_RESET "set sampling temperature   (e.g. /temp 0.8)\n");
+    printf(GD_CYAN "    /tokens <n> " GD_RESET "set max tokens per reply   (e.g. /tokens 512)\n");
+    printf(GD_CYAN "    /quit       " GD_RESET "exit\n\n");
 }
 
-static void interactive_loop(const char *model_path, ht_args_t *args) {
+static void interactive_loop(const char *model_path, GD_args_t *args) {
     (void)model_path;
     char line[2048];
     static char output[131072]; /* 128 KB — holds full reply if needed */
     float temperature = args->temperature;
     int   max_tokens  = args->max_tokens;
 
-    ht_ansi_enable();
+    GD_ansi_enable();
 
     /* Welcome header */
     printf("\n"
-           HT_CYAN HT_BOLD
+           GD_CYAN GD_BOLD
            "  ╔══════════════════════════════════════════════════╗\n"
-           "  ║  HyperTensor Chat                                ║\n"
-           HT_RESET);
-    printf(HT_CYAN HT_BOLD "  ║  Model : %-41s║\n" HT_RESET, llm_model_name());
-    printf(HT_CYAN HT_BOLD "  ║  Context: %-6d tokens  |  All CPUs active       ║\n"
-           HT_RESET, llm_chat_context_max());
-    printf(HT_CYAN HT_BOLD
+           "  ║  Geodessical Chat                                ║\n"
+           GD_RESET);
+    printf(GD_CYAN GD_BOLD "  ║  Model : %-41s║\n" GD_RESET, llm_model_name());
+    printf(GD_CYAN GD_BOLD "  ║  Context: %-6d tokens  |  All CPUs active       ║\n"
+           GD_RESET, llm_chat_context_max());
+    printf(GD_CYAN GD_BOLD
            "  ╚══════════════════════════════════════════════════╝\n"
-           HT_RESET "\n");
-    printf(HT_DIM "  Type /help for commands.\n\n" HT_RESET);
+           GD_RESET "\n");
+    printf(GD_DIM "  Type /help for commands.\n\n" GD_RESET);
 
-    llm_set_stream_cb(ht_stream_cb, (void *)0);
+    llm_set_stream_cb(GD_stream_cb, (void *)0);
 
     for (;;) {
         /* User input prompt */
-        printf(HT_GREEN HT_BOLD "You: " HT_RESET);
+        printf(GD_GREEN GD_BOLD "You: " GD_RESET);
         fflush(stdout);
 
         if (!fgets(line, (int)sizeof(line), stdin)) break;
@@ -300,15 +311,15 @@ static void interactive_loop(const char *model_path, ht_args_t *args) {
             }
             if (strcmp(line, "/reset") == 0) {
                 llm_chat_reset();
-                printf(HT_DIM "  [Conversation reset — new context started]\n\n" HT_RESET);
+                printf(GD_DIM "  [Conversation reset — new context started]\n\n" GD_RESET);
                 continue;
             }
             if (strcmp(line, "/stats") == 0) {
                 int ctx    = llm_chat_context_tokens();
                 int ctxmax = llm_chat_context_max();
                 int think  = llm_thinking_tokens();
-                printf(HT_DIM "  [Context: %d / %d tokens (%.1f%%)  |  "
-                       "temp=%.2f  max_tok=%d  think_last=%d]\n\n" HT_RESET,
+                printf(GD_DIM "  [Context: %d / %d tokens (%.1f%%)  |  "
+                       "temp=%.2f  max_tok=%d  think_last=%d]\n\n" GD_RESET,
                        ctx, ctxmax,
                        ctxmax > 0 ? 100.0f * ctx / ctxmax : 0.0f,
                        temperature, max_tokens, think);
@@ -318,22 +329,22 @@ static void interactive_loop(const char *model_path, ht_args_t *args) {
                 temperature = (float)atof(line + 6);
                 if (temperature < 0.0f) temperature = 0.0f;
                 if (temperature > 2.0f) temperature = 2.0f;
-                printf(HT_DIM "  [Temperature set to %.2f]\n\n" HT_RESET, temperature);
+                printf(GD_DIM "  [Temperature set to %.2f]\n\n" GD_RESET, temperature);
                 continue;
             }
             if (strncmp(line, "/tokens ", 8) == 0) {
                 max_tokens = atoi(line + 8);
                 if (max_tokens < 1)    max_tokens = 1;
                 if (max_tokens > 8192) max_tokens = 8192;
-                printf(HT_DIM "  [Max tokens set to %d]\n\n" HT_RESET, max_tokens);
+                printf(GD_DIM "  [Max tokens set to %d]\n\n" GD_RESET, max_tokens);
                 continue;
             }
-            printf(HT_YELLOW "  [Unknown command: %s — try /help]\n\n" HT_RESET, line);
+            printf(GD_YELLOW "  [Unknown command: %s — try /help]\n\n" GD_RESET, line);
             continue;
         }
 
         /* ── Generate response ─────────────────────────────── */
-        printf("\n" HT_LBLUE HT_BOLD "AI: " HT_RESET);
+        printf("\n" GD_LBLUE GD_BOLD "AI: " GD_RESET);
         fflush(stdout);
 
         uint64_t t0 = hal_timer_us();
@@ -348,19 +359,19 @@ static void interactive_loop(const char *model_path, ht_args_t *args) {
             float    tok_per_s  = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
             int ctx    = llm_chat_context_tokens();
             int ctxmax = llm_chat_context_max();
-            printf(HT_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d]\n\n" HT_RESET,
+            printf(GD_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d]\n\n" GD_RESET,
                    n, tok_per_s, (unsigned long long)total_ms, ctx, ctxmax);
         } else {
-            printf(HT_RED "  [error generating response (code %d)]\n\n" HT_RESET, n);
+            printf(GD_RED "  [error generating response (code %d)]\n\n" GD_RESET, n);
         }
     }
 
     llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
-    printf("\n" HT_DIM "  [Session ended]\n" HT_RESET "\n");
+    printf("\n" GD_DIM "  [Session ended]\n" GD_RESET "\n");
 }
 
 int main(int argc, char **argv) {
-    ht_args_t args;
+    GD_args_t args;
 
     print_banner();
 
@@ -394,7 +405,7 @@ int main(int argc, char **argv) {
         int rc_dl = hf_download_auto(&dl_ctx, args.download_repo,
                                       args.quant_hint, "models");
         if (rc_dl < 0) {
-            kprintf("[HT] ERROR: Download failed: %s\n", hf_download_error(&dl_ctx));
+            kprintf("[GD] ERROR: Download failed: %s\n", hf_download_error(&dl_ctx));
             hf_download_free(&dl_ctx);
             hal_shutdown();
             return 1;
@@ -405,26 +416,26 @@ int main(int argc, char **argv) {
             static char dl_path[256];
             snprintf(dl_path, sizeof(dl_path), "%s", dl_ctx.output_path);
             args.model_path = dl_path;
-            kprintf("[HT] Using downloaded model: %s\n", args.model_path);
+            kprintf("[GD] Using downloaded model: %s\n", args.model_path);
         }
         hf_download_free(&dl_ctx);
     }
 
     if (!args.model_path) {
-        kprintf("[HT] ERROR: No model path available.\n");
+        kprintf("[GD] ERROR: No model path available.\n");
         hal_shutdown();
         return 1;
     }
 
     /* Memory-map the model file */
-    kprintf("[HT] Loading model: %s\n", args.model_path);
+    kprintf("[GD] Loading model: %s\n", args.model_path);
     hal_mmap_t model = hal_mmap_file(args.model_path);
     if (!model.data) {
-        kprintf("[HT] ERROR: Could not open model file: %s\n", args.model_path);
+        kprintf("[GD] ERROR: Could not open model file: %s\n", args.model_path);
         hal_shutdown();
         return 1;
     }
-    kprintf("[HT] Mapped %llu MB\n", (unsigned long long)(model.size / (1024 * 1024)));
+    kprintf("[GD] Mapped %llu MB\n", (unsigned long long)(model.size / (1024 * 1024)));
 
     /* Load model via GGUF parser + LLM engine */
     uint64_t t0 = hal_timer_us();
@@ -432,54 +443,76 @@ int main(int argc, char **argv) {
     uint64_t t1 = hal_timer_us();
 
     if (rc < 0) {
-        kprintf("[HT] ERROR: Failed to load model (rc=%d)\n", rc);
+        kprintf("[GD] ERROR: Failed to load model (rc=%d)\n", rc);
         hal_munmap(&model);
         hal_shutdown();
         return 1;
     }
 
-    kprintf("[HT] Model loaded in %llu ms\n", (unsigned long long)((t1 - t0) / 1000));
-    kprintf("[HT] Model: %s\n", llm_model_name());
+    kprintf("[GD] Model loaded in %llu ms\n", (unsigned long long)((t1 - t0) / 1000));
+    kprintf("[GD] Model: %s\n", llm_model_name());
 
     if (args.axiom_beta_run) {
         axiom_beta_config_t cfg;
         axiom_beta_report_t rep;
         axiom_beta_status_t st;
         axiom_beta_default_config(&cfg);
-        if (args.axiom_samples > 0) cfg.samples = args.axiom_samples;
-        cfg.symmetry_trials = cfg.samples > 1024 ? cfg.samples / 2 : 1024;
-        cfg.active_iterations = cfg.samples > 512 ? cfg.samples / 8 : 512;
-        cfg.inference_tokens = args.max_tokens > 0 ? args.max_tokens : 256;
+        if (args.axiom_samples > 0) cfg.embedding_samples = args.axiom_samples;
+        if (args.axiom_vocab_probe > 0) cfg.geodesic_vocab_probe = args.axiom_vocab_probe;
         cfg.seed = args.axiom_seed;
         cfg.verbose = args.verbose;
+        cfg.skip_geodesic = args.axiom_skip_geodesic;
 
-        kprintf("[AXIOM-BETA] Starting 5-phase autonomous survey...\n");
         st = axiom_beta_run(&cfg, &rep);
         if (st != AXIOM_BETA_OK) {
-            kprintf("[AXIOM-BETA] ERROR: %s\n", axiom_beta_status_string(st));
+            kprintf("[AXIOM-BETA-3] ERROR: %s\n", axiom_beta_status_string(st));
             hal_munmap(&model);
             hal_shutdown();
             return 1;
         }
 
-        kprintf("[AXIOM-BETA] Completed in %llu ms\n",
+        kprintf("\n[AXIOM-BETA-3] === Summary ==========================\n");
+        kprintf("  Intrinsic dim : %d (TwoNN=%.2f, PCA=%d components)\n",
+                rep.phase1.intrinsic_dim, rep.phase1.twonn_raw,
+                rep.phase1.pca_components_kept);
+        kprintf("  Symmetry      : score=%.4f, generators=%d, invariant=%d\n",
+                rep.phase2.symmetry_score, rep.phase2.generators_found,
+                rep.phase2.permutation_invariant_heads);
+        kprintf("  Curvature     : mean=%.6f, max=%.6f, high-curv=%d\n",
+                rep.phase3.mean_scalar_curvature,
+                rep.phase3.max_scalar_curvature,
+                rep.phase3.high_curvature_loci);
+        if (rep.uses_fisher_metric)
+            kprintf("  Fisher metric : trace_mean=%.4f, det_log_mean=%.4f\n",
+                    rep.phase3.fisher_trace_mean,
+                    rep.phase3.fisher_det_log_mean);
+        kprintf("  Axioms        : %d (consistency=%.4f, oracle=%d)\n",
+                rep.phase4.axiom_count, rep.phase4.consistency_score,
+                rep.phase4.oracle_calls_used);
+        kprintf("  Geodesic pilot: speedup=%.1fx\n",
+                rep.phase5.projected_speedup);
+        if (rep.supports_geodesic_pilot)
+            kprintf("  Geodesic sim  : cos=%.4f, L2_err=%.4f\n",
+                    rep.phase5.geodesic_cosine_similarity,
+                    rep.phase5.geodesic_reconstruction_error);
+        if (rep.supports_geodesic_pilot)
+            kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d\n",
+                    rep.phase5.geodesic_top1_match_rate,
+                    rep.phase5.geodesic_top1_hits,
+                    rep.phase5.pilot_tokens_tested,
+                    rep.phase5.geodesic_target_mrr,
+                    rep.phase5.geodesic_vocab_probe);
+        kprintf("  Total time    : %llu ms\n",
                 (unsigned long long)(rep.total_us / 1000));
-        kprintf("[AXIOM-BETA] ID=%d metric_rank=%d curvature=%.5f\n",
-                rep.intrinsic_dim_estimate, rep.metric_rank_estimate,
-                rep.curvature_proxy);
-        kprintf("[AXIOM-BETA] symmetry=%.4f generators=%d axioms=%d consistency=%.4f\n",
-                rep.symmetry_invariance_score, rep.symmetry_generators_estimate,
-                rep.axiom_count_estimate, rep.axiom_consistency_score);
-        kprintf("[AXIOM-BETA] projected speedup x%.2f (surrogate)\n",
-                rep.projected_speedup);
+        kprintf("[AXIOM-BETA-3] ======================================\n");
 
         if (args.axiom_report_path) {
             axiom_beta_status_t wr = axiom_beta_write_json(args.axiom_report_path,
                                                            &rep, &cfg);
             if (wr == AXIOM_BETA_OK)
-                kprintf("[AXIOM-BETA] Report: %s\n", args.axiom_report_path);
+                kprintf("[AXIOM-BETA-3] Report: %s\n", args.axiom_report_path);
             else
-                kprintf("[AXIOM-BETA] Report write failed: %s\n",
+                kprintf("[AXIOM-BETA-3] Report write failed: %s\n",
                         axiom_beta_status_string(wr));
         }
 
@@ -492,14 +525,14 @@ int main(int argc, char **argv) {
 
     /* Run inference */
     if (args.serve) {
-        kprintf("[HT] Starting API server on port %d...\n", args.port);
-        ht_api_serve(args.port);
+        kprintf("[GD] Starting API server on port %d...\n", args.port);
+        GD_api_serve(args.port);
     } else if (args.interactive) {
         interactive_loop(args.model_path, &args);
     } else {
         const char *prompt = args.prompt ? args.prompt : "Hello";
-        kprintf("[HT] Prompt: \"%s\"\n", prompt);
-        kprintf("[HT] Generating %d tokens...\n\n", args.max_tokens);
+        kprintf("[GD] Prompt: \"%s\"\n", prompt);
+        kprintf("[GD] Generating %d tokens...\n\n", args.max_tokens);
 
         static char output[65536];
         uint64_t gen_t0 = hal_timer_us();
@@ -511,10 +544,10 @@ int main(int argc, char **argv) {
             float tok_per_s = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
             float decode_tok_s = llm_last_tok_per_sec();
             float prefill_ms = llm_last_prefill_ms();
-            kprintf("\n[HT] %d tokens in %llu ms (%.1f tok/s)\n",
+            kprintf("\n[GD] %d tokens in %llu ms (%.1f tok/s)\n",
                     n, (unsigned long long)total_ms, tok_per_s);
             if (decode_tok_s > 0.0f) {
-                kprintf("[HT] Decode-only: prefill %.1f ms, %.1f tok/s\n",
+                kprintf("[GD] Decode-only: prefill %.1f ms, %.1f tok/s\n",
                         prefill_ms, decode_tok_s);
             }
         } else {

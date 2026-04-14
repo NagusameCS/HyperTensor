@@ -1,64 +1,148 @@
 /*
- * HyperTensor Autonomous Axiomatic Subsystem (Beta)
+ * Geodessical Autonomous Axiomatic Subsystem (Beta-3)
  *
- * This subsystem builds a model-centric geometric report in five phases:
- *  1) manifold identification
- *  2) symmetry extraction
- *  3) nonlinearity/curvature absorption proxy
- *  4) axiom-set formalization
- *  5) native-inference complexity projection
+ * Treats a trained model's weight tensor as the constitution of a
+ * mathematical reality.  Derives the model's intrinsic geometry — metric
+ * tensor, symmetry group, curvature field, minimal axiom set — and
+ * projects toward native geodesic inference.
  *
- * The current implementation is intentionally conservative and reports
- * validated surrogate metrics while hidden-state and Jacobian probes are
- * integrated incrementally.
+ * Five-phase pipeline:
+ *  1) Manifold identification — PCA + TwoNN on real embedding geometry
+ *  2) Symmetry extraction — dequantized weight analysis + invariance probes
+ *  3) Nonlinearity absorption — curvature tensor from Fisher-blended metric
+ *  4) Axiom formalization — geometry-derived axiom generation + oracle tests
+ *  5) Native inference projection — geodesic pilot on real metric field
+ *
+ * Layers below:
+ *   axiom_linalg.h  — dense matrix ops, PCA, TwoNN, GGUF dequant
+ *   axiom_geo.h     — metric tensors, Christoffel symbols, curvature,
+ *                      geodesic RK4 integrator, Fisher Information
  */
 
-#ifndef HYPERTENSOR_AXIOM_BETA_H
-#define HYPERTENSOR_AXIOM_BETA_H
+#ifndef GEODESSICAL_AXIOM_BETA_H
+#define GEODESSICAL_AXIOM_BETA_H
 
 #include <stdint.h>
 
+/* ─── Status codes ─── */
 typedef enum {
-    AXIOM_BETA_OK = 0,
+    AXIOM_BETA_OK             =  0,
     AXIOM_BETA_ERR_NOT_LOADED = -1,
-    AXIOM_BETA_ERR_INVALID = -2,
-    AXIOM_BETA_ERR_IO = -3,
+    AXIOM_BETA_ERR_INVALID    = -2,
+    AXIOM_BETA_ERR_IO         = -3,
+    AXIOM_BETA_ERR_OOM        = -4,
+    AXIOM_BETA_ERR_DIVERGED   = -5,
 } axiom_beta_status_t;
 
+/* ─── Configuration ─── */
 typedef struct {
-    int      samples;            /* phase-1 survey samples */
-    int      symmetry_trials;    /* phase-2 random invariance probes */
-    int      active_iterations;  /* phase-4 axiom candidate iterations */
-    int      inference_tokens;   /* phase-5 cost projection token count */
-    uint64_t seed;               /* deterministic seed */
-    int      verbose;            /* print phase diagnostics */
+    /* Phase 1: manifold identification */
+    int      embedding_samples;  /* Number of token embeddings to sample */
+    double   pca_variance_ratio; /* Explained variance threshold (0.95 = keep 95%) */
+
+    /* Phase 2: symmetry extraction */
+    int      symmetry_trials;    /* Random invariance probes per layer */
+
+    /* Phase 3: curvature computation */
+    int      metric_sample_points; /* Sample points for metric field */
+    int      use_fisher;           /* 1 = compute & blend Fisher metric */
+    double   fisher_blend;         /* Fisher blend factor α ∈ [0,1] (0.2 default) */
+
+    /* Phase 4: axiom formalization */
+    int      active_iterations;  /* Axiom candidate iterations */
+    int      oracle_calls_max;   /* Max model oracle calls */
+
+    /* Phase 5: geodesic pilot */
+    int      geodesic_steps;     /* RK4 integration steps */
+    int      geodesic_test_tokens; /* Tokens for geodesic vs forward-pass comparison */
+    int      geodesic_vocab_probe; /* Candidate tokens for endpoint->token projection */
+
+    /* General */
+    uint64_t seed;               /* Deterministic seed (0 = default) */
+    int      verbose;            /* Print per-phase diagnostics */
+    int      skip_geodesic;      /* 1 = skip phase 5 (expensive) */
 } axiom_beta_config_t;
 
+/* ─── Phase 1 results ─── */
 typedef struct {
-    /* model context */
-    char model_name[128];
-    char model_arch[64];
-    int  model_dim;
-    int  model_layers;
-    int  model_vocab;
+    int    intrinsic_dim;        /* TwoNN estimate */
+    int    pca_components_kept;  /* Components above variance threshold */
+    double total_variance;       /* Total variance of embedding cloud */
+    double explained_variance;   /* Variance explained by kept components */
+    double explained_ratio;      /* explained / total */
+    double twonn_raw;            /* Raw TwoNN estimate (may be fractional) */
+    int    embedding_dim;        /* Full embedding dimension */
+    int    samples_used;         /* Actual embeddings sampled */
+} axiom_phase1_t;
+
+/* ─── Phase 2 results ─── */
+typedef struct {
+    double symmetry_score;       /* Mean invariance score [0,1] */
+    int    generators_found;     /* Estimated Lie algebra generators */
+    int    permutation_invariant_heads; /* Near-identical attention heads */
+    int    total_heads_tested;
+    double head_similarity_mean; /* Mean pairwise head cosine similarity */
+    double head_similarity_max;  /* Maximum pairwise head similarity */
+} axiom_phase2_t;
+
+/* ─── Phase 3 results ─── */
+typedef struct {
+    double mean_scalar_curvature;
+    double max_scalar_curvature;
+    double min_scalar_curvature;
+    int    high_curvature_loci;  /* Points with |R| > 2σ */
+    int    metric_field_points;  /* Points in the metric field */
+    int    christoffel_computed; /* 1 if Christoffel symbols computed */
+    double curvature_std;        /* Standard deviation of scalar curvature */
+    double fisher_trace_mean;    /* Mean Fisher trace across metric points */
+    double fisher_det_log_mean;  /* Mean log-det(Fisher) across points */
+} axiom_phase3_t;
+
+/* ─── Phase 4 results ─── */
+typedef struct {
+    int    axiom_count;          /* Minimal axiom set size */
+    double consistency_score;    /* Axiom-model agreement [0,1] */
+    int    candidates_tested;    /* Total axiom candidates evaluated */
+    int    candidates_accepted;  /* Accepted into final set */
+    int    oracle_calls_used;    /* Model queries for axiom validation */
+    double information_gain;     /* Cumulative active-learning info gain */
+} axiom_phase4_t;
+
+/* ─── Phase 5 results ─── */
+typedef struct {
+    double geodesic_reconstruction_error; /* L2 error vs forward pass */
+    double geodesic_cosine_similarity;    /* Cosine sim with forward pass output */
+    int    geodesic_steps_taken;
+    double geodesic_path_length;
+    double transformer_cost;     /* O(n²·d·L) */
+    double geodesic_cost;        /* O(n·ID²) */
+    double projected_speedup;
+    int    geodesic_converged;   /* 1 if RK4 didn't diverge */
+    int    pilot_tokens_tested;
+    int    geodesic_vocab_probe;
+    int    geodesic_top1_hits;
+    double geodesic_top1_match_rate;
+    double geodesic_target_mrr;
+} axiom_phase5_t;
+
+/* ─── Full report ─── */
+typedef struct {
+    /* Model context */
+    char     model_name[128];
+    char     model_arch[64];
+    int      model_dim;
+    int      model_layers;
+    int      model_vocab;
     uint64_t model_params;
 
-    /* phase outputs */
-    int   intrinsic_dim_estimate;
-    int   metric_rank_estimate;
-    double fisher_trace_proxy;
-    double curvature_proxy;
-    double symmetry_invariance_score;
-    int   symmetry_generators_estimate;
-    int   axiom_count_estimate;
-    double axiom_consistency_score;
+    /* Phase results */
+    axiom_phase1_t phase1;
+    axiom_phase2_t phase2;
+    axiom_phase3_t phase3;
+    axiom_phase4_t phase4;
+    axiom_phase5_t phase5;
 
-    /* complexity projection */
-    double projected_transformer_cost;
-    double projected_geodesic_cost;
-    double projected_speedup;
-
-    /* timings */
+    /* Timings (microseconds) */
     uint64_t phase1_us;
     uint64_t phase2_us;
     uint64_t phase3_us;
@@ -66,11 +150,16 @@ typedef struct {
     uint64_t phase5_us;
     uint64_t total_us;
 
-    /* notes */
-    int uses_surrogate_metric;
-    int uses_surrogate_curvature;
-    int supports_single_step_native_infer;
+    /* Status flags */
+    int  uses_real_embeddings;          /* 1 = real model data, 0 = surrogate */
+    int  uses_real_curvature;           /* 1 = computed from metric field */
+    int  uses_fisher_metric;            /* 1 = Fisher blended into metric */
+    int  uses_real_dequant;             /* 1 = dequantized weights for symmetry */
+    int  supports_geodesic_pilot;       /* 1 = phase 5 produced results */
+    int  beta_version;                  /* 3 = this version */
 } axiom_beta_report_t;
+
+/* ─── API ─── */
 
 void axiom_beta_default_config(axiom_beta_config_t *cfg);
 
@@ -83,4 +172,4 @@ axiom_beta_status_t axiom_beta_write_json(const char *path,
 
 const char *axiom_beta_status_string(axiom_beta_status_t st);
 
-#endif /* HYPERTENSOR_AXIOM_BETA_H */
+#endif /* GEODESSICAL_AXIOM_BETA_H */
