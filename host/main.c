@@ -12,6 +12,7 @@
 /* Forward declarations from TensorOS inference engine */
 #include "../runtime/nn/llm.h"
 #include "../runtime/nn/hf_download.h"
+#include "../runtime/nn/axiom_beta.h"
 #include "api_server.h"
 
 #include <stdio.h>
@@ -55,6 +56,11 @@ static void print_usage(const char *argv0) {
     kprintf("  --no-think             Disable thinking (strip <|think|> blocks)\n");
     kprintf("  --force-think          Force thinking on all prompts\n");
     kprintf("  --show-think           Show thinking tokens in output\n");
+    kprintf("  --axiom-beta-run       Run autonomous axiomatic beta survey\n");
+    kprintf("  --axiom-beta-only      Run axiomatic beta survey then exit\n");
+    kprintf("  --axiom-report <path>  Write beta report JSON (default: axiom_beta_report.json)\n");
+    kprintf("  --axiom-samples <n>    Beta manifold samples (default: 4096)\n");
+    kprintf("  --axiom-seed <n>       Beta deterministic seed\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
@@ -98,6 +104,11 @@ typedef struct {
     int         log_level;
     int         no_think;
     int         show_think;
+    int         axiom_beta_run;
+    int         axiom_beta_only;
+    int         axiom_samples;
+    uint64_t    axiom_seed;
+    const char *axiom_report_path;
 } ht_args_t;
 
 static int parse_args(int argc, char **argv, ht_args_t *args) {
@@ -117,6 +128,11 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->log_level   = -1;  /* unset = use default */
     args->no_think    = 0;
     args->show_think  = 0;
+    args->axiom_beta_run = 0;
+    args->axiom_beta_only = 0;
+    args->axiom_samples = 4096;
+    args->axiom_seed = 0;
+    args->axiom_report_path = "axiom_beta_report.json";
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -163,6 +179,24 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
             args->no_think = -1;  /* sentinel for force-think */
         } else if (strcmp(argv[i], "--show-think") == 0) {
             args->show_think = 1;
+        } else if (strcmp(argv[i], "--axiom-beta-run") == 0) {
+            args->axiom_beta_run = 1;
+        } else if (strcmp(argv[i], "--axiom-beta-only") == 0) {
+            args->axiom_beta_only = 1;
+            args->axiom_beta_run = 1;
+        } else if (strcmp(argv[i], "--axiom-report") == 0) {
+            if (++i >= argc) { kprintf("Error: --axiom-report requires path\n"); return -1; }
+            args->axiom_report_path = argv[i];
+        } else if (strcmp(argv[i], "--axiom-samples") == 0) {
+            if (++i >= argc) { kprintf("Error: --axiom-samples requires number\n"); return -1; }
+            args->axiom_samples = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axiom-seed") == 0) {
+            if (++i >= argc) { kprintf("Error: --axiom-seed requires number\n"); return -1; }
+#ifdef _WIN32
+            args->axiom_seed = _strtoui64(argv[i], NULL, 10);
+#else
+            args->axiom_seed = strtoull(argv[i], NULL, 10);
+#endif
         } else if (argv[i][0] != '-' && !args->model_path) {
             args->model_path = argv[i];
         } else {
@@ -406,6 +440,55 @@ int main(int argc, char **argv) {
 
     kprintf("[HT] Model loaded in %llu ms\n", (unsigned long long)((t1 - t0) / 1000));
     kprintf("[HT] Model: %s\n", llm_model_name());
+
+    if (args.axiom_beta_run) {
+        axiom_beta_config_t cfg;
+        axiom_beta_report_t rep;
+        axiom_beta_status_t st;
+        axiom_beta_default_config(&cfg);
+        if (args.axiom_samples > 0) cfg.samples = args.axiom_samples;
+        cfg.symmetry_trials = cfg.samples > 1024 ? cfg.samples / 2 : 1024;
+        cfg.active_iterations = cfg.samples > 512 ? cfg.samples / 8 : 512;
+        cfg.inference_tokens = args.max_tokens > 0 ? args.max_tokens : 256;
+        cfg.seed = args.axiom_seed;
+        cfg.verbose = args.verbose;
+
+        kprintf("[AXIOM-BETA] Starting 5-phase autonomous survey...\n");
+        st = axiom_beta_run(&cfg, &rep);
+        if (st != AXIOM_BETA_OK) {
+            kprintf("[AXIOM-BETA] ERROR: %s\n", axiom_beta_status_string(st));
+            hal_munmap(&model);
+            hal_shutdown();
+            return 1;
+        }
+
+        kprintf("[AXIOM-BETA] Completed in %llu ms\n",
+                (unsigned long long)(rep.total_us / 1000));
+        kprintf("[AXIOM-BETA] ID=%d metric_rank=%d curvature=%.5f\n",
+                rep.intrinsic_dim_estimate, rep.metric_rank_estimate,
+                rep.curvature_proxy);
+        kprintf("[AXIOM-BETA] symmetry=%.4f generators=%d axioms=%d consistency=%.4f\n",
+                rep.symmetry_invariance_score, rep.symmetry_generators_estimate,
+                rep.axiom_count_estimate, rep.axiom_consistency_score);
+        kprintf("[AXIOM-BETA] projected speedup x%.2f (surrogate)\n",
+                rep.projected_speedup);
+
+        if (args.axiom_report_path) {
+            axiom_beta_status_t wr = axiom_beta_write_json(args.axiom_report_path,
+                                                           &rep, &cfg);
+            if (wr == AXIOM_BETA_OK)
+                kprintf("[AXIOM-BETA] Report: %s\n", args.axiom_report_path);
+            else
+                kprintf("[AXIOM-BETA] Report write failed: %s\n",
+                        axiom_beta_status_string(wr));
+        }
+
+        if (args.axiom_beta_only) {
+            hal_munmap(&model);
+            hal_shutdown();
+            return 0;
+        }
+    }
 
     /* Run inference */
     if (args.serve) {

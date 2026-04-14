@@ -44,6 +44,7 @@ $SOURCES = @(
     "runtime/nn/mod_package.c",
     "runtime/nn/token_comm.c",
     "runtime/nn/hf_download.c",
+    "runtime/nn/axiom_beta.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
 )

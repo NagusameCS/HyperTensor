@@ -57,3 +57,6 @@ docs/EVOLUTION.md
 # Local benchmark snapshots
 bench_*.txt
 diff_full.txt
+
+# Axiomatic subsystem generated reports
+axiom_beta_report*.json
