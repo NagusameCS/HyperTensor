@@ -1064,6 +1064,36 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
     int top1_hits = 0;
     double total_mrr = 0.0;
 
+    /* Build reusable probe pool once; slot 0 is reserved for per-test target token. */
+    probe_tokens[0] = -1;
+    cand_norms[0] = 0.0f;
+    memset(cand_mat_f32, 0, (uint64_t)dim * sizeof(float));
+    for (int p = 1; p < n_probe; p++) {
+        int tok_probe = ax_rng_range(seed, 0, vocab);
+        probe_tokens[p] = tok_probe;
+        if (llm_get_embedding_vec(tok_probe, emb_f32, dim) != 0) {
+            probe_tokens[p] = -1;
+            cand_norms[p] = 0.0f;
+            memset(cand_mat_f32 + (uint64_t)p * dim, 0,
+                   (uint64_t)dim * sizeof(float));
+            continue;
+        }
+
+        float *crow = cand_mat_f32 + (uint64_t)p * dim;
+        double nrm2 = 0.0;
+        for (int j = 0; j < dim; j++) {
+            float v = emb_f32[j];
+            crow[j] = v;
+            nrm2 += (double)v * (double)v;
+        }
+        cand_norms[p] = (float)sqrt(nrm2);
+    }
+
+    if (use_gpu_scoring) {
+        be->mem.upload(d_cands, cand_mat_f32,
+                       (uint64_t)n_probe * dim * sizeof(float));
+    }
+
     for (int t = 0; t < n_test; t++) {
         int tok_start = ax_rng_range(seed, 0, vocab);
         int tok_end   = ax_rng_range(seed, 0, vocab);
@@ -1127,42 +1157,27 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
                 double target_score = -1e300;
                 int target_rank = 1;
 
-                for (int p = 0; p < n_probe; p++) {
-                    int tok_probe;
-                    if (p == 0) {
-                        tok_probe = tok_end;
-                    } else {
-                        tok_probe = ax_rng_range(seed, 0, vocab);
-                        int tries = 0;
-                        while (tok_probe == tok_end && tries < 4) {
-                            tok_probe = ax_rng_range(seed, 0, vocab);
-                            tries++;
-                        }
-                    }
-                    probe_tokens[p] = tok_probe;
-
-                    if (llm_get_embedding_vec(tok_probe, emb_f32, dim) != 0) {
-                        probe_tokens[p] = -1;
-                        cand_norms[p] = 0.0f;
-                        memset(cand_mat_f32 + (uint64_t)p * dim, 0,
-                               (uint64_t)dim * sizeof(float));
-                        continue;
-                    }
-
-                    float *crow = cand_mat_f32 + (uint64_t)p * dim;
+                /* Slot 0 is current target token to measure true rank metrics. */
+                probe_tokens[0] = tok_end;
+                if (llm_get_embedding_vec(tok_end, emb_f32, dim) == 0) {
+                    float *crow0 = cand_mat_f32;
                     double nrm2 = 0.0;
                     for (int j = 0; j < dim; j++) {
                         float v = emb_f32[j];
-                        crow[j] = v;
+                        crow0[j] = v;
                         nrm2 += (double)v * (double)v;
                     }
-                    cand_norms[p] = (float)sqrt(nrm2);
+                    cand_norms[0] = (float)sqrt(nrm2);
+                } else {
+                    probe_tokens[0] = -1;
+                    cand_norms[0] = 0.0f;
+                    memset(cand_mat_f32, 0, (uint64_t)dim * sizeof(float));
                 }
 
                 if (use_gpu_scoring) {
                     for (int j = 0; j < dim; j++) emb_f32[j] = (float)emb_f64[j];
-                    be->mem.upload(d_cands, cand_mat_f32,
-                                   (uint64_t)n_probe * dim * sizeof(float));
+                    /* Update only target slot (row 0) on device. */
+                    be->mem.upload(d_cands, cand_mat_f32, (uint64_t)dim * sizeof(float));
                     be->mem.upload(d_query, emb_f32, (uint64_t)dim * sizeof(float));
                     be->compute.gemv((float *)d_scores, d_cands, (const float *)d_query,
                                      n_probe, dim, GGML_TYPE_F32);
