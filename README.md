@@ -9,11 +9,11 @@
   <img src="https://img.shields.io/badge/arch-x86__64_%7C_ARM64-orange" alt="Architecture">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
   <img src="https://img.shields.io/badge/mode-hosted_%7C_bare--metal-informational" alt="Mode">
-  <img src="https://img.shields.io/badge/LLM-Phi--3.5_working-success" alt="LLM Working">
+  <img src="https://img.shields.io/badge/LLM-GGUF_models_working-success" alt="LLM Working">
   <img src="https://img.shields.io/github/last-commit/NagusameCS/HyperTensor?label=last%20commit" alt="Last Commit">
 </p>
 
-HyperTensor is a minimal, high-performance AI inference runtime that runs GGUF language models on **any platform** — from bare-metal x86_64 with zero OS overhead to a native Windows/Linux application. Born from [TensorOS](https://github.com/NagusameCS/TensorOS), it inherits a battle-tested GGUF parser, BPE tokenizer, JIT compiler, and SMP-parallel forward pass, now packaged as a portable host-mode runtime.
+HyperTensor is a C-based inference runtime for GGUF language models. It can run as a normal host application (Windows/Linux) and shares core inference code with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is straightforward: predictable runtime behavior, low overhead, and transparent performance tuning.
 
 ### Key Features
 
@@ -23,6 +23,68 @@ HyperTensor is a minimal, high-performance AI inference runtime that runs GGUF l
 - **SMP parallel GEMV** — Multi-threaded matrix-vector multiply across all CPU cores
 - **Host-mode runtime** — Memory-mapped model loading, native threads, cross-platform
 - **Bare-metal mode** — Still boots as a standalone OS via Multiboot1
+
+---
+
+## Performance Snapshot (Measured)
+
+The numbers below are from an actual local run on April 13, 2026.
+
+### Test Hardware
+
+- CPU: AMD Ryzen 9 7940HS (8 cores / 16 threads)
+- GPU: NVIDIA GeForce RTX 4070 Laptop GPU (8 GB class; runtime reported ~7052 MB free)
+- RAM: 32 GB
+- OS: Windows (host mode)
+
+### Workload
+
+- Prompt: `Write a 500-word explanation of how compilers optimize loops, in plain English.`
+- Max generation: 256 tokens
+- Single run per engine/model (no averaging in this table)
+
+### Results
+
+| Engine | Model | Throughput Metric | Measured Value |
+|---|---|---|---|
+| HyperTensor | `google_gemma-4-E2B-it-Q4_0.gguf` | End-to-end generation rate | **92.5 tok/s** |
+| HyperTensor | `google_gemma-4-E2B-it-Q4_0.gguf` | Decode-only rate | **107.7 tok/s** |
+| Ollama | `gemma3:4b` | Eval rate (`eval_count / eval_duration`) | **75.36 tok/s** |
+| Ollama | `gemma4:latest` | Eval rate (`eval_count / eval_duration`) | **30.21 tok/s** |
+
+### Direct Comparison (same machine, same prompt length)
+
+- HyperTensor end-to-end (92.5 tok/s) vs Ollama `gemma3:4b` (75.36 tok/s): **+22.7%**
+- HyperTensor end-to-end (92.5 tok/s) vs Ollama `gemma4:latest` (30.21 tok/s): **+206.2%**
+
+### Repro Commands
+
+HyperTensor:
+
+```powershell
+.\build_host\hypertensor.exe "C:\Users\legom\TensorOS\models\google_gemma-4-E2B-it-Q4_0.gguf" -p "Write a 500-word explanation of how compilers optimize loops, in plain English." -n 256
+```
+
+Ollama (`gemma3:4b`):
+
+```powershell
+$body = @{ model = 'gemma3:4b'; prompt = 'Write a 500-word explanation of how compilers optimize loops, in plain English.'; stream = $false; options = @{ num_predict = 256; temperature = 0.7 } } | ConvertTo-Json -Depth 6
+$r = Invoke-RestMethod -Uri 'http://localhost:11434/api/generate' -Method Post -ContentType 'application/json' -Body $body
+[math]::Round(($r.eval_count / ($r.eval_duration / 1e9)), 2)
+```
+
+Ollama (`gemma4:latest`):
+
+```powershell
+$body = @{ model = 'gemma4:latest'; prompt = 'Write a 500-word explanation of how compilers optimize loops, in plain English.'; stream = $false; options = @{ num_predict = 256; temperature = 0.7 } } | ConvertTo-Json -Depth 6
+$r = Invoke-RestMethod -Uri 'http://localhost:11434/api/generate' -Method Post -ContentType 'application/json' -Body $body
+[math]::Round(($r.eval_count / ($r.eval_duration / 1e9)), 2)
+```
+
+Notes:
+
+- This is a practical runtime comparison, not a strict model-equivalence benchmark.
+- HyperTensor and Ollama model packages are not byte-identical here, so use these results as operational guidance, not a canonical leaderboard.
 
 ### Demo: Hosted Inference
 
@@ -184,11 +246,12 @@ HyperTensor/
 
 ## Supported Models
 
-Any LLaMA-architecture GGUF model works:
+Current GGUF coverage in this runtime includes:
 
 | Model | Architecture | Tested |
 |-------|-------------|--------|
-| Phi-3.5 Mini Instruct | phi3 | ✅ 162 ms/tok |
+| Gemma 4 E2B It | gemma4 | ✅ |
+| Phi-3.5 Mini Instruct | phi3 | ✅ |
 | Qwen2.5 | qwen2 | ✅ |
 | LLaMA 3 | llama | ✅ |
 | Gemma 2 | gemma | ✅ |
