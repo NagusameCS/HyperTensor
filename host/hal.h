@@ -43,6 +43,30 @@ int   kprintf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 int   kprintf_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void  kpanic(const char *msg) __attribute__((noreturn));
 
+/* ── Structured Logging ────────────────────────────────────────────────── */
+
+typedef enum {
+    LOG_ERROR = 0,   /* Always shown */
+    LOG_WARN  = 1,   /* Warnings */
+    LOG_INFO  = 2,   /* Normal operational messages */
+    LOG_DEBUG = 3,   /* Verbose debug output */
+    LOG_TRACE = 4    /* Token-level tracing */
+} log_level_t;
+
+extern volatile int g_log_level;   /* Default: LOG_INFO */
+
+void klog(log_level_t level, const char *tag, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+/* Convenience macros */
+#define LOG_ERR(tag, ...)   klog(LOG_ERROR, tag, __VA_ARGS__)
+#define LOG_WARN(tag, ...)  klog(LOG_WARN,  tag, __VA_ARGS__)
+#define LOG_INFO(tag, ...)  klog(LOG_INFO,  tag, __VA_ARGS__)
+#define LOG_DBG(tag, ...)   klog(LOG_DEBUG, tag, __VA_ARGS__)
+#define LOG_TRC(tag, ...)   klog(LOG_TRACE, tag, __VA_ARGS__)
+
+void klog_set_level(log_level_t level);
+
 /* ── Strings ───────────────────────────────────────────────────────────── */
 
 size_t kstrlen(const char *s);

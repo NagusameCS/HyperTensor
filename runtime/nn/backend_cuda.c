@@ -56,11 +56,34 @@ typedef void     (*fn_scale)(float *, const float *, float, int);
 typedef float    (*fn_dot)(const float *, const float *, int);
 typedef void     (*fn_dequantize)(float *, const void *, int, int);
 typedef void     (*fn_attention)(float *, const float *, const float *, const float *,
-                                 int, int, int, int, float, float);
+                                 int, int, int, int, int, float, float);
 typedef void     (*fn_kv_update)(float *, float *, const float *, const float *,
                                   int, int, int, int, int);
 typedef void     (*fn_embed)(float *, const void *, int, int, int);
 typedef void     (*fn_softcap)(float *, int, float);
+typedef int      (*fn_upload_async)(void *, const void *, uint64_t);
+typedef int      (*fn_download_async)(void *, const void *, uint64_t);
+typedef void     (*fn_stream_sync)(void);
+typedef void     (*fn_fused_qk_norm_rope)(float *, float *, const float *, const float *,
+                                           int, int, int, int, float, const float *, float, int);
+typedef void     (*fn_v_norm)(float *, int, int, float);
+typedef void     (*fn_gemv_async)(float *, const void *, const float *, int, int, int);
+typedef void     (*fn_fused_geglu)(float *, const float *, int);
+typedef void     (*fn_batched_rmsnorm)(float *, const float *, int, int, float);
+typedef void     (*fn_iswa_combine)(float *, const float *, const float *, float, int);
+typedef void     (*fn_dequant_q4_f16)(void *, const void *, int, int);
+typedef void     (*fn_add_rmsnorm)(float *, float *, const float *, const float *, int, float);
+typedef void     (*fn_rmsnorm_add)(float *, const float *, const float *, int, float);
+typedef void     (*fn_gelu_mul)(float *, const float *, int);
+typedef void     (*fn_gemv_dual_q4_0)(float *, float *, const void *, const void *,
+                                       const float *, int, int);
+typedef void     (*fn_gemv_triple_q4_0)(float *, float *, float *,
+                                         const void *, const void *, const void *,
+                                         const float *, int, int, int, int);
+typedef int      (*fn_graph_op)(void);
+typedef void     (*fn_graph_destroy)(void);
+typedef void     (*fn_set_decode_pos)(int, int);
+typedef int      (*fn_argmax)(const float *, int);
 
 /* ─── Dynamic dispatch table ─── */
 static struct {
@@ -91,6 +114,29 @@ static struct {
     fn_kv_update    kv_update;
     fn_embed        embed;
     fn_softcap      softcap;
+    fn_upload_async upload_async;
+    fn_download_async download_async;
+    fn_stream_sync  stream_sync_transfer;
+    fn_stream_sync  stream_sync_compute;
+    fn_fused_qk_norm_rope fused_qk_norm_rope;
+    fn_v_norm       v_norm;
+    fn_gemv_async   gemv_async;
+    fn_fused_geglu  fused_geglu;
+    fn_fused_geglu  fused_swiglu;
+    fn_batched_rmsnorm batched_rmsnorm;
+    fn_iswa_combine iswa_combine;
+    fn_dequant_q4_f16 dequant_q4_0_to_f16;
+    fn_add_rmsnorm  add_rmsnorm;
+    fn_rmsnorm_add  rmsnorm_add;
+    fn_gelu_mul     gelu_mul;
+    fn_gemv_dual_q4_0   gemv_dual_q4_0;
+    fn_gemv_triple_q4_0 gemv_triple_q4_0;
+    fn_graph_op     graph_begin_capture;
+    fn_graph_op     graph_end_capture;
+    fn_graph_op     graph_launch;
+    fn_graph_destroy graph_destroy;
+    fn_set_decode_pos set_decode_pos;
+    fn_argmax       argmax;
 } ck;
 
 /* Load a symbol, return 0 on success */
@@ -143,8 +189,31 @@ static int cuda_load_library(void) {
     LOAD_SYM(attention,    "ck_attention");
     LOAD_SYM(kv_update,    "ck_kv_update");
     LOAD_SYM(embed,        "ck_embed_lookup");
-    LOAD_SYM(softcap,      "ck_softcap");
+    LOAD_SYM(softcap,      "ck_softcap");    LOAD_SYM(upload_async,      "ck_upload_async");
+    LOAD_SYM(download_async,    "ck_download_async");
+    LOAD_SYM(stream_sync_transfer, "ck_stream_sync_transfer");
+    LOAD_SYM(stream_sync_compute,  "ck_stream_sync_compute");
+    LOAD_SYM(fused_qk_norm_rope,   "ck_fused_qk_norm_rope");
+    LOAD_SYM(v_norm,               "ck_v_norm");
+    LOAD_SYM(gemv_async,           "ck_gemv_async");
+    LOAD_SYM(fused_geglu,          "ck_fused_geglu");
+    LOAD_SYM(fused_swiglu,         "ck_fused_swiglu");
+    LOAD_SYM(batched_rmsnorm,      "ck_batched_rmsnorm");
+    LOAD_SYM(iswa_combine,         "ck_iswa_combine");
+    LOAD_SYM(dequant_q4_0_to_f16,  "ck_dequant_q4_0_to_f16");
 
+    /* Optional fused kernels — soft-load (don't fail if missing) */
+    ck.add_rmsnorm = (fn_add_rmsnorm)LIB_SYM(ck.lib, "ck_add_rmsnorm");
+    ck.rmsnorm_add = (fn_rmsnorm_add)LIB_SYM(ck.lib, "ck_rmsnorm_add");
+    ck.gelu_mul    = (fn_gelu_mul)LIB_SYM(ck.lib, "ck_gelu_mul");
+    ck.gemv_dual_q4_0   = (fn_gemv_dual_q4_0)LIB_SYM(ck.lib, "ck_gemv_dual_q4_0");
+    ck.gemv_triple_q4_0 = (fn_gemv_triple_q4_0)LIB_SYM(ck.lib, "ck_gemv_triple_q4_0");
+    ck.graph_begin_capture = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_begin_capture");
+    ck.graph_end_capture   = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_end_capture");
+    ck.graph_launch        = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_launch");
+    ck.graph_destroy       = (fn_graph_destroy)LIB_SYM(ck.lib, "ck_graph_destroy");
+    ck.set_decode_pos      = (fn_set_decode_pos)LIB_SYM(ck.lib, "ck_set_decode_pos");
+    ck.argmax              = (fn_argmax)LIB_SYM(ck.lib, "ck_argmax");
     return 0;
 }
 
@@ -158,9 +227,16 @@ static int   cuda_upload(void *d, const void *s, uint64_t sz) { return ck.upload
 static int   cuda_download(void *d, const void *s, uint64_t sz) { return ck.download(d, s, sz); }
 static void  cuda_sync(void)                              { ck.sync(); }
 
+/* When Q4_0 weights are dequantized to F16 on GPU, remap GEMV type */
+static int cuda_q4_as_f16 = 0;
+
+void cuda_set_q4_dequant_flag(int v) { cuda_q4_as_f16 = v; }
+
 static void cuda_gemv(float *o, const void *w, const float *x,
                       int od, int id, ggml_type_t t) {
-    ck.gemv(o, w, x, od, id, (int)t);
+    int type = (int)t;
+    if (cuda_q4_as_f16 && type == 2) type = 1;  /* Q4_0(2) → F16(1) */
+    ck.gemv(o, w, x, od, id, type);
 }
 
 static void cuda_gemm(float *C, const float *A, const float *B,
@@ -208,8 +284,8 @@ static void cuda_dequant(float *o, const void *d, int n, ggml_type_t t) {
 }
 
 static void cuda_attention(float *o, const float *Q, const float *K, const float *V,
-                           int nh, int nkv, int hd, int sl, float sc, float cap) {
-    ck.attention(o, Q, K, V, nh, nkv, hd, sl, sc, cap);
+                           int nh, int nkv, int hd, int sl, int ms, float sc, float cap) {
+    ck.attention(o, Q, K, V, nh, nkv, hd, sl, ms, sc, cap);
 }
 
 static void cuda_kv_update(float *K, float *V, const float *Kn, const float *Vn,
@@ -223,6 +299,147 @@ static void cuda_embed(float *o, const void *t, int id, int d, ggml_type_t ty) {
 
 static void cuda_softcap_fn(float *x, int n, float c) {
     ck.softcap(x, n, c);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * CUDA-specific fused kernels — bypass vtable for performance
+ * ════════════════════════════════════════════════════════════════════════ */
+
+void cuda_fused_qk_norm_rope(float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim)
+{
+    ck.fused_qk_norm_rope(Q, K, q_norm_w, k_norm_w,
+        n_heads, n_kv_heads, head_dim,
+        pos, rope_base, rope_freqs, eps, rope_dim);
+}
+
+void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps) {
+    ck.v_norm(V, n_kv_heads, head_dim, eps);
+}
+
+void cuda_fused_geglu(float *gate, const float *up, int n) {
+    ck.fused_geglu(gate, up, n);
+}
+
+void cuda_fused_swiglu(float *gate, const float *up, int n) {
+    ck.fused_swiglu(gate, up, n);
+}
+
+void cuda_batched_rmsnorm(float *data, const float *w,
+                           int n_slices, int slice_dim, float eps) {
+    ck.batched_rmsnorm(data, w, n_slices, slice_dim, eps);
+}
+
+void cuda_iswa_combine(float *out, const float *tok_embd,
+                        const float *proj, float scale, int n) {
+    ck.iswa_combine(out, tok_embd, proj, scale, n);
+}
+
+void cuda_add_rmsnorm(float *norm_out, float *x_inout,
+                       const float *residual, const float *norm_w,
+                       int dim, float eps) {
+    if (ck.add_rmsnorm) {
+        ck.add_rmsnorm(norm_out, x_inout, residual, norm_w, dim, eps);
+    } else {
+        /* Fallback: separate add + rmsnorm */
+        ck.add(x_inout, x_inout, residual, dim);
+        ck.rmsnorm(norm_out, x_inout, norm_w, dim, eps);
+    }
+}
+
+void cuda_rmsnorm_add(float *x_inout, const float *data,
+                       const float *norm_w, int dim, float eps) {
+    if (ck.rmsnorm_add) {
+        ck.rmsnorm_add(x_inout, data, norm_w, dim, eps);
+    } else {
+        /* Fallback: rmsnorm in-place + add
+         * Note: we need a temp buffer for in-place rmsnorm into add.
+         * Since data is const, we use the simple fallback approach. */
+        float *tmp = (float *)ck.alloc((uint64_t)dim * sizeof(float));
+        if (tmp) {
+            ck.rmsnorm(tmp, data, norm_w, dim, eps);
+            ck.add(x_inout, x_inout, tmp, dim);
+            ck.free(tmp);
+        }
+    }
+}
+
+void cuda_gelu_mul(float *a, const float *b, int n) {
+    if (ck.gelu_mul) {
+        ck.gelu_mul(a, b, n);
+    } else {
+        ck.gelu(a, n);
+        ck.mul(a, a, b, n);
+    }
+}
+
+int cuda_gemv_dual_q4_0(float *out_a, float *out_b,
+                         const void *W_a, const void *W_b,
+                         const float *x, int out_dim, int in_dim) {
+    if (ck.gemv_dual_q4_0) {
+        ck.gemv_dual_q4_0(out_a, out_b, W_a, W_b, x, out_dim, in_dim);
+        return 1;
+    }
+    return 0;
+}
+
+int cuda_gemv_triple_q4_0(float *out_q, float *out_k, float *out_v,
+                            const void *W_q, const void *W_k, const void *W_v,
+                            const float *x,
+                            int q_dim, int k_dim, int v_dim, int in_dim) {
+    if (ck.gemv_triple_q4_0) {
+        ck.gemv_triple_q4_0(out_q, out_k, out_v, W_q, W_k, W_v, x,
+                             q_dim, k_dim, v_dim, in_dim);
+        return 1;
+    }
+    return 0;
+}
+
+void cuda_dequant_q4_0_to_f16(void *out, const void *q4_data, int n_rows, int in_dim) {
+    ck.dequant_q4_0_to_f16(out, q4_data, n_rows, in_dim);
+}
+
+int cuda_graph_begin_capture(void) {
+    return ck.graph_begin_capture ? ck.graph_begin_capture() : -1;
+}
+
+int cuda_graph_end_capture(void) {
+    return ck.graph_end_capture ? ck.graph_end_capture() : -1;
+}
+
+int cuda_graph_launch(void) {
+    return ck.graph_launch ? ck.graph_launch() : -1;
+}
+
+void cuda_graph_destroy(void) {
+    if (ck.graph_destroy) ck.graph_destroy();
+}
+
+void cuda_set_decode_pos(int pos, int seq_len) {
+    if (ck.set_decode_pos) ck.set_decode_pos(pos, seq_len);
+}
+
+int cuda_argmax(const float *data, int n) {
+    return ck.argmax ? ck.argmax(data, n) : -1;
+}
+
+int cuda_upload_async(void *dst, const void *src, uint64_t size) {
+    return ck.upload_async(dst, src, size);
+}
+
+int cuda_download_async(void *dst, const void *src, uint64_t size) {
+    return ck.download_async(dst, src, size);
+}
+
+void cuda_stream_sync_transfer(void) {
+    ck.stream_sync_transfer();
+}
+
+void cuda_stream_sync_compute(void) {
+    ck.stream_sync_compute();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

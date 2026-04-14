@@ -35,18 +35,23 @@ $SOURCES = @(
     "host/hal.c",
     "host/main.c",
     "host/api_server.c",
+    "host/mcp_server.c",
     "runtime/nn/llm.c",
     "runtime/nn/gguf.c",
     "runtime/nn/backend.c",
     "runtime/nn/model_meta.c",
     "runtime/nn/tensor_bridge.c",
+    "runtime/nn/mod_package.c",
+    "runtime/nn/token_comm.c",
+    "runtime/nn/hf_download.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
 )
 
 $LDFLAGS = @(
     "-ladvapi32",
-    "-lws2_32"
+    "-lws2_32",
+    "-lwinhttp"
 )
 
 # Optional CUDA backend
@@ -55,6 +60,10 @@ if ($Cuda) {
     $SOURCES += "runtime/nn/backend_cuda.c"
     Write-Host '  CUDA backend enabled' -ForegroundColor Yellow
 }
+
+# MLIR IR optimizer (always included)
+$CFLAGS += "-DENABLE_MLIR"
+$SOURCES += "runtime/nn/mlir_ops.c"
 
 # Clean
 if ($Clean) {

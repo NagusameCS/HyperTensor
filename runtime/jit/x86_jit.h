@@ -293,6 +293,25 @@ jit_silu_fn jit_compile_gelu_kernel(int n);
 /* Compile LayerNorm kernel */
 jit_layernorm_fn jit_compile_layernorm_kernel(int dim);
 
+/* Tokenizer/detokenizer helpers */
+typedef int (*jit_mem_equal_fn)(const char *a, const char *b, int len);
+typedef int (*jit_bpe_escape_scan_fn)(const char *s, int len);
+typedef int (*jit_find_byte_fn)(const char *s, int len, char needle);
+
+/* BPE merge candidate comparison: returns first index where a[i] > b[i], or -1 */
+typedef int (*jit_merge_cmp_fn)(const int32_t *scores_a, const int32_t *scores_b, int n);
+
+/* Token append with bounds check: returns new length or -1 if at capacity */
+typedef int (*jit_token_append_fn)(int32_t *ids, int cur_len, int max_len,
+                                    int32_t token_id);
+
+/* Compile tokenizer/detokenizer helper kernels */
+jit_mem_equal_fn jit_compile_mem_equal_kernel(void);
+jit_bpe_escape_scan_fn jit_compile_bpe_escape_scan_kernel(void);
+jit_find_byte_fn jit_compile_find_byte_kernel(void);
+jit_merge_cmp_fn jit_compile_merge_cmp_kernel(void);
+jit_token_append_fn jit_compile_token_append_kernel(void);
+
 /* =============================================================================
  * AVX2 VEX-Encoded Instructions (256-bit SIMD)
  *

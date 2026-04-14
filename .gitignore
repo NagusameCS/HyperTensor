@@ -45,3 +45,12 @@ build_host/
 
 # Generated/temporary
 iq2xxs_grid_correct.txt
+
+# Internal planning/ideas (local-only)
+docs/internal/
+*.ideas.md
+*.scratch.md
+
+# Local benchmark snapshots
+bench_*.txt
+diff_full.txt

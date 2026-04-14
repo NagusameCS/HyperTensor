@@ -210,6 +210,18 @@ int llm_is_loaded(void);
  */
 const char *llm_model_name(void);
 
+/** Return model architecture name (e.g. "gemma4", "llama", "phi3"). */
+const char *llm_model_arch(void);
+
+/** Return number of transformer layers. */
+int llm_model_layers(void);
+
+/** Return hidden dimension. */
+int llm_model_dim(void);
+
+/** Return vocabulary size. */
+int llm_model_vocab(void);
+
 /**
  * Return total parameter count of the loaded model, or 0 if none loaded.
  */
@@ -250,6 +262,185 @@ typedef void (*llm_token_cb_t)(const char *text, int len, void *userdata);
  */
 void llm_set_stream_cb(llm_token_cb_t cb, void *userdata);
 
+/**
+ * Callback type for token-native tool/code execution.
+ * Implementations consume token IDs directly and emit token IDs directly,
+ * avoiding text serialization at machine-to-machine boundaries.
+ */
+typedef int (*llm_token_exec_fn)(const int *input_tokens, int n_input_tokens,
+                                 int *output_tokens, int max_output_tokens,
+                                 void *userdata);
+
+/* ── Token-native API ───────────────────────────────────────── */
+
+/** Tokenize text into token IDs using the loaded model tokenizer. */
+int llm_tokenize_text(const char *text, int *tokens, int max_tokens);
+
+/** Decode token IDs into text in one final pass. */
+int llm_decode_tokens(const int *tokens, int n_tokens, char *output, int max_output);
+
+/**
+ * Generate visible output tokens directly from a prompt token buffer.
+ * Internal thinking/control tokens remain inside the model loop unless the
+ * caller explicitly asks for them through a lower-level integration.
+ */
+int llm_generate_tokens(const int *prompt_tokens, int n_prompt,
+                        int *output_tokens, int max_output_tokens,
+                        int max_gen, float temperature, int continue_cache);
+
+/** Prompt the model and return visible output as token IDs. */
+int llm_prompt_tokens(const char *user_text, int *output_tokens,
+                      int max_output_tokens, int max_gen, float temperature);
+
+/** Multi-turn chat variant that keeps the response in token space. */
+int llm_chat_turn_tokens(const char *user_text, int *output_tokens,
+                         int max_output_tokens, int max_gen, float temperature);
+
+/** Execute a token-native tool/program callback without a text boundary. */
+int llm_execute_token_program(const int *input_tokens, int n_input_tokens,
+                              llm_token_exec_fn executor, void *userdata,
+                              int *output_tokens, int max_output_tokens);
+
+/**
+ * Token-native code execution loop contract.
+ *
+ * 1) Feed prompt_tokens to the model and generate up to max_gen output tokens.
+ * 2) Pass output tokens to the executor callback.
+ * 3) If the executor returns >0 output tokens, reinject them as a new prompt
+ *    and repeat (up to max_rounds).  Token IDs stay in token space the
+ *    entire time — no text serialization at any internal boundary.
+ * 4) Final model output is written to output_tokens.
+ *
+ * Returns total tokens written to output_tokens, negative on error.
+ */
+int llm_execute_token_loop(const int *prompt_tokens, int n_prompt,
+                           llm_token_exec_fn executor, void *userdata,
+                           int *output_tokens, int max_output_tokens,
+                           int max_gen, float temperature,
+                           int max_rounds);
+
+/**
+ * Validate whether token IDs form syntactically valid JSON without
+ * detokenizing the full sequence into an intermediate string.
+ * Returns 1 for valid JSON, 0 for invalid, negative on runtime error.
+ */
+int llm_validate_json_tokens(const int *tokens, int n_tokens);
+
+/**
+ * Validate markdown fenced-code structure (```...```) directly on token IDs.
+ * Returns 1 for valid fenced block, 0 for invalid, negative on runtime error.
+ */
+int llm_validate_code_fence_tokens(const int *tokens, int n_tokens);
+
+/**
+ * Validate basic XML well-formedness directly on token IDs.
+ * Returns 1 for valid XML, 0 for invalid, negative on runtime error.
+ */
+int llm_validate_xml_tokens(const int *tokens, int n_tokens);
+
+/**
+ * Validate schema-lite key:value structure directly on token IDs.
+ *
+ * Accepts lines of the form:  KEY SEPARATOR VALUE
+ *   - keys:       alphanumeric or underscore/dash/dot
+ *   - separators: ':', '=', or '::'
+ *   - values:     non-empty remainder until newline
+ *   - blank lines and '#'-prefixed comment lines are allowed
+ *
+ * Returns 1 for valid, 0 for invalid, negative on runtime error.
+ */
+int llm_validate_key_value_tokens(const int *tokens, int n_tokens);
+
+/**
+ * Snapshot the current KV cache prefix under a token-prefix key.
+ * Returns captured prefix length on success, negative on error.
+ */
+int llm_kv_snapshot_prefix(const int *prefix_tokens, int n_prefix_tokens);
+
+/**
+ * Restore a previously snapshotted KV cache by exact token-prefix key match.
+ * Returns restored length, negative if no match or on error.
+ */
+int llm_kv_restore_prefix(const int *prefix_tokens, int n_prefix_tokens);
+
+/**
+ * Reset a persistent agent token context slot.
+ * Returns 0 on success, negative on error.
+ */
+int llm_agent_ctx_reset(int ctx_id);
+
+/**
+ * Append token IDs to a persistent agent context slot.
+ * Returns new context length on success, negative on error.
+ */
+int llm_agent_ctx_append_tokens(int ctx_id, const int *tokens, int n_tokens);
+
+/**
+ * Generate from a persistent agent context in token space only.
+ * Returns number of generated tokens, negative on error.
+ */
+int llm_agent_ctx_generate(int ctx_id, int *output_tokens, int max_output_tokens,
+                           int max_gen, float temperature);
+
+/**
+ * Set a token-native RAG prefix as embedding vectors [n_prefix x dim].
+ * Returns number of stored prefix vectors, negative on error.
+ */
+int llm_rag_set_prefix_embeddings(const float *embeddings, int n_prefix, int dim);
+
+/** Clear the current token-native RAG prefix embeddings. */
+void llm_rag_clear_prefix_embeddings(void);
+
+/**
+ * Generic vector-prefix ingress (e.g. multimodal encoders).
+ */
+int llm_set_vector_prefix(const float *vectors, int n_vectors, int dim);
+
+/** Clear generic vector-prefix state. */
+void llm_clear_vector_prefix(void);
+
+/**
+ * Verify a draft token sequence directly in token space against the current model.
+ * Returns number of accepted draft tokens.
+ */
+int llm_speculative_verify_tokens(const int *context_tokens, int n_context,
+                                  const int *draft_tokens, int n_draft);
+
+/** Maximum number of rollout steps retained in token-native trace buffer. */
+#define LLM_ROLLOUT_MAX_STEPS 4096
+
+/**
+ * Canonical token-native RL rollout step.
+ */
+#ifndef LLM_ROLLOUT_STEP_FWDDECL
+#define LLM_ROLLOUT_STEP_FWDDECL
+typedef struct {
+    int token_id;
+    float logprob;
+    float value;
+    float reward;
+    int done;
+} llm_rollout_step_t;
+#endif
+
+/** Reset rollout trace state. Returns 0 on success. */
+int llm_rollout_reset(void);
+
+/** Append one rollout step. Returns new step count, negative on error. */
+int llm_rollout_append_step(int token_id, float logprob, float value);
+
+/** Set reward/done for an existing step index. Returns 0 on success. */
+int llm_rollout_set_step_reward(int step_idx, float reward, int done);
+
+/** Copy rollout steps into caller buffer. Returns copied step count. */
+int llm_rollout_get_steps(llm_rollout_step_t *out_steps, int max_steps);
+
+/**
+ * Compute discounted returns per step into out_returns.
+ * Returns number of computed returns, negative on error.
+ */
+int llm_rollout_compute_returns(float gamma, float *out_returns, int max_returns);
+
 /* ── Multi-turn chat API ────────────────────────────────────── */
 
 /**
@@ -271,11 +462,40 @@ int  llm_chat_turn(const char *user_text, char *output, int max_output,
 /** Reset the KV cache, starting a fresh conversation. */
 void llm_chat_reset(void);
 
+/* ── Thinking Mode ──────────────────────────────────────────── */
+
+/**
+ * Enable or disable thinking.  When enabled (default=1), the model may
+ * emit <|think|> tokens; the runtime detects them, runs the thinking
+ * phase purely in token space (no detokenization), and resumes normal
+ * output after the second <|think|> marker.
+ *
+ * Set enable=0 to suppress thinking (strip <|think|> blocks).
+ * Set enable=2 to force-inject <|think|> into prompts (extended thinking).
+ */
+void llm_set_thinking(int enable);
+
+/**
+ * If set, thinking tokens are detokenized and included in the output
+ * (wrapped in <think>...</think> tags).  Default: 0 (thinking hidden).
+ */
+void llm_set_show_thinking(int show);
+
+/**
+ * After generation, returns the number of thinking tokens consumed.
+ */
+int  llm_thinking_tokens(void);
+
 /** Return the number of KV-cache positions currently occupied. */
 int  llm_chat_context_tokens(void);
 
 /** Return the total context-window capacity of the loaded model. */
 int  llm_chat_context_max(void);
+
+/** Last-generation performance stats (updated after each llm_generate). */
+float llm_last_prefill_ms(void);
+float llm_last_tok_per_sec(void);
+int   llm_last_vram_usage_mb(void);
 
 /* ── Test-facing API (exposes internal tokenizer for unit tests) ─── */
 

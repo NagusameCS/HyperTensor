@@ -104,7 +104,7 @@ typedef struct {
     void (*attention)(float *out, const float *Q,
                       const float *K_cache, const float *V_cache,
                       int n_heads, int n_kv_heads, int head_dim,
-                      int seq_len, float scale, float softcap);
+                      int seq_len, int max_seq, float scale, float softcap);
 
     /* KV cache update: write new K/V vectors to cache at position pos */
     void (*kv_update)(float *K_cache, float *V_cache,
@@ -163,6 +163,32 @@ extern const backend_t backend_cpu;
 /* ─── Optional backends (linked when available) ─── */
 #ifdef ENABLE_CUDA
 extern const backend_t backend_cuda;
+
+/* CUDA-specific fused kernels (bypass vtable for perf-critical paths) */
+void cuda_fused_qk_norm_rope(float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim);
+void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
+void cuda_fused_geglu(float *gate, const float *up, int n);
+void cuda_fused_swiglu(float *gate, const float *up, int n);
+void cuda_batched_rmsnorm(float *data, const float *w,
+                           int n_slices, int slice_dim, float eps);
+void cuda_iswa_combine(float *out, const float *tok_embd,
+                        const float *proj, float scale, int n);
+void cuda_dequant_q4_0_to_f16(void *out, const void *q4_data, int n_rows, int in_dim);
+void cuda_set_q4_dequant_flag(int flag);
+int  cuda_upload_async(void *dst, const void *src, uint64_t size);
+int  cuda_download_async(void *dst, const void *src, uint64_t size);
+void cuda_stream_sync_transfer(void);
+void cuda_stream_sync_compute(void);
+int  cuda_argmax(const float *data, int n);
+int  cuda_graph_begin_capture(void);
+int  cuda_graph_end_capture(void);
+int  cuda_graph_launch(void);
+void cuda_graph_destroy(void);
+void cuda_set_decode_pos(int pos, int seq_len);
 #endif
 
 #ifdef ENABLE_MLIR

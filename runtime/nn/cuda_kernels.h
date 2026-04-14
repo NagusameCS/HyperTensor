@@ -70,6 +70,20 @@ CUDA_API void ck_silu(float *x, int n);
 /* GELU: x = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3))) */
 CUDA_API void ck_gelu(float *x, int n);
 
+/* Fused GeGLU: gate[i] = GELU(gate[i]) * up[i] — one kernel instead of two */
+CUDA_API void ck_fused_geglu(float *gate, const float *up, int n);
+
+/* Fused SwiGLU: gate[i] = SiLU(gate[i]) * up[i] */
+CUDA_API void ck_fused_swiglu(float *gate, const float *up, int n);
+
+/* Batched RMSNorm: normalize n_slices independent vectors, shared weights */
+CUDA_API void ck_batched_rmsnorm(float *data, const float *w,
+                                  int n_slices, int slice_dim, float eps);
+
+/* ISWA combine: out[i] = (tok_embd[i] + proj[i]) * scale */
+CUDA_API void ck_iswa_combine(float *out, const float *tok_embd,
+                               const float *proj, float scale, int n);
+
 /* Element-wise multiply: out = a * b */
 CUDA_API void ck_mul(float *out, const float *a, const float *b, int n);
 
@@ -90,7 +104,8 @@ CUDA_API void ck_dequantize(float *out, const void *data, int n_elements,
  * out[n_heads * head_dim] = Attention(Q, K_cache, V_cache) */
 CUDA_API void ck_attention(float *out, const float *Q, const float *K,
                            const float *V, int n_heads, int n_kv_heads,
-                           int head_dim, int seq_len, float scale, float softcap);
+                           int head_dim, int seq_len, int max_seq,
+                           float scale, float softcap);
 
 /* KV cache update: insert new K,V vectors at position pos */
 CUDA_API void ck_kv_update(float *K_cache, float *V_cache,
@@ -104,6 +119,70 @@ CUDA_API void ck_embed_lookup(float *out, const void *table, int token_id,
 
 /* Softcap: x = cap * tanh(x / cap) */
 CUDA_API void ck_softcap(float *x, int n, float cap);
+
+/* GPU-side argmax: returns index of max element (avoids downloading all logits) */
+CUDA_API int ck_argmax(const float *data, int n);
+
+/* ─── Async memory ops (non-blocking) ─── */
+CUDA_API int  ck_upload_async(void *dst, const void *src, uint64_t size);
+CUDA_API int  ck_download_async(void *dst, const void *src, uint64_t size);
+CUDA_API void ck_stream_sync_transfer(void);
+CUDA_API void ck_stream_sync_compute(void);
+
+/* ─── Fused QKV normalization + RoPE ─── */
+CUDA_API void ck_fused_qk_norm_rope(
+    float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim);
+
+/* Per-head V magnitude normalization */
+CUDA_API void ck_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
+
+/* GEMV on compute stream (non-blocking) */
+CUDA_API void ck_gemv_async(float *out, const void *W, const float *x,
+                            int out_dim, int in_dim, int type_id);
+
+/* Q4_0 → FP16 dequantization on GPU */
+CUDA_API void ck_dequant_q4_0_to_f16(void *out, const void *q4_data,
+                                      int n_rows, int in_dim);
+
+/* ─── Fused compute kernels ─── */
+
+/* Add residual + RMSNorm: x_inout += residual, norm_out = rmsnorm(x_inout) */
+CUDA_API void ck_add_rmsnorm(float *norm_out, float *x_inout,
+                              const float *residual, const float *norm_w,
+                              int dim, float eps);
+
+/* RMSNorm + Add: x_inout += rmsnorm(data) */
+CUDA_API void ck_rmsnorm_add(float *x_inout, const float *data,
+                              const float *norm_w, int dim, float eps);
+
+/* GELU-multiply: a[i] = GELU(a[i]) * b[i] */
+CUDA_API void ck_gelu_mul(float *a, const float *b, int n);
+
+/* Fused dual Q4_0 GEMV: gate+up in one kernel (shared Q8 quantization) */
+CUDA_API void ck_gemv_dual_q4_0(
+    float *out_a, float *out_b,
+    const void *W_a, const void *W_b,
+    const float *x,
+    int out_dim, int in_dim);
+
+/* Fused triple Q4_0 GEMV: Q+K+V in one kernel (shared Q8 quantization) */
+CUDA_API void ck_gemv_triple_q4_0(
+    float *out_q, float *out_k, float *out_v,
+    const void *W_q, const void *W_k, const void *W_v,
+    const float *x,
+    int q_dim, int k_dim, int v_dim,
+    int in_dim);
+
+/* ─── CUDA Graph support ─── */
+CUDA_API void ck_graph_destroy(void);
+CUDA_API void ck_set_decode_pos(int pos, int seq_len);
+CUDA_API int  ck_graph_begin_capture(void);
+CUDA_API int  ck_graph_end_capture(void);
+CUDA_API int  ck_graph_launch(void);
 
 #ifdef __cplusplus
 }

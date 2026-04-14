@@ -122,15 +122,46 @@ int kprintf(const char *fmt, ...) {
 }
 
 int kprintf_debug(const char *fmt, ...) {
-    /* Debug messages suppressed in release; could gate on verbosity flag */
-    (void)fmt;
-    return 0;
+    if (g_log_level < LOG_DEBUG) { (void)fmt; return 0; }
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vprintf(fmt, ap);
+    va_end(ap);
+    fflush(stdout);
+    return r;
 }
 
 void kpanic(const char *msg) {
     fprintf(stderr, "\n[PANIC] %s\n", msg);
     fflush(stderr);
     abort();
+}
+
+/* ── Structured Logging ─────────────────────────────────────────────────── */
+
+volatile int g_log_level = LOG_INFO;
+
+static const char *log_level_prefix[] = {
+    "\033[31mERR ",   /* red */
+    "\033[33mWARN",   /* yellow */
+    "\033[0mINFO",   /* default */
+    "\033[2mDBG ",   /* dim */
+    "\033[2mTRC ",   /* dim */
+};
+
+void klog(log_level_t level, const char *tag, const char *fmt, ...) {
+    if ((int)level > g_log_level) return;
+    printf("%s\033[0m [%s] ", log_level_prefix[level], tag);
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    printf("\n");
+    fflush(stdout);
+}
+
+void klog_set_level(log_level_t level) {
+    g_log_level = (int)level;
 }
 
 /* ════════════════════════════════════════════════════════════════════════

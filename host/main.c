@@ -11,6 +11,7 @@
 
 /* Forward declarations from TensorOS inference engine */
 #include "../runtime/nn/llm.h"
+#include "../runtime/nn/hf_download.h"
 #include "api_server.h"
 
 #include <stdio.h>
@@ -47,15 +48,44 @@ static void print_usage(const char *argv0) {
     kprintf("  -i, --interactive      Interactive chat mode\n");
     kprintf("  --serve                Start HyperTensor HTTP API server\n");
     kprintf("  --port <num>           API server port (default: 8080)\n");
+    kprintf("  --download <repo>      Download model from HuggingFace\n");
+    kprintf("  --quant <type>         Quantization hint for download (default: q4_0)\n");
+    kprintf("  -v, --verbose          Enable debug logging\n");
+    kprintf("  --log-level <n>        Log level: 0=error 1=warn 2=info 3=debug 4=trace\n");
+    kprintf("  --no-think             Disable thinking (strip <|think|> blocks)\n");
+    kprintf("  --force-think          Force thinking on all prompts\n");
+    kprintf("  --show-think           Show thinking tokens in output\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
     kprintf("  %s llama3.gguf -i\n", argv0);
 }
 
+static void enable_max_performance_host(void) {
+#ifdef _WIN32
+    /* Prefer compute latency over background fairness for local inference. */
+    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+
+    /* Disable Windows execution-speed throttling when the API is available. */
+#if defined(PROCESS_POWER_THROTTLING_EXECUTION_SPEED)
+    {
+        PROCESS_POWER_THROTTLING_STATE pts;
+        pts.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+        pts.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+        pts.StateMask = 0;
+        SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling,
+                              &pts, sizeof(pts));
+    }
+#endif
+#endif
+}
+
 typedef struct {
     const char *model_path;
     const char *prompt;
+    const char *download_repo;
+    const char *quant_hint;
     int         max_tokens;
     int         n_threads;
     float       temperature;
@@ -64,11 +94,17 @@ typedef struct {
     int         interactive;
     int         serve;
     int         port;
+    int         verbose;
+    int         log_level;
+    int         no_think;
+    int         show_think;
 } ht_args_t;
 
 static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->model_path  = NULL;
     args->prompt      = NULL;
+    args->download_repo = NULL;
+    args->quant_hint  = "q4_0";
     args->max_tokens  = 128;
     args->n_threads   = 0;  /* 0 = auto */
     args->temperature = 0.7f;
@@ -77,6 +113,10 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
     args->interactive = 0;
     args->serve       = 0;
     args->port        = 8080;
+    args->verbose     = 0;
+    args->log_level   = -1;  /* unset = use default */
+    args->no_think    = 0;
+    args->show_think  = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -106,6 +146,23 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
         } else if (strcmp(argv[i], "--port") == 0) {
             if (++i >= argc) { kprintf("Error: --port requires argument\n"); return -1; }
             args->port = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--download") == 0) {
+            if (++i >= argc) { kprintf("Error: --download requires repo ID\n"); return -1; }
+            args->download_repo = argv[i];
+        } else if (strcmp(argv[i], "--quant") == 0) {
+            if (++i >= argc) { kprintf("Error: --quant requires type\n"); return -1; }
+            args->quant_hint = argv[i];
+        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            args->verbose = 1;
+        } else if (strcmp(argv[i], "--log-level") == 0) {
+            if (++i >= argc) { kprintf("Error: --log-level requires number\n"); return -1; }
+            args->log_level = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--no-think") == 0) {
+            args->no_think = 1;
+        } else if (strcmp(argv[i], "--force-think") == 0) {
+            args->no_think = -1;  /* sentinel for force-think */
+        } else if (strcmp(argv[i], "--show-think") == 0) {
+            args->show_think = 1;
         } else if (argv[i][0] != '-' && !args->model_path) {
             args->model_path = argv[i];
         } else {
@@ -114,7 +171,7 @@ static int parse_args(int argc, char **argv, ht_args_t *args) {
         }
     }
 
-    if (!args->model_path) {
+    if (!args->model_path && !args->download_repo) {
         kprintf("Error: no model file specified\n\n");
         return -1;
     }
@@ -215,11 +272,12 @@ static void interactive_loop(const char *model_path, ht_args_t *args) {
             if (strcmp(line, "/stats") == 0) {
                 int ctx    = llm_chat_context_tokens();
                 int ctxmax = llm_chat_context_max();
+                int think  = llm_thinking_tokens();
                 printf(HT_DIM "  [Context: %d / %d tokens (%.1f%%)  |  "
-                       "temp=%.2f  max_tok=%d]\n\n" HT_RESET,
+                       "temp=%.2f  max_tok=%d  think_last=%d]\n\n" HT_RESET,
                        ctx, ctxmax,
                        ctxmax > 0 ? 100.0f * ctx / ctxmax : 0.0f,
-                       temperature, max_tokens);
+                       temperature, max_tokens, think);
                 continue;
             }
             if (strncmp(line, "/temp ", 6) == 0) {
@@ -253,11 +311,11 @@ static void interactive_loop(const char *model_path, ht_args_t *args) {
 
         if (n > 0) {
             uint64_t total_ms   = (t1 - t0) / 1000;
-            float    ms_per_tok = n > 0 ? (float)total_ms / (float)n : 0.0f;
+            float    tok_per_s  = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
             int ctx    = llm_chat_context_tokens();
             int ctxmax = llm_chat_context_max();
-            printf(HT_DIM "  [%d tok  %.1f ms/tok  %llu ms  ctx %d/%d]\n\n" HT_RESET,
-                   n, ms_per_tok, (unsigned long long)total_ms, ctx, ctxmax);
+            printf(HT_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d]\n\n" HT_RESET,
+                   n, tok_per_s, (unsigned long long)total_ms, ctx, ctxmax);
         } else {
             printf(HT_RED "  [error generating response (code %d)]\n\n" HT_RESET, n);
         }
@@ -279,6 +337,50 @@ int main(int argc, char **argv) {
 
     /* Initialize HAL (CPU detection, thread pool) */
     hal_init();
+    enable_max_performance_host();
+
+    /* Configure logging level */
+    if (args.log_level >= 0) {
+        klog_set_level((log_level_t)args.log_level);
+    } else if (args.verbose) {
+        klog_set_level(LOG_DEBUG);
+    }
+
+    /* Configure thinking mode */
+    if (args.no_think == 1) llm_set_thinking(0);
+    else if (args.no_think == -1) llm_set_thinking(2);  /* force-think */
+    if (args.show_think) llm_set_show_thinking(1);
+
+    /* Handle --download: download model from HuggingFace */
+    if (args.download_repo) {
+        static hf_download_ctx_t dl_ctx;
+        hf_download_init(&dl_ctx);
+        hf_download_set_progress(&dl_ctx, (void *)0, (void *)0);
+
+        int rc_dl = hf_download_auto(&dl_ctx, args.download_repo,
+                                      args.quant_hint, "models");
+        if (rc_dl < 0) {
+            kprintf("[HT] ERROR: Download failed: %s\n", hf_download_error(&dl_ctx));
+            hf_download_free(&dl_ctx);
+            hal_shutdown();
+            return 1;
+        }
+
+        /* If no model_path was given, use the downloaded file */
+        if (!args.model_path) {
+            static char dl_path[256];
+            snprintf(dl_path, sizeof(dl_path), "%s", dl_ctx.output_path);
+            args.model_path = dl_path;
+            kprintf("[HT] Using downloaded model: %s\n", args.model_path);
+        }
+        hf_download_free(&dl_ctx);
+    }
+
+    if (!args.model_path) {
+        kprintf("[HT] ERROR: No model path available.\n");
+        hal_shutdown();
+        return 1;
+    }
 
     /* Memory-map the model file */
     kprintf("[HT] Loading model: %s\n", args.model_path);
@@ -317,9 +419,21 @@ int main(int argc, char **argv) {
         kprintf("[HT] Generating %d tokens...\n\n", args.max_tokens);
 
         static char output[65536];
+        uint64_t gen_t0 = hal_timer_us();
         int n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+        uint64_t gen_t1 = hal_timer_us();
         if (n > 0) {
             kprintf("%s\n", output);
+            uint64_t total_ms = (gen_t1 - gen_t0) / 1000;
+            float tok_per_s = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
+            float decode_tok_s = llm_last_tok_per_sec();
+            float prefill_ms = llm_last_prefill_ms();
+            kprintf("\n[HT] %d tokens in %llu ms (%.1f tok/s)\n",
+                    n, (unsigned long long)total_ms, tok_per_s);
+            if (decode_tok_s > 0.0f) {
+                kprintf("[HT] Decode-only: prefill %.1f ms, %.1f tok/s\n",
+                        prefill_ms, decode_tok_s);
+            }
         } else {
             kprintf("[error generating response]\n");
         }

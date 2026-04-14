@@ -1,0 +1,52 @@
+/*
+ * HyperTensor MLIR-Inspired IR Optimizer — Header
+ *
+ * Provides a lightweight intermediate representation that captures
+ * tensor computation graphs and optimizes them with fusion, DCE,
+ * and buffer planning before lowering to the CPU/CUDA backend.
+ */
+
+#ifndef HYPERTENSOR_MLIR_OPS_H
+#define HYPERTENSOR_MLIR_OPS_H
+
+#include <stdint.h>
+#include "runtime/nn/gguf.h"
+
+/* ── Graph Management ─────────────────────────────────────────────────── */
+
+/* Reset the IR graph (call before building a new subgraph). */
+void mlir_graph_reset(void);
+
+/* ── Emit Operations (build the computation graph) ────────────────────── */
+
+int mlir_emit_gemv(float *out, const void *weight, const float *x,
+                   int out_dim, int in_dim, ggml_type_t wtype);
+
+int mlir_emit_rmsnorm(float *out, const float *x, const float *w,
+                      int dim, float eps);
+
+int mlir_emit_silu(float *x, int n_elem);
+
+int mlir_emit_mul(float *out, const float *a, const float *b, int n_elem);
+
+int mlir_emit_add(float *out, const float *a, const float *b, int n_elem);
+
+int mlir_emit_softmax(float *x, int n_elem);
+
+int mlir_emit_attention(float *out, const float *Q, const float *K,
+                        const float *V, int nh, int nkv, int hd,
+                        int sl, float scale, float cap);
+
+int mlir_emit_softcap(float *x, int n_elem, float cap);
+
+/* ── Optimization + Execution ─────────────────────────────────────────── */
+
+/* Run all optimization passes (fusion, DCE, buffer planning, legalization)
+ * then execute the surviving nodes via the active backend.
+ * Returns 0 on success. */
+int mlir_optimize_and_execute(void);
+
+/* Get optimization statistics from the last run. Any param may be NULL. */
+void mlir_get_stats(int *fusions, int *eliminated, int *buf_reused);
+
+#endif /* HYPERTENSOR_MLIR_OPS_H */

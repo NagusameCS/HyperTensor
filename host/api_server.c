@@ -9,6 +9,8 @@
 #include "api_server.h"
 #include "hal.h"
 #include "../runtime/nn/llm.h"
+#include "web_ui.h"
+#include "mcp_server.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -151,7 +153,7 @@ static void send_response(socket_t sock, int status, const char *content_type,
         "Content-Type: %s\r\n"
         "Content-Length: %d\r\n"
         "Access-Control-Allow-Origin: *\r\n"
-        "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+        "Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n"
         "Access-Control-Allow-Headers: Content-Type\r\n"
         "Connection: close\r\n"
         "\r\n",
@@ -226,7 +228,11 @@ static int parse_request(socket_t sock, http_request_t *req) {
 /* ─── API Handlers ─── */
 
 static void handle_version(socket_t sock) {
-    send_json(sock, 200, "{\"name\":\"HyperTensor\",\"version\":\"0.5.0\",\"backend\":\"cuda\"}");
+    char resp[256];
+    snprintf(resp, sizeof(resp),
+             "{\"name\":\"HyperTensor\",\"version\":\"0.5.0\",\"backend\":\"%s\"}",
+             llm_backend_name());
+    send_json(sock, 200, resp);
 }
 
 static void handle_health(socket_t sock) {
@@ -234,17 +240,30 @@ static void handle_health(socket_t sock) {
 }
 
 static void handle_tags(socket_t sock) {
-    char resp[1024];
+    char resp[2048];
     int p = 0;
-    p = json_append(resp, p, sizeof(resp), "{\"models\":[{");
-    p = json_append_str(resp, p, sizeof(resp), "name", llm_model_name());
-    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append(resp, p, sizeof(resp), "{");
     p = json_append_str(resp, p, sizeof(resp), "model", llm_model_name());
     p = json_append(resp, p, sizeof(resp), ",");
-    p = json_append_str(resp, p, sizeof(resp), "modified_at", "2025-01-01T00:00:00Z");
+    p = json_append_str(resp, p, sizeof(resp), "arch", llm_model_arch());
     p = json_append(resp, p, sizeof(resp), ",");
-    p = json_append_int(resp, p, sizeof(resp), "size", 0);
-    p = json_append(resp, p, sizeof(resp), "}]}");
+    p = json_append_int(resp, p, sizeof(resp), "layers", llm_model_layers());
+    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append_int(resp, p, sizeof(resp), "dim", llm_model_dim());
+    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append_int(resp, p, sizeof(resp), "vocab", llm_model_vocab());
+    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append_str(resp, p, sizeof(resp), "backend", llm_backend_name());
+    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append_int(resp, p, sizeof(resp), "context_tokens", llm_chat_context_tokens());
+    p = json_append(resp, p, sizeof(resp), ",");
+    p = json_append_int(resp, p, sizeof(resp), "context_max", llm_chat_context_max());
+    int vram = llm_last_vram_usage_mb();
+    if (vram > 0) {
+        p = json_append(resp, p, sizeof(resp), ",");
+        p = json_append_int(resp, p, sizeof(resp), "vram_mb", vram);
+    }
+    p = json_append(resp, p, sizeof(resp), "}");
     resp[p] = '\0';
     send_json(sock, 200, resp);
 }
@@ -295,41 +314,39 @@ static void handle_chat(socket_t sock, http_request_t *req) {
         return;
     }
 
-    /* Extract the last user message from the messages array.
-     * Simple approach: find the last "content" value after the last "user" role. */
     char content[8192];
     content[0] = '\0';
 
-    /* Find the last occurrence of "role":"user" */
-    const char *last_user = (const char *)0;
-    const char *p = req->body;
-    while ((p = strstr(p, "\"user\"")) != (const char *)0) {
-        last_user = p;
-        p += 6;
-    }
-
-    if (last_user) {
-        /* Find "content" after this user role */
-        const char *c = strstr(last_user, "\"content\"");
-        if (c) {
-            /* Extract the content value */
-            c += 9;
-            while (*c == ' ' || *c == ':') c++;
-            if (*c == '"') {
-                c++;
-                int i = 0;
-                while (*c && *c != '"' && i < (int)sizeof(content) - 1) {
-                    if (*c == '\\' && *(c+1)) {
-                        c++;
-                        if (*c == 'n') content[i++] = '\n';
-                        else if (*c == 't') content[i++] = '\t';
-                        else content[i++] = *c;
-                    } else {
-                        content[i++] = *c;
-                    }
+    /* Try simple format first: {"prompt": "..."} */
+    if (json_find_str(req->body, "prompt", content, sizeof(content)) < 0) {
+        /* Try messages array format: find the last "role":"user" */
+        const char *last_user = (const char *)0;
+        const char *p = req->body;
+        while ((p = strstr(p, "\"user\"")) != (const char *)0) {
+            last_user = p;
+            p += 6;
+        }
+        if (last_user) {
+            const char *c = strstr(last_user, "\"content\"");
+            if (c) {
+                c += 9;
+                while (*c == ' ' || *c == ':') c++;
+                if (*c == '"') {
                     c++;
+                    int i = 0;
+                    while (*c && *c != '"' && i < (int)sizeof(content) - 1) {
+                        if (*c == '\\' && *(c+1)) {
+                            c++;
+                            if (*c == 'n') content[i++] = '\n';
+                            else if (*c == 't') content[i++] = '\t';
+                            else content[i++] = *c;
+                        } else {
+                            content[i++] = *c;
+                        }
+                        c++;
+                    }
+                    content[i] = '\0';
                 }
-                content[i] = '\0';
             }
         }
     }
@@ -339,27 +356,73 @@ static void handle_chat(socket_t sock, http_request_t *req) {
         return;
     }
 
-    int max_tokens = json_find_int(req->body, "num_predict", 128);
+    int max_tokens = json_find_int(req->body, "max_tokens",
+                    json_find_int(req->body, "num_predict", 128));
     if (max_tokens > 4096) max_tokens = 4096;
+    float temp = json_find_float(req->body, "temperature", 0.7f);
 
     /* Use chat turn for multi-turn context */
     static char output[131072];
     output[0] = '\0';
-    int n = llm_chat_turn(content, output, (int)sizeof(output), max_tokens, 0.7f);
 
-    /* Build chat response */
+#ifdef _WIN32
+    LARGE_INTEGER freq, t0, t1;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&t0);
+#endif
+
+    int n = llm_chat_turn(content, output, (int)sizeof(output), max_tokens, temp);
+
+#ifdef _WIN32
+    QueryPerformanceCounter(&t1);
+    double elapsed_ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)freq.QuadPart;
+    float tps = elapsed_ms > 0 ? (float)n * 1000.0f / (float)elapsed_ms : 0;
+#else
+    double elapsed_ms = 0;
+    float tps = 0;
+#endif
+
+    /* Build response JSON — compatible with both our UI and Ollama format */
     char resp[MAX_RESP_SIZE];
     int rp = 0;
     rp = json_append(resp, rp, sizeof(resp), "{");
     rp = json_append_str(resp, rp, sizeof(resp), "model", llm_model_name());
+    rp = json_append(resp, rp, sizeof(resp), ",");
+    rp = json_append_str(resp, rp, sizeof(resp), "response", output);
     rp = json_append(resp, rp, sizeof(resp), ",\"message\":{");
     rp = json_append_str(resp, rp, sizeof(resp), "role", "assistant");
     rp = json_append(resp, rp, sizeof(resp), ",");
     rp = json_append_str(resp, rp, sizeof(resp), "content", output);
     rp = json_append(resp, rp, sizeof(resp), "},");
-    rp = json_append_bool(resp, rp, sizeof(resp), "done", 1);
+    rp = json_append_int(resp, rp, sizeof(resp), "tokens", n > 0 ? n : 0);
     rp = json_append(resp, rp, sizeof(resp), ",");
-    rp = json_append_int(resp, rp, sizeof(resp), "eval_count", n > 0 ? n : 0);
+    rp = json_append_bool(resp, rp, sizeof(resp), "done", 1);
+
+    /* Performance metrics */
+    char num_buf[64];
+    snprintf(num_buf, sizeof(num_buf), ",\"tokens_per_sec\":%.1f", tps);
+    rp = json_append(resp, rp, sizeof(resp), num_buf);
+    snprintf(num_buf, sizeof(num_buf), ",\"elapsed_ms\":%.0f", elapsed_ms);
+    rp = json_append(resp, rp, sizeof(resp), num_buf);
+    rp = json_append(resp, rp, sizeof(resp), ",");
+    rp = json_append_int(resp, rp, sizeof(resp), "context_tokens", llm_chat_context_tokens());
+    rp = json_append(resp, rp, sizeof(resp), ",");
+    rp = json_append_int(resp, rp, sizeof(resp), "thinking_tokens", llm_thinking_tokens());
+
+    /* Engine-side prefill + VRAM stats */
+    {
+        char mbuf[64];
+        float pf = llm_last_prefill_ms();
+        if (pf > 0) {
+            snprintf(mbuf, sizeof(mbuf), ",\"prefill_ms\":%.0f", pf);
+            rp = json_append(resp, rp, sizeof(resp), mbuf);
+        }
+        int vram = llm_last_vram_usage_mb();
+        if (vram > 0) {
+            rp = json_append(resp, rp, sizeof(resp), ",");
+            rp = json_append_int(resp, rp, sizeof(resp), "vram_mb", vram);
+        }
+    }
     rp = json_append(resp, rp, sizeof(resp), "}");
     resp[rp] = '\0';
 
@@ -383,7 +446,10 @@ static void handle_request(socket_t client) {
     }
 
     /* Route — HyperTensor native API */
-    if (strcmp(req.path, "/") == 0 || strcmp(req.path, "/health") == 0) {
+    if (strcmp(req.path, "/") == 0 || strcmp(req.path, "/ui") == 0) {
+        /* Serve the web chat UI */
+        send_response(client, 200, "text/html", WEB_UI_HTML, WEB_UI_HTML_LEN);
+    } else if (strcmp(req.path, "/health") == 0) {
         handle_health(client);
     } else if (strcmp(req.path, "/v1/version") == 0) {
         handle_version(client);
@@ -396,11 +462,16 @@ static void handle_request(socket_t client) {
             handle_generate(client, &req);
         }
     } else if (strcmp(req.path, "/v1/chat") == 0) {
-        if (strcmp(req.method, "POST") != 0) {
-            send_json(client, 405, "{\"error\":\"POST required\"}");
+        if (strcmp(req.method, "DELETE") == 0) {
+            llm_reset_cache();
+            send_json(client, 200, "{\"status\":\"chat reset\"}");
+        } else if (strcmp(req.method, "POST") != 0) {
+            send_json(client, 405, "{\"error\":\"POST or DELETE required\"}");
         } else {
             handle_chat(client, &req);
         }
+    } else if (strcmp(req.path, "/mcp") == 0) {
+        mcp_handle_request(client, req.method, req.body, req.body_len);
     } else {
         send_json(client, 404, "{\"error\":\"not found\"}");
     }
@@ -445,7 +516,7 @@ int ht_api_serve(int port) {
     }
 
     kprintf("[API] HyperTensor serving on http://0.0.0.0:%d\n", port);
-    kprintf("[API] Endpoints: /v1/generate, /v1/chat, /v1/models, /v1/version\n");
+    kprintf("[API] Endpoints: /v1/generate, /v1/chat, /v1/models, /v1/version, /mcp\n");
     kprintf("[API] Ready for inference\n\n");
 
     g_running = 1;

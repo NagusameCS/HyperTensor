@@ -279,7 +279,7 @@ static void cpu_scale(float *out, const float *x, float s, int n) {
 static void cpu_attention(float *out, const float *Q,
                           const float *K_cache, const float *V_cache,
                           int n_heads, int n_kv_heads, int head_dim,
-                          int seq_len, float scale, float softcap) {
+                          int seq_len, int max_seq, float scale, float softcap) {
     int kv_group = n_heads / n_kv_heads;
     /* Allocate scratch for attention scores */
     float *scores = (float *)cpu_alloc(seq_len * sizeof(float));
@@ -291,7 +291,7 @@ static void cpu_attention(float *out, const float *Q,
 
         /* Compute attention scores: Q·K^T / sqrt(d) */
         for (int t = 0; t < seq_len; t++) {
-            const float *kh = K_cache + (kv_h * seq_len + t) * head_dim;
+            const float *kh = K_cache + (kv_h * max_seq + t) * head_dim;
             float s = 0.0f;
             for (int d = 0; d < head_dim; d++) s += qh[d] * kh[d];
             s *= scale;
@@ -307,7 +307,7 @@ static void cpu_attention(float *out, const float *Q,
         for (int d = 0; d < head_dim; d++) {
             float v = 0.0f;
             for (int t = 0; t < seq_len; t++)
-                v += scores[t] * V_cache[(kv_h * seq_len + t) * head_dim + d];
+                v += scores[t] * V_cache[(kv_h * max_seq + t) * head_dim + d];
             oh[d] = v;
         }
     }
