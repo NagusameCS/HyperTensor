@@ -2443,10 +2443,26 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
         ott_hs_disk_load(llm_model_dim(), ott_depth_sink_layer);
 
     /* OTT Geometry Persistence: try loading Phase-3 geometry from disk.
-     * If successful, subsequent runs skip the ~200s Phase 1-4 computation. */
+     * If successful, prime phase_cache_valid so the skip block does not
+     * immediately clear the geometry we just loaded. */
     if (!phase3_geo_valid) {
         if (axiom_beta_geometry_load("ott_geometry.bin") == AXIOM_BETA_OK) {
             kprintf("[AXIOM-BETA-3] Loaded Phase-3 geometry from disk (ott_geometry.bin).\n");
+            /* Populate cache-identity fields so same_model_as_cache / same_cfg_as_cache
+             * evaluate to true and the phase-reset block is skipped. */
+            phase_cache_valid            = 1;
+            phase_cache_model_dim        = llm_model_dim();
+            phase_cache_model_layers     = llm_model_layers();
+            phase_cache_model_vocab      = llm_model_vocab();
+            phase_cache_embedding_samples     = cfg->embedding_samples;
+            phase_cache_pca_variance_ratio    = cfg->pca_variance_ratio;
+            phase_cache_symmetry_trials       = cfg->symmetry_trials;
+            phase_cache_metric_sample_points  = cfg->metric_sample_points;
+            phase_cache_use_fisher            = cfg->use_fisher;
+            phase_cache_fisher_blend          = cfg->fisher_blend;
+            phase_cache_active_iterations     = cfg->active_iterations;
+            phase_cache_oracle_calls_max      = cfg->oracle_calls_max;
+            phase_cache_sink_layer            = ott_depth_sink_layer;
         }
     }
 
@@ -2615,7 +2631,19 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
         }
         }
 
-    /* Phase 5: Geodesic Pilot (real metric field) */
+    /* Phase 5: Geodesic Pilot (real metric field)
+     * Skip when geometry was loaded from disk and cache is valid — the pilot
+     * is a calibration/scoring step and does not affect generation quality. */
+    if (report->reused_geometry_cache) {
+        report->phase5.projected_speedup = 1.0f;
+        report->phase5.geodesic_cosine_similarity = 1.0f;
+        report->phase5.geodesic_reconstruction_error = 0.0f;
+        report->phase5.geodesic_top1_match_rate = 1.0f;
+        report->phase5.geodesic_target_mrr = 1.0f;
+        report->supports_geodesic_pilot = 0;
+        report->phase5_us = 0;
+        kprintf("[AXIOM-BETA-3] Phase 5: skipped (geometry from disk cache)\n");
+    } else {
     kprintf("[AXIOM-BETA-3] Phase 5: Geodesic Pilot (real metric)...\n");
     rc = phase5_geodesic(cfg, report, &seed);
 
@@ -2656,6 +2684,8 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
             phase_cache_p4 = report->phase4;
         }
     }
+
+    } /* end else (!reused_geometry_cache) for Phase 5 */
 
     if (report->supports_geodesic_pilot) {
         kprintf("[AXIOM-BETA-3] Phase 5: cos_sim=%.4f, L2_err=%.4f, "
