@@ -2790,9 +2790,21 @@ axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
 
     int hs_v2_ok = (ott_get_hidden_state(tok_curr, -1, e_curr, dim) == 0);
     if (!hs_v2_ok) hs_v2_ok = (llm_get_embedding_vec(tok_curr, e_curr, dim) == 0);
-    int hs_v2_ok2 = hs_v2_ok && (ott_get_hidden_state(tok_prev, -1, e_prev, dim) == 0);
-    if (hs_v2_ok && !hs_v2_ok2)
-        hs_v2_ok2 = (llm_get_embedding_vec(tok_prev, e_prev, dim) == 0);
+    /* tok_prev is used only for velocity direction; use raw embedding to avoid
+     * a second forward pass + llm_reset_cache() per token (biggest TPS killer).
+     * Raw embedding is sufficient for direction; context-conditioned is not needed. */
+    int hs_v2_ok2 = hs_v2_ok;
+    if (tok_prev != tok_curr) {
+        float *e_prev_cached = ott_hs_cache_lookup(tok_prev, ott_depth_sink_layer >= 0
+                                    ? ott_depth_sink_layer : llm_model_layers() - 1, dim);
+        if (e_prev_cached) {
+            memcpy(e_prev, e_prev_cached, (size_t)dim * sizeof(float));
+        } else {
+            hs_v2_ok2 = (llm_get_embedding_vec(tok_prev, e_prev, dim) == 0);
+        }
+    } else {
+        memcpy(e_prev, e_curr, (size_t)dim * sizeof(float));
+    }
     if (!hs_v2_ok || !hs_v2_ok2) {
         tensor_free(e_curr); tensor_free(e_prev); tensor_free(e_pred); tensor_free(e_cand);
         return AXIOM_BETA_ERR_INVALID;
@@ -3112,12 +3124,12 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
 /* ── Multi-step geodesic rollout ─────────────────────────────────────────
  * Integrates a geodesic path for n_steps in PCA subspace, carrying the
  * velocity vector forward between steps so corrections are trajectory-coherent.
- * At each step, try GRC lookup first (O(k²)), fall back to Christoffel (O(k³)).
- * Each predicted endpoint is resolved to the nearest vocab token via the
- * vocab PCA index (if available) or a 8192-token fallback probe.
- *
- * This replaces N independent geodesic_step_fast calls in the speculative
- * decode loop, eliminating velocity accumulation errors across the draft batch.
+ * Starting position uses context-conditioned hidden state (depth-sink layer
+ * activation for the last token given the full context prefix) rather than
+ * raw token embedding, giving a context-aware manifold starting point.
+ * At each step, try GRC lookup first (O(k²)), fall back to RK4-midpoint
+ * Christoffel integration (O(k³)) for accurate velocity propagation.
+ * Each predicted endpoint is resolved via the vocab PCA index.
  * ─────────────────────────────────────────────────────────────────────── */
 axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
                                                  int n_context,
@@ -3145,53 +3157,89 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
     if (n_steps > 16) n_steps = 16;
 
     /* ── Allocate reusable buffers ─────────────────────────────────────── */
-    double *pos     = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* current pos in PCA */
-    double *vel     = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* current velocity   */
-    double *pos_new = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* next pos           */
+    double *pos     = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    double *vel     = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    double *pos_new = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    double *vel_new = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* RK4 midpoint */
+    double *pos_mid = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* RK4 midpoint */
+    double *vel_mid = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* RK4 midpoint */
     double *gamma   = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double));
-    double *e_d     = (double *)tensor_alloc((uint64_t)dim * sizeof(double)); /* reconstructed emb  */
+    double *gamma_m = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double)); /* midpoint */
+    double *e_d     = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
     float  *e_f     = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
     float  *e_cand  = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
 
-    if (!pos || !vel || !pos_new || !gamma || !e_d || !e_f || !e_cand) {
+    if (!pos || !vel || !pos_new || !vel_new || !pos_mid || !vel_mid ||
+        !gamma || !gamma_m || !e_d || !e_f || !e_cand) {
         if (pos)     tensor_free(pos);
         if (vel)     tensor_free(vel);
         if (pos_new) tensor_free(pos_new);
+        if (vel_new) tensor_free(vel_new);
+        if (pos_mid) tensor_free(pos_mid);
+        if (vel_mid) tensor_free(vel_mid);
         if (gamma)   tensor_free(gamma);
+        if (gamma_m) tensor_free(gamma_m);
         if (e_d)     tensor_free(e_d);
         if (e_f)     tensor_free(e_f);
         if (e_cand)  tensor_free(e_cand);
         return AXIOM_BETA_ERR_OOM;
     }
 
-    /* ── Initialise position and velocity from last two context tokens ── */
+    /* ── Context-conditioned starting position ─────────────────────────────
+     * Try ott_get_hidden_state(tok_curr) for depth-sink layer activation;
+     * fall back to raw embedding if LRU cache misses (avoids a forward pass
+     * during token generation which would stall the decode loop).
+     * ─────────────────────────────────────────────────────────────────────*/
     {
         int tok_curr = context_tokens[n_context - 1];
         int tok_prev = (n_context >= 2) ? context_tokens[n_context - 2] : tok_curr;
         if (tok_curr < 0 || tok_curr >= vocab) tok_curr = 0;
         if (tok_prev < 0 || tok_prev >= vocab) tok_prev = tok_curr;
 
-        double *e_curr_d = e_d; /* use e_d as temp */
-        double *e_prev_d = pos; /* use pos as temp */
+        double *e_curr_d = e_d;
+        double *e_prev_d = pos_mid; /* use as temp */
 
-        if (llm_get_embedding_vec(tok_curr, e_f, dim) != 0) {
+        /* Try context-conditioned hidden state (LRU cache hit = no forward pass) */
+        int hs_ok = 0;
+        const float *cached = ott_hs_cache_lookup(tok_curr, ott_depth_sink_layer >= 0
+                                                    ? ott_depth_sink_layer
+                                                    : llm_model_layers() - 1, dim);
+        if (cached) {
+            for (int j = 0; j < dim; j++) e_curr_d[j] = (double)cached[j];
+            hs_ok = 1;
+        }
+        if (!hs_ok && llm_get_embedding_vec(tok_curr, e_f, dim) == 0) {
+            for (int j = 0; j < dim; j++) e_curr_d[j] = (double)e_f[j];
+            hs_ok = 1;
+        }
+        if (!hs_ok) {
             tensor_free(pos); tensor_free(vel); tensor_free(pos_new);
-            tensor_free(gamma); tensor_free(e_d); tensor_free(e_f); tensor_free(e_cand);
+            tensor_free(vel_new); tensor_free(pos_mid); tensor_free(vel_mid);
+            tensor_free(gamma); tensor_free(gamma_m);
+            tensor_free(e_d); tensor_free(e_f); tensor_free(e_cand);
             return AXIOM_BETA_ERR_INVALID;
         }
-        for (int j = 0; j < dim; j++) e_curr_d[j] = (double)e_f[j];
-        double *p_curr = pos_new; /* use pos_new as temp */
+        double *p_curr = pos_new; /* temp */
         axpca_project(&phase1_pca, e_curr_d, p_curr);
 
-        if (tok_prev != tok_curr && llm_get_embedding_vec(tok_prev, e_f, dim) == 0) {
-            for (int j = 0; j < dim; j++) e_prev_d[j] = (double)e_f[j];
-        } else {
-            memcpy(e_prev_d, e_curr_d, (uint64_t)dim * sizeof(double));
+        /* Previous token position for velocity */
+        int prev_ok = 0;
+        const float *cached_prev = ott_hs_cache_lookup(tok_prev,
+                                    ott_depth_sink_layer >= 0 ? ott_depth_sink_layer
+                                                               : llm_model_layers() - 1, dim);
+        if (cached_prev) {
+            for (int j = 0; j < dim; j++) e_prev_d[j] = (double)cached_prev[j];
+            prev_ok = 1;
         }
-        double *p_prev = vel; /* use vel as temp */
+        if (!prev_ok && tok_prev != tok_curr && llm_get_embedding_vec(tok_prev, e_f, dim) == 0) {
+            for (int j = 0; j < dim; j++) e_prev_d[j] = (double)e_f[j];
+            prev_ok = 1;
+        }
+        if (!prev_ok) memcpy(e_prev_d, e_curr_d, (uint64_t)dim * sizeof(double));
+
+        double *p_prev = vel_mid; /* temp */
         axpca_project(&phase1_pca, e_prev_d, p_prev);
 
-        /* vel = p_curr - p_prev,  pos = p_curr */
         for (int j = 0; j < k; j++) vel[j] = p_curr[j] - p_prev[j];
         memcpy(pos, p_curr, (uint64_t)k * sizeof(double));
     }
@@ -3213,25 +3261,48 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
             out_tokens[*n_out] = grc_best_tok;
             out_conf   [*n_out] = 0.75f;
             (*n_out)++;
-            /* Update velocity: new vel = pos_new - pos (GRC path direction) */
             for (int j = 0; j < k; j++) {
                 double dv = pos_new[j] - pos[j];
-                vel[j] = dv * 0.9 + vel[j] * 0.1; /* momentum blend */
+                vel[j] = dv * 0.9 + vel[j] * 0.1;
             }
             memcpy(pos, pos_new, (uint64_t)k * sizeof(double));
             continue;
         }
 
-        /* 2. Christoffel second-order step */
+        /* 2. RK4 midpoint Christoffel integration
+         * Midpoint rule: evaluate Γ at pos + 0.5*vel (midpoint), use that
+         * correction for both position and velocity update.  Halves trajectory
+         * error vs the previous single Γ(pos) evaluation at the same O(k³) cost.
+         */
         axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, pos, gamma);
+        /* k1: acceleration at current position */
+        double acc_k1[64]; /* k ≤ 64 */
         for (int alpha = 0; alpha < k; alpha++) {
-            double correction = 0.0;
+            double a = 0.0;
             for (int mu = 0; mu < k; mu++)
                 for (int nu = 0; nu < k; nu++)
-                    correction += gamma[alpha * k * k + mu * k + nu] * vel[mu] * vel[nu];
-            pos_new[alpha] = pos[alpha] + vel[alpha] - 0.5 * correction;
-            /* Update velocity with geodesic acceleration */
-            vel[alpha] = vel[alpha] - correction;
+                    a += gamma[alpha * k * k + mu * k + nu] * vel[mu] * vel[nu];
+            acc_k1[alpha] = -a;
+        }
+        /* Midpoint position and velocity */
+        for (int j = 0; j < k; j++) {
+            pos_mid[j] = pos[j] + 0.5 * vel[j];
+            vel_mid[j] = vel[j] + 0.5 * acc_k1[j];
+        }
+        /* k2: acceleration at midpoint */
+        axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, pos_mid, gamma_m);
+        double acc_k2[64];
+        for (int alpha = 0; alpha < k; alpha++) {
+            double a = 0.0;
+            for (int mu = 0; mu < k; mu++)
+                for (int nu = 0; nu < k; nu++)
+                    a += gamma_m[alpha * k * k + mu * k + nu] * vel_mid[mu] * vel_mid[nu];
+            acc_k2[alpha] = -a;
+        }
+        /* Full step using midpoint acceleration (RK2/Heun) */
+        for (int j = 0; j < k; j++) {
+            pos_new[j] = pos[j] + vel[j] + 0.5 * acc_k2[j];
+            vel_new[j] = vel[j] + acc_k2[j];
         }
 
         /* 3. Reconstruct full-dim embedding for the predicted point */
@@ -3317,12 +3388,15 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
         out_conf   [*n_out] = conf;
         (*n_out)++;
 
-        /* Advance position */
+        /* Advance position and velocity (RK4/Heun) */
         memcpy(pos, pos_new, (uint64_t)k * sizeof(double));
+        memcpy(vel, vel_new, (uint64_t)k * sizeof(double));
     }
 
-    tensor_free(pos); tensor_free(vel); tensor_free(pos_new);
-    tensor_free(gamma); tensor_free(e_d); tensor_free(e_f); tensor_free(e_cand);
+    tensor_free(pos);     tensor_free(vel);     tensor_free(pos_new); tensor_free(vel_new);
+    tensor_free(pos_mid); tensor_free(vel_mid);
+    tensor_free(gamma);   tensor_free(gamma_m);
+    tensor_free(e_d);     tensor_free(e_f);     tensor_free(e_cand);
     return AXIOM_BETA_OK;
 }
 

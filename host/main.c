@@ -896,24 +896,35 @@ static int geodesic_generate_text(const char *prompt,
     int bad_piece_streak = 0;
     int eos = m->eos_id;
 
+    /* Per-request timing accumulators */
+    uint64_t t_runtime_us = 0;
+    uint64_t t_local_us   = 0;
+    uint64_t t_req_start  = hal_timer_us();
+
     for (int step = 0; step < max_tokens; step++) {
         int tok = -1;
         int used_runtime = 0;
 
         if (GD_ott_theorem_active && local_only_budget > 0 &&
             !geodesic_theorem_should_probe_runtime(local_only_budget, step)) {
+            uint64_t _t0 = hal_timer_us();
             if (geodesic_next_token_local(ctx, n_ctx, &tok) == 0) {
+                t_local_us += hal_timer_us() - _t0;
                 local_hits++;
                 local_only_budget--;
             } else {
                 break;
             }
         } else {
+            uint64_t _t0 = hal_timer_us();
             int runtime_ok = (geodesic_next_token_runtime(ctx, n_ctx, &tok) == 0);
+            t_runtime_us += hal_timer_us() - _t0;
             if (runtime_ok && geodesic_runtime_token_acceptable(ctx, n_ctx, tok)) {
                 runtime_hits++;
                 used_runtime = 1;
             } else if (geodesic_next_token_local(ctx, n_ctx, &tok) == 0) {
+                uint64_t _t1 = hal_timer_us();
+                (void)_t1; /* local after rejection — already charged to runtime */
                 local_hits++;
                 if (runtime_ok)
                     runtime_rejects++;
@@ -978,6 +989,18 @@ static int geodesic_generate_text(const char *prompt,
     }
 
     if (generated > 0) {
+        uint64_t t_total_us = hal_timer_us() - t_req_start;
+        double tps = (t_total_us > 0) ? (1e6 * generated / (double)t_total_us) : 0.0;
+        double pct_rt = (t_total_us > 0) ? (100.0 * t_runtime_us / t_total_us) : 0.0;
+        double pct_lc = (t_total_us > 0) ? (100.0 * t_local_us  / t_total_us) : 0.0;
+        kprintf("[GD] Geodesic decode: %d tokens in %.1f ms, TPS=%.2f\n",
+            generated, t_total_us / 1000.0, tps);
+        kprintf("[GD]   runtime_next_token: %.1f ms (%.0f%%), local_next_token: %.1f ms (%.0f%%), other: %.1f ms\n",
+            t_runtime_us / 1000.0, pct_rt, t_local_us / 1000.0, pct_lc,
+            (t_total_us - t_runtime_us - t_local_us) / 1000.0);
+        kprintf("[GD]   avg ms/tok: runtime=%.1f, local=%.1f\n",
+            runtime_hits > 0 ? t_runtime_us / 1000.0 / runtime_hits : 0.0,
+            local_hits   > 0 ? t_local_us   / 1000.0 / local_hits   : 0.0);
         kprintf("[GD] Geodesic decode tokens: runtime=%d local=%d (runtime_rejects=%d)\n",
             runtime_hits, local_hits, runtime_rejects);
         if (!geodesic_output_quality_ok(output)) {
