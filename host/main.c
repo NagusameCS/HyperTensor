@@ -1147,6 +1147,8 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 correction < m->vocab_size && generated < max_tokens) {
                 int tok = correction;
                 if (eos >= 0 && tok == eos) goto spec_done;
+                /* GRC feedback: teach the geodesic what the correct token was */
+                axiom_beta_grc_feedback(ctx, n_ctx, tok);
                 char piece[256];
                 int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
                 if (pn > 0) {

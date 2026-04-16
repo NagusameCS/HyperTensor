@@ -220,4 +220,30 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
                                                    int *out_token,
                                                    float *out_confidence);
 
+/**
+ * GRC Online Feedback — call after the transformer rejects a geodesic draft.
+ * Inserts a direction hint record from the current context embedding toward
+ * the correct token into the GRC library, improving future draft accuracy.
+ * Requires a valid Phase-3 geometry cache (from a prior axiom_beta_run()).
+ */
+axiom_beta_status_t axiom_beta_grc_feedback(const int *context_tokens,
+                                             int n_context,
+                                             int correct_tok);
+
+/**
+ * Save Phase-3 geometry (PCA, metric field, Christoffel symbols) to a binary
+ * file.  Eliminates the ~200s Phase-3 recomputation on subsequent runs.
+ * Returns AXIOM_BETA_OK on success.
+ */
+axiom_beta_status_t axiom_beta_geometry_save(const char *path);
+
+/**
+ * Load Phase-3 geometry from a file saved by axiom_beta_geometry_save().
+ * On success, phase3_geo_valid is set and geodesic_step_fast() / the GRC
+ * library work immediately without running axiom_beta_run().
+ * Validates that the file was produced for the same model dimension.
+ * Returns AXIOM_BETA_OK on success, AXIOM_BETA_ERR_IO if not found/stale.
+ */
+axiom_beta_status_t axiom_beta_geometry_load(const char *path);
+
 #endif /* GEODESSICAL_AXIOM_BETA_H */

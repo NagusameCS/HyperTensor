@@ -2201,6 +2201,14 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
     /* Todo 26: load disk-persistent HS cache — warm LRU before Phase 1/3/5 */
     if (ott_depth_sink_layer >= 0)
         ott_hs_disk_load(llm_model_dim(), ott_depth_sink_layer);
+
+    /* OTT Geometry Persistence: try loading Phase-3 geometry from disk.
+     * If successful, subsequent runs skip the ~200s Phase 1-4 computation. */
+    if (!phase3_geo_valid) {
+        if (axiom_beta_geometry_load("ott_geometry.bin") == AXIOM_BETA_OK) {
+            kprintf("[AXIOM-BETA-3] Loaded Phase-3 geometry from disk (ott_geometry.bin).\n");
+        }
+    }
     report->beta_version = 3;
     t0 = hal_timer_us();
 
@@ -2333,6 +2341,9 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
             phase_cache_p2 = report->phase2;
             phase_cache_p3 = report->phase3;
             phase_cache_p4 = report->phase4;
+            /* OTT Geometry Persistence: save to disk for fast startup next run */
+            if (axiom_beta_geometry_save("ott_geometry.bin") == AXIOM_BETA_OK)
+                kprintf("[AXIOM-BETA-3] Phase-3 geometry saved to ott_geometry.bin\n");
         }
         }
 
@@ -2808,6 +2819,234 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
     *out_token = best_tok;
     return AXIOM_BETA_OK;
 }
+
+/* ── GRC Online Feedback ──────────────────────────────────────────────────
+ * Called by the speculative decode loop when the transformer rejects a
+ * geodesic draft and provides a ground-truth correction token.
+ * Inserts a new GRC record from the current context position toward the
+ * correct token — no full geodesic integration needed, uses J=I (identity)
+ * as a first-order direction hint.  Subsequent lookups near this context
+ * point will point toward the correct token.
+ */
+axiom_beta_status_t axiom_beta_grc_feedback(const int *context_tokens,
+                                             int n_context,
+                                             int correct_tok)
+{
+    if (!context_tokens || n_context <= 0 || correct_tok < 0)
+        return AXIOM_BETA_ERR_INVALID;
+    if (!phase3_geo_valid || phase1_pca.n_components <= 0)
+        return AXIOM_BETA_ERR_INVALID;
+    if (phase_grc_k <= 0 || phase_grc.q_bars == NULL)
+        return AXIOM_BETA_ERR_INVALID;
+
+    const llm_model_t *m = llm_get_model();
+    if (!m || correct_tok >= m->vocab_size) return AXIOM_BETA_ERR_INVALID;
+
+    int dim = m->dim;
+    int k   = phase1_pca.n_components;
+    if (k != phase_grc_k) return AXIOM_BETA_ERR_INVALID;
+
+    int tok_curr = context_tokens[n_context - 1];
+    if (tok_curr < 0 || tok_curr >= m->vocab_size) tok_curr = 0;
+
+    float  *e_f = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
+    double *e_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    double *q_curr   = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    double *q_correct= (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    double *J_eye    = (double *)tensor_alloc((uint64_t)k * k * sizeof(double));
+    if (!e_f || !e_d || !q_curr || !q_correct || !J_eye) {
+        if (e_f)       tensor_free(e_f);
+        if (e_d)       tensor_free(e_d);
+        if (q_curr)    tensor_free(q_curr);
+        if (q_correct) tensor_free(q_correct);
+        if (J_eye)     tensor_free(J_eye);
+        return AXIOM_BETA_ERR_OOM;
+    }
+
+    axiom_beta_status_t rc = AXIOM_BETA_ERR_INVALID;
+
+    /* Project current token to PCA subspace */
+    if (llm_get_embedding_vec(tok_curr, e_f, dim) != 0) goto fb_done;
+    for (int i = 0; i < dim; i++) e_d[i] = (double)e_f[i];
+    axpca_project(&phase1_pca, e_d, q_curr);
+
+    /* Project correct token to PCA subspace */
+    if (llm_get_embedding_vec(correct_tok, e_f, dim) != 0) goto fb_done;
+    for (int i = 0; i < dim; i++) e_d[i] = (double)e_f[i];
+    axpca_project(&phase1_pca, e_d, q_correct);
+
+    /* J = identity (first-order hint: no curvature correction needed here,
+     * the GRC lookup will still benefit from the directional record) */
+    for (int i = 0; i < k * k; i++) J_eye[i] = 0.0;
+    for (int i = 0; i < k; i++) J_eye[i * k + i] = 1.0;
+
+    /* Injectivity radius from curvature */
+    double rho = axgeo_estimate_injectivity_radius(
+        &phase3_ch, &phase3_mf, q_curr, k);
+
+    /* Insert — no waypoints (pass NULL for x_wps) */
+    axgeo_grc_insert(&phase_grc, q_curr, J_eye,
+                      q_correct, rho, correct_tok, NULL);
+    rc = AXIOM_BETA_OK;
+
+fb_done:
+    tensor_free(e_f);
+    tensor_free(e_d);
+    tensor_free(q_curr);
+    tensor_free(q_correct);
+    tensor_free(J_eye);
+    return rc;
+}
+
+/* ── Geometry Disk Persistence ────────────────────────────────────────────
+ * Magic bytes for the geometry cache file format.
+ * Layout: [magic][version][sub_dim][n_pca][model_dim]
+ *         [pca_eigenvalues][pca_components][pca_mean]
+ *         [mf_n_points][mf_points][mf_metrics]
+ *         [ch_n_points][ch_gamma]
+ */
+#define AXGEO_CACHE_MAGIC   0x4F54544743454F00ULL  /* "OTTGEO\0" */
+#define AXGEO_CACHE_VERSION 1
+
+axiom_beta_status_t axiom_beta_geometry_save(const char *path)
+{
+    if (!path || !phase3_geo_valid || phase1_pca.n_components <= 0)
+        return AXIOM_BETA_ERR_INVALID;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return AXIOM_BETA_ERR_IO;
+
+    int ok = 1;
+    uint64_t magic = AXGEO_CACHE_MAGIC;
+    int version    = AXGEO_CACHE_VERSION;
+    int sub_dim    = phase3_sub_dim;
+    int n_pca      = phase1_pca.n_components;
+    int model_dim  = phase1_pca.dim;
+
+#define GEO_WRITE(ptr, n_bytes) \
+    do { if (fwrite((ptr), 1, (n_bytes), f) != (n_bytes)) { ok = 0; goto save_done; } } while(0)
+
+    GEO_WRITE(&magic,   sizeof(magic));
+    GEO_WRITE(&version, sizeof(version));
+    GEO_WRITE(&sub_dim, sizeof(sub_dim));
+    GEO_WRITE(&n_pca,   sizeof(n_pca));
+    GEO_WRITE(&model_dim, sizeof(model_dim));
+
+    /* PCA: eigenvalues, components, mean */
+    GEO_WRITE(phase1_pca.eigenvalues, (uint64_t)n_pca * sizeof(double));
+    GEO_WRITE(phase1_pca.components.data, (uint64_t)n_pca * model_dim * sizeof(double));
+    GEO_WRITE(phase1_pca.mean, (uint64_t)model_dim * sizeof(double));
+
+    /* Metric field */
+    GEO_WRITE(&phase3_mf.n_points, sizeof(phase3_mf.n_points));
+    GEO_WRITE(phase3_mf.points,  (uint64_t)phase3_mf.n_points * sub_dim * sizeof(double));
+    GEO_WRITE(phase3_mf.metrics, (uint64_t)phase3_mf.n_points * sub_dim * sub_dim * sizeof(double));
+
+    /* Christoffel symbols */
+    GEO_WRITE(&phase3_ch.n_points, sizeof(phase3_ch.n_points));
+    GEO_WRITE(phase3_ch.gamma, (uint64_t)phase3_ch.n_points * sub_dim * sub_dim * sub_dim * sizeof(double));
+
+#undef GEO_WRITE
+
+save_done:
+    fclose(f);
+    return ok ? AXIOM_BETA_OK : AXIOM_BETA_ERR_IO;
+}
+
+axiom_beta_status_t axiom_beta_geometry_load(const char *path)
+{
+    if (!path) return AXIOM_BETA_ERR_INVALID;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return AXIOM_BETA_ERR_IO;
+
+    int ok = 1;
+    uint64_t magic = 0;
+    int version = 0, sub_dim = 0, n_pca = 0, model_dim = 0;
+
+#define GEO_READ(ptr, n_bytes) \
+    do { if (fread((ptr), 1, (n_bytes), f) != (n_bytes)) { ok = 0; goto load_done; } } while(0)
+
+    GEO_READ(&magic,    sizeof(magic));
+    GEO_READ(&version,  sizeof(version));
+    GEO_READ(&sub_dim,  sizeof(sub_dim));
+    GEO_READ(&n_pca,    sizeof(n_pca));
+    GEO_READ(&model_dim, sizeof(model_dim));
+
+    if (magic != AXGEO_CACHE_MAGIC || version != AXGEO_CACHE_VERSION
+        || sub_dim <= 0 || n_pca <= 0 || model_dim <= 0) {
+        ok = 0; goto load_done;
+    }
+
+    /* Validate match with currently loaded model */
+    {
+        const llm_model_t *m = llm_get_model();
+        if (!m || m->dim != model_dim) { ok = 0; goto load_done; }
+    }
+
+    /* ── Destroy old state ── */
+    axpca_destroy(&phase1_pca);
+    axgeo_metric_field_destroy(&phase3_mf);
+    axgeo_christoffel_destroy(&phase3_ch);
+    memset(&phase1_pca, 0, sizeof(phase1_pca));
+    memset(&phase3_mf, 0, sizeof(phase3_mf));
+    memset(&phase3_ch, 0, sizeof(phase3_ch));
+
+    /* ── Rebuild PCA ── */
+    phase1_pca.n_components  = n_pca;
+    phase1_pca.dim           = model_dim;
+    phase1_pca.eigenvalues   = (double *)tensor_alloc((uint64_t)n_pca * sizeof(double));
+    phase1_pca.components.data = (double *)tensor_alloc((uint64_t)n_pca * model_dim * sizeof(double));
+    phase1_pca.mean          = (double *)tensor_alloc((uint64_t)model_dim * sizeof(double));
+    phase1_pca.components.rows = n_pca;
+    phase1_pca.components.cols = model_dim;
+    if (!phase1_pca.eigenvalues || !phase1_pca.components.data || !phase1_pca.mean) {
+        ok = 0; goto load_done;
+    }
+    GEO_READ(phase1_pca.eigenvalues, (uint64_t)n_pca * sizeof(double));
+    GEO_READ(phase1_pca.components.data, (uint64_t)n_pca * model_dim * sizeof(double));
+    GEO_READ(phase1_pca.mean, (uint64_t)model_dim * sizeof(double));
+
+    /* ── Rebuild Metric Field ── */
+    {
+        int n_pts = 0;
+        GEO_READ(&n_pts, sizeof(n_pts));
+        phase3_mf = axgeo_metric_field_create(n_pts, sub_dim);
+        if (!phase3_mf.points) { ok = 0; goto load_done; }
+        GEO_READ(phase3_mf.points,  (uint64_t)n_pts * sub_dim * sizeof(double));
+        GEO_READ(phase3_mf.metrics, (uint64_t)n_pts * sub_dim * sub_dim * sizeof(double));
+    }
+
+    /* ── Rebuild Christoffel ── */
+    {
+        int n_pts = 0;
+        GEO_READ(&n_pts, sizeof(n_pts));
+        phase3_ch = axgeo_christoffel_create(n_pts, sub_dim);
+        if (!phase3_ch.gamma) { ok = 0; goto load_done; }
+        GEO_READ(phase3_ch.gamma, (uint64_t)n_pts * sub_dim * sub_dim * sub_dim * sizeof(double));
+    }
+
+    phase3_sub_dim  = sub_dim;
+    phase3_geo_valid = 1;
+
+#undef GEO_READ
+
+load_done:
+    fclose(f);
+    if (!ok) {
+        /* Clean up partial state on failure */
+        axpca_destroy(&phase1_pca);
+        axgeo_metric_field_destroy(&phase3_mf);
+        axgeo_christoffel_destroy(&phase3_ch);
+        memset(&phase1_pca, 0, sizeof(phase1_pca));
+        memset(&phase3_mf,  0, sizeof(phase3_mf));
+        memset(&phase3_ch,  0, sizeof(phase3_ch));
+        phase3_geo_valid = 0;
+        return AXIOM_BETA_ERR_IO;
+    }
+    return AXIOM_BETA_OK;
+}
+
 const char *axiom_beta_status_string(axiom_beta_status_t st)
 {
     switch (st) {
