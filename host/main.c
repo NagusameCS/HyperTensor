@@ -1069,39 +1069,60 @@ static int geodesic_speculative_generate_text(const char *prompt,
             batch_size, (double)conf_thresh);
 
     while (generated < max_tokens && n_ctx < max_ctx) {
-        /* ── Step 1: collect up to batch_size geodesic draft tokens ── */
+        /* ── Step 1: collect up to batch_size geodesic draft tokens ────────────
+         * Use axiom_beta_geodesic_rollout() which integrates a trajectory-coherent
+         * geodesic path — carrying the velocity vector between steps so curvature
+         * corrections accumulate properly.  Falls back to individual step_fast calls
+         * if the rollout is unavailable.
+         * ─────────────────────────────────────────────────────────────────────── */
         int n_drafts = 0;
         float min_conf = 1.0f;
 
-        for (int d = 0; d < batch_size && n_ctx + n_drafts < max_ctx - 1; d++) {
-            /* Build a temporary context view that includes already-drafted tokens */
-            int *view_ctx = ctx;
-            int  view_n   = n_ctx + n_drafts;
+        /* Attempt multi-step rollout first */
+        {
+            int   roll_toks[16];
+            float roll_conf[16];
+            int   roll_n = 0;
+            int   need   = batch_size;
+            if (need > 16) need = 16;
 
-            /* Append previously collected drafts so step_fast sees them */
-            int tmp_ctx_needs_copy = (n_drafts > 0);
+            if (axiom_beta_geodesic_rollout(ctx, n_ctx, need,
+                                            roll_toks, roll_conf, &roll_n)
+                == AXIOM_BETA_OK && roll_n > 0) {
+                /* Accept rollout tokens that pass threshold and quality gate */
+                for (int d = 0; d < roll_n && n_drafts < batch_size; d++) {
+                    if (roll_conf[d] < conf_thresh) break;
+                    int draft_tok = roll_toks[d];
+                    if (draft_tok < 0 || draft_tok >= m->vocab_size) break;
+                    char piece[256];
+                    int pn = llm_test_decode_token(draft_tok, piece, (int)sizeof(piece));
+                    if (pn <= 0 || !geodesic_piece_quality_ok(piece, pn)) break;
+                    drafts[n_drafts++] = draft_tok;
+                    if (roll_conf[d] < min_conf) min_conf = roll_conf[d];
+                }
+            }
+        }
+
+        /* Fallback: fill remaining slots with individual step_fast calls */
+        for (int d = n_drafts; d < batch_size && n_ctx + d < max_ctx - 1; d++) {
+            int *view_ctx = ctx;
+            int  view_n   = n_ctx + d;
             int *view_buf = NULL;
-            if (tmp_ctx_needs_copy) {
+            if (d > 0) {
                 view_buf = (int *)malloc((size_t)view_n * sizeof(int));
                 if (!view_buf) break;
                 memcpy(view_buf, ctx, (size_t)n_ctx * sizeof(int));
-                memcpy(view_buf + n_ctx, drafts, (size_t)n_drafts * sizeof(int));
+                memcpy(view_buf + n_ctx, drafts, (size_t)d * sizeof(int));
                 view_ctx = view_buf;
             }
-
             int draft_tok = -1;
             float draft_conf = 0.0f;
             int ok = (axiom_beta_geodesic_step_fast(view_ctx, view_n,
                                                     &draft_tok, &draft_conf)
                       == AXIOM_BETA_OK);
             if (view_buf) free(view_buf);
-
-            if (!ok || draft_tok < 0 || draft_tok >= m->vocab_size)
-                break;
-            if (draft_conf < conf_thresh)
-                break;
-
-            /* Quality gate: reject non-useful tokens */
+            if (!ok || draft_tok < 0 || draft_tok >= m->vocab_size) break;
+            if (draft_conf < conf_thresh) break;
             char piece[256];
             int pn = llm_test_decode_token(draft_tok, piece, (int)sizeof(piece));
             if (pn <= 0 || !geodesic_piece_quality_ok(piece, pn))

@@ -231,6 +231,24 @@ axiom_beta_status_t axiom_beta_grc_feedback(const int *context_tokens,
                                              int correct_tok);
 
 /**
+ * Multi-step geodesic rollout — generate up to `n_steps` draft tokens in a
+ * single trajectory-coherent integration.  The geodesic velocity is carried
+ * forward between steps, so Christoffel corrections accumulate correctly and
+ * the draft path follows the true manifold curvature rather than making N
+ * independent 1-step corrections.
+ *
+ * out_tokens[0..n_out-1] and out_conf[0..n_out-1] are filled on success.
+ * n_out <= n_steps.  Returns AXIOM_BETA_OK on success.
+ * Requires a valid Phase-3 geometry cache (from axiom_beta_run or geometry_load).
+ */
+axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
+                                                 int n_context,
+                                                 int n_steps,
+                                                 int *out_tokens,
+                                                 float *out_conf,
+                                                 int *n_out);
+
+/**
  * Save Phase-3 geometry (PCA, metric field, Christoffel symbols) to a binary
  * file.  Eliminates the ~200s Phase-3 recomputation on subsequent runs.
  * Returns AXIOM_BETA_OK on success.

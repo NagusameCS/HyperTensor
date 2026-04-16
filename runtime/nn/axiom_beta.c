@@ -2805,32 +2805,84 @@ axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
     }
     double pred_norm = sqrt(pred_norm2);
 
-    int probe = vocab;
-    if (probe > 4096) probe = 4096;
-    int start = (tok_curr * 1315423911u) % vocab;
     int best_tok = tok_curr;
     double best_score = -1e30;
 
-    for (int i = 0; i < probe; i++) {
-        int tid = (start + i) % vocab;
-        if (llm_get_embedding_vec(tid, e_cand, dim) != 0) continue;
-
-        double dot = 0.0;
-        double cand_norm2 = 0.0;
-        double l2 = 0.0;
-        for (int j = 0; j < dim; j++) {
-            double c = (double)e_cand[j];
-            dot += (double)e_pred[j] * c;
-            cand_norm2 += c * c;
-            double d = (double)e_pred[j] - c;
-            l2 += d * d;
+    /* Use vocab PCA index fast path when available */
+    if (phase_vocab_pca_idx &&
+        phase_vocab_pca_vocab == vocab &&
+        phase_vocab_pca_k    == phase1_pca.n_components &&
+        phase1_pca.n_components > 0) {
+        int kk = phase1_pca.n_components;
+        /* Project prediction into PCA subspace */
+        double *e_pred_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+        double *proj     = (double *)tensor_alloc((uint64_t)kk  * sizeof(double));
+        if (e_pred_d && proj) {
+            for (int j = 0; j < dim; j++) e_pred_d[j] = (double)e_pred[j];
+            axpca_project(&phase1_pca, e_pred_d, proj);
+            /* Stage 1: PCA dot-product scan → top-256 */
+#define V2_TOPN 256
+            int   top_ids[V2_TOPN];
+            float top_dots[V2_TOPN];
+            int   top_n = 0;
+            float min_dot = -1e30f;
+            float pf[64]; int kk2 = kk < 64 ? kk : 64;
+            for (int j = 0; j < kk2; j++) pf[j] = (float)proj[j];
+            for (int t = 0; t < vocab; t++) {
+                const float *row = phase_vocab_pca_idx + (uint64_t)t * kk;
+                float dot = 0.0f;
+                for (int j = 0; j < kk2; j++) dot += pf[j] * row[j];
+                if (top_n < V2_TOPN) {
+                    top_ids[top_n]  = t; top_dots[top_n] = dot; top_n++;
+                    if (dot < min_dot || top_n == 1) min_dot = dot;
+                } else if (dot > min_dot) {
+                    int mi = 0;
+                    for (int j = 1; j < V2_TOPN; j++)
+                        if (top_dots[j] < top_dots[mi]) mi = j;
+                    top_ids[mi]  = t; top_dots[mi] = dot;
+                    min_dot = dot;
+                    for (int j = 0; j < V2_TOPN; j++)
+                        if (top_dots[j] < min_dot) min_dot = top_dots[j];
+                }
+            }
+            /* Stage 2: full-dim re-rank */
+            for (int ti = 0; ti < top_n; ti++) {
+                int t = top_ids[ti];
+                if (llm_get_embedding_vec(t, e_cand, dim) != 0) continue;
+                double dot2 = 0.0, cn2 = 0.0, l2 = 0.0;
+                for (int j = 0; j < dim; j++) {
+                    double c = (double)e_cand[j];
+                    dot2 += (double)e_pred[j] * c;
+                    cn2  += c * c;
+                    double dv = (double)e_pred[j] - c; l2 += dv * dv;
+                }
+                double denom = pred_norm * sqrt(cn2);
+                double sim = (denom > 1e-12) ? (dot2 / denom) : -1e30;
+                double score = sim - 0.01 * sqrt(l2);
+                if (score > best_score) { best_score = score; best_tok = t; }
+            }
+#undef V2_TOPN
         }
-        double denom = pred_norm * sqrt(cand_norm2);
-        double sim = (denom > 1e-12) ? (dot / denom) : -1e30;
-        double score = sim - 0.01 * sqrt(l2);
-        if (score > best_score) {
-            best_score = score;
-            best_tok = tid;
+        if (e_pred_d) tensor_free(e_pred_d);
+        if (proj)     tensor_free(proj);
+    } else {
+        /* Fallback: 4096-probe */
+        int probe = vocab < 4096 ? vocab : 4096;
+        int start = (tok_curr * 1315423911u) % vocab;
+        for (int i = 0; i < probe; i++) {
+            int tid = (start + i) % vocab;
+            if (llm_get_embedding_vec(tid, e_cand, dim) != 0) continue;
+            double dot2 = 0.0, cn2 = 0.0, l2 = 0.0;
+            for (int j = 0; j < dim; j++) {
+                double c = (double)e_cand[j];
+                dot2 += (double)e_pred[j] * c;
+                cn2  += c * c;
+                double dv = (double)e_pred[j] - c; l2 += dv * dv;
+            }
+            double denom = pred_norm * sqrt(cn2);
+            double sim = (denom > 1e-12) ? (dot2 / denom) : -1e30;
+            double score = sim - 0.01 * sqrt(l2);
+            if (score > best_score) { best_score = score; best_tok = tid; }
         }
     }
 
@@ -3054,6 +3106,223 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
     tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
 
     *out_token = best_tok;
+    return AXIOM_BETA_OK;
+}
+
+/* ── Multi-step geodesic rollout ─────────────────────────────────────────
+ * Integrates a geodesic path for n_steps in PCA subspace, carrying the
+ * velocity vector forward between steps so corrections are trajectory-coherent.
+ * At each step, try GRC lookup first (O(k²)), fall back to Christoffel (O(k³)).
+ * Each predicted endpoint is resolved to the nearest vocab token via the
+ * vocab PCA index (if available) or a 8192-token fallback probe.
+ *
+ * This replaces N independent geodesic_step_fast calls in the speculative
+ * decode loop, eliminating velocity accumulation errors across the draft batch.
+ * ─────────────────────────────────────────────────────────────────────── */
+axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
+                                                 int n_context,
+                                                 int n_steps,
+                                                 int *out_tokens,
+                                                 float *out_conf,
+                                                 int *n_out)
+{
+    if (!context_tokens || n_context <= 0 || n_steps <= 0 ||
+        !out_tokens || !n_out)
+        return AXIOM_BETA_ERR_INVALID;
+
+    *n_out = 0;
+
+    if (!phase3_geo_valid || phase1_pca.n_components <= 0)
+        return AXIOM_BETA_ERR_INVALID;
+
+    const llm_model_t *m = llm_get_model();
+    if (!m) return AXIOM_BETA_ERR_INVALID;
+
+    int vocab = m->vocab_size;
+    int dim   = m->dim;
+    int k     = phase1_pca.n_components;
+
+    if (n_steps > 16) n_steps = 16;
+
+    /* ── Allocate reusable buffers ─────────────────────────────────────── */
+    double *pos     = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* current pos in PCA */
+    double *vel     = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* current velocity   */
+    double *pos_new = (double *)tensor_alloc((uint64_t)k * sizeof(double)); /* next pos           */
+    double *gamma   = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double));
+    double *e_d     = (double *)tensor_alloc((uint64_t)dim * sizeof(double)); /* reconstructed emb  */
+    float  *e_f     = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
+    float  *e_cand  = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
+
+    if (!pos || !vel || !pos_new || !gamma || !e_d || !e_f || !e_cand) {
+        if (pos)     tensor_free(pos);
+        if (vel)     tensor_free(vel);
+        if (pos_new) tensor_free(pos_new);
+        if (gamma)   tensor_free(gamma);
+        if (e_d)     tensor_free(e_d);
+        if (e_f)     tensor_free(e_f);
+        if (e_cand)  tensor_free(e_cand);
+        return AXIOM_BETA_ERR_OOM;
+    }
+
+    /* ── Initialise position and velocity from last two context tokens ── */
+    {
+        int tok_curr = context_tokens[n_context - 1];
+        int tok_prev = (n_context >= 2) ? context_tokens[n_context - 2] : tok_curr;
+        if (tok_curr < 0 || tok_curr >= vocab) tok_curr = 0;
+        if (tok_prev < 0 || tok_prev >= vocab) tok_prev = tok_curr;
+
+        double *e_curr_d = e_d; /* use e_d as temp */
+        double *e_prev_d = pos; /* use pos as temp */
+
+        if (llm_get_embedding_vec(tok_curr, e_f, dim) != 0) {
+            tensor_free(pos); tensor_free(vel); tensor_free(pos_new);
+            tensor_free(gamma); tensor_free(e_d); tensor_free(e_f); tensor_free(e_cand);
+            return AXIOM_BETA_ERR_INVALID;
+        }
+        for (int j = 0; j < dim; j++) e_curr_d[j] = (double)e_f[j];
+        double *p_curr = pos_new; /* use pos_new as temp */
+        axpca_project(&phase1_pca, e_curr_d, p_curr);
+
+        if (tok_prev != tok_curr && llm_get_embedding_vec(tok_prev, e_f, dim) == 0) {
+            for (int j = 0; j < dim; j++) e_prev_d[j] = (double)e_f[j];
+        } else {
+            memcpy(e_prev_d, e_curr_d, (uint64_t)dim * sizeof(double));
+        }
+        double *p_prev = vel; /* use vel as temp */
+        axpca_project(&phase1_pca, e_prev_d, p_prev);
+
+        /* vel = p_curr - p_prev,  pos = p_curr */
+        for (int j = 0; j < k; j++) vel[j] = p_curr[j] - p_prev[j];
+        memcpy(pos, p_curr, (uint64_t)k * sizeof(double));
+    }
+
+    /* ── Main rollout loop ──────────────────────────────────────────────── */
+    for (int step = 0; step < n_steps; step++) {
+        /* 1. Try GRC lookup using predicted query (pos + vel) */
+        int    grc_best_tok = -1;
+        int    grc_hit      = 0;
+        double conf         = 0.0;
+
+        if (phase_grc_k == k && phase_grc.count > 0) {
+            for (int j = 0; j < k; j++) pos_new[j] = pos[j] + vel[j];
+            grc_hit = axgeo_grc_lookup(&phase_grc, pos_new, k, pos_new, &grc_best_tok);
+        }
+
+        if (grc_hit && grc_best_tok >= 0 && grc_best_tok < vocab) {
+            /* GRC hit: emit token, update pos/vel toward that end-point */
+            out_tokens[*n_out] = grc_best_tok;
+            out_conf   [*n_out] = 0.75f;
+            (*n_out)++;
+            /* Update velocity: new vel = pos_new - pos (GRC path direction) */
+            for (int j = 0; j < k; j++) {
+                double dv = pos_new[j] - pos[j];
+                vel[j] = dv * 0.9 + vel[j] * 0.1; /* momentum blend */
+            }
+            memcpy(pos, pos_new, (uint64_t)k * sizeof(double));
+            continue;
+        }
+
+        /* 2. Christoffel second-order step */
+        axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, pos, gamma);
+        for (int alpha = 0; alpha < k; alpha++) {
+            double correction = 0.0;
+            for (int mu = 0; mu < k; mu++)
+                for (int nu = 0; nu < k; nu++)
+                    correction += gamma[alpha * k * k + mu * k + nu] * vel[mu] * vel[nu];
+            pos_new[alpha] = pos[alpha] + vel[alpha] - 0.5 * correction;
+            /* Update velocity with geodesic acceleration */
+            vel[alpha] = vel[alpha] - correction;
+        }
+
+        /* 3. Reconstruct full-dim embedding for the predicted point */
+        axpca_reconstruct(&phase1_pca, pos_new, e_d);
+        double pred_norm2 = 0.0;
+        for (int j = 0; j < dim; j++) pred_norm2 += e_d[j] * e_d[j];
+        double pred_norm = sqrt(pred_norm2);
+
+        /* 4. Nearest-token lookup: vocab PCA index fast path or fallback */
+        int best_tok  = 0;
+        double best_sc = -1e30;
+
+        if (phase_vocab_pca_idx &&
+            phase_vocab_pca_vocab == vocab &&
+            phase_vocab_pca_k    == k) {
+#define RO_TOPN 256
+            int   top_ids[RO_TOPN];
+            float top_dots[RO_TOPN];
+            int   top_n = 0;
+            float min_dot = -1e30f;
+            float pf[64];
+            int kk = k < 64 ? k : 64;
+            for (int j = 0; j < kk; j++) pf[j] = (float)pos_new[j];
+
+            for (int t = 0; t < vocab; t++) {
+                const float *row = phase_vocab_pca_idx + (uint64_t)t * k;
+                float dot = 0.0f;
+                for (int j = 0; j < kk; j++) dot += pf[j] * row[j];
+                if (top_n < RO_TOPN) {
+                    top_ids[top_n]  = t;
+                    top_dots[top_n] = dot;
+                    top_n++;
+                    if (dot < min_dot || top_n == 1) min_dot = dot;
+                } else if (dot > min_dot) {
+                    int mi = 0;
+                    for (int j = 1; j < RO_TOPN; j++)
+                        if (top_dots[j] < top_dots[mi]) mi = j;
+                    top_ids[mi]  = t;
+                    top_dots[mi] = dot;
+                    min_dot = dot;
+                    for (int j = 0; j < RO_TOPN; j++)
+                        if (top_dots[j] < min_dot) min_dot = top_dots[j];
+                }
+            }
+            for (int ti = 0; ti < top_n; ti++) {
+                int t = top_ids[ti];
+                if (llm_get_embedding_vec(t, e_cand, dim) != 0) continue;
+                double dot2 = 0.0, cnorm2 = 0.0;
+                for (int j = 0; j < dim; j++) {
+                    double c = (double)e_cand[j];
+                    dot2  += e_d[j] * c;
+                    cnorm2 += c * c;
+                }
+                double denom = pred_norm * sqrt(cnorm2);
+                double sim   = (denom > 1e-12) ? (dot2 / denom) : -1e30;
+                if (sim > best_sc) { best_sc = sim; best_tok = t; }
+            }
+#undef RO_TOPN
+        } else {
+            /* Fallback: random 8192-probe */
+            int last_tok = (step == 0) ? context_tokens[n_context - 1]
+                                       : out_tokens[*n_out - 1];
+            int probe = vocab < 8192 ? vocab : 8192;
+            int start = ((unsigned)last_tok * 1315423911u) % (unsigned)vocab;
+            for (int i = 0; i < probe; i++) {
+                int t = (start + i) % vocab;
+                if (llm_get_embedding_vec(t, e_cand, dim) != 0) continue;
+                double dot2 = 0.0, cnorm2 = 0.0;
+                for (int j = 0; j < dim; j++) {
+                    double c = (double)e_cand[j];
+                    dot2  += e_d[j] * c;
+                    cnorm2 += c * c;
+                }
+                double denom = pred_norm * sqrt(cnorm2);
+                double sim   = (denom > 1e-12) ? (dot2 / denom) : -1e30;
+                if (sim > best_sc) { best_sc = sim; best_tok = t; }
+            }
+        }
+
+        conf = (float)((best_sc + 1.0) * 0.5); /* map [-1,1] → [0,1] */
+
+        out_tokens[*n_out] = best_tok;
+        out_conf   [*n_out] = conf;
+        (*n_out)++;
+
+        /* Advance position */
+        memcpy(pos, pos_new, (uint64_t)k * sizeof(double));
+    }
+
+    tensor_free(pos); tensor_free(vel); tensor_free(pos_new);
+    tensor_free(gamma); tensor_free(e_d); tensor_free(e_f); tensor_free(e_cand);
     return AXIOM_BETA_OK;
 }
 
