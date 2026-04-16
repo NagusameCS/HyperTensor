@@ -1,4 +1,4 @@
-/*
+﻿/*
  * TensorOS CUDA Kernels — GPU Implementations
  *
  * Real CUDA kernel implementations for LLM inference.
@@ -1194,6 +1194,450 @@ __global__ void kernel_v_norm(
         vh[i] *= inv_rms;
 }
 
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+
+ * Batched prefill kernels — process n tokens in parallel
+
+ *
+
+ * These replace the per-token loop in llm_forward_prefill_batch_gpu:
+
+ *   kernel_batch_fused_qk_norm_rope  — RMSNorm + RoPE for all n tokens
+
+ *   kernel_batch_v_norm              — V normalisation for all n tokens
+
+ *   kernel_batch_kv_update           — write K,V cache for all n tokens
+
+ *   kernel_prefill_attn_batched      — causal attention for all n tokens
+
+ * ════════════════════════════════════════════════════════════════════════ */
+
+
+
+/* Grid: (n_heads + n_kv_heads, n_tokens)
+
+ * blockIdx.x = head index (0..n_heads-1 for Q, n_heads.. for K)
+
+ * blockIdx.y = token index 0..n-1, position = start_pos + blockIdx.y  */
+
+__global__ void kernel_batch_fused_qk_norm_rope(
+
+    float       *Q,          /* [n, n_heads * head_dim] */
+
+    float       *K,          /* [n, n_kv_heads * head_dim] or NULL */
+
+    const float *q_norm_w,   /* [head_dim] or NULL */
+
+    const float *k_norm_w,   /* [head_dim] or NULL */
+
+    int          n_heads,
+
+    int          n_kv_heads,
+
+    int          head_dim,
+
+    int          start_pos,
+
+    float        rope_base,
+
+    const float *rope_freqs, /* [head_dim/2] or NULL */
+
+    float        eps,
+
+    int          rope_dim)
+
+{
+
+    int head = blockIdx.x;
+
+    int i    = blockIdx.y; /* token index */
+
+    int total_heads = n_heads + n_kv_heads;
+
+    if (head >= total_heads) return;
+
+
+
+    int is_k = (head >= n_heads);
+
+    int actual_head = is_k ? (head - n_heads) : head;
+
+
+
+    float *vec;
+
+    if (is_k) {
+
+        if (!K) return;
+
+        vec = K + (int64_t)i * (n_kv_heads * head_dim) + actual_head * head_dim;
+
+    } else {
+
+        vec = Q + (int64_t)i * (n_heads * head_dim) + actual_head * head_dim;
+
+    }
+
+
+
+    const float *norm_w = is_k ? k_norm_w : q_norm_w;
+
+    int rdim = (rope_dim > 0) ? rope_dim : head_dim;
+
+    int pos  = start_pos + i;
+
+
+
+    __shared__ float smem[32];
+
+
+
+    /* Step 1: RMSNorm if weights provided */
+
+    if (norm_w) {
+
+        float sum_sq = 0.0f;
+
+        for (int d = threadIdx.x; d < head_dim; d += blockDim.x)
+
+            sum_sq += vec[d] * vec[d];
+
+        sum_sq = block_reduce_sum(sum_sq, smem);
+
+
+
+        __shared__ float inv_rms;
+
+        if (threadIdx.x == 0)
+
+            inv_rms = rsqrtf(sum_sq / (float)head_dim + eps);
+
+        __syncthreads();
+
+
+
+        for (int d = threadIdx.x; d < head_dim; d += blockDim.x)
+
+            vec[d] = vec[d] * inv_rms * norm_w[d];
+
+        __syncthreads();
+
+    }
+
+
+
+    /* Step 2: RoPE — rotate pairs */
+
+    int half_rd = rdim / 2;
+
+    for (int p = threadIdx.x; p < half_rd; p += blockDim.x) {
+
+        float freq = rope_freqs
+
+            ? rope_freqs[p]
+
+            : 1.0f / powf(rope_base, (float)(2 * p) / (float)head_dim);
+
+        float angle = (float)pos * freq;
+
+        float cos_a = cosf(angle);
+
+        float sin_a = sinf(angle);
+
+        float v0 = vec[2 * p];
+
+        float v1 = vec[2 * p + 1];
+
+        vec[2 * p]     = v0 * cos_a - v1 * sin_a;
+
+        vec[2 * p + 1] = v0 * sin_a + v1 * cos_a;
+
+    }
+
+}
+
+
+
+/* Grid: (n_kv_heads, n_tokens)  — per-head V normalisation */
+
+__global__ void kernel_batch_v_norm(
+
+    float *V,        /* [n, n_kv_heads * head_dim] */
+
+    int    n_kv_heads,
+
+    int    head_dim,
+
+    float  eps)
+
+{
+
+    int kv = blockIdx.x;
+
+    int i  = blockIdx.y;
+
+    if (kv >= n_kv_heads) return;
+
+
+
+    float *vh = V + (int64_t)i * (n_kv_heads * head_dim) + kv * head_dim;
+
+    __shared__ float smem[32];
+
+
+
+    float sum_sq = 0.0f;
+
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x)
+
+        sum_sq += vh[d] * vh[d];
+
+    sum_sq = block_reduce_sum(sum_sq, smem);
+
+
+
+    __shared__ float inv_rms;
+
+    if (threadIdx.x == 0)
+
+        inv_rms = rsqrtf(sum_sq / (float)head_dim + eps);
+
+    __syncthreads();
+
+
+
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x)
+
+        vh[d] *= inv_rms;
+
+}
+
+
+
+/* Grid: (ceil(n_kv_heads*head_dim / 256), n_tokens)
+
+ * Writes K_new[i] and V_new[i] into cache at position start_pos + i  */
+
+__global__ void kernel_batch_kv_update(
+
+    float       *K_cache,  /* [n_kv_heads * max_seq * head_dim] */
+
+    float       *V_cache,
+
+    const float *K_new,    /* [n_tokens, n_kv_heads * head_dim] */
+
+    const float *V_new,
+
+    int          n_kv_heads,
+
+    int          head_dim,
+
+    int          start_pos,
+
+    int          max_seq)
+
+{
+
+    int i   = blockIdx.y; /* token index */
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int total = n_kv_heads * head_dim;
+
+    if (idx >= total) return;
+
+
+
+    int kv  = idx / head_dim;
+
+    int d   = idx % head_dim;
+
+    int pos = start_pos + i;
+
+
+
+    int64_t cache_off = ((int64_t)kv * max_seq + pos) * head_dim + d;
+
+    int64_t new_off   = (int64_t)i * total + (int64_t)kv * head_dim + d;
+
+
+
+    K_cache[cache_off] = K_new[new_off];
+
+    V_cache[cache_off] = V_new[new_off];
+
+}
+
+
+
+/* Grid: (n_heads, n_tokens)
+
+ * blockIdx.x = head, blockIdx.y = token index.
+
+ * Shared: scores[smem_seq] + smem[32]
+
+ * Token qi at position start_pos + qi attends causally to KV positions
+
+ * 0 .. start_pos + qi (all prior tokens already in the KV cache).           */
+
+__global__ void kernel_prefill_attn_batched(
+
+    float       *O,         /* [n, n_heads * head_dim] */
+
+    const float *Q,         /* [n, n_heads * head_dim] */
+
+    const float *K_cache,   /* [n_kv_heads * max_seq * head_dim] */
+
+    const float *V_cache,
+
+    int          n_heads,
+
+    int          n_kv_heads,
+
+    int          head_dim,
+
+    int          n,         /* number of new tokens */
+
+    int          start_pos,
+
+    int          max_seq,
+
+    float        scale,
+
+    float        softcap,
+
+    int          smem_seq)
+
+{
+
+    int head = blockIdx.x;
+
+    int i    = blockIdx.y; /* token index 0..n-1 */
+
+    if (head >= n_heads || i >= n) return;
+
+
+
+    int kv_head = head * n_kv_heads / n_heads; /* GQA mapping */
+
+    int seq_len = start_pos + i + 1;           /* causal: attend 0..seq_pos */
+
+    if (seq_len > smem_seq) seq_len = smem_seq;
+
+
+
+    extern __shared__ float shared[];
+
+    float *scores = shared;            /* [smem_seq] */
+
+    float *smem   = shared + smem_seq; /* [32] reduction scratch */
+
+
+
+    const float *q_h = Q + (int64_t)i * (n_heads * head_dim) + head * head_dim;
+
+    float       *o_h = O + (int64_t)i * (n_heads * head_dim) + head * head_dim;
+
+
+
+    /* Phase 1: QK^T */
+
+    for (int t = threadIdx.x; t < seq_len; t += blockDim.x) {
+
+        const float *k_t = K_cache + ((int64_t)kv_head * max_seq + t) * head_dim;
+
+        float dot = 0.0f;
+
+        for (int d = 0; d < head_dim; d++)
+
+            dot += q_h[d] * k_t[d];
+
+        dot *= scale;
+
+        if (softcap > 0.0f)
+
+            dot = softcap * tanhf(dot / softcap);
+
+        scores[t] = dot;
+
+    }
+
+    __syncthreads();
+
+
+
+    /* Phase 2: online softmax */
+
+    float max_val = NEG_INF;
+
+    for (int t = threadIdx.x; t < seq_len; t += blockDim.x)
+
+        max_val = fmaxf(max_val, scores[t]);
+
+    max_val = block_reduce_max(max_val, smem);
+
+
+
+    __shared__ float max_shared;
+
+    if (threadIdx.x == 0) max_shared = max_val;
+
+    __syncthreads();
+
+
+
+    float sum_val = 0.0f;
+
+    for (int t = threadIdx.x; t < seq_len; t += blockDim.x) {
+
+        scores[t] = expf(scores[t] - max_shared);
+
+        sum_val += scores[t];
+
+    }
+
+    sum_val = block_reduce_sum(sum_val, smem);
+
+
+
+    __shared__ float inv_sum;
+
+    if (threadIdx.x == 0) inv_sum = 1.0f / sum_val;
+
+    __syncthreads();
+
+
+
+    for (int t = threadIdx.x; t < seq_len; t += blockDim.x)
+
+        scores[t] *= inv_sum;
+
+    __syncthreads();
+
+
+
+    /* Phase 3: weighted sum of V */
+
+    for (int d = threadIdx.x; d < head_dim; d += blockDim.x) {
+
+        float val = 0.0f;
+
+        for (int t = 0; t < seq_len; t++) {
+
+            const float *v_t = V_cache + ((int64_t)kv_head * max_seq + t) * head_dim;
+
+            val += scores[t] * v_t[d];
+
+        }
+
+        o_h[d] = val;
+
+    }
+
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Fused kernels: add_rmsnorm, rmsnorm_add, gelu_mul, dual/triple GEMV
  * ════════════════════════════════════════════════════════════════════════ */
@@ -1458,6 +1902,143 @@ static float  *d_q8_sc_scratch = NULL;
 static float  *d_q8_sums_scratch = NULL;
 static int     g_q8_scratch_in_dim = 0;
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Batch Prefill Scratch — shared Q8 scratch for all batch-GEMV calls
+ * Layout: [max_batch × max_in_dim] for q8; [max_batch × max_nb] for scales/sums
+ * ════════════════════════════════════════════════════════════════════════ */
+static int8_t *d_bq8  = NULL;
+static float  *d_bsc  = NULL;
+static float  *d_bsu  = NULL;
+static int     g_bq8_batch = 0;
+static int     g_bq8_dim   = 0;
+
+static int ensure_batch_q8(int batch, int in_dim) {
+    int nb = in_dim / 32;
+    if (nb <= 0 || batch <= 0) return -1;
+    if (d_bq8 && batch <= g_bq8_batch && in_dim <= g_bq8_dim) return 0;
+    if (d_bq8) { cudaFree(d_bq8); d_bq8 = NULL; }
+    if (d_bsc) { cudaFree(d_bsc); d_bsc = NULL; }
+    if (d_bsu) { cudaFree(d_bsu); d_bsu = NULL; }
+    int alloc_b = batch > g_bq8_batch ? batch : g_bq8_batch + 1;
+    int alloc_d = in_dim > g_bq8_dim   ? in_dim : g_bq8_dim + 32;
+    int alloc_nb = alloc_d / 32;
+    if (cudaMalloc(&d_bq8, (int64_t)alloc_b * alloc_d) != cudaSuccess) return -1;
+    if (cudaMalloc(&d_bsc, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) return -1;
+    if (cudaMalloc(&d_bsu, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) return -1;
+    g_bq8_batch = alloc_b;
+    g_bq8_dim   = alloc_d;
+    return 0;
+}
+
+/* ─── Batch Q8 quantization: one block per batch item, 256 threads ─── */
+__global__ void kernel_batch_quant_q8(
+    const float *X,        /* [batch × in_dim] */
+    int8_t      *q8,       /* [batch × in_dim] */
+    float       *sc,       /* [batch × nb]     */
+    float       *su,       /* [batch × nb]     */
+    int          in_dim)
+{
+    int b    = blockIdx.x;
+    int nb   = in_dim / 32;
+    const float *x = X  + (int64_t)b * in_dim;
+    int8_t      *q = q8 + (int64_t)b * in_dim;
+    float       *s = sc + (int64_t)b * nb;
+    float       *u = su + (int64_t)b * nb;
+    int n_warps = blockDim.x >> 5;
+    int wid  = threadIdx.x >> 5;
+    int lane = threadIdx.x & 31;
+    for (int bl = wid; bl < nb; bl += n_warps) {
+        float val = x[bl * 32 + lane];
+        float amax = fabsf(val);
+        for (int off = 16; off > 0; off >>= 1)
+            amax = fmaxf(amax, __shfl_xor_sync(0xFFFFFFFF, amax, off));
+        float inv = (amax > 1e-10f) ? (127.0f / amax) : 0.0f;
+        int qi = __float2int_rn(val * inv);
+        if (qi >  127) qi =  127;
+        if (qi < -127) qi = -127;
+        q[bl * 32 + lane] = (int8_t)qi;
+        int isum = qi;
+        for (int off = 16; off > 0; off >>= 1)
+            isum += __shfl_xor_sync(0xFFFFFFFF, isum, off);
+        if (lane == 0) { s[bl] = amax / 127.0f; u[bl] = s[bl] * (float)isum; }
+    }
+}
+
+/* ─── Batched Q4_0 GEMV using pre-quantized scratch ─── */
+/* Grid: (ceil(out_dim/8), batch); Block: 256 threads = 8 warps              */
+/* C[b, row] = dequant(W[row]) · X_q8[b]                                     */
+#define BGEMV_WARPS 8
+__global__ void kernel_batch_gemv_q4_prequant(
+    float        *C,
+    const void   *W,
+    const int8_t *q8,   /* [batch × in_dim] */
+    const float  *sc,   /* [batch × nb]     */
+    const float  *su,   /* [batch × nb]     */
+    int           out_dim,
+    int           in_dim,
+    int           batch)
+{
+    int nb   = in_dim / 32;
+    int b    = blockIdx.y;
+    int row  = blockIdx.x * BGEMV_WARPS + (threadIdx.x >> 5);
+    int lane = threadIdx.x & 31;
+    if (b >= batch || row >= out_dim) return;
+    const int8_t *q = q8 + (int64_t)b * in_dim;
+    const float  *s = sc + (int64_t)b * nb;
+    const float  *u = su + (int64_t)b * nb;
+    const struct q4_0_block *blks =
+        (const struct q4_0_block *)W + (int64_t)row * nb;
+    float sum = 0.0f;
+    for (int bl = lane; bl < nb; bl += 32) {
+        float d = fp16_to_f32(blks[bl].d);
+        uint32_t raw[4];
+        memcpy(raw, blks[bl].qs, 16);
+        uint32_t qlo[4], qhi[4];
+        #pragma unroll
+        for (int k = 0; k < 4; k++) {
+            qlo[k] = raw[k] & 0x0F0F0F0Fu;
+            qhi[k] = (raw[k] >> 4) & 0x0F0F0F0Fu;
+        }
+        const int32_t *ql = (const int32_t *)(q + bl * 32);
+        const int32_t *qh = (const int32_t *)(q + bl * 32 + 16);
+        int isum = 0;
+        #pragma unroll
+        for (int k = 0; k < 4; k++) {
+            isum = __dp4a((int)qlo[k], ql[k], isum);
+            isum = __dp4a((int)qhi[k], qh[k], isum);
+        }
+        sum += d * (s[bl] * (float)isum - 8.0f * u[bl]);
+    }
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) C[(int64_t)b * out_dim + row] = sum;
+}
+
+/* ─── Out-of-place batched RMSNorm ─── */
+__global__ void kernel_batched_rmsnorm_out(
+    float       *out,      /* [n_slices × slice_dim] */
+    const float *in,
+    const float *w,
+    int          n_slices,
+    int          slice_dim,
+    float        eps)
+{
+    int s = blockIdx.x;
+    if (s >= n_slices) return;
+    const float *xi = in  + (int64_t)s * slice_dim;
+    float       *xo = out + (int64_t)s * slice_dim;
+    __shared__ float smem[32];
+    __shared__ float inv_rms;
+    float ss = 0.0f;
+    for (int i = threadIdx.x; i < slice_dim; i += blockDim.x)
+        ss += xi[i] * xi[i];
+    ss = block_reduce_sum(ss, smem);
+    if (threadIdx.x == 0)
+        inv_rms = rsqrtf(ss / (float)slice_dim + eps);
+    __syncthreads();
+    for (int i = threadIdx.x; i < slice_dim; i += blockDim.x)
+        xo[i] = xi[i] * inv_rms * w[i];
+}
+
 static int ensure_q8_scratch(int in_dim) {
     int nb = in_dim / 32;
     if (in_dim <= 0 || nb <= 0) return -1;
@@ -1599,7 +2180,10 @@ CUDA_API void ck_gemv(float *out, const void *W, const float *x,
                 int q_blocks = (nb + warps_per_block - 1) / warps_per_block;
                 kernel_quantize_x_q8<<<q_blocks, q_threads, 0, stream_compute>>>(
                     x, d_q8_x_scratch, d_q8_sc_scratch, d_q8_sums_scratch, nb);
-                kernel_gemv_q4_0_prequant<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(
+                /* Use 512 threads (16 rows/block) for large out_dim to halve block count */
+                int gemv_t = (out_dim > 32768) ? 512 : 256;
+                int gemv_rpb = gemv_t >> 5;
+                kernel_gemv_q4_0_prequant<<<(out_dim + gemv_rpb - 1) / gemv_rpb, gemv_t, 0, stream_compute>>>(
                     out, W, d_q8_x_scratch, d_q8_sc_scratch, d_q8_sums_scratch,
                     out_dim, in_dim);
             } else {
@@ -1894,7 +2478,10 @@ CUDA_API void ck_gemv_async(float *out, const void *W, const float *x,
                 int q_blocks = (nb + warps_per_block - 1) / warps_per_block;
                 kernel_quantize_x_q8<<<q_blocks, q_threads, 0, stream_compute>>>(
                     x, d_q8_x_scratch, d_q8_sc_scratch, d_q8_sums_scratch, nb);
-                kernel_gemv_q4_0_prequant<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(
+                /* Use 512 threads (16 rows/block) for large out_dim to halve block count */
+                int gemv_t = (out_dim > 32768) ? 512 : 256;
+                int gemv_rpb = gemv_t >> 5;
+                kernel_gemv_q4_0_prequant<<<(out_dim + gemv_rpb - 1) / gemv_rpb, gemv_t, 0, stream_compute>>>(
                     out, W, d_q8_x_scratch, d_q8_sc_scratch, d_q8_sums_scratch,
                     out_dim, in_dim);
             } else {
@@ -2075,8 +2662,20 @@ CUDA_API void ck_set_decode_pos(int pos, int seq_len) {
     cudaMemcpyAsync(d_seq_len_var, &seq_len, sizeof(int), cudaMemcpyHostToDevice, stream_compute);
 }
 
+/* Drain any pending stream error before attempting graph capture.
+ * cudaStreamBeginCapture fails with cudaErrorMisalignedAddress (716) if a
+ * previous kernel left an error in the stream.  Synchronise + consume the
+ * error with cudaGetLastError() to reset the stream to a clean state. */
+CUDA_API void ck_stream_drain_error(void) {
+    cudaStreamSynchronize(stream_compute);
+    cudaGetLastError(); /* discard — stream is now clean */
+}
+
 CUDA_API int ck_graph_begin_capture(void) {
     g_capturing_graph = 1;
+    /* Drain any pending stream error so begin_capture succeeds */
+    cudaStreamSynchronize(stream_compute);
+    cudaGetLastError();
     /* Capture on stream_compute (non-NULL stream required for graph capture) */
     cudaError_t err = cudaStreamBeginCapture(stream_compute, cudaStreamCaptureModeRelaxed);
     if (err != cudaSuccess) {
@@ -2118,6 +2717,160 @@ CUDA_API int ck_graph_launch(void) {
     if (!g_graph_exec) return -1;
     cudaError_t err = cudaGraphLaunch(g_graph_exec, stream_compute);
     return (err == cudaSuccess) ? 0 : -1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Batch Prefill API — batched Q8 quant + batched Q4_0 GEMV + rmsnorm_out
+ * ════════════════════════════════════════════════════════════════════════ */
+
+CUDA_API void ck_prefill_batch_presized(int max_batch, int max_dim) {
+    ensure_batch_q8(max_batch, max_dim);
+}
+
+CUDA_API void ck_prefill_batch_quant(const float *X, int batch, int in_dim) {
+    if (ensure_batch_q8(batch, in_dim) != 0) return;
+    /* grid=(batch), block=256 — 8 warps, each warp handles 32 elements/quant-block */
+    kernel_batch_quant_q8<<<batch, 256, 0, stream_compute>>>(
+        X, d_bq8, d_bsc, d_bsu, in_dim);
+}
+
+CUDA_API void ck_prefill_batch_gemv_q4(
+    float      *C,
+    const void *W,
+    int         out_dim,
+    int         in_dim,
+    int         batch)
+{
+    if (!d_bq8) return;
+    dim3 grid((out_dim + BGEMV_WARPS - 1) / BGEMV_WARPS, batch);
+    kernel_batch_gemv_q4_prequant<<<grid, 256, 0, stream_compute>>>(
+        C, W, d_bq8, d_bsc, d_bsu, out_dim, in_dim, batch);
+}
+
+CUDA_API void ck_batched_rmsnorm_out(
+    float       *out,
+    const float *in,
+    const float *w,
+    int          n_slices,
+    int          slice_dim,
+    float        eps)
+{
+    int threads = slice_dim < 256 ? ((slice_dim + 31) & ~31) : 256;
+    if (threads < 32) threads = 32;
+    kernel_batched_rmsnorm_out<<<n_slices, threads, 0, stream_compute>>>(
+        out, in, w, n_slices, slice_dim, eps);
+}
+
+
+
+/* ─── Batched prefill attention API ─── */
+
+
+
+CUDA_API void ck_batch_fused_qk_norm_rope(
+
+    float *Q, float *K,
+
+    const float *q_norm_w, const float *k_norm_w,
+
+    int n_heads, int n_kv_heads, int head_dim,
+
+    int n, int start_pos, float rope_base, const float *rope_freqs,
+
+    float eps, int rope_dim)
+
+{
+
+    /* K may be NULL for layers that reuse another layer's KV cache */
+
+    int kv_heads_for_grid = (K != NULL) ? n_kv_heads : 0;
+
+    int total_heads = n_heads + kv_heads_for_grid;
+
+    dim3 grid(total_heads, n);
+
+    int threads = (head_dim < 256) ? ((head_dim + 31) / 32) * 32 : 256;
+
+    if (threads < 32) threads = 32;
+
+    kernel_batch_fused_qk_norm_rope<<<grid, threads, 0, stream_compute>>>(
+
+        Q, K, q_norm_w, k_norm_w,
+
+        n_heads, kv_heads_for_grid, head_dim,
+
+        start_pos, rope_base, rope_freqs, eps, rope_dim);
+
+}
+
+
+
+CUDA_API void ck_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps) {
+
+    dim3 grid(n_kv_heads, n);
+
+    int threads = (head_dim < 256) ? ((head_dim + 31) / 32) * 32 : 256;
+
+    if (threads < 32) threads = 32;
+
+    kernel_batch_v_norm<<<grid, threads, 0, stream_compute>>>(V, n_kv_heads, head_dim, eps);
+
+}
+
+
+
+CUDA_API void ck_batch_kv_update(
+
+    float *K_cache, float *V_cache,
+
+    const float *K_new, const float *V_new,
+
+    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq)
+
+{
+
+    int total = n_kv_heads * head_dim;
+
+    int threads = 256;
+
+    int blocks_x = (total + threads - 1) / threads;
+
+    dim3 grid(blocks_x, n);
+
+    kernel_batch_kv_update<<<grid, threads, 0, stream_compute>>>(
+
+        K_cache, V_cache, K_new, V_new, n_kv_heads, head_dim, start_pos, max_seq);
+
+}
+
+
+
+CUDA_API void ck_prefill_attn_batched(
+
+    float *O, const float *Q, const float *K_cache, const float *V_cache,
+
+    int n_heads, int n_kv_heads, int head_dim,
+
+    int n, int start_pos, int max_seq, float scale, float softcap)
+
+{
+
+    dim3 grid(n_heads, n);
+
+    int threads = 256;
+
+    int smem_seq = max_seq;
+
+    int shared_bytes = (smem_seq + 32) * (int)sizeof(float);
+
+    kernel_prefill_attn_batched<<<grid, threads, shared_bytes, stream_compute>>>(
+
+        O, Q, K_cache, V_cache,
+
+        n_heads, n_kv_heads, head_dim,
+
+        n, start_pos, max_seq, scale, softcap, smem_seq);
+
 }
 
 } /* extern "C" */

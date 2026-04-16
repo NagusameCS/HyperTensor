@@ -158,6 +158,69 @@ int axgeo_geodesic_integrate(axgeo_geodesic_t *geo,
                              const axgeo_metric_field_t *mf,
                              int n_steps);
 
+/*
+ * Adaptive RK45 (Cash-Karp) geodesic integrator — item 2.
+ * Integrates until geo->lambda >= lambda_end or max_steps reached.
+ * tol:     local error tolerance per step (e.g. 1e-6)
+ * h_min:   minimum allowed step size
+ * h_max:   maximum allowed step size (= 1/geo_steps is a good starting point)
+ * Returns 0 on success, -1 on divergence.
+ */
+int axgeo_geodesic_integrate_adaptive(axgeo_geodesic_t *geo,
+                                      const axgeo_christoffel_t *ch,
+                                      const axgeo_metric_field_t *mf,
+                                      double lambda_end,
+                                      double tol,
+                                      double h_min,
+                                      double h_max);
+
+/*
+ * Geodesic trajectory cache — item 4.
+ * Memoizes solved geodesic endpoints keyed by (start_cluster, end_cluster).
+ * Cluster index is computed by nearest-neighbor among n_clusters centroids.
+ * On a cache hit, the stored endpoint is returned directly (zero integration cost).
+ */
+#define AXGEO_TRAJ_CACHE_CAP  256
+#define AXGEO_TRAJ_CLUSTER_K   16
+
+typedef struct {
+    int     start_cluster;
+    int     end_cluster;
+    double *endpoint;      /* [dim] geodesic endpoint in PCA subspace */
+    double *velocity;      /* [dim] final velocity (for waypoint extraction) */
+    int     dim;
+    int     n_steps;       /* steps used when solved */
+    int     valid;
+} axgeo_traj_entry_t;
+
+typedef struct {
+    int                  n_clusters;   /* current centroid count */
+    int                  dim;
+    double              *centroids;    /* [n_clusters × dim] */
+    axgeo_traj_entry_t   entries[AXGEO_TRAJ_CACHE_CAP];
+    int                  count;
+    int                  hits;
+    int                  misses;
+} axgeo_traj_cache_t;
+
+void  axgeo_traj_cache_init(axgeo_traj_cache_t *tc, int dim);
+void  axgeo_traj_cache_destroy(axgeo_traj_cache_t *tc);
+void  axgeo_traj_cache_flush(axgeo_traj_cache_t *tc);
+
+/* Add a centroid; returns its cluster index. */
+int   axgeo_traj_cache_add_centroid(axgeo_traj_cache_t *tc, const double *pt);
+
+/* Lookup: returns 1 + fills endpoint/velocity in out_geo on hit, 0 on miss. */
+int   axgeo_traj_cache_lookup(axgeo_traj_cache_t *tc,
+                               const double *start, const double *end,
+                               double *out_endpoint, double *out_vel);
+
+/* Insert solved geodesic into cache. */
+void  axgeo_traj_cache_insert(axgeo_traj_cache_t *tc,
+                               const double *start, const double *end,
+                               const double *endpoint, const double *velocity,
+                               int n_steps);
+
 /* Compute geodesic distance (arc length) along the integrated path. */
 double axgeo_geodesic_length(const axgeo_geodesic_t *geo,
                              const axgeo_metric_field_t *mf);
@@ -203,5 +266,27 @@ int axgeo_compute_fisher(axgeo_fisher_t *f,
 void axgeo_metric_blend_fisher(axgeo_metric_field_t *mf,
                                const axgeo_fisher_t *f,
                                int point_idx, double alpha);
+
+/* ─── OTT Knowledge Injection (local curvature warp) ───
+ * Apply a local Christoffel perturbation around point p:
+ *   Gamma_tilde = Gamma + alpha * Phi(p) * exp(-d_g(x,p)^2 / (2*sigma^2))
+ *
+ * Returns number of sample points where a non-trivial warp was applied.
+ */
+int axgeo_apply_local_warp(axgeo_christoffel_t *ch,
+                           const axgeo_metric_field_t *mf,
+                           const double *p,
+                           const double *phi,
+                           double alpha,
+                           double sigma);
+
+/* Apply multiple local warps in superposition. */
+int axgeo_apply_local_warp_many(axgeo_christoffel_t *ch,
+                                const axgeo_metric_field_t *mf,
+                                const double *points,
+                                const double *phis,
+                                int n_points,
+                                double alpha,
+                                double sigma);
 
 #endif /* GEODESSICAL_AXIOM_GEO_H */

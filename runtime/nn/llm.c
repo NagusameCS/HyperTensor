@@ -1,4 +1,4 @@
-/* =============================================================================
+﻿/* =============================================================================
  * TensorOS - Real LLM Inference Engine Implementation
  *
  * Complete pipeline: disk → GGUF parse → tensor map → tokenize → forward →
@@ -28,7 +28,7 @@
 #include "runtime/nn/gguf.h"
 #include "runtime/jit/x86_jit.h"
 #include "kernel/security/crypto.h"
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include <stdlib.h>
 #include <string.h>
 #endif
@@ -59,7 +59,22 @@ void cuda_fused_qk_norm_rope(float *Q, float *K,
     int n_heads, int n_kv_heads, int head_dim,
     int pos, float rope_base, const float *rope_freqs,
     float eps, int rope_dim);
-void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
+void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
+/* Batched prefill: replaces per-token attention loop */
+void cuda_batch_fused_qk_norm_rope(float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim);
+void cuda_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps);
+void cuda_batch_kv_update(float *K_cache, float *V_cache,
+    const float *K_new, const float *V_new,
+    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq);
+void cuda_prefill_attn_batched(float *O, const float *Q,
+    const float *K_cache, const float *V_cache,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, int max_seq, float scale, float softcap);
+int  cuda_have_batch_attn(void);
 void cuda_fused_geglu(float *gate, const float *up, int n);
 void cuda_fused_swiglu(float *gate, const float *up, int n);
 void cuda_batched_rmsnorm(float *data, const float *w,
@@ -85,6 +100,11 @@ int cuda_graph_launch(void);
 void cuda_graph_destroy(void);
 void cuda_set_decode_pos(int pos, int seq_len);
 int cuda_argmax(const float *data, int n);
+/* Batch Prefill */
+void cuda_prefill_batch_presized(int max_batch, int max_dim);
+void cuda_prefill_batch_quant(const float *X, int batch, int in_dim);
+int  cuda_prefill_batch_gemv_q4(float *C, const void *W, int out_dim, int in_dim, int batch);
+void cuda_batched_rmsnorm_out(float *out, const float *in, const float *w, int n, int d, float eps);
 
 /* Capture-once CUDA Graph state */
 int cuda_graph_decode_ready = 0;  /* set after prefill by llm_generate */
@@ -161,7 +181,7 @@ static int llm_decode_tokens_to_text(const llm_model_t *m, const int *tokens,
     {
         static const char *stop_seqs[] = {
             "<|im_end|>", "<|endoftext|>", "<|end|>",
-            "<|eot_id|>", "<|end_of_turn|>", NULL
+            "<|eot_id|>", "<|end_of_turn|>", "<end_of_turn>", NULL
         };
         for (int si = 0; stop_seqs[si]; si++) {
             char *found = llm_strstr(output_text, stop_seqs[si]);
@@ -176,6 +196,17 @@ static int llm_decode_tokens_to_text(const llm_model_t *m, const int *tokens,
     }
 
     return out_pos;
+}
+
+static int llm_ends_with(const char *s, int len, const char *suffix)
+{
+    int slen = (int)kstrlen(suffix);
+    if (slen <= 0 || len < slen) return 0;
+    const char *tail = s + (len - slen);
+    for (int i = 0; i < slen; ++i) {
+        if (tail[i] != suffix[i]) return 0;
+    }
+    return 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -201,6 +232,8 @@ static int   *llm_tokens;      /* [max_tokens] token buffer */
 static float *llm_rope_freqs_buf; /* [head_dim/2] precomputed RoPE */
 static float *llm_iswa_per_layer; /* [iswa_n_embd * n_layers] per-layer embeddings */
 static float *llm_iswa_tmp;       /* [iswa_n_embd] ISWA gating scratch */
+static float *llm_depth_hist;     /* [n_layers * dim] layer history for theorem mode */
+static float *llm_depth_scores;   /* [n_layers] depth-attention score scratch */
 
 /* Sizes cached from the loaded model (for bounds checking) */
 static int llm_alloc_dim;
@@ -386,6 +419,20 @@ static struct {
     void  *d_iswa_tok_embd;     /* [vocab × iswa_total] Q6_K token embd on GPU */
     int iswa_n_embd;
     int iswa_tok_embd_type;     /* quant type of ISWA token embedding */
+
+    /* Batch Prefill scratch — lazy-allocated, freed on context reset */
+    float *d_pfx;               /* [prefill_max_n × dim] */
+    float *d_pfxn;              /* [prefill_max_n × dim] */
+    float *d_pfq;               /* [prefill_max_n × max_q_dim] */
+    float *d_pfk;               /* [prefill_max_n × max_kv_dim] */
+    float *d_pfv;               /* [prefill_max_n × max_kv_dim] */
+    float *d_pfattn;            /* [prefill_max_n × max_q_dim] */
+    float *d_pffg;              /* [prefill_max_n × max_ff] */
+    float *d_pffu;              /* [prefill_max_n × max_ff] */
+    float *d_pffd;              /* [prefill_max_n × dim] */
+    float *d_pfiswa;            /* [prefill_max_n × iswa_total] tok_embd+final */
+    float *d_pfiswa_proj;       /* [prefill_max_n × iswa_total] model_proj output */
+    int    prefill_max_n;       /* current allocation batch size */
 } gpu_ctx;
 
 /* Look up device pointer for a host weight pointer */
@@ -777,6 +824,8 @@ static int llm_alloc_scratch(const llm_model_t *m)
     int iswa_n_ = m->iswa_n_embd > 0 ? m->iswa_n_embd : 1;
     total += ALIGN64((uint64_t)(iswa_n_ * m->n_layers) * sizeof(float)); /* per_layer */
     total += ALIGN64((uint64_t)iswa_n_ * sizeof(float));                  /* tmp */
+    total += ALIGN64((uint64_t)m->n_layers * dim * sizeof(float));        /* depth hist */
+    total += ALIGN64((uint64_t)m->n_layers * sizeof(float));              /* depth scores */
 
     kprintf("[LLM] Allocating %lu MB scratch arena\n",
             (unsigned long)(total / (1024 * 1024)));
@@ -816,6 +865,8 @@ static int llm_alloc_scratch(const llm_model_t *m)
     int iswa_total = iswa_n * m->n_layers;
     ARENA_NEXT(llm_iswa_per_layer, float, iswa_total);
     ARENA_NEXT(llm_iswa_tmp,       float, iswa_n);
+    ARENA_NEXT(llm_depth_hist,     float, m->n_layers * dim);
+    ARENA_NEXT(llm_depth_scores,   float, m->n_layers);
 
     #undef ARENA_NEXT
     #undef ALIGN64
@@ -3213,7 +3264,449 @@ static jit_rope_fn           jit_fwd_rope_hd    = NULL;
 static jit_rmsnorm_fn        jit_fwd_rmsnorm    = NULL;
 static jit_softmax_fn        jit_fwd_softmax    = NULL;
 static int                   jit_fwd_ready      = 0;
+/* Forward declarations: configured later with defaults and setters. */
+static int                   llm_attnres_enabled;
+static float                 llm_attnres_strength;
+static int                   llm_depth_attn_enabled;
+static float                 llm_depth_attn_strength;
+static int                   llm_depth_attn_window;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Batch Prefill — allocate GPU scratch and run all N prompt tokens at once
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#ifdef ENABLE_CUDA
+static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos);  /* forward decl */
+static int llm_ensure_prefill_scratch(llm_model_t *m, int n) {
+    if (n <= 0 || !gpu_ctx.gpu_fwd) return -1;
+    if (gpu_ctx.prefill_max_n >= n && gpu_ctx.d_pfx) return 0;
+    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+    if (!be) return -1;
+
+#define PF_FREE(p) do { if (gpu_ctx.p) { be->mem.free(gpu_ctx.p); gpu_ctx.p = NULL; } } while(0)
+    PF_FREE(d_pfx); PF_FREE(d_pfxn); PF_FREE(d_pfq);
+    PF_FREE(d_pfk); PF_FREE(d_pfv); PF_FREE(d_pfattn);
+    PF_FREE(d_pffg); PF_FREE(d_pffu); PF_FREE(d_pffd);
+    PF_FREE(d_pfiswa); PF_FREE(d_pfiswa_proj);
+    gpu_ctx.prefill_max_n = 0;
+#undef PF_FREE
+
+    int dim        = m->dim;
+    int max_q_dim  = m->n_heads * m->head_dim;
+    int max_kv_dim = m->n_kv_heads * m->head_dim;
+    int max_ff     = gpu_ctx.max_ff;
+    int iswa_d     = m->iswa_n_embd;
+    int iswa_total = (iswa_d > 0) ? iswa_d * m->n_layers : 0;
+
+    uint64_t sz_x    = (uint64_t)n * dim       * sizeof(float);
+    uint64_t sz_q    = (uint64_t)n * max_q_dim  * sizeof(float);
+    uint64_t sz_kv   = (uint64_t)n * max_kv_dim * sizeof(float);
+    uint64_t sz_ff   = (uint64_t)n * max_ff     * sizeof(float);
+    uint64_t sz_iswa = (iswa_total > 0) ? (uint64_t)n * iswa_total * sizeof(float) : 0;
+
+    gpu_ctx.d_pfx    = (float *)be->mem.alloc(sz_x);
+    gpu_ctx.d_pfxn   = (float *)be->mem.alloc(sz_x);
+    gpu_ctx.d_pfq    = (float *)be->mem.alloc(sz_q);
+    gpu_ctx.d_pfk    = (float *)be->mem.alloc(sz_kv);
+    gpu_ctx.d_pfv    = (float *)be->mem.alloc(sz_kv);
+    gpu_ctx.d_pfattn = (float *)be->mem.alloc(sz_q);
+    gpu_ctx.d_pffg   = (float *)be->mem.alloc(sz_ff);
+    gpu_ctx.d_pffu   = (float *)be->mem.alloc(sz_ff);
+    gpu_ctx.d_pffd   = (float *)be->mem.alloc(sz_x);
+    if (iswa_total > 0) {
+        gpu_ctx.d_pfiswa      = (float *)be->mem.alloc(sz_iswa);
+        gpu_ctx.d_pfiswa_proj = (float *)be->mem.alloc(sz_iswa);
+    }
+
+    int ok = gpu_ctx.d_pfx && gpu_ctx.d_pfxn && gpu_ctx.d_pfq &&
+             gpu_ctx.d_pfk && gpu_ctx.d_pfv  && gpu_ctx.d_pfattn &&
+             gpu_ctx.d_pffg && gpu_ctx.d_pffu && gpu_ctx.d_pffd;
+    if (iswa_total > 0)
+        ok = ok && gpu_ctx.d_pfiswa && gpu_ctx.d_pfiswa_proj;
+
+    if (!ok) {
+#define PF_FREE2(p) do { if (gpu_ctx.p) { be->mem.free(gpu_ctx.p); gpu_ctx.p = NULL; } } while(0)
+        PF_FREE2(d_pfx); PF_FREE2(d_pfxn); PF_FREE2(d_pfq);
+        PF_FREE2(d_pfk); PF_FREE2(d_pfv); PF_FREE2(d_pfattn);
+        PF_FREE2(d_pffg); PF_FREE2(d_pffu); PF_FREE2(d_pffd);
+        PF_FREE2(d_pfiswa); PF_FREE2(d_pfiswa_proj);
+#undef PF_FREE2
+        return -1;
+    }
+
+    cuda_prefill_batch_presized(n, max_ff > dim ? max_ff : dim);
+    gpu_ctx.prefill_max_n = n;
+    uint64_t total_mb = (sz_x * 2 + sz_q * 2 + sz_kv * 2 + sz_ff * 2 + sz_x + sz_iswa * 2) >> 20;
+    kprintf("[GPU] batch-prefill scratch: n=%d dim=%d ff=%d (~%llu MB)\n",
+            n, dim, max_ff, (unsigned long long)total_mb);
+    return 0;
+}
+
+/* Run a batched GPU prefill for N tokens starting at start_pos.             */
+static void llm_forward_prefill_batch_gpu(
+    llm_model_t *m,
+    const int   *tokens,
+    int          n,
+    int          start_pos)
+{
+    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+    int dim    = m->dim;
+    int n_heads = m->n_heads;
+    int n_kv   = m->n_kv_heads;
+    int hd     = m->head_dim;
+    int ff     = m->ff_dim;
+    int max_seq = gpu_ctx.max_seq;
+
+    float *d_pfx    = gpu_ctx.d_pfx;
+    float *d_pfxn   = gpu_ctx.d_pfxn;
+    float *d_pfq    = gpu_ctx.d_pfq;
+    float *d_pfk    = gpu_ctx.d_pfk;
+    float *d_pfv    = gpu_ctx.d_pfv;
+    float *d_pfattn = gpu_ctx.d_pfattn;
+    float *d_pffg   = gpu_ctx.d_pffg;
+    float *d_pffu   = gpu_ctx.d_pffu;
+    float *d_pffd   = gpu_ctx.d_pffd;
+
+    /* 1. Embed all tokens */
+    void *d_embd = llm_gpu_lookup(m->token_embd);
+    int embed_on_gpu = d_embd && (m->token_embd_type == GGML_TYPE_Q4_0 ||
+                                   m->token_embd_type == GGML_TYPE_F32);
+    for (int i = 0; i < n; i++) {
+        float *xi = d_pfx + (int64_t)i * dim;
+        if (embed_on_gpu) {
+            be->compute.embed_lookup(xi, d_embd, tokens[i], dim, m->token_embd_type);
+            if (m->embed_scale != 0.0f && m->embed_scale != 1.0f)
+                be->compute.scale(xi, xi, m->embed_scale, dim);
+        } else {
+            llm_embed(llm_x, m, tokens[i]);
+            be->mem.upload(xi, llm_x, (uint64_t)dim * sizeof(float));
+        }
+    }
+
+    /* 2. ISWA batch precompute */
+    if (m->is_gemma4 && m->iswa_tok_embd && m->iswa_model_proj &&
+        gpu_ctx.d_pfiswa && gpu_ctx.d_pfiswa_proj) {
+        int iswa_d     = m->iswa_n_embd;
+        int iswa_total = iswa_d * m->n_layers;
+        float inv_sqrt_dim = 1.0f / llm_sqrtf((float)dim);
+        float sqrt_iswa_d  = llm_sqrtf((float)iswa_d);
+        float inv_sqrt_2   = 1.0f / llm_sqrtf(2.0f);
+
+        if (gpu_ctx.d_iswa_tok_embd) {
+            for (int i = 0; i < n; i++) {
+                float *dst = gpu_ctx.d_pfiswa + (int64_t)i * iswa_total;
+                be->compute.embed_lookup(dst, gpu_ctx.d_iswa_tok_embd,
+                                         tokens[i], iswa_total,
+                                         gpu_ctx.iswa_tok_embd_type);
+                be->compute.scale(dst, dst, sqrt_iswa_d, iswa_total);
+            }
+        } else {
+            uint64_t emb_rb = llm_row_bytes(iswa_total, m->iswa_tok_embd_type);
+            for (int i = 0; i < n; i++) {
+                float *dst = gpu_ctx.d_pfiswa + (int64_t)i * iswa_total;
+                if (m->iswa_tok_embd_type == GGML_TYPE_Q6_K) {
+                    const uint8_t *emb_row = (const uint8_t *)m->iswa_tok_embd
+                                             + (uint64_t)tokens[i] * emb_rb;
+                    const ggml_q6_k_t *blocks = (const ggml_q6_k_t *)emb_row;
+                    int nsb = iswa_total / 256;
+                    for (int sb = 0; sb < nsb; sb++) {
+                        const ggml_q6_k_t *b = &blocks[sb];
+                        float d_val = fp16_to_fp32(b->d);
+                        float *o = llm_iswa_per_layer + sb * 256;
+                        for (int half = 0; half < 2; half++) {
+                            const uint8_t *ql_h = b->ql + half * 64;
+                            const uint8_t *qh_h = b->qh + half * 32;
+                            const int8_t  *sc_h = b->scales + half * 8;
+                            for (int l = 0; l < 32; l++) {
+                                int q0 = (int)(ql_h[l]    & 0xF) | (int)(((qh_h[l]>>0)&3)<<4);
+                                int q1 = (int)(ql_h[l+32] & 0xF) | (int)(((qh_h[l]>>2)&3)<<4);
+                                int q2 = (int)(ql_h[l]    >> 4)  | (int)(((qh_h[l]>>4)&3)<<4);
+                                int q3 = (int)(ql_h[l+32] >> 4)  | (int)(((qh_h[l]>>6)&3)<<4);
+                                int si = l / 16;
+                                o[half*128 + l]      = d_val*(float)sc_h[0+si]*(float)(q0-32);
+                                o[half*128 + l + 32] = d_val*(float)sc_h[2+si]*(float)(q1-32);
+                                o[half*128 + l + 64] = d_val*(float)sc_h[4+si]*(float)(q2-32);
+                                o[half*128 + l + 96] = d_val*(float)sc_h[6+si]*(float)(q3-32);
+                            }
+                        }
+                    }
+                    for (int k = 0; k < iswa_total; k++) llm_iswa_per_layer[k] *= sqrt_iswa_d;
+                } else {
+                    for (int k = 0; k < iswa_total; k++)
+                        llm_iswa_per_layer[k] = llm_get_f(m->iswa_tok_embd, k,
+                                                           m->iswa_tok_embd_type) * sqrt_iswa_d;
+                }
+                be->mem.upload(dst, llm_iswa_per_layer, (uint64_t)iswa_total * sizeof(float));
+            }
+        }
+
+        void *d_model_proj = llm_gpu_lookup(m->iswa_model_proj);
+        if (d_model_proj) {
+            int batch_ok = 0;
+            if (m->iswa_model_proj_type == GGML_TYPE_Q4_0) {
+                cuda_prefill_batch_quant(d_pfx, n, dim);
+                batch_ok = cuda_prefill_batch_gemv_q4(gpu_ctx.d_pfiswa_proj,
+                                                       d_model_proj,
+                                                       iswa_total, dim, n);
+            }
+            if (!batch_ok) {
+                for (int i = 0; i < n; i++)
+                    be->compute.gemv(gpu_ctx.d_pfiswa_proj + (int64_t)i * iswa_total,
+                                      d_model_proj,
+                                      d_pfx + (int64_t)i * dim,
+                                      iswa_total, dim, m->iswa_model_proj_type);
+            }
+            be->compute.scale(gpu_ctx.d_pfiswa_proj, gpu_ctx.d_pfiswa_proj,
+                               inv_sqrt_dim, n * iswa_total);
+            if (gpu_ctx.d_iswa_proj_norm)
+                cuda_batched_rmsnorm(gpu_ctx.d_pfiswa_proj, gpu_ctx.d_iswa_proj_norm,
+                                      n * m->n_layers, iswa_d, m->rms_eps);
+            cuda_iswa_combine(gpu_ctx.d_pfiswa, gpu_ctx.d_pfiswa,
+                               gpu_ctx.d_pfiswa_proj, inv_sqrt_2, n * iswa_total);
+        }
+    }
+
+    /* 3. Per-layer transform */
+#define BGEMV4(out, W, od, id, type) do { \
+    if ((type) == GGML_TYPE_Q4_0) { \
+        cuda_prefill_batch_quant(d_pfxn, n, (id)); \
+        cuda_prefill_batch_gemv_q4((out), (W), (od), (id), n); \
+    } else { \
+        for (int _i = 0; _i < n; _i++) \
+            be->compute.gemv((out) + (int64_t)_i*(od), (W), \
+                             d_pfxn + (int64_t)_i*(id), (od), (id), (type)); \
+    } \
+} while(0)
+
+    for (int L = 0; L < m->n_layers; L++) {
+        llm_layer_t *layer = &m->layers[L];
+        gpu_layer_t *gl    = &gpu_ctx.layers[L];
+        int lhd     = layer->head_dim_layer ? layer->head_dim_layer : hd;
+        int lkv_dim = n_kv * lhd;
+        int lq_dim  = n_heads * lhd;
+        int lff     = layer->ff_dim_layer  ? layer->ff_dim_layer  : ff;
+        int has_own_kv = (layer->kv_reuse_layer < 0);
+
+        /* Pre-attn batched RMSNorm (out-of-place) */
+        cuda_batched_rmsnorm_out(d_pfxn, d_pfx, gl->d_attn_norm, n, dim, gpu_ctx.rms_eps);
+
+        /* QKV projections */
+        void *d_qw = llm_gpu_lookup(layer->q_weight);
+        BGEMV4(d_pfq, d_qw, lq_dim, dim, layer->q_type);
+        if (has_own_kv) {
+            void *d_kw = llm_gpu_lookup(layer->k_weight);
+            void *d_vw = llm_gpu_lookup(layer->v_weight);
+            BGEMV4(d_pfk, d_kw, lkv_dim, dim, layer->k_type);
+            BGEMV4(d_pfv, d_vw, lkv_dim, dim, layer->v_type);
+        }
+
+        /* 3c. Batched: RoPE + KV update + attention (all n tokens in parallel) */
+        {
+            float layer_rope_base = m->rope_base;
+            if (m->is_gemma4 && lhd == m->head_dim_swa)
+                layer_rope_base = m->rope_base_swa;
+            float *d_rope_f = (m->is_gemma4 && m->rope_freqs && lhd != m->head_dim_swa)
+                               ? gpu_ctx.d_rope_freqs : (float *)0;
+            int rdim = m->rope_dim > 0 ? m->rope_dim : lhd;
+            float attn_scale = m->is_gemma4 ? 1.0f : (1.0f / llm_sqrtf((float)lhd));
+
+            /* Use batched attention kernels if available (loaded from DLL) */
+            int have_batched_attn = cuda_have_batch_attn();
+
+            if (have_batched_attn) {
+                /* Batched path: one launch per step instead of n launches */
+                if (layer->q_norm && has_own_kv) {
+                    cuda_batch_fused_qk_norm_rope(d_pfq, d_pfk,
+                        gl->d_q_norm, gl->d_k_norm,
+                        n_heads, n_kv, lhd, n, start_pos,
+                        layer_rope_base, d_rope_f, m->rms_eps, rdim);
+                    cuda_batch_v_norm(d_pfv, n_kv, lhd, n, m->rms_eps);
+                } else if (layer->q_norm) {
+                    cuda_batch_fused_qk_norm_rope(d_pfq, (float *)0,
+                        gl->d_q_norm, (float *)0,
+                        n_heads, 0, lhd, n, start_pos,
+                        layer_rope_base, d_rope_f, m->rms_eps, rdim);
+                } else {
+                    if (has_own_kv)
+                        cuda_batch_fused_qk_norm_rope(d_pfq, d_pfk,
+                            (float *)0, (float *)0,
+                            n_heads, n_kv, lhd, n, start_pos,
+                            layer_rope_base, d_rope_f, m->rms_eps, rdim);
+                    else
+                        cuda_batch_fused_qk_norm_rope(d_pfq, (float *)0,
+                            (float *)0, (float *)0,
+                            n_heads, 0, lhd, n, start_pos,
+                            layer_rope_base, d_rope_f, m->rms_eps, rdim);
+                }
+
+                if (has_own_kv)
+                    cuda_batch_kv_update(gl->d_k_cache, gl->d_v_cache,
+                                         d_pfk, d_pfv, n_kv, lhd,
+                                         n, start_pos, max_seq);
+
+                {
+                    int kv_src = has_own_kv ? L : layer->kv_reuse_layer;
+                    gpu_layer_t *kv_gl = &gpu_ctx.layers[kv_src];
+                    cuda_prefill_attn_batched(d_pfattn, d_pfq,
+                        kv_gl->d_k_cache, kv_gl->d_v_cache,
+                        n_heads, n_kv, lhd,
+                        n, start_pos, max_seq, attn_scale, 0.0f);
+                }
+            } else {
+                /* Fallback: sequential per-token loop */
+                for (int i = 0; i < n; i++) {
+                    int    pos_i = start_pos + i;
+                    float *dqi   = d_pfq    + (int64_t)i * lq_dim;
+                    float *dki   = d_pfk    + (int64_t)i * lkv_dim;
+                    float *dvi   = d_pfv    + (int64_t)i * lkv_dim;
+                    float *dai   = d_pfattn + (int64_t)i * lq_dim;
+                    if (layer->q_norm && has_own_kv) {
+                        cuda_fused_qk_norm_rope(dqi, dki, gl->d_q_norm, gl->d_k_norm,
+                            n_heads, n_kv, lhd, pos_i, layer_rope_base, d_rope_f,
+                            m->rms_eps, rdim);
+                        cuda_v_norm(dvi, n_kv, lhd, m->rms_eps);
+                    } else if (layer->q_norm) {
+                        cuda_fused_qk_norm_rope(dqi, dqi, gl->d_q_norm, (float *)0,
+                            n_heads, 0, lhd, pos_i, layer_rope_base, d_rope_f,
+                            m->rms_eps, rdim);
+                    } else {
+                        if (has_own_kv)
+                            be->compute.rope(dqi, dki, lhd, n_heads, n_kv,
+                                             pos_i, layer_rope_base, d_rope_f);
+                        else
+                            be->compute.rope(dqi, dqi, lhd, n_heads, 0,
+                                             pos_i, layer_rope_base, d_rope_f);
+                    }
+                    if (has_own_kv)
+                        be->compute.kv_update(gl->d_k_cache, gl->d_v_cache,
+                                               dki, dvi, n_kv, lhd, pos_i, max_seq, L);
+                    int kv_src = has_own_kv ? L : layer->kv_reuse_layer;
+                    gpu_layer_t *kv_gl = &gpu_ctx.layers[kv_src];
+                    be->compute.attention(dai, dqi, kv_gl->d_k_cache, kv_gl->d_v_cache,
+                                           n_heads, n_kv, lhd,
+                                           pos_i + 1, max_seq, attn_scale, 0.0f);
+                }
+            }
+        }
+        /* O projection */
+        void *d_ow = llm_gpu_lookup(layer->o_weight);
+        if (layer->o_type == GGML_TYPE_Q4_0) {
+            cuda_prefill_batch_quant(d_pfattn, n, lq_dim);
+            cuda_prefill_batch_gemv_q4(d_pffd, d_ow, dim, lq_dim, n);
+        } else {
+            for (int i = 0; i < n; i++)
+                be->compute.gemv(d_pffd + (int64_t)i * dim, d_ow,
+                                 d_pfattn + (int64_t)i * lq_dim,
+                                 dim, lq_dim, layer->o_type);
+        }
+
+        /* Post-attn residual */
+        if (layer->post_attn_norm && gl->d_post_attn_norm) {
+            for (int i = 0; i < n; i++)
+                cuda_rmsnorm_add(d_pfx + (int64_t)i * dim,
+                                  d_pffd + (int64_t)i * dim,
+                                  gl->d_post_attn_norm, dim, gpu_ctx.rms_eps);
+        } else {
+            be->compute.add(d_pfx, d_pfx, d_pffd, n * dim);
+        }
+
+        /* Pre-FFN batched RMSNorm */
+        cuda_batched_rmsnorm_out(d_pfxn, d_pfx, gl->d_ffn_norm, n, dim, gpu_ctx.rms_eps);
+
+        /* FFN */
+        if (m->use_gelu || !layer->ffn_gate) {
+            void *d_upw   = llm_gpu_lookup(layer->ffn_up);
+            void *d_downw = llm_gpu_lookup(layer->ffn_down);
+            BGEMV4(d_pffu, d_upw, lff, dim, layer->up_type);
+            be->compute.gelu(d_pffu, n * lff);
+            if (layer->down_type == GGML_TYPE_Q4_0) {
+                cuda_prefill_batch_quant(d_pffu, n, lff);
+                cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
+            } else {
+                for (int i = 0; i < n; i++)
+                    be->compute.gemv(d_pffd + (int64_t)i * dim, d_downw,
+                                     d_pffu + (int64_t)i * lff, dim, lff, layer->down_type);
+            }
+        } else if (m->use_geglu) {
+            void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
+            void *d_upw   = llm_gpu_lookup(layer->ffn_up);
+            void *d_downw = llm_gpu_lookup(layer->ffn_down);
+            BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
+            BGEMV4(d_pffu, d_upw,   lff, dim, layer->up_type);
+            cuda_fused_geglu(d_pffg, d_pffu, n * lff);
+            if (layer->down_type == GGML_TYPE_Q4_0) {
+                cuda_prefill_batch_quant(d_pffg, n, lff);
+                cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
+            } else {
+                for (int i = 0; i < n; i++)
+                    be->compute.gemv(d_pffd + (int64_t)i * dim, d_downw,
+                                     d_pffg + (int64_t)i * lff, dim, lff, layer->down_type);
+            }
+        } else {
+            void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
+            void *d_upw   = llm_gpu_lookup(layer->ffn_up);
+            void *d_downw = llm_gpu_lookup(layer->ffn_down);
+            BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
+            BGEMV4(d_pffu, d_upw,   lff, dim, layer->up_type);
+            cuda_fused_swiglu(d_pffg, d_pffu, n * lff);
+            if (layer->down_type == GGML_TYPE_Q4_0) {
+                cuda_prefill_batch_quant(d_pffg, n, lff);
+                cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
+            } else {
+                for (int i = 0; i < n; i++)
+                    be->compute.gemv(d_pffd + (int64_t)i * dim, d_downw,
+                                     d_pffg + (int64_t)i * lff, dim, lff, layer->down_type);
+            }
+        }
+
+        /* Post-FFW residual */
+        if (layer->post_ffw_norm && gl->d_post_ffw_norm) {
+            for (int i = 0; i < n; i++)
+                cuda_rmsnorm_add(d_pfx + (int64_t)i * dim,
+                                  d_pffd + (int64_t)i * dim,
+                                  gl->d_post_ffw_norm, dim, gpu_ctx.rms_eps);
+        } else {
+            be->compute.add(d_pfx, d_pfx, d_pffd, n * dim);
+        }
+
+        /* ISWA injection per token */
+        if (m->is_gemma4 && layer->iswa_inp_gate && gpu_ctx.d_pfiswa) {
+            int iswa_d = m->iswa_n_embd;
+            void *d_inp_gate = llm_gpu_lookup(layer->iswa_inp_gate);
+            void *d_proj     = llm_gpu_lookup(layer->iswa_proj);
+            if (d_inp_gate && d_proj && gpu_ctx.d_iswa_tmp) {
+                int iswa_total = iswa_d * m->n_layers;
+                for (int i = 0; i < n; i++) {
+                    float *xi      = d_pfx + (int64_t)i * dim;
+                    float *iswa_pl = gpu_ctx.d_pfiswa
+                                     + (int64_t)i * iswa_total + (int64_t)L * iswa_d;
+                    float *ffd_i   = d_pffd + (int64_t)i * dim;
+                    be->compute.gemv(gpu_ctx.d_iswa_tmp, d_inp_gate, xi,
+                                     iswa_d, dim, layer->iswa_inp_gate_type);
+                    cuda_gelu_mul(gpu_ctx.d_iswa_tmp, iswa_pl, iswa_d);
+                    be->compute.gemv(ffd_i, d_proj, gpu_ctx.d_iswa_tmp,
+                                     dim, iswa_d, layer->iswa_proj_type);
+                    if (gl->d_iswa_post_norm)
+                        cuda_rmsnorm_add(xi, ffd_i, gl->d_iswa_post_norm,
+                                          dim, gpu_ctx.rms_eps);
+                    else
+                        be->compute.add(xi, xi, ffd_i, dim);
+                }
+            }
+        }
+
+        /* Per-layer output scale */
+        if (layer->iswa_out_scale) {
+            float s = ((const float *)layer->iswa_out_scale)[0];
+            be->compute.scale(d_pfx, d_pfx, s, n * dim);
+        }
+    }
+#undef BGEMV4
+
+    /* The caller will run token n-1 sequentially via llm_forward_token for
+     * numerically-exact logits.  We are done: KV[0..n-1] are now populated. */
+}
+
+#endif /* ENABLE_CUDA */
 static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos)
 {
     int dim = m->dim;
@@ -3222,6 +3715,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     int hd = m->head_dim;
     int ff = m->ff_dim;
     int kv_dim = n_kv * hd;
+    int want_logits = (logits != NULL);
 
     /* Lazy-compile JIT kernels on first call (dimensions fixed per model) */
 #ifndef __aarch64__
@@ -3249,7 +3743,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
      * Activations stay in VRAM between operations — no PCIe round-trips
      * except: ISWA injection (small tensors) and final logits download.
      * ═════════════════════════════════════════════════════════════════════ */
-    if (gpu_ctx.gpu_fwd) {
+    if (gpu_ctx.gpu_fwd &&
+        /* Bridge capture requires CPU layer loop (no bridge support in GPU path).
+         * Fall through to CPU path when capture mode is active so hidden-state
+         * captures (OTT axiom probes) get real transformer activations. */
+        !(llm_bridge.mode & BRIDGE_MODE_CAPTURE)) {
         const backend_t *be = backend_get_by_id(BACKEND_CUDA);
         int max_seq = gpu_ctx.max_seq;
         int seq_len = pos + 1;
@@ -3393,7 +3891,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         void *d_lm = llm_gpu_lookup(lm_head);
 
         /* Graph REPLAY fast-path: skip entire compute */
-        if (cuda_graph_captured && cuda_graph_decode_ready && d_lm) {
+        if (want_logits && cuda_graph_captured && cuda_graph_decode_ready && d_lm) {
             uint64_t _gr0 = hal_timer_us();
             cuda_set_decode_pos(pos, pos + 1);
             uint64_t _gr1 = hal_timer_us();
@@ -3414,7 +3912,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* Graph CAPTURE: first decode token */
         int capturing = 0;
-        if (cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled) {
+        if (want_logits && cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled) {
             /* Pre-verify: ISWA weights must be GPU-resident to avoid
              * CPU fallback (which would break stream capture). */
             int iswa_ok = 1;
@@ -3433,12 +3931,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 cuda_set_decode_pos(pos, pos + 1);
                 if (cuda_graph_begin_capture() == 0) {
                     capturing = 1;
-                    kprintf("[GRAPH] Capture started at pos=%d\n", pos);
+                    LOG_DBG("GRAPH", "capture started at pos=%d", pos);
                 } else {
-                    kprintf("[GRAPH] begin_capture FAILED at pos=%d\n", pos);
+                    LOG_WARN("GRAPH", "begin_capture failed at pos=%d", pos);
                 }
             } else {
-                kprintf("[GRAPH] ISWA weights not on GPU — skipping capture\n");
+                LOG_DBG("GRAPH", "ISWA weights not on GPU; skipping capture");
             }
         }
 
@@ -3555,6 +4053,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             } else {
                 be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
             }
+            if (llm_attnres_enabled) {
+                float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+                float gamma = 1.0f - (0.12f * llm_attnres_strength * depth_frac);
+                if (gamma < 0.70f) gamma = 0.70f;
+                be->compute.scale(gpu_ctx.d_x, gpu_ctx.d_x, gamma, dim);
+            }
 
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_oproj += (_lp1 - _lp0); _lp0 = _lp1; }
             /* === FFN === */
@@ -3621,6 +4125,57 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             } else {
                 be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
             }
+            if (llm_attnres_enabled) {
+                float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+                float gamma = 1.0f - (0.18f * llm_attnres_strength * depth_frac);
+                if (gamma < 0.65f) gamma = 0.65f;
+                be->compute.scale(gpu_ctx.d_x, gpu_ctx.d_x, gamma, dim);
+            }
+
+            if (llm_depth_attn_enabled && llm_depth_hist && llm_depth_scores && L > 0) {
+                const backend_t *be2 = backend_get_by_id(BACKEND_CUDA);
+                be2->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
+                be2->mem.sync();
+                kmemcpy(llm_depth_hist + (uint64_t)L * dim, llm_x, (uint64_t)dim * sizeof(float));
+
+                int start = L - llm_depth_attn_window;
+                if (start < 0) start = 0;
+                int cnt = 0;
+                float qn = llm_sqrtf(llm_dot_f32(llm_x, llm_x, dim) + 1e-9f);
+                for (int p = start; p < L; p++) {
+                    float *hp = llm_depth_hist + (uint64_t)p * dim;
+                    float hn = llm_sqrtf(llm_dot_f32(hp, hp, dim) + 1e-9f);
+                    float cs = llm_dot_f32(llm_x, hp, dim) / (qn * hn + 1e-9f);
+                    llm_depth_scores[cnt++] = cs;
+                }
+                float mx = llm_depth_scores[0];
+                for (int i = 1; i < cnt; i++) if (llm_depth_scores[i] > mx) mx = llm_depth_scores[i];
+                float sm = 0.0f;
+                for (int i = 0; i < cnt; i++) {
+                    llm_depth_scores[i] = llm_expf((llm_depth_scores[i] - mx) * 6.0f);
+                    sm += llm_depth_scores[i];
+                }
+                if (sm < 1e-9f) sm = 1e-9f;
+                float inv = 1.0f / sm;
+                kmemset(llm_ffn_d, 0, (uint64_t)dim * sizeof(float));
+                for (int i = 0; i < cnt; i++) {
+                    int p = start + i;
+                    float w = llm_depth_scores[i] * inv;
+                    llm_axpy_f32(llm_ffn_d, w, llm_depth_hist + (uint64_t)p * dim, dim);
+                }
+                float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+                float alpha = llm_depth_attn_strength * depth_frac;
+                if (alpha > 0.85f) alpha = 0.85f;
+                be2->mem.upload(gpu_ctx.d_ffn_d, llm_ffn_d, (uint64_t)dim * sizeof(float));
+                be2->compute.scale(gpu_ctx.d_x, gpu_ctx.d_x, 1.0f - alpha, dim);
+                be2->compute.scale(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_d, alpha, dim);
+                be2->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
+            } else if (llm_depth_attn_enabled && llm_depth_hist && L == 0) {
+                const backend_t *be2 = backend_get_by_id(BACKEND_CUDA);
+                be2->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
+                be2->mem.sync();
+                kmemcpy(llm_depth_hist + (uint64_t)L * dim, llm_x, (uint64_t)dim * sizeof(float));
+            }
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_ffn += (_lp1 - _lp0); _lp0 = _lp1; }
 
             /* === ISWA injection (Gemma4): GPU-resident === */
@@ -3680,7 +4235,9 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                             dim, gpu_ctx.rms_eps);
 
         /* 4. LM head projection on GPU → logits */
-        if (d_lm) {
+        if (!want_logits) {
+            return;
+        } else if (d_lm) {
             be->compute.gemv(gpu_ctx.d_out, d_lm, gpu_ctx.d_xn,
                              m->vocab_size, dim, lm_type);
             /* 5. Logit softcapping on GPU (before download) */
@@ -3691,11 +4248,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             if (capturing) {
                 if (cuda_graph_end_capture() == 0) {
                     cuda_graph_captured = 1;
-                    kprintf("[GRAPH] Captured successfully! Launching graph.\n");
+                    LOG_DBG("GRAPH", "captured successfully; launching graph");
                     cuda_graph_launch();
                 } else {
                     /* Capture failed — re-execute without capture */
-                    kprintf("[GRAPH] end_capture FAILED — re-executing normally\n");
+                    LOG_WARN("GRAPH", "end_capture failed; re-executing normally");
                     capturing = 0;
                     llm_forward_token(m, logits, token_id, pos);
                     return;
@@ -3997,6 +4554,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
         else
             llm_vadd_f32(llm_x, llm_ffn_d, dim);
+        if (llm_attnres_enabled) {
+            float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+            float gamma = 1.0f - (0.12f * llm_attnres_strength * depth_frac);
+            if (gamma < 0.70f) gamma = 0.70f;
+            for (int i = 0; i < dim; i++) llm_x[i] *= gamma;
+        }
 
         /* === Feed-Forward Network === */
 
@@ -4051,6 +4614,48 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
         else
             llm_vadd_f32(llm_x, llm_ffn_d, dim);
+        if (llm_attnres_enabled) {
+            float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+            float gamma = 1.0f - (0.18f * llm_attnres_strength * depth_frac);
+            if (gamma < 0.65f) gamma = 0.65f;
+            for (int i = 0; i < dim; i++) llm_x[i] *= gamma;
+        }
+
+        if (llm_depth_attn_enabled && llm_depth_hist && llm_depth_scores && L > 0) {
+            kmemcpy(llm_depth_hist + (uint64_t)L * dim, llm_x, (uint64_t)dim * sizeof(float));
+            int start = L - llm_depth_attn_window;
+            if (start < 0) start = 0;
+            int cnt = 0;
+            float qn = llm_sqrtf(llm_dot_f32(llm_x, llm_x, dim) + 1e-9f);
+            for (int p = start; p < L; p++) {
+                float *hp = llm_depth_hist + (uint64_t)p * dim;
+                float hn = llm_sqrtf(llm_dot_f32(hp, hp, dim) + 1e-9f);
+                float cs = llm_dot_f32(llm_x, hp, dim) / (qn * hn + 1e-9f);
+                llm_depth_scores[cnt++] = cs;
+            }
+            float mx = llm_depth_scores[0];
+            for (int i = 1; i < cnt; i++) if (llm_depth_scores[i] > mx) mx = llm_depth_scores[i];
+            float sm = 0.0f;
+            for (int i = 0; i < cnt; i++) {
+                llm_depth_scores[i] = llm_expf((llm_depth_scores[i] - mx) * 6.0f);
+                sm += llm_depth_scores[i];
+            }
+            if (sm < 1e-9f) sm = 1e-9f;
+            float inv = 1.0f / sm;
+            kmemset(llm_ffn_d, 0, (uint64_t)dim * sizeof(float));
+            for (int i = 0; i < cnt; i++) {
+                int p = start + i;
+                float w = llm_depth_scores[i] * inv;
+                llm_axpy_f32(llm_ffn_d, w, llm_depth_hist + (uint64_t)p * dim, dim);
+            }
+            float depth_frac = (float)(L + 1) / (float)(m->n_layers > 0 ? m->n_layers : 1);
+            float alpha = llm_depth_attn_strength * depth_frac;
+            if (alpha > 0.85f) alpha = 0.85f;
+            for (int i = 0; i < dim; i++)
+                llm_x[i] = llm_x[i] * (1.0f - alpha) + llm_ffn_d[i] * alpha;
+        } else if (llm_depth_attn_enabled && llm_depth_hist && L == 0) {
+            kmemcpy(llm_depth_hist + (uint64_t)L * dim, llm_x, (uint64_t)dim * sizeof(float));
+        }
 
         /* === Gemma4 ISWA: Per-layer embedding injection === */
         if (m->is_gemma4 && layer->iswa_inp_gate) {
@@ -4105,6 +4710,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     /* 4. LM head: logits = output_weight · x */
     const void *lm_head = m->output_weight ? m->output_weight : m->token_embd;
     ggml_type_t lm_type = m->output_weight ? m->output_type : m->token_embd_type;
+
+    if (!want_logits) {
+        return;
+    }
 
     llm_gemv(logits, lm_head, llm_xn, m->vocab_size, dim, lm_type);
 
@@ -4694,10 +5303,69 @@ static int  llm_think_enabled   = 1;   /* 0=off, 1=reactive, 2=force-inject */
 static int  llm_think_show      = 0;   /* 1 = include thinking text in output */
 static int  llm_think_count     = 0;   /* thinking tokens in last generation */
 static int  llm_think_active    = 0;   /* currently inside thinking block */
+static int  llm_sample_top_k    = 40;
+static float llm_sample_top_p   = 0.9f;
+static int  llm_attnres_enabled = 0;
+static float llm_attnres_strength = 0.35f;
+static int  llm_depth_attn_enabled = 0;
+static float llm_depth_attn_strength = 0.55f;
+static int  llm_depth_attn_window = 16;
+
+/* Fast sampler RNG: seeded once from crypto_random, then xorshift32 per token. */
+static uint32_t llm_sample_rng_state = 0;
+
+static uint32_t llm_sample_rand_u32(void)
+{
+    if (llm_sample_rng_state == 0) {
+        uint32_t seed = 0;
+        crypto_random(&seed, sizeof(seed));
+        if (seed == 0) {
+            seed = (uint32_t)rdtsc_fenced();
+            if (seed == 0) seed = 0xA341316Cu;
+        }
+        llm_sample_rng_state = seed;
+    }
+
+    /* xorshift32 */
+    uint32_t x = llm_sample_rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    llm_sample_rng_state = x;
+    return x;
+}
+
+/* Optional override for GPU KV-cache context window.  0 = use model default. */
+static int llm_max_ctx_override = 0;
+void llm_set_max_ctx(int n) { llm_max_ctx_override = n; }
 
 void llm_set_thinking(int enable)      { llm_think_enabled = enable; }
 void llm_set_show_thinking(int show)   { llm_think_show = show; }
 int  llm_thinking_tokens(void)         { return llm_think_count; }
+void llm_set_sampling_params(int top_k, float top_p)
+{
+    if (top_k > 0 && top_k <= 128) llm_sample_top_k = top_k;
+    if (top_p > 0.0f && top_p <= 1.0f) llm_sample_top_p = top_p;
+}
+
+void llm_set_attention_residuals(int enable, float strength)
+{
+    llm_attnres_enabled = enable ? 1 : 0;
+    if (strength < 0.0f) strength = 0.0f;
+    if (strength > 1.0f) strength = 1.0f;
+    llm_attnres_strength = strength;
+}
+
+void llm_set_depth_residual_attention(int enable, float strength, int window)
+{
+    llm_depth_attn_enabled = enable ? 1 : 0;
+    if (strength < 0.0f) strength = 0.0f;
+    if (strength > 1.0f) strength = 1.0f;
+    llm_depth_attn_strength = strength;
+    if (window < 2) window = 2;
+    if (window > 64) window = 64;
+    llm_depth_attn_window = window;
+}
 
 /* Apply repetition + frequency penalty to logits in-place */
 static void llm_apply_rep_penalty(float *logits, int vocab_size)
@@ -4732,11 +5400,13 @@ static int llm_sample(float *logits, int vocab_size, float temperature)
     llm_apply_rep_penalty(logits, vocab_size);
 
     /* Top-k filtering: keep only top 40 candidates */
-    #define LLM_TOP_K 40
-    static int top_indices[LLM_TOP_K];
-    static float top_probs[LLM_TOP_K];
+    #define LLM_TOP_K_MAX 128
+    static int top_indices[LLM_TOP_K_MAX];
+    static float top_probs[LLM_TOP_K_MAX];
 
-    int k = LLM_TOP_K;
+    int k = llm_sample_top_k;
+    if (k < 1) k = 1;
+    if (k > LLM_TOP_K_MAX) k = LLM_TOP_K_MAX;
     if (k > vocab_size) k = vocab_size;
 
     llm_partial_sort_desc(top_indices, logits, vocab_size, k);
@@ -4753,7 +5423,7 @@ static int llm_sample(float *logits, int vocab_size, float temperature)
         top_probs[i] *= inv_sum;
 
     /* Top-p (nucleus) filtering: keep tokens until cumulative prob >= 0.9 */
-    float top_p = 0.9f;
+    float top_p = llm_sample_top_p;
     float cum = 0.0f;
     int p_cutoff = k;
     for (int i = 0; i < k; i++) {
@@ -4774,10 +5444,8 @@ static int llm_sample(float *logits, int vocab_size, float temperature)
             top_probs[i] *= inv_sum;
     }
 
-    /* Sample using CSPRNG */
-    uint32_t rng_val;
-    crypto_random(&rng_val, sizeof(rng_val));
-    float r = (float)(rng_val % 10000) / 10000.0f;
+    /* Sample using fast local RNG (seeded once from CSPRNG). */
+    float r = (float)(llm_sample_rand_u32() >> 8) * (1.0f / 16777216.0f);
 
     float cdf = 0.0f;
     for (int i = 0; i < p_cutoff; i++) {
@@ -4785,7 +5453,7 @@ static int llm_sample(float *logits, int vocab_size, float temperature)
         if (cdf >= r) return top_indices[i];
     }
     return top_indices[p_cutoff - 1];
-    #undef LLM_TOP_K
+    #undef LLM_TOP_K_MAX
 }
 
 /* Generate text tokens autoregressively.
@@ -4802,29 +5470,9 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     int start_pos = 0;
 
     if (!continue_cache) {
-        /* Reset KV cache — fast memset instead of scalar loop */
+        /* Logical reset only: attention reads are bounded by seq_len (pos+1),
+         * so stale KV values outside active prefix are never consumed. */
         m->cache_len = 0;
-        int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
-        if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
-        kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
-        kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
-#ifdef ENABLE_CUDA
-        /* Clear GPU-resident KV cache */
-        if (gpu_ctx.gpu_fwd) {
-            const backend_t *be = backend_get_by_id(BACKEND_CUDA);
-            for (int L = 0; L < m->n_layers; L++) {
-                llm_layer_t *layer = &m->layers[L];
-                gpu_layer_t *gl = &gpu_ctx.layers[L];
-                if (layer->kv_reuse_layer < 0 && gl->d_k_cache) {
-                    /* Use per-layer lhd -- NOT global head_dim (avoids overflow for lhd=256 layers) */
-                    int lhd = gl->lhd ? gl->lhd : m->head_dim;
-                    uint64_t kv_layer_bytes = (uint64_t)m->n_kv_heads * m->max_seq * lhd * sizeof(float);
-                    be->mem.upload(gl->d_k_cache, m->k_cache, kv_layer_bytes);
-                    be->mem.upload(gl->d_v_cache, m->v_cache, kv_layer_bytes);
-                }
-            }
-        }
-#endif
         llm_rep_reset();
     } else {
         start_pos = m->cache_len;
@@ -4844,8 +5492,35 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
 
     /* Process prompt tokens (prefill) */
     uint64_t t_prefill_start = rdtsc_fenced();
-    for (int i = 0; i < n_prompt && (start_pos + i) < m->max_seq - 1; i++) {
-        llm_forward_token(m, llm_logits, prompt_tokens[i], start_pos + i);
+    int n_prefill = n_prompt;
+    int max_prefill = (m->max_seq - 1) - start_pos;
+    if (n_prefill > max_prefill) n_prefill = max_prefill;
+    if (n_prefill < 0) n_prefill = 0;
+
+#ifdef ENABLE_CUDA
+    int did_batch_prefill = 0;
+    if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
+        !llm_attnres_enabled && !llm_depth_attn_enabled) {
+        /* Batch fills KV for tokens 0..n_prefill-2; caller runs last token
+         * sequentially for numerically-exact logits (avoids Q8-quant accumulation). */
+        if (gpu_ctx.prefill_max_n < n_prefill - 1)
+            llm_ensure_prefill_scratch(m, n_prefill - 1);
+        if (gpu_ctx.prefill_max_n >= n_prefill - 1 && gpu_ctx.d_pfx && n_prefill >= 3) {
+            llm_forward_prefill_batch_gpu(m, prompt_tokens, n_prefill - 1, start_pos);
+            /* Last token: sequential for exact logits */
+            llm_forward_token(m, llm_logits,
+                              prompt_tokens[n_prefill - 1],
+                              start_pos + n_prefill - 1);
+            did_batch_prefill = 1;
+        }
+    }
+    if (!did_batch_prefill)
+#endif
+    {
+        for (int i = 0; i < n_prefill; i++) {
+            float *prefill_logits = (i == n_prefill - 1) ? llm_logits : NULL;
+            llm_forward_token(m, prefill_logits, prompt_tokens[i], start_pos + i);
+        }
     }
     uint64_t t_prefill_end = rdtsc_fenced();
 
@@ -4858,11 +5533,12 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     extern int cuda_graph_captured;
     extern int cuda_graph_tried;
     extern int gpu_skip_logits_download;
-    cuda_graph_decode_ready = 1;
+    int allow_graph_capture = (max_gen >= 8);
+    cuda_graph_decode_ready = allow_graph_capture ? 1 : 0;
     cuda_graph_captured = 0;
     cuda_graph_tried = 0;
     /* Greedy decode can consume GPU-side argmax and skip replay logits D2H. */
-    use_gpu_greedy = (temperature <= 0.001f && gpu_ctx.gpu_fwd);
+    use_gpu_greedy = allow_graph_capture && (temperature <= 0.001f && gpu_ctx.gpu_fwd);
     gpu_skip_logits_download = use_gpu_greedy ? 1 : 0;
 #endif
 
@@ -4876,16 +5552,80 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
 
     uint64_t t_gen_start = rdtsc_fenced();
     int consec_nl = 0;  /* consecutive newline counter */
+    /* Gemma4 thinking state machine (uses proper tok IDs in the vocab):
+     *  tok=106 = <start_of_turn>  tok=107 = <end_of_turn> (also '\n'!)
+     *  Mode 0 = pre/direct  1 = thinking(suppress)  5 = tentative-end(saw \n in thinking)
+     *  Mode 2 = inter-turn  3 = model-header(suppress to \n)  4 = response(emit)
+     *  Key insight: tok=107='\n' appears INSIDE thinking content too, so we need
+     *  lookahead: thinking only truly ends when tok=107 is FOLLOWED by tok=106.
+     */
+    int g4_mode = 0;
 
     for (int g = 0; g < max_gen && pos < m->max_seq; g++) {
         /* Check for EOS BEFORE decoding its text */
         if (next == m->eos_id) break;
-        /* Gemma turn marker (106 = <turn|>) always signals end of response.
-         * Forward the token so the KV cache includes it for multi-turn. */
-        if (next == 106) {
-            llm_forward_token(m, llm_logits, next, pos);
-            pos++;
-            break;
+
+        /* Gemma4 state machine */
+        if (m->is_gemma4) {
+            if (g4_mode == 1) {  /* thinking block: suppress */
+                llm_forward_token(m, llm_logits, next, pos++);
+                if (next == 107) {
+                    g4_mode = 5;  /* tentative thinking-end (saw \n) */
+                }
+                next = llm_sample(llm_logits, m->vocab_size, temperature);
+                continue;
+            }
+            if (g4_mode == 5) {  /* tentative end: confirm if followed by tok=106 */
+                if (next == 106) {
+                    /* Confirmed end of thinking — skip header "model\n" */
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    g4_mode = 3;
+                } else if (next == 107) {
+                    /* Another newline — still inter-turn or multi-\n */
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    /* stay in mode=5 */
+                } else {
+                    /* False alarm: the \n was content, resume thinking */
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    g4_mode = 1;
+                }
+                next = llm_sample(llm_logits, m->vocab_size, temperature);
+                continue;
+            }
+            if (g4_mode == 3) {  /* model-turn header: suppress until \n */
+                char hbuf[32];
+                int hlen = llm_decode_token(m, next, hbuf, sizeof(hbuf));
+                int has_nl = 0;
+                for (int i = 0; i < hlen; i++) if (hbuf[i] == '\n') has_nl = 1;
+                llm_forward_token(m, llm_logits, next, pos++);
+                if (has_nl) g4_mode = 4;
+                next = llm_sample(llm_logits, m->vocab_size, temperature);
+                continue;
+            }
+            if (g4_mode == 4) {  /* actual response: emit until tok=107 */
+                if (next == 107 || next == 106) { llm_forward_token(m, llm_logits, next, pos++); break; }
+                /* fall through to normal emit */
+            }
+            /* g4_mode == 0 */
+            if (g4_mode == 0) {
+                if (next == 107) { llm_forward_token(m, llm_logits, next, pos++); break; }
+                if (next == 106) {  /* <start_of_turn> = thinking block start */
+#ifdef ENABLE_CUDA
+                    use_gpu_greedy = 0; gpu_skip_logits_download = 0; cuda_graph_decode_ready = 0;
+#endif
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    g4_mode = 1;
+                    next = llm_sample(llm_logits, m->vocab_size, temperature);
+                    continue;
+                }
+                /* direct response (no thinking) — fall through to normal emit */
+            }
+        } else {
+            /* Non-Gemma4: tok=106 or 107 ends response */
+            if (next == 106 || next == 107) {
+                llm_forward_token(m, llm_logits, next, pos++);
+                break;
+            }
         }
 
         /* ── Thinking mode: detect <|think|> toggle (token 98) ────────── */
@@ -5081,7 +5821,8 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
             if (si > 0) llm_stream_cb(stream_buf, si, llm_stream_cb_ud);
         }
 
-        /* Check for known stop sequences in recent text */
+        /* Check stop sequences as suffixes (O(1) per token) instead of
+         * scanning the whole output buffer each step. */
         if (out_pos >= 4) {
             static const char *stop_seqs[] = {
                 "<|im_end|>", "<|endoftext|>", "<|end|>",
@@ -5089,12 +5830,12 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
             };
             int stop = 0;
             for (int si = 0; stop_seqs[si] && !stop; si++) {
-                const char *found = llm_strstr(output_text, stop_seqs[si]);
-                if (found) {
-                    stop = 1;
-                    int trunc_at = (int)(found - output_text);
+                if (llm_ends_with(output_text, out_pos, stop_seqs[si])) {
+                    int trunc_at = out_pos - (int)kstrlen(stop_seqs[si]);
+                    if (trunc_at < 0) trunc_at = 0;
                     output_text[trunc_at] = '\0';
                     out_pos = trunc_at;
+                    stop = 1;
                 }
             }
             if (stop) break;
@@ -5199,28 +5940,8 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
     int total_generated = 0;
 
     if (!continue_cache) {
+        /* Same logical reset as text path: avoid expensive physical KV clears. */
         m->cache_len = 0;
-        {
-            int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
-            if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
-            kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
-            kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
-        }
-#ifdef ENABLE_CUDA
-        if (gpu_ctx.gpu_fwd) {
-            const backend_t *be = backend_get_by_id(BACKEND_CUDA);
-            for (int L = 0; L < m->n_layers; L++) {
-                llm_layer_t *layer = &m->layers[L];
-                gpu_layer_t *gl = &gpu_ctx.layers[L];
-                if (layer->kv_reuse_layer < 0 && gl->d_k_cache) {
-                    int lhd = gl->lhd ? gl->lhd : m->head_dim;
-                    uint64_t kv_layer_bytes = (uint64_t)m->n_kv_heads * m->max_seq * lhd * sizeof(float);
-                    be->mem.upload(gl->d_k_cache, m->k_cache, kv_layer_bytes);
-                    be->mem.upload(gl->d_v_cache, m->v_cache, kv_layer_bytes);
-                }
-            }
-        }
-#endif
         llm_rep_reset();
     } else {
         start_pos = m->cache_len;
@@ -5232,11 +5953,38 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
     for (int i = 0; i < n_prompt; i++)
         llm_rep_push(prompt_tokens[i]);
 
+
+
     {
         uint64_t t_prefill_start = rdtsc_fenced();
-        for (int i = 0; i < n_prompt && (start_pos + i) < m->max_seq - 1; i++)
-            llm_forward_token(m, llm_logits, prompt_tokens[i], start_pos + i);
+        int n_prefill = n_prompt;
+        int max_prefill = (m->max_seq - 1) - start_pos;
+        if (n_prefill > max_prefill) n_prefill = max_prefill;
+        if (n_prefill < 0) n_prefill = 0;
+#ifdef ENABLE_CUDA
+        int did_batch_pf = 0;
+        if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
+            !llm_attnres_enabled && !llm_depth_attn_enabled) {
+            if (gpu_ctx.prefill_max_n < n_prefill - 1)
+                llm_ensure_prefill_scratch(m, n_prefill - 1);
+            if (gpu_ctx.prefill_max_n >= n_prefill - 1 && gpu_ctx.d_pfx && n_prefill >= 3) {
+                /* Batch n-1 tokens, then one sequential for exact logits */
+                llm_forward_prefill_batch_gpu(m, prompt_tokens, n_prefill - 1, start_pos);
+                llm_forward_token(m, llm_logits, prompt_tokens[n_prefill - 1],
+                                  start_pos + n_prefill - 1);
+                did_batch_pf = 1;
+            }
+        }
+        if (!did_batch_pf)
+#endif
+        {
+            for (int i = 0; i < n_prefill; i++) {
+                float *prefill_logits = (i == n_prefill - 1) ? llm_logits : NULL;
+                llm_forward_token(m, prefill_logits, prompt_tokens[i], start_pos + i);
+            }
+        }
         uint64_t t_prefill_end = rdtsc_fenced();
+
 
 #ifdef ENABLE_CUDA
         /* Enable CUDA Graphs for decode tokens (same as llm_generate) */
@@ -5244,11 +5992,12 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
         extern int cuda_graph_captured;
         extern int cuda_graph_tried;
         extern int gpu_skip_logits_download;
-        cuda_graph_decode_ready = 1;
+    int allow_graph_capture = (max_gen >= 8);
+    cuda_graph_decode_ready = allow_graph_capture ? 1 : 0;
         cuda_graph_captured = 0;
         cuda_graph_tried = 0;
         /* Enable GPU-side argmax for greedy decoding (skip 1MB D2H) */
-        int use_gpu_greedy = (temperature == 0.0f && gpu_ctx.gpu_fwd);
+    int use_gpu_greedy = allow_graph_capture && (temperature == 0.0f && gpu_ctx.gpu_fwd);
         gpu_skip_logits_download = use_gpu_greedy ? 1 : 0;
 #endif
 
@@ -5256,13 +6005,80 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
         int next = llm_sample(llm_logits, m->vocab_size, temperature);
         uint64_t t_gen_start = rdtsc_fenced();
 
+        /* Gemma4 thinking state machine (tok=106=<start_of_turn>, tok=107=<end_of_turn>/\n):
+         *  Mode 0=pre/direct  1=thinking(suppress)  5=tentative-end(saw \n in thinking)
+         *  Mode 3=model-header(suppress \n)  4=response(emit)
+         *  Thinking ends only when tok=107(\n) is FOLLOWED by tok=106 (lookahead).
+         */
+        int g4_mode = 0;
+
         for (int g = 0; g < max_gen && pos < m->max_seq && emitted_count < max_output_tokens; g++) {
             if (next == m->eos_id) break;
-            if (next == 106) {
-                llm_forward_token(m, llm_logits, next, pos);
-                pos++;
-                total_generated++;
-                break;
+
+            if (m->is_gemma4) {
+                if (g4_mode == 1) {  /* thinking: suppress all */
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    total_generated++;
+                    if (next == 107) g4_mode = 5;  /* tentative thinking end */
+                    next = llm_sample(llm_logits, m->vocab_size, temperature);
+                    continue;
+                }
+                if (g4_mode == 5) {  /* tentative end: confirmed by tok=106, else resume */
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    total_generated++;
+                    if (next == 106) {
+                        g4_mode = 3;  /* model-turn header */
+                    } else if (next == 107) {
+                        /* multiple newlines — stay in tentative */
+                    } else {
+                        g4_mode = 1;  /* resume thinking */
+                    }
+                    next = llm_sample(llm_logits, m->vocab_size, temperature);
+                    continue;
+                }
+                if (g4_mode == 3) {  /* model-header: forward until \n then emit */
+                    char hbuf[32];
+                    int hlen = llm_decode_token(m, next, hbuf, sizeof(hbuf));
+                    int has_nl = 0;
+                    for (int i = 0; i < hlen; i++) if (hbuf[i] == '\n') has_nl = 1;
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    total_generated++;
+                    if (has_nl) g4_mode = 4;
+                    next = llm_sample(llm_logits, m->vocab_size, temperature);
+                    continue;
+                }
+                if (g4_mode == 4) {  /* response: emit until tok=107 or tok=106 */
+                    if (next == 107 || next == 106) {
+                        llm_forward_token(m, llm_logits, next, pos++);
+                        total_generated++;
+                        break;
+                    }
+                    /* fall through to normal emit */
+                }
+                if (g4_mode == 0) {  /* initial: detect thinking or emit directly */
+                    if (next == 107) {
+                        llm_forward_token(m, llm_logits, next, pos++);
+                        total_generated++;
+                        break;
+                    }
+                    if (next == 106) {  /* thinking block start */
+#ifdef ENABLE_CUDA
+                        use_gpu_greedy = 0; gpu_skip_logits_download = 0; cuda_graph_decode_ready = 0;
+#endif
+                        llm_forward_token(m, llm_logits, next, pos++);
+                        total_generated++;
+                        g4_mode = 1;
+                        next = llm_sample(llm_logits, m->vocab_size, temperature);
+                        continue;
+                    }
+                    /* direct response — fall through to normal emit */
+                }
+            } else {
+                if (next == 106 || next == 107) {
+                    llm_forward_token(m, llm_logits, next, pos++);
+                    total_generated++;
+                    break;
+                }
             }
 
             if (next == LLM_THINK_TOKEN && llm_think_enabled) {
@@ -5832,7 +6648,12 @@ static int llm_init_parsed_model(llm_model_t *m)
     /* Determine max sequence length from GGUF (already parsed by arch prefix) */
     int ctx_len = (int)llm_gguf_ctx.n_ctx;
     if (ctx_len < 128) ctx_len = 2048;  /* sensible default */
-    if (ctx_len > 8192) ctx_len = 8192; /* hard cap */
+    /* Default: cap at 2048 tokens to keep GPU KV cache <= ~1 GB on 8 GB cards.
+     * Users can call llm_set_max_ctx() before loading to raise this. */
+    if (llm_max_ctx_override > 0)
+        ctx_len = llm_max_ctx_override;
+    else if (ctx_len > 2048)
+        ctx_len = 2048;
 
     /* Dynamically reduce context length if KV cache would exceed available memory */
     {
@@ -6094,9 +6915,9 @@ static int llm_format_prompt(const llm_model_t *m, const char *question,
                m->arch[0] == 'g' && m->arch[1] == 'e' &&
                m->arch[2] == 'm' && m->arch[3] == 'm' && m->arch[4] == 'a') {
         /* Gemma format */
-        { const char *t = "<start_of_turn>user\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+        { const char *t = "<turn|>user\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
         { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
-        { const char *t = "<end_of_turn>\n<start_of_turn>model\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
+        { const char *t = "\n<turn|>model\n"; int tlen = kstrlen(t); if (pos + tlen < max_len) { kmemcpy(buf + pos, t, tlen); pos += tlen; } }
     } else {
         /* Generic: simple text prompt (works with any model) */
         { int qlen = kstrlen(question); if (pos + qlen < max_len) { kmemcpy(buf + pos, question, qlen); pos += qlen; } }
@@ -6464,6 +7285,21 @@ const char *llm_backend_name(void)
     case LLM_BACKEND_MLIR: return "mlir";
     default:               return "unknown";
     }
+}
+
+const llm_model_t *llm_get_model(void)
+{
+    if (!llm_is_loaded()) return (const llm_model_t *)0;
+    return &llm_model;
+}
+
+int llm_get_embedding_vec(int token_id, float *out, int dim)
+{
+    if (!llm_is_loaded() || !out) return -1;
+    if (token_id < 0 || token_id >= llm_model.vocab_size) return -1;
+    if (dim != llm_model.dim) return -1;
+    llm_embed(out, &llm_model, token_id);
+    return 0;
 }
 
 int llm_prompt(const char *user_text, char *output, int max_output)
@@ -8046,9 +8882,9 @@ int llm_chat_turn_tokens(const char *user_text, int *output_tokens,
             m->arch[0]=='q' && m->arch[1]=='w' && m->arch[2]=='e' && m->arch[3]=='n';
 
         if (is_gemma) {
-            TOKEN_CHAT_APPEND("<|turn>user\n");
+            TOKEN_CHAT_APPEND("<turn|>user\n");
             TOKEN_CHAT_APPEND(user_text);
-            TOKEN_CHAT_APPEND("<turn|>\n<|turn>model\n");
+            TOKEN_CHAT_APPEND("\n<turn|>model\n");
         } else if (is_phi3) {
             TOKEN_CHAT_APPEND("<|user|>\n");
             TOKEN_CHAT_APPEND(user_text);

@@ -1,5 +1,5 @@
 /*
- * HyperTensor Model Auto-Download
+ * Geodessical Model Auto-Download
  *
  * Downloads GGUF models from HuggingFace Hub directly in the C runtime.
  * Uses WinHTTP on Windows for HTTPS support.
@@ -21,8 +21,8 @@
  *   hf_download_auto("Qwen/Qwen2.5-0.5B-Instruct-GGUF", "q4_0", "models/");
  */
 
-#ifndef HYPERTENSOR_HF_DOWNLOAD_H
-#define HYPERTENSOR_HF_DOWNLOAD_H
+#ifndef GEODESSICAL_HF_DOWNLOAD_H
+#define GEODESSICAL_HF_DOWNLOAD_H
 
 #include <stdint.h>
 
@@ -126,4 +126,4 @@ const char *hf_download_error(const hf_download_ctx_t *ctx);
 /* Free download context resources. */
 void hf_download_free(hf_download_ctx_t *ctx);
 
-#endif /* HYPERTENSOR_HF_DOWNLOAD_H */
+#endif /* GEODESSICAL_HF_DOWNLOAD_H */

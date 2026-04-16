@@ -56,7 +56,17 @@ typedef struct {
     int      geodesic_steps;     /* RK4 integration steps */
     int      geodesic_test_tokens; /* Tokens for geodesic vs forward-pass comparison */
     int      geodesic_vocab_probe; /* Candidate tokens for endpoint->token projection */
+    int      geodesic_use_oracle_target; /* 1 = target token from model next-token oracle */
     int      use_gpu_phase5;      /* 1 = enable CUDA-backed Phase-5 scoring when available */
+    int      enable_knowledge_injection; /* 1 = apply local curvature warps before Phase-5 pilot */
+    double   injection_alpha;     /* Warp strength alpha */
+    double   injection_sigma;     /* Warp radius sigma (in intrinsic coordinates) */
+    int      injection_points;    /* Number of local warp points to superpose */
+    int      enable_recalc_trigger;      /* 1 = enable warp accumulation trigger */
+    double   recalc_cross_term_threshold;/* Trigger threshold for accumulated cross-terms */
+    int      recalc_warp_budget;         /* Trigger threshold for accumulated warp points */
+    int      fast_mode;           /* 1 = reduced-cost settings for faster E2E runs */
+    int      reuse_cache;         /* 1 = allow in-process reuse of prior Phase 1-4 geometry */
 
     /* General */
     uint64_t seed;               /* Deterministic seed (0 = default) */
@@ -106,6 +116,7 @@ typedef struct {
     int    candidates_tested;    /* Total axiom candidates evaluated */
     int    candidates_accepted;  /* Accepted into final set */
     int    oracle_calls_used;    /* Model queries for axiom validation */
+    int    model_oracle_calls;   /* Forward-pass oracle calls (token-level) */
     double information_gain;     /* Cumulative active-learning info gain */
 } axiom_phase4_t;
 
@@ -121,10 +132,17 @@ typedef struct {
     int    geodesic_converged;   /* 1 if RK4 didn't diverge */
     int    pilot_tokens_tested;
     int    geodesic_vocab_probe;
+    int    oracle_target_count;
+    int    random_target_count;
     int    geodesic_top1_hits;
     double geodesic_top1_match_rate;
     double geodesic_target_mrr;
     int    used_gpu_scoring;
+    int    knowledge_injection_applied;
+    int    knowledge_injection_points;
+    int    warp_points_accumulated;
+    double warp_cross_term_estimate;
+    int    recalc_triggered;
 } axiom_phase5_t;
 
 /* ─── Full report ─── */
@@ -158,6 +176,7 @@ typedef struct {
     int  uses_fisher_metric;            /* 1 = Fisher blended into metric */
     int  uses_real_dequant;             /* 1 = dequantized weights for symmetry */
     int  supports_geodesic_pilot;       /* 1 = phase 5 produced results */
+    int  reused_geometry_cache;         /* 1 = phases 1-4 reused from in-process cache */
     int  beta_version;                  /* 3 = this version */
 } axiom_beta_report_t;
 
@@ -171,6 +190,14 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
 axiom_beta_status_t axiom_beta_write_json(const char *path,
                                           const axiom_beta_report_t *report,
                                           const axiom_beta_config_t *cfg);
+
+axiom_beta_status_t axiom_beta_geodesic_next_token(const int *context_tokens,
+                                                   int n_context,
+                                                   int *out_token);
+
+axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
+                                                      int n_context,
+                                                      int *out_token);
 
 const char *axiom_beta_status_string(axiom_beta_status_t st);
 

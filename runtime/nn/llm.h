@@ -486,6 +486,28 @@ void llm_set_show_thinking(int show);
  */
 int  llm_thinking_tokens(void);
 
+/** Set sampling controls for top-k and top-p nucleus filtering. */
+void llm_set_sampling_params(int top_k, float top_p);
+
+/**
+ * Override the GPU KV-cache context window before loading a model.
+ * Default (0) caps the context at 2048 tokens to keep VRAM usage ~1 GB.
+ * Use llm_set_max_ctx(8192) to restore the full Gemma4 context window.
+ */
+void llm_set_max_ctx(int n);
+
+/**
+ * Enable/disable AttnRes-inspired depth stabilization.
+ * strength is clamped to [0,1], where higher values apply stronger damping.
+ */
+void llm_set_attention_residuals(int enable, float strength);
+
+/**
+ * Enable/disable content-dependent depth-wise residual attention over prior layers.
+ * strength is clamped to [0,1], window to [2,64].
+ */
+void llm_set_depth_residual_attention(int enable, float strength, int window);
+
 /** Return the number of KV-cache positions currently occupied. */
 int  llm_chat_context_tokens(void);
 
@@ -504,6 +526,20 @@ int llm_test_tokenize(const char *text, int text_len, int *tokens, int max_token
 
 /** Decode a token ID into text. Returns byte length. */
 int llm_test_decode_token(int token_id, char *buf, int max_len);
+
+/* ── Model Accessor API (for geometric / axiomatic analysis) ─── */
+
+/**
+ * Access the loaded model structure for read-only geometric analysis.
+ * Returns NULL if no model is loaded.
+ */
+const llm_model_t *llm_get_model(void);
+
+/**
+ * Get the dequantized embedding vector for a token ID.
+ * Writes dim floats to out. Returns 0 on success.
+ */
+int llm_get_embedding_vec(int token_id, float *out, int dim);
 
 /* ── Tensor Bridge API (hidden-state injection / daisy-chaining) ─── */
 #include "runtime/nn/tensor_bridge.h"

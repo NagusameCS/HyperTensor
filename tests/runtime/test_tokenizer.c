@@ -19,7 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #include "runtime/nn/llm.h"
 #else
@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
     /* Initialize host HAL */
     extern int smp_init_hosted(void);
     extern void cpu_detect_features(void);

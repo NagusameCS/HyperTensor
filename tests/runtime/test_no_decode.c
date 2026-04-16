@@ -15,7 +15,7 @@
  *
  * Build (host):
  *   zig cc -target x86_64-windows-gnu -O2 -mavx2 -mfma \
- *          -DHYPERTENSOR_HOSTED=1 -Ihost/shims -I. -Ihost \
+ *          -DGEODESSICAL_HOSTED=1 -Ihost/shims -I. -Ihost \
  *          tests/runtime/test_no_decode.c host/hal.c \
  *          runtime/nn/llm.c runtime/nn/gguf.c \
  *          runtime/jit/x86_jit.c runtime/jit/llm_jit.c \
@@ -27,7 +27,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #endif
 #include "runtime/nn/llm.h"

@@ -1,5 +1,5 @@
 /*
- * HyperTensor — Hosted HAL Implementation
+ * Geodessical — Hosted HAL Implementation
  *
  * Maps kernel APIs to Windows/Linux standard library calls.
  * Provides threading via Win32 threads / pthreads, JIT via VirtualAlloc/mmap.

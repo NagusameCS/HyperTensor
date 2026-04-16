@@ -20,10 +20,11 @@
 
 /* ─── Bridge configuration ─── */
 typedef enum {
-    BRIDGE_MODE_NONE    = 0, /* No bridging active */
-    BRIDGE_MODE_CAPTURE = 1, /* Capture hidden state at specified layer */
-    BRIDGE_MODE_INJECT  = 2, /* Inject hidden state at specified layer */
-    BRIDGE_MODE_BOTH    = 3, /* Capture + inject at different layers */
+    BRIDGE_MODE_NONE       = 0, /* No bridging active */
+    BRIDGE_MODE_CAPTURE    = 1, /* Capture hidden state at specified layer */
+    BRIDGE_MODE_INJECT     = 2, /* Inject hidden state at specified layer */
+    BRIDGE_MODE_BOTH       = 3, /* Capture + inject at different layers */
+    BRIDGE_MODE_CAP_ONCE   = 4, /* Modifier: capture only once (prefill), ignore decode overwrites */
 } bridge_mode_t;
 
 /* ─── Projection type for dimension mismatch ─── */

@@ -14,16 +14,19 @@
 #include "../runtime/nn/hf_download.h"
 #include "../runtime/nn/axiom_beta.h"
 #include "api_server.h"
+#include "gd_daemon.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <ctype.h>
 #ifdef _WIN32
 #  include <windows.h>
 #endif
 
 #define GD_VERSION_MAJOR 0
-#define GD_VERSION_MINOR 5
+#define GD_VERSION_MINOR 6
 #define GD_VERSION_PATCH 0
 #define GD_CODENAME      "Synapse"
 
@@ -48,6 +51,7 @@ static void print_usage(const char *argv0) {
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
     kprintf("  --serve                Start Geodessical HTTP API server\n");
+    kprintf("  --no-daemon            Run single-shot (skip persistent daemon)\n");
     kprintf("  --port <num>           API server port (default: 8080)\n");
     kprintf("  --download <repo>      Download model from HuggingFace\n");
     kprintf("  --quant <type>         Quantization hint for download (default: q4_0)\n");
@@ -56,6 +60,15 @@ static void print_usage(const char *argv0) {
     kprintf("  --no-think             Disable thinking (strip <|think|> blocks)\n");
     kprintf("  --force-think          Force thinking on all prompts\n");
     kprintf("  --show-think           Show thinking tokens in output\n");
+    kprintf("  --attnres              Enable Attention-Residual-inspired depth stabilization\n");
+    kprintf("  --attnres-strength <f> AttnRes stabilization strength [0..1] (default: 0.35)\n");
+    kprintf("  --ott-fast             Speed-first OTT: fast axiom + geodesic-first, minimal depth work\n");
+    kprintf("  --ott-full             Enable OTT full mode (geodesic-first + axiomatic run + AttnRes)\n");
+    kprintf("  --ott-theorem          Enable theorem-mode OTT (adds depth residual attention + strict geodesic quality control)\n");
+    kprintf("  --depth-attn           Enable depth-wise residual attention mixer\n");
+    kprintf("  --depth-attn-strength <f> Depth residual attention strength [0..1] (default: 0.55)\n");
+    kprintf("  --depth-attn-window <n> Depth attention lookback window (default: 16)\n");
+    kprintf("  --ott-ready-report <p> Write OTT readiness JSON (default: ott_readiness_report.json in --ott-full)\n");
     kprintf("  --axiom-beta-run       Run autonomous axiomatic beta-3 survey\n");
     kprintf("  --axiom-beta-only      Run axiomatic beta survey then exit\n");
     kprintf("  --axiom-report <path>  Write beta report JSON (default: axiom_beta_report.json)\n");
@@ -63,6 +76,10 @@ static void print_usage(const char *argv0) {
     kprintf("  --axiom-probe <n>      Phase 5 endpoint token probe count (default: 1024)\n");
     kprintf("  --axiom-gpu            Enable GPU acceleration for Phase 5 scorer\n");
     kprintf("  --axiom-no-gpu         Force CPU-only Phase 5 scorer\n");
+    kprintf("  --axiom-random-targets Use random Phase 5 targets (disable oracle targets)\n");
+    kprintf("  --axiom-geodesic-first Experimental geodesic-first decode path\n");
+    kprintf("  --axiom-fast           Fast mode (reduced phase1-4 workload)\n");
+    kprintf("  --axiom-no-cache       Disable in-process geometry cache reuse\n");
     kprintf("  --axiom-seed <n>       Beta deterministic seed\n");
     kprintf("  --axiom-skip-geodesic  Skip geodesic pilot (Phase 5)\n");
     kprintf("  -h, --help             Show this help\n");
@@ -108,15 +125,65 @@ typedef struct {
     int         log_level;
     int         no_think;
     int         show_think;
+    int         attnres_enable;
+    float       attnres_strength;
+    int         ott_full;
+    int         ott_theorem;
+    int         depth_attn_enable;
+    float       depth_attn_strength;
+    int         depth_attn_window;
+    const char *ott_ready_report_path;
     int         axiom_beta_run;
     int         axiom_beta_only;
     int         axiom_samples;
     int         axiom_vocab_probe;
     int         axiom_use_gpu_phase5;
+    int         axiom_use_oracle_target;
+    int         axiom_geodesic_first;
+    int         axiom_fast_mode;
+    int         axiom_reuse_cache;
     uint64_t    axiom_seed;
     int         axiom_skip_geodesic;
     const char *axiom_report_path;
+    int         ctx_size;   /* 0 = default (2048); user override via --ctx-size */
+    int         no_daemon;  /* 1 = bypass daemon/client mode, force cold-start */
 } GD_args_t;
+
+static int GD_ott_theorem_active = 0;
+
+static const char *find_default_gguf_model(void) {
+#ifdef _WIN32
+    static char resolved_path[MAX_PATH];
+    const char *patterns[] = {
+        "models\\*.gguf",
+        "..\\TensorOS\\models\\*.gguf",
+        "..\\..\\TensorOS\\models\\*.gguf",
+        NULL
+    };
+
+    for (int i = 0; patterns[i]; i++) {
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(patterns[i], &fd);
+        if (h != INVALID_HANDLE_VALUE) {
+            FindClose(h);
+
+            const char *pat = patterns[i];
+            const char *star = strstr(pat, "*.gguf");
+            int prefix_len = star ? (int)(star - pat) : (int)strlen(pat);
+            if (prefix_len < 0) prefix_len = 0;
+            if (prefix_len > (int)sizeof(resolved_path) - 1)
+                prefix_len = (int)sizeof(resolved_path) - 1;
+
+            memcpy(resolved_path, pat, (size_t)prefix_len);
+            resolved_path[prefix_len] = '\0';
+            strncat(resolved_path, fd.cFileName,
+                    sizeof(resolved_path) - strlen(resolved_path) - 1);
+            return resolved_path;
+        }
+    }
+#endif
+    return NULL;
+}
 
 static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->model_path  = NULL;
@@ -135,14 +202,28 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->log_level   = -1;  /* unset = use default */
     args->no_think    = 0;
     args->show_think  = 0;
+    args->attnres_enable = 0;
+    args->attnres_strength = 0.35f;
+    args->ott_full = 0;
+    args->ott_theorem = 0;
+    args->depth_attn_enable = 0;
+    args->depth_attn_strength = 0.55f;
+    args->depth_attn_window = 16;
+    args->ott_ready_report_path = NULL;
     args->axiom_beta_run = 0;
     args->axiom_beta_only = 0;
     args->axiom_samples = 256;
     args->axiom_vocab_probe = 1024;
     args->axiom_use_gpu_phase5 = -1;
+    args->axiom_use_oracle_target = 1;
+    args->axiom_geodesic_first = 0;
+    args->axiom_fast_mode = 0;
+    args->axiom_reuse_cache = 1;
     args->axiom_seed = 0;
     args->axiom_skip_geodesic = 0;
+    args->no_daemon = 0;
     args->axiom_report_path = "axiom_beta_report.json";
+    args->ctx_size = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -167,6 +248,8 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
             args->top_p = (float)atof(argv[i]);
         } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interactive") == 0) {
             args->interactive = 1;
+        } else if (strcmp(argv[i], "--no-daemon") == 0) {
+            args->no_daemon = 1;
         } else if (strcmp(argv[i], "--serve") == 0) {
             args->serve = 1;
         } else if (strcmp(argv[i], "--port") == 0) {
@@ -189,6 +272,56 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
             args->no_think = -1;  /* sentinel for force-think */
         } else if (strcmp(argv[i], "--show-think") == 0) {
             args->show_think = 1;
+        } else if (strcmp(argv[i], "--attnres") == 0) {
+            args->attnres_enable = 1;
+        } else if (strcmp(argv[i], "--attnres-strength") == 0) {
+            if (++i >= argc) { kprintf("Error: --attnres-strength requires number\n"); return -1; }
+            args->attnres_strength = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--ott-fast") == 0) {
+            /* Speed-first OTT: axiom geometry primed, fast decode, no deep theorem mode. */
+            args->ott_full = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_fast_mode = 1;
+            args->axiom_geodesic_first = 1;
+            args->attnres_enable = 1;
+            args->attnres_strength = 0.25f;
+            args->top_k = 20;
+            args->top_p = 0.9f;
+            args->ott_ready_report_path = "ott_readiness_report.json";
+        } else if (strcmp(argv[i], "--ott-full") == 0) {
+            args->ott_full = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_geodesic_first = 1;
+            args->attnres_enable = 1;
+            args->attnres_strength = 0.35f;
+            args->top_k = 20;
+            args->top_p = 0.9f;
+            args->ott_ready_report_path = "ott_readiness_report.json";
+        } else if (strcmp(argv[i], "--ott-theorem") == 0) {
+            args->ott_theorem = 1;
+            args->ott_full = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_fast_mode = 1;  /* Use fast axiom for theorem speed */
+            args->axiom_geodesic_first = 1;
+            args->attnres_enable = 1;
+            args->attnres_strength = 0.45f;
+            args->depth_attn_enable = 1;
+            args->depth_attn_strength = 0.55f;
+            args->depth_attn_window = 16;
+            args->top_k = 30;  /* Wider top-k gives runtime proposer more viable candidates */
+            args->top_p = 0.92f;
+            args->ott_ready_report_path = "ott_readiness_report.json";
+        } else if (strcmp(argv[i], "--depth-attn") == 0) {
+            args->depth_attn_enable = 1;
+        } else if (strcmp(argv[i], "--depth-attn-strength") == 0) {
+            if (++i >= argc) { kprintf("Error: --depth-attn-strength requires number\n"); return -1; }
+            args->depth_attn_strength = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--depth-attn-window") == 0) {
+            if (++i >= argc) { kprintf("Error: --depth-attn-window requires number\n"); return -1; }
+            args->depth_attn_window = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--ott-ready-report") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-ready-report requires path\n"); return -1; }
+            args->ott_ready_report_path = argv[i];
         } else if (strcmp(argv[i], "--axiom-beta-run") == 0) {
             args->axiom_beta_run = 1;
         } else if (strcmp(argv[i], "--axiom-beta-only") == 0) {
@@ -207,6 +340,14 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
             args->axiom_use_gpu_phase5 = 1;
         } else if (strcmp(argv[i], "--axiom-no-gpu") == 0) {
             args->axiom_use_gpu_phase5 = 0;
+        } else if (strcmp(argv[i], "--axiom-random-targets") == 0) {
+            args->axiom_use_oracle_target = 0;
+        } else if (strcmp(argv[i], "--axiom-geodesic-first") == 0) {
+            args->axiom_geodesic_first = 1;
+        } else if (strcmp(argv[i], "--axiom-fast") == 0) {
+            args->axiom_fast_mode = 1;
+        } else if (strcmp(argv[i], "--axiom-no-cache") == 0) {
+            args->axiom_reuse_cache = 0;
         } else if (strcmp(argv[i], "--axiom-seed") == 0) {
             if (++i >= argc) { kprintf("Error: --axiom-seed requires number\n"); return -1; }
 #ifdef _WIN32
@@ -216,6 +357,9 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
 #endif
         } else if (strcmp(argv[i], "--axiom-skip-geodesic") == 0) {
             args->axiom_skip_geodesic = 1;
+        } else if (strcmp(argv[i], "--ctx-size") == 0) {
+            if (++i >= argc) { kprintf("Error: --ctx-size requires number\n"); return -1; }
+            args->ctx_size = atoi(argv[i]);
         } else if (argv[i][0] != '-' && !args->model_path) {
             args->model_path = argv[i];
         } else {
@@ -225,6 +369,14 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     }
 
     if (!args->model_path && !args->download_repo) {
+        if (args->axiom_beta_run || args->axiom_beta_only) {
+            const char *auto_model = find_default_gguf_model();
+            if (auto_model) {
+                args->model_path = auto_model;
+                kprintf("[GD] Auto-selected model for Axiom run: %s\n", args->model_path);
+                return 0;
+            }
+        }
         kprintf("Error: no model file specified\n\n");
         return -1;
     }
@@ -269,12 +421,24 @@ static void print_chat_help(void) {
     printf(GD_CYAN "    /quit       " GD_RESET "exit\n\n");
 }
 
+static int geodesic_chat_turn(const char *user_text,
+                              int *ctx,
+                              int *n_ctx,
+                              int max_ctx,
+                              int max_tokens,
+                              float temperature,
+                              char *output,
+                              int max_output);
+
 static void interactive_loop(const char *model_path, GD_args_t *args) {
     (void)model_path;
     char line[2048];
     static char output[131072]; /* 128 KB — holds full reply if needed */
     float temperature = args->temperature;
     int   max_tokens  = args->max_tokens;
+    int   geodesic_mode = args->axiom_geodesic_first;
+    static int geo_ctx_tokens[32768];
+    int   geo_n_ctx = 0;
 
     GD_ansi_enable();
 
@@ -291,6 +455,8 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
            "  ╚══════════════════════════════════════════════════╝\n"
            GD_RESET "\n");
     printf(GD_DIM "  Type /help for commands.\n\n" GD_RESET);
+    if (geodesic_mode)
+        printf(GD_DIM "  [Geodesic-first chat mode enabled]\n\n" GD_RESET);
 
     llm_set_stream_cb(GD_stream_cb, (void *)0);
 
@@ -319,12 +485,14 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
             }
             if (strcmp(line, "/reset") == 0) {
                 llm_chat_reset();
+                geo_n_ctx = 0;
                 printf(GD_DIM "  [Conversation reset — new context started]\n\n" GD_RESET);
                 continue;
             }
             if (strcmp(line, "/stats") == 0) {
-                int ctx    = llm_chat_context_tokens();
-                int ctxmax = llm_chat_context_max();
+                int ctx    = geodesic_mode ? geo_n_ctx : llm_chat_context_tokens();
+                int ctxmax = geodesic_mode ? (int)(sizeof(geo_ctx_tokens) / sizeof(geo_ctx_tokens[0]))
+                                           : llm_chat_context_max();
                 int think  = llm_thinking_tokens();
                 printf(GD_DIM "  [Context: %d / %d tokens (%.1f%%)  |  "
                        "temp=%.2f  max_tok=%d  think_last=%d]\n\n" GD_RESET,
@@ -357,7 +525,21 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
 
         uint64_t t0 = hal_timer_us();
         output[0]   = '\0';
-        int n = llm_chat_turn(line, output, (int)sizeof(output), max_tokens, temperature);
+        int n;
+        if (geodesic_mode) {
+            (void)temperature;
+            n = geodesic_chat_turn(line,
+                                   geo_ctx_tokens, &geo_n_ctx,
+                                   (int)(sizeof(geo_ctx_tokens) / sizeof(geo_ctx_tokens[0])),
+                                   max_tokens,
+                                   temperature,
+                                   output, (int)sizeof(output));
+            if (n > 0 && output[0] != '\0') {
+                printf("%s", output);
+            }
+        } else {
+            n = llm_chat_turn(line, output, (int)sizeof(output), max_tokens, temperature);
+        }
         uint64_t t1 = hal_timer_us();
 
         printf("\n");
@@ -365,8 +547,9 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
         if (n > 0) {
             uint64_t total_ms   = (t1 - t0) / 1000;
             float    tok_per_s  = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
-            int ctx    = llm_chat_context_tokens();
-            int ctxmax = llm_chat_context_max();
+                 int ctx    = geodesic_mode ? geo_n_ctx : llm_chat_context_tokens();
+                 int ctxmax = geodesic_mode ? (int)(sizeof(geo_ctx_tokens) / sizeof(geo_ctx_tokens[0]))
+                                : llm_chat_context_max();
             printf(GD_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d]\n\n" GD_RESET,
                    n, tok_per_s, (unsigned long long)total_ms, ctx, ctxmax);
         } else {
@@ -376,6 +559,589 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
 
     llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
     printf("\n" GD_DIM "  [Session ended]\n" GD_RESET "\n");
+}
+
+static int geodesic_next_token_local(const int *ctx, int n_ctx, int *out_tok) {
+    const llm_model_t *m = llm_get_model();
+    if (!m || !ctx || n_ctx <= 0 || !out_tok) return -1;
+
+    int vocab = m->vocab_size;
+    int dim = m->dim;
+    int tok_curr = ctx[n_ctx - 1];
+    int tok_prev = (n_ctx >= 2) ? ctx[n_ctx - 2] : tok_curr;
+    int tok_prev2 = (n_ctx >= 3) ? ctx[n_ctx - 3] : tok_prev;
+    if (tok_curr < 0 || tok_curr >= vocab) tok_curr = 0;
+    if (tok_prev < 0 || tok_prev >= vocab) tok_prev = tok_curr;
+    if (tok_prev2 < 0 || tok_prev2 >= vocab) tok_prev2 = tok_prev;
+
+    float *e_curr = (float *)malloc((size_t)dim * sizeof(float));
+    float *e_prev = (float *)malloc((size_t)dim * sizeof(float));
+    float *e_prev2 = (float *)malloc((size_t)dim * sizeof(float));
+    float *e_pred = (float *)malloc((size_t)dim * sizeof(float));
+    float *e_cand = (float *)malloc((size_t)dim * sizeof(float));
+    if (!e_curr || !e_prev || !e_prev2 || !e_pred || !e_cand) {
+        free(e_curr);
+        free(e_prev);
+        free(e_prev2);
+        free(e_pred);
+        free(e_cand);
+        return -1;
+    }
+
+    if (llm_get_embedding_vec(tok_curr, e_curr, dim) != 0 ||
+        llm_get_embedding_vec(tok_prev, e_prev, dim) != 0 ||
+        llm_get_embedding_vec(tok_prev2, e_prev2, dim) != 0) {
+        free(e_curr);
+        free(e_prev);
+        free(e_prev2);
+        free(e_pred);
+        free(e_cand);
+        return -1;
+    }
+
+    /* Second-order OTT surrogate in embedding space with momentum + curvature bias. */
+    double pred_norm2 = 0.0;
+    float alpha = 0.35f;
+    float beta = 0.18f;
+    if (n_ctx < 3) beta = 0.0f;
+    for (int i = 0; i < dim; i++) {
+        float v1 = (e_curr[i] - e_prev[i]);
+        float v0 = (e_prev[i] - e_prev2[i]);
+        float a = v1 - v0;
+        e_pred[i] = e_curr[i] + alpha * v1 + beta * a;
+        pred_norm2 += (double)e_pred[i] * (double)e_pred[i];
+    }
+    double pred_norm = sqrt(pred_norm2);
+
+    int probe = vocab;
+    if (probe > 4096) probe = 4096;
+    int start = (tok_curr * 1315423911u) % vocab;
+    int best_tok = tok_curr;
+    double best_score = -1e30;
+
+    for (int i = 0; i < probe; i++) {
+        int tid = (start + i) % vocab;
+        if (llm_get_embedding_vec(tid, e_cand, dim) != 0) continue;
+
+        double dot = 0.0;
+        double cand_norm2 = 0.0;
+        double l2 = 0.0;
+        for (int j = 0; j < dim; j++) {
+            double c = (double)e_cand[j];
+            dot += (double)e_pred[j] * c;
+            cand_norm2 += c * c;
+            double d = (double)e_pred[j] - c;
+            l2 += d * d;
+        }
+        double denom = pred_norm * sqrt(cand_norm2);
+        double sim = (denom > 1e-12) ? (dot / denom) : -1e30;
+        double score = sim - 0.015 * sqrt(l2);
+        if (score > best_score) {
+            best_score = score;
+            best_tok = tid;
+        }
+    }
+
+    free(e_curr);
+    free(e_prev);
+    free(e_prev2);
+    free(e_pred);
+    free(e_cand);
+    *out_tok = best_tok;
+    return 0;
+}
+
+static int geodesic_next_token_runtime(const int *ctx, int n_ctx, int *out_tok) {
+    int tok = -1;
+    if (axiom_beta_geodesic_next_token_v2(ctx, n_ctx, &tok) != AXIOM_BETA_OK)
+        return -1;
+    *out_tok = tok;
+    return 0;
+}
+
+static int geodesic_runtime_token_acceptable(const int *ctx, int n_ctx, int tok) {
+    char piece[256];
+    int piece_n;
+    int control = 0;
+    int high = 0;
+    int useful = 0;
+
+    if (!ctx || n_ctx <= 0 || tok < 0)
+        return 0;
+
+    /* Reject hard loops: same token 2-in-a-row, or dominant token in last 5. */
+    if (n_ctx >= 2 && tok == ctx[n_ctx - 1]) {
+        /* Allow once, block only strict 3-in-a-row */
+        if (n_ctx >= 3 && tok == ctx[n_ctx - 2])
+            return 0;
+    }
+    if (n_ctx >= 5) {
+        int rep = 0;
+        for (int ri = n_ctx - 5; ri < n_ctx; ri++)
+            if (ctx[ri] == tok) rep++;
+        if (rep >= 4)
+            return 0;
+    }
+
+    piece_n = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+    if (piece_n <= 0)
+        return 0;
+    piece[piece_n] = '\0';
+
+    if (strstr(piece, "<unused") != NULL)
+        return 0;
+    if (strstr(piece, "<0x") != NULL)
+        return 0;
+
+    for (int i = 0; i < piece_n; i++) {
+        unsigned char c = (unsigned char)piece[i];
+        if (c < 32 && c != '\n' && c != '\r' && c != '\t')
+            control++;
+        if (c >= 128)
+            high++;
+        if (isalnum((int)c) || c == ' ' || c == '.' || c == ',' ||
+            c == ';' || c == ':' || c == '!' || c == '?' || c == '\'' || c == '"') {
+            useful++;
+        }
+    }
+
+    /* Allow short high-byte tokens (e.g. UTF-8 multibyte pieces ≤3 bytes) */
+    if (piece_n >= 4 && useful == 0 && high > 0)
+        return 0;
+    /* Loosen ratio threshold: require 25% useful, not 33% */
+    if (piece_n >= 6 && useful <= 1 && high * 4 >= piece_n * 3)
+        return 0;
+
+    return (control == 0);
+}
+
+static int geodesic_output_quality_ok(const char *text) {
+    int len = 0;
+    int useful = 0;
+    int high = 0;
+    int control = 0;
+    int unused_markers = 0;
+
+    if (!text || text[0] == '\0')
+        return 0;
+
+    for (int i = 0; text[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)text[i];
+        len++;
+        if (c < 32 && c != '\n' && c != '\r' && c != '\t')
+            control++;
+        if (c >= 128)
+            high++;
+        if (isalnum((int)c) || c == ' ' || c == '.' || c == ',' ||
+            c == ';' || c == ':' || c == '!' || c == '?' || c == '\'' || c == '"' ||
+            c == '(' || c == ')' || c == '-' || c == '\n') {
+            useful++;
+        }
+        if (c == '<' && strncmp(text + i, "<unused", 7) == 0)
+            unused_markers++;
+    }
+
+    if (len <= 0 || control > 0)
+        return 0;
+    if (unused_markers >= 2)
+        return 0;
+    if (len >= 24 && useful * 5 < len && high * 2 > len)
+        return 0;
+    if (unused_markers > 0 && useful * 2 < len)
+        return 0;
+
+    return 1;
+}
+
+static int geodesic_piece_quality_ok(const char *piece, int piece_n) {
+    int useful = 0;
+    int high = 0;
+    int control = 0;
+    if (!piece || piece_n <= 0) return 0;
+    for (int i = 0; i < piece_n; i++) {
+        unsigned char c = (unsigned char)piece[i];
+        if (c < 32 && c != '\n' && c != '\r' && c != '\t') control++;
+        if (c >= 128) high++;
+        if (isalnum((int)c) || c == ' ' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '?' || c == '\'' || c == '"' ||
+            c == '(' || c == ')' || c == '-' || c == '_') useful++;
+    }
+    if (control > 0) return 0;
+    /* Allow short high-byte pieces (UTF-8 sub-word tokens like diacritics) */
+    if (piece_n >= 4 && useful == 0 && high * 2 >= piece_n) return 0;
+    if (piece_n >= 6 && useful <= 1 && high * 4 >= piece_n * 3) return 0;
+    return 1;
+}
+
+/* Probe runtime every 3rd confined step rather than every 4th for faster recovery. */
+static int geodesic_theorem_should_probe_runtime(int local_only_budget, int step) {
+    if (local_only_budget <= 0) return 1;
+    return ((step % 3) == 2) ? 1 : 0;
+}
+
+/* Smaller initial cooldown so the runtime path re-enters sooner after a bad piece. */
+static int geodesic_theorem_local_budget(int bad_piece_streak) {
+    int budget = 3 + bad_piece_streak;
+    if (budget < 3) budget = 3;
+    if (budget > 10) budget = 10;
+    return budget;
+}
+
+static int geodesic_prime_cache(const GD_args_t *args) {
+    axiom_beta_config_t cfg;
+    axiom_beta_report_t rep;
+    axiom_beta_default_config(&cfg);
+
+    cfg.fast_mode = 1;
+    cfg.reuse_cache = 1;
+    cfg.skip_geodesic = 1;
+    /* Priming only needs phase1-3 geometry for runtime geodesic decode.
+     * Keep phase4 minimal and oracle-free to reduce startup latency. */
+    cfg.active_iterations = 8;
+    cfg.oracle_calls_max = 0;
+    cfg.verbose = args->verbose;
+    if (args->axiom_seed != 0) cfg.seed = args->axiom_seed;
+    if (args->axiom_samples > 0) cfg.embedding_samples = args->axiom_samples;
+    if (args->axiom_vocab_probe > 0) cfg.geodesic_vocab_probe = args->axiom_vocab_probe;
+    return (axiom_beta_run(&cfg, &rep) == AXIOM_BETA_OK) ? 0 : -1;
+}
+
+int GD_geodesic_last_runtime_hits = 0;
+int GD_geodesic_last_local_hits = 0;
+int GD_geodesic_last_runtime_rejects = 0;
+int GD_geodesic_last_quality_gate_pass = 0;
+int GD_geodesic_last_generated = 0;
+int GD_geodesic_last_fallback_requested = 0;
+
+static int geodesic_generate_text(const char *prompt,
+                                  int max_tokens,
+                                  char *output,
+                                  int max_output)
+{
+    static int s_runtime_hits = 0;
+    static int s_local_hits = 0;
+    static int s_runtime_rejects = 0;
+    static int s_quality_gate_pass = 0;
+    static int s_generated = 0;
+    static int s_fallback_requested = 0;
+
+    const llm_model_t *m = llm_get_model();
+    if (!m || !prompt || !output || max_output <= 0 || max_tokens <= 0)
+        return -1;
+
+    int max_ctx = max_tokens + 2048;
+    int *ctx = (int *)malloc((size_t)max_ctx * sizeof(int));
+    if (!ctx) return -1;
+
+    int n_ctx = llm_test_tokenize(prompt, (int)strlen(prompt), ctx, max_ctx);
+    if (n_ctx <= 0 || n_ctx >= max_ctx) {
+        free(ctx);
+        return -1;
+    }
+
+    output[0] = '\0';
+    int out_len = 0;
+    int generated = 0;
+    int runtime_hits = 0;
+    int local_hits = 0;
+    int runtime_rejects = 0;
+    int local_only_budget = 0;
+    int bad_piece_streak = 0;
+    int eos = m->eos_id;
+
+    for (int step = 0; step < max_tokens; step++) {
+        int tok = -1;
+        int used_runtime = 0;
+
+        if (GD_ott_theorem_active && local_only_budget > 0 &&
+            !geodesic_theorem_should_probe_runtime(local_only_budget, step)) {
+            if (geodesic_next_token_local(ctx, n_ctx, &tok) == 0) {
+                local_hits++;
+                local_only_budget--;
+            } else {
+                break;
+            }
+        } else {
+            int runtime_ok = (geodesic_next_token_runtime(ctx, n_ctx, &tok) == 0);
+            if (runtime_ok && geodesic_runtime_token_acceptable(ctx, n_ctx, tok)) {
+                runtime_hits++;
+                used_runtime = 1;
+            } else if (geodesic_next_token_local(ctx, n_ctx, &tok) == 0) {
+                local_hits++;
+                if (runtime_ok)
+                    runtime_rejects++;
+            } else {
+                break;
+            }
+        }
+
+        if (tok < 0 || tok >= m->vocab_size)
+            break;
+
+        if (GD_ott_theorem_active) {
+            char q_piece[256];
+            int q_n = llm_test_decode_token(tok, q_piece, (int)sizeof(q_piece));
+            if (!geodesic_piece_quality_ok(q_piece, q_n)) {
+                if (used_runtime) {
+                    int tok_local = -1;
+                    if (geodesic_next_token_local(ctx, n_ctx, &tok_local) == 0 &&
+                        tok_local >= 0 && tok_local < m->vocab_size) {
+                        tok = tok_local;
+                        local_hits++;
+                        runtime_rejects++;
+                        used_runtime = 0;
+                        q_n = llm_test_decode_token(tok, q_piece, (int)sizeof(q_piece));
+                    }
+                }
+                if (!geodesic_piece_quality_ok(q_piece, q_n)) {
+                    bad_piece_streak++;
+                    local_only_budget = geodesic_theorem_local_budget(bad_piece_streak);
+                } else {
+                    if (used_runtime && bad_piece_streak > 0)
+                        bad_piece_streak--;
+                    if (used_runtime && local_only_budget > 0)
+                        local_only_budget--;
+                }
+            } else {
+                if (used_runtime && bad_piece_streak > 0)
+                    bad_piece_streak--;
+            }
+        }
+
+        if (n_ctx < max_ctx)
+            ctx[n_ctx++] = tok;
+        else
+            break;
+
+        if (eos >= 0 && tok == eos)
+            break;
+
+        char piece[256];
+        int piece_n = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+        if (piece_n > 0) {
+            int room = max_output - out_len - 1;
+            if (room <= 0) break;
+            if (piece_n > room) piece_n = room;
+            memcpy(output + out_len, piece, (size_t)piece_n);
+            out_len += piece_n;
+            output[out_len] = '\0';
+        }
+
+        generated++;
+    }
+
+    if (generated > 0) {
+        kprintf("[GD] Geodesic decode tokens: runtime=%d local=%d (runtime_rejects=%d)\n",
+            runtime_hits, local_hits, runtime_rejects);
+        if (!geodesic_output_quality_ok(output)) {
+            kprintf("[GD] Geodesic output quality gate failed; requesting standard decode fallback.\n");
+            s_runtime_hits = runtime_hits;
+            s_local_hits = local_hits;
+            s_runtime_rejects = runtime_rejects;
+            s_quality_gate_pass = 0;
+            s_generated = generated;
+            s_fallback_requested = 1;
+            GD_geodesic_last_runtime_hits = s_runtime_hits;
+            GD_geodesic_last_local_hits = s_local_hits;
+            GD_geodesic_last_runtime_rejects = s_runtime_rejects;
+            GD_geodesic_last_quality_gate_pass = s_quality_gate_pass;
+            GD_geodesic_last_generated = s_generated;
+            GD_geodesic_last_fallback_requested = s_fallback_requested;
+            free(ctx);
+            return -1;
+        }
+    }
+
+    s_runtime_hits = runtime_hits;
+    s_local_hits = local_hits;
+    s_runtime_rejects = runtime_rejects;
+    s_quality_gate_pass = generated > 0 ? 1 : 0;
+    s_generated = generated;
+    s_fallback_requested = 0;
+
+    /* Export stats through static symbols read in main. */
+    {
+        extern int GD_geodesic_last_runtime_hits;
+        extern int GD_geodesic_last_local_hits;
+        extern int GD_geodesic_last_runtime_rejects;
+        extern int GD_geodesic_last_quality_gate_pass;
+        extern int GD_geodesic_last_generated;
+        extern int GD_geodesic_last_fallback_requested;
+        GD_geodesic_last_runtime_hits = s_runtime_hits;
+        GD_geodesic_last_local_hits = s_local_hits;
+        GD_geodesic_last_runtime_rejects = s_runtime_rejects;
+        GD_geodesic_last_quality_gate_pass = s_quality_gate_pass;
+        GD_geodesic_last_generated = s_generated;
+        GD_geodesic_last_fallback_requested = s_fallback_requested;
+    }
+
+    free(ctx);
+    return generated;
+}
+
+static int geodesic_generate_from_context(int *ctx,
+                                          int *n_ctx,
+                                          int max_ctx,
+                                          int max_tokens,
+                                          char *output,
+                                          int max_output)
+{
+    const llm_model_t *m = llm_get_model();
+    if (!m || !ctx || !n_ctx || max_ctx <= 0 || !output || max_output <= 0 || max_tokens <= 0)
+        return -1;
+    if (*n_ctx <= 0 || *n_ctx >= max_ctx)
+        return -1;
+
+    output[0] = '\0';
+    int out_len = 0;
+    int generated = 0;
+    int runtime_hits = 0;
+    int local_hits = 0;
+    int runtime_rejects = 0;
+    int local_only_budget = 0;
+    int bad_piece_streak = 0;
+    int eos = m->eos_id;
+
+    for (int step = 0; step < max_tokens; step++) {
+        int tok = -1;
+        int used_runtime = 0;
+
+        if (GD_ott_theorem_active && local_only_budget > 0 &&
+            !geodesic_theorem_should_probe_runtime(local_only_budget, step)) {
+            if (geodesic_next_token_local(ctx, *n_ctx, &tok) == 0) {
+                local_hits++;
+                local_only_budget--;
+            } else {
+                break;
+            }
+        } else {
+            int runtime_ok = (geodesic_next_token_runtime(ctx, *n_ctx, &tok) == 0);
+            if (runtime_ok && geodesic_runtime_token_acceptable(ctx, *n_ctx, tok)) {
+                runtime_hits++;
+                used_runtime = 1;
+            } else if (geodesic_next_token_local(ctx, *n_ctx, &tok) == 0) {
+                local_hits++;
+                if (runtime_ok)
+                    runtime_rejects++;
+            } else {
+                break;
+            }
+        }
+
+        if (tok < 0 || tok >= m->vocab_size)
+            break;
+
+        if (GD_ott_theorem_active) {
+            char q_piece[256];
+            int q_n = llm_test_decode_token(tok, q_piece, (int)sizeof(q_piece));
+            if (!geodesic_piece_quality_ok(q_piece, q_n)) {
+                if (used_runtime) {
+                    int tok_local = -1;
+                    if (geodesic_next_token_local(ctx, *n_ctx, &tok_local) == 0 &&
+                        tok_local >= 0 && tok_local < m->vocab_size) {
+                        tok = tok_local;
+                        local_hits++;
+                        runtime_rejects++;
+                        used_runtime = 0;
+                        q_n = llm_test_decode_token(tok, q_piece, (int)sizeof(q_piece));
+                    }
+                }
+                if (!geodesic_piece_quality_ok(q_piece, q_n)) {
+                    bad_piece_streak++;
+                    local_only_budget = geodesic_theorem_local_budget(bad_piece_streak);
+                } else {
+                    if (used_runtime && bad_piece_streak > 0)
+                        bad_piece_streak--;
+                    if (used_runtime && local_only_budget > 0)
+                        local_only_budget--;
+                }
+            } else {
+                if (used_runtime && bad_piece_streak > 0)
+                    bad_piece_streak--;
+            }
+        }
+
+        if (*n_ctx >= max_ctx)
+            break;
+
+        ctx[(*n_ctx)++] = tok;
+        if (eos >= 0 && tok == eos)
+            break;
+
+        char piece[256];
+        int piece_n = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+        if (piece_n > 0) {
+            int room = max_output - out_len - 1;
+            if (room <= 0) break;
+            if (piece_n > room) piece_n = room;
+            memcpy(output + out_len, piece, (size_t)piece_n);
+            out_len += piece_n;
+            output[out_len] = '\0';
+        }
+
+        generated++;
+    }
+
+    if (generated > 0) {
+        kprintf("[GD] Geodesic decode tokens: runtime=%d local=%d (runtime_rejects=%d)\n",
+            runtime_hits, local_hits, runtime_rejects);
+    }
+    return generated;
+}
+
+static int geodesic_chat_turn(const char *user_text,
+                              int *ctx,
+                              int *n_ctx,
+                              int max_ctx,
+                              int max_tokens,
+                              float temperature,
+                              char *output,
+                              int max_output)
+{
+    char turn_prompt[4096];
+    int turn_tokens[4096];
+    int n_turn;
+    int n_ctx_before;
+
+    if (!user_text || !ctx || !n_ctx || !output)
+        return -1;
+
+    n_ctx_before = *n_ctx;
+
+    snprintf(turn_prompt, sizeof(turn_prompt), "User: %s\nAssistant:", user_text);
+    n_turn = llm_test_tokenize(turn_prompt, (int)strlen(turn_prompt), turn_tokens, (int)(sizeof(turn_tokens) / sizeof(turn_tokens[0])));
+    if (n_turn <= 0)
+        return -1;
+
+    if (*n_ctx + n_turn >= max_ctx) {
+        /* Reset context if token buffer is near capacity. */
+        *n_ctx = 0;
+    }
+    if (*n_ctx + n_turn >= max_ctx)
+        return -1;
+
+    memcpy(ctx + *n_ctx, turn_tokens, (size_t)n_turn * sizeof(int));
+    *n_ctx += n_turn;
+
+    int n_geo = geodesic_generate_from_context(ctx, n_ctx, max_ctx,
+                                               max_tokens, output, max_output);
+    if (n_geo > 0 && geodesic_output_quality_ok(output))
+        return n_geo;
+
+    kprintf("[GD] Geodesic chat quality gate failed; falling back to standard chat decode for this turn.\n");
+
+    /* Keep geodesic context coherent after a rejected geodesic sample. */
+    *n_ctx = 0;
+
+    /* Prevent double-printing when interactive streaming callback is active. */
+    llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
+    int n_std = llm_chat_turn(user_text, output, max_output, max_tokens, temperature);
+    llm_set_stream_cb(GD_stream_cb, (void *)0);
+
+    if (n_std <= 0) {
+        *n_ctx = n_ctx_before;
+    }
+    return n_std;
 }
 
 int main(int argc, char **argv) {
@@ -392,6 +1158,48 @@ int main(int argc, char **argv) {
     hal_init();
     enable_max_performance_host();
 
+    /* ── Daemon fast path (before model load) ──────────────────────────────
+     * If a prompt is given with no special flags and we are NOT starting a
+     * server ourselves, check whether a persistent daemon is already up on
+     * the same port.  If it is, delegate the request there and exit without
+     * ever loading the model — giving warm TTFT (~10–15 ms, like Ollama).
+     * If no daemon is running, spawn one in the background, wait for it to
+     * become ready, then forward the request.
+     * Use --no-daemon to force the legacy cold-start single-shot path.
+     */
+    if (!args.serve && !args.interactive && !args.no_daemon
+        && args.prompt != NULL && args.model_path != NULL
+        && !args.axiom_beta_run && !args.axiom_geodesic_first
+        && !args.ott_full && !args.ott_theorem) {
+
+        char exe_abs[MAX_PATH] = {0};
+#ifdef _WIN32
+        GetModuleFileNameA(NULL, exe_abs, sizeof(exe_abs));
+#else
+        snprintf(exe_abs, sizeof(exe_abs), "%s", argv[0]);
+#endif
+
+        gd_daemon_result_t dr = gd_daemon_generate(
+            exe_abs, args.model_path, args.prompt,
+            args.max_tokens, args.temperature, args.top_k, args.top_p,
+            args.port, args.ctx_size, args.no_think);
+
+        if (dr.ok) {
+            kprintf("%s\n", dr.text);
+            if (dr.tokens_generated > 0) {
+                kprintf("\n[GD] %d tokens  decode %.1f t/s  prefill %.0f ms  total %.0f ms\n",
+                        dr.tokens_generated, dr.decode_tok_per_s,
+                        dr.prefill_ms, dr.total_ms);
+                kprintf("[GD] (warm — model resident in daemon on port %d)\n", args.port);
+            }
+            hal_shutdown();
+            return 0;
+        }
+
+        /* Daemon path unavailable — fall through to cold-start inference */
+        fprintf(stderr, "[GD] Daemon unavailable (%s); using cold-start.\n", dr.error);
+    }
+
     /* Configure logging level */
     if (args.log_level >= 0) {
         klog_set_level((log_level_t)args.log_level);
@@ -403,6 +1211,18 @@ int main(int argc, char **argv) {
     if (args.no_think == 1) llm_set_thinking(0);
     else if (args.no_think == -1) llm_set_thinking(2);  /* force-think */
     if (args.show_think) llm_set_show_thinking(1);
+    llm_set_sampling_params(args.top_k, args.top_p);
+    llm_set_attention_residuals(args.attnres_enable, args.attnres_strength);
+    llm_set_depth_residual_attention(args.depth_attn_enable,
+                                     args.depth_attn_strength,
+                                     args.depth_attn_window);
+    GD_ott_theorem_active = args.ott_theorem ? 1 : 0;
+    if (args.ott_full) {
+        kprintf("[GD] OTT full mode enabled (geodesic-first + axiomatic run + AttnRes)\n");
+    }
+    if (args.ott_theorem) {
+        kprintf("[GD] OTT theorem mode enabled (depth residual attention + strict geodesic quality control)\n");
+    }
 
     /* Handle --download: download model from HuggingFace */
     if (args.download_repo) {
@@ -445,6 +1265,9 @@ int main(int argc, char **argv) {
     }
     kprintf("[GD] Mapped %llu MB\n", (unsigned long long)(model.size / (1024 * 1024)));
 
+    /* Apply context-size override before loading (0 = use 2048-token default) */
+    llm_set_max_ctx(args.ctx_size);
+
     /* Load model via GGUF parser + LLM engine */
     uint64_t t0 = hal_timer_us();
     int rc = llm_load_from_buffer(model.data, model.size);
@@ -460,6 +1283,12 @@ int main(int argc, char **argv) {
     kprintf("[GD] Model loaded in %llu ms\n", (unsigned long long)((t1 - t0) / 1000));
     kprintf("[GD] Model: %s\n", llm_model_name());
 
+    int axiom_ran_this_invocation = 0;
+    int axiom_intrinsic_dim = 0;
+    float axiom_consistency = 0.0f;
+    float axiom_geodesic_speedup = 0.0f;
+    unsigned long long axiom_total_ms = 0;
+
     if (args.axiom_beta_run) {
         axiom_beta_config_t cfg;
         axiom_beta_report_t rep;
@@ -468,6 +1297,9 @@ int main(int argc, char **argv) {
         if (args.axiom_samples > 0) cfg.embedding_samples = args.axiom_samples;
         if (args.axiom_vocab_probe > 0) cfg.geodesic_vocab_probe = args.axiom_vocab_probe;
         if (args.axiom_use_gpu_phase5 >= 0) cfg.use_gpu_phase5 = args.axiom_use_gpu_phase5;
+        cfg.geodesic_use_oracle_target = args.axiom_use_oracle_target;
+        cfg.fast_mode = args.axiom_fast_mode;
+        cfg.reuse_cache = args.axiom_reuse_cache;
         cfg.seed = args.axiom_seed;
         cfg.verbose = args.verbose;
         cfg.skip_geodesic = args.axiom_skip_geodesic;
@@ -479,6 +1311,11 @@ int main(int argc, char **argv) {
             hal_shutdown();
             return 1;
         }
+        axiom_ran_this_invocation = 1;
+        axiom_intrinsic_dim = rep.phase1.intrinsic_dim;
+        axiom_consistency = rep.phase4.consistency_score;
+        axiom_geodesic_speedup = rep.phase5.projected_speedup;
+        axiom_total_ms = (unsigned long long)(rep.total_us / 1000);
 
         kprintf("\n[AXIOM-BETA-3] === Summary ==========================\n");
         kprintf("  Intrinsic dim : %d (TwoNN=%.2f, PCA=%d components)\n",
@@ -500,17 +1337,21 @@ int main(int argc, char **argv) {
                 rep.phase4.oracle_calls_used);
         kprintf("  Geodesic pilot: speedup=%.1fx\n",
                 rep.phase5.projected_speedup);
+        kprintf("  Cache reuse   : %s\n",
+            rep.reused_geometry_cache ? "yes" : "no");
         if (rep.supports_geodesic_pilot)
             kprintf("  Geodesic sim  : cos=%.4f, L2_err=%.4f\n",
                     rep.phase5.geodesic_cosine_similarity,
                     rep.phase5.geodesic_reconstruction_error);
         if (rep.supports_geodesic_pilot)
-            kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d, gpu=%s\n",
+            kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d, targets(o/r)=%d/%d, gpu=%s\n",
                     rep.phase5.geodesic_top1_match_rate,
                     rep.phase5.geodesic_top1_hits,
                     rep.phase5.pilot_tokens_tested,
                     rep.phase5.geodesic_target_mrr,
                 rep.phase5.geodesic_vocab_probe,
+                rep.phase5.oracle_target_count,
+                rep.phase5.random_target_count,
                 rep.phase5.used_gpu_scoring ? "yes" : "no");
         kprintf("  Total time    : %llu ms\n",
                 (unsigned long long)(rep.total_us / 1000));
@@ -533,6 +1374,17 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (args.axiom_geodesic_first) {
+        if (axiom_ran_this_invocation) {
+            kprintf("[GD] Reusing current-invocation Axiom geometry cache for geodesic-first decode.\n");
+        } else {
+            kprintf("[GD] Priming OTT geometry cache for geodesic-first decode...\n");
+            if (geodesic_prime_cache(&args) != 0) {
+                kprintf("[GD] WARNING: Could not prime geometry cache; using local geodesic fallback only.\n");
+            }
+        }
+    }
+
     /* Run inference */
     if (args.serve) {
         kprintf("[GD] Starting API server on port %d...\n", args.port);
@@ -542,11 +1394,26 @@ int main(int argc, char **argv) {
     } else {
         const char *prompt = args.prompt ? args.prompt : "Hello";
         kprintf("[GD] Prompt: \"%s\"\n", prompt);
-        kprintf("[GD] Generating %d tokens...\n\n", args.max_tokens);
+        if (args.axiom_geodesic_first)
+            kprintf("[GD] Generating %d tokens (geodesic-first)...\n\n", args.max_tokens);
+        else
+            kprintf("[GD] Generating %d tokens...\n\n", args.max_tokens);
 
         static char output[65536];
         uint64_t gen_t0 = hal_timer_us();
-        int n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+        int n;
+        int geodesic_fallback_used = 0;
+        if (args.axiom_geodesic_first) {
+            n = geodesic_generate_text(prompt, args.max_tokens,
+                                       output, (int)sizeof(output));
+            if (n < 0) {
+                kprintf("[GD] Geodesic-first path unavailable, falling back to standard decode.\n");
+                geodesic_fallback_used = 1;
+                n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+            }
+        } else {
+            n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+        }
         uint64_t gen_t1 = hal_timer_us();
         if (n > 0) {
             kprintf("%s\n", output);
@@ -559,6 +1426,89 @@ int main(int argc, char **argv) {
             if (decode_tok_s > 0.0f) {
                 kprintf("[GD] Decode-only: prefill %.1f ms, %.1f tok/s\n",
                         prefill_ms, decode_tok_s);
+            }
+
+            if (args.ott_ready_report_path) {
+                FILE *rf = fopen(args.ott_ready_report_path, "wb");
+                if (rf) {
+                    int runtime_hits = GD_geodesic_last_runtime_hits;
+                    int local_hits = GD_geodesic_last_local_hits;
+                    int runtime_rejects = GD_geodesic_last_runtime_rejects;
+                    int quality_pass = GD_geodesic_last_quality_gate_pass;
+                    int geo_generated = GD_geodesic_last_generated;
+                    int fallback_req = GD_geodesic_last_fallback_requested || geodesic_fallback_used;
+                    int total_geo = runtime_hits + local_hits;
+                    double runtime_share = (total_geo > 0) ? ((double)runtime_hits / (double)total_geo) : 0.0;
+                    double runtime_reject_rate = (runtime_hits + runtime_rejects > 0)
+                        ? ((double)runtime_rejects / (double)(runtime_hits + runtime_rejects))
+                        : 0.0;
+                    /* Minimum runtime participation to be considered "geodesic_ready" */
+                    const double READY_RUNTIME_SHARE  = 0.08;  /* ≥8% tokens from runtime path */
+                    const double DEGRADED_RUNTIME_SHARE = 0.01; /* ≥1% → degraded (not zero) */
+                    int ready = 1;
+                    int hybrid_ready = 1;
+                    int degraded = 0; /* quality OK but runtime share too low */
+                    if (args.axiom_geodesic_first && fallback_req) ready = 0;
+                    if (args.axiom_geodesic_first && runtime_share < READY_RUNTIME_SHARE) ready = 0;
+                    if (args.axiom_geodesic_first && runtime_share < DEGRADED_RUNTIME_SHARE && quality_pass && !fallback_req) degraded = 1;
+                    if (args.axiom_beta_run && axiom_consistency < 0.85f) ready = 0;
+                    if (args.axiom_beta_run && axiom_consistency < 0.80f) hybrid_ready = 0;
+                    if (n <= 0) hybrid_ready = 0;
+
+                    fprintf(rf, "{\n");
+                    fprintf(rf, "  \"ott_full\": %s,\n", args.ott_full ? "true" : "false");
+                    fprintf(rf, "  \"ott_theorem\": %s,\n", args.ott_theorem ? "true" : "false");
+                    fprintf(rf, "  \"ready\": %s,\n", ready ? "true" : "false");
+                    fprintf(rf, "  \"hybrid_ready\": %s,\n", hybrid_ready ? "true" : "false");
+                    /* Status ladder: geodesic_ready > hybrid_ready > degraded_geodesic > not_ready */
+                    const char *status_str;
+                    if (ready) status_str = "geodesic_ready";
+                    else if (degraded) status_str = "degraded_geodesic";
+                    else if (hybrid_ready) status_str = "hybrid_ready";
+                    else status_str = "not_ready";
+                    fprintf(rf, "  \"degraded_geodesic\": %s,\n", degraded ? "true" : "false");
+                    fprintf(rf, "  \"status\": \"%s\",\n", status_str);
+                    fprintf(rf, "  \"model\": \"%s\",\n", llm_model_name());
+                    fprintf(rf, "  \"generation\": {\n");
+                    fprintf(rf, "    \"tokens\": %d,\n", n);
+                    fprintf(rf, "    \"total_ms\": %llu,\n", (unsigned long long)total_ms);
+                    fprintf(rf, "    \"tok_per_s\": %.2f,\n", tok_per_s);
+                    fprintf(rf, "    \"prefill_ms\": %.2f,\n", prefill_ms);
+                    fprintf(rf, "    \"decode_tok_per_s\": %.2f\n", decode_tok_s);
+                    fprintf(rf, "  },\n");
+                    fprintf(rf, "  \"geodesic\": {\n");
+                    fprintf(rf, "    \"enabled\": %s,\n", args.axiom_geodesic_first ? "true" : "false");
+                    fprintf(rf, "    \"runtime_tokens\": %d,\n", runtime_hits);
+                    fprintf(rf, "    \"local_tokens\": %d,\n", local_hits);
+                    fprintf(rf, "    \"runtime_rejects\": %d,\n", runtime_rejects);
+                    fprintf(rf, "    \"runtime_share\": %.4f,\n", runtime_share);
+                    fprintf(rf, "    \"runtime_reject_rate\": %.4f,\n", runtime_reject_rate);
+                    fprintf(rf, "    \"quality_gate_pass\": %s,\n", quality_pass ? "true" : "false");
+                    fprintf(rf, "    \"generated_tokens\": %d,\n", geo_generated);
+                    fprintf(rf, "    \"fallback_used\": %s\n", fallback_req ? "true" : "false");
+                    fprintf(rf, "  },\n");
+                    fprintf(rf, "  \"axiom\": {\n");
+                    fprintf(rf, "    \"ran\": %s,\n", axiom_ran_this_invocation ? "true" : "false");
+                    fprintf(rf, "    \"intrinsic_dim\": %d,\n", axiom_intrinsic_dim);
+                    fprintf(rf, "    \"consistency\": %.4f,\n", axiom_consistency);
+                    fprintf(rf, "    \"projected_speedup\": %.2f,\n", axiom_geodesic_speedup);
+                    fprintf(rf, "    \"total_ms\": %llu\n", axiom_total_ms);
+                    fprintf(rf, "  },\n");
+                    fprintf(rf, "  \"attnres\": {\n");
+                    fprintf(rf, "    \"enabled\": %s,\n", args.attnres_enable ? "true" : "false");
+                    fprintf(rf, "    \"strength\": %.3f\n", args.attnres_strength);
+                    fprintf(rf, "  },\n");
+                    fprintf(rf, "  \"depth_attention\": {\n");
+                    fprintf(rf, "    \"enabled\": %s,\n", args.depth_attn_enable ? "true" : "false");
+                    fprintf(rf, "    \"strength\": %.3f,\n", args.depth_attn_strength);
+                    fprintf(rf, "    \"window\": %d\n", args.depth_attn_window);
+                    fprintf(rf, "  }\n");
+                    fprintf(rf, "}\n");
+                    fclose(rf);
+                    kprintf("[GD] OTT readiness report: %s\n", args.ott_ready_report_path);
+                } else {
+                    kprintf("[GD] WARNING: Could not write OTT readiness report: %s\n", args.ott_ready_report_path);
+                }
             }
         } else {
             kprintf("[error generating response]\n");

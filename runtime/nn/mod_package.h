@@ -1,5 +1,5 @@
 /*
- * HyperTensor Modification Packaging
+ * Geodessical Modification Packaging
  *
  * Packages model outputs (token sequences) together with edit operations,
  * allowing modifications to be applied directly in token space without
@@ -21,8 +21,8 @@
  *   REWRITE(start, end, new[]) — rewrite range (insert + delete)
  */
 
-#ifndef HYPERTENSOR_MOD_PACKAGE_H
-#define HYPERTENSOR_MOD_PACKAGE_H
+#ifndef GEODESSICAL_MOD_PACKAGE_H
+#define GEODESSICAL_MOD_PACKAGE_H
 
 #include <stdint.h>
 
@@ -127,4 +127,4 @@ void mod_package_stats(const mod_package_t *pkg,
 /* Free any dynamically allocated resources in the package. */
 void mod_package_free(mod_package_t *pkg);
 
-#endif /* HYPERTENSOR_MOD_PACKAGE_H */
+#endif /* GEODESSICAL_MOD_PACKAGE_H */

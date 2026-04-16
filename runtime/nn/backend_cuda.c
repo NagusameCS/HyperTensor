@@ -26,7 +26,7 @@ typedef void *lib_handle_t;
 #define LIB_CLOSE(h)        dlclose(h)
 #endif
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #else
 #include "kernel/core/kernel.h"
@@ -84,6 +84,20 @@ typedef int      (*fn_graph_op)(void);
 typedef void     (*fn_graph_destroy)(void);
 typedef void     (*fn_set_decode_pos)(int, int);
 typedef int      (*fn_argmax)(const float *, int);
+/* Batch Prefill */
+typedef void     (*fn_prefill_batch_presized)(int, int);
+typedef void     (*fn_prefill_batch_quant)(const float *, int, int);
+typedef void     (*fn_prefill_batch_gemv_q4)(float *, const void *, int, int, int);
+typedef void     (*fn_batched_rmsnorm_out)(float *, const float *, const float *, int, int, float);
+/* Batched prefill attention kernels */
+typedef void     (*fn_batch_fused_qk_norm_rope)(float *, float *, const float *, const float *,
+                                                int, int, int, int, int, float, const float *,
+                                                float, int);
+typedef void     (*fn_batch_v_norm)(float *, int, int, int, float);
+typedef void     (*fn_batch_kv_update)(float *, float *, const float *, const float *,
+                                       int, int, int, int, int);
+typedef void     (*fn_prefill_attn_batched)(float *, const float *, const float *, const float *,
+                                            int, int, int, int, int, int, float, float);
 
 /* ─── Dynamic dispatch table ─── */
 static struct {
@@ -137,6 +151,16 @@ static struct {
     fn_graph_destroy graph_destroy;
     fn_set_decode_pos set_decode_pos;
     fn_argmax       argmax;
+    /* Batch Prefill */
+    fn_prefill_batch_presized  prefill_batch_presized;
+    fn_prefill_batch_quant     prefill_batch_quant;
+    fn_prefill_batch_gemv_q4   prefill_batch_gemv_q4;
+    fn_batched_rmsnorm_out     batched_rmsnorm_out;
+    /* Batched prefill attention */
+    fn_batch_fused_qk_norm_rope batch_fused_qk_norm_rope;
+    fn_batch_v_norm             batch_v_norm;
+    fn_batch_kv_update          batch_kv_update;
+    fn_prefill_attn_batched     prefill_attn_batched;
 } ck;
 
 /* Load a symbol, return 0 on success */
@@ -214,6 +238,16 @@ static int cuda_load_library(void) {
     ck.graph_destroy       = (fn_graph_destroy)LIB_SYM(ck.lib, "ck_graph_destroy");
     ck.set_decode_pos      = (fn_set_decode_pos)LIB_SYM(ck.lib, "ck_set_decode_pos");
     ck.argmax              = (fn_argmax)LIB_SYM(ck.lib, "ck_argmax");
+    /* Batch Prefill — optional (soft-load) */
+    ck.prefill_batch_presized = (fn_prefill_batch_presized)LIB_SYM(ck.lib, "ck_prefill_batch_presized");
+    ck.prefill_batch_quant    = (fn_prefill_batch_quant)LIB_SYM(ck.lib, "ck_prefill_batch_quant");
+    ck.prefill_batch_gemv_q4  = (fn_prefill_batch_gemv_q4)LIB_SYM(ck.lib, "ck_prefill_batch_gemv_q4");
+    ck.batched_rmsnorm_out    = (fn_batched_rmsnorm_out)LIB_SYM(ck.lib, "ck_batched_rmsnorm_out");
+    /* Batched prefill attention — soft-load */
+    ck.batch_fused_qk_norm_rope = (fn_batch_fused_qk_norm_rope)LIB_SYM(ck.lib, "ck_batch_fused_qk_norm_rope");
+    ck.batch_v_norm             = (fn_batch_v_norm)LIB_SYM(ck.lib, "ck_batch_v_norm");
+    ck.batch_kv_update          = (fn_batch_kv_update)LIB_SYM(ck.lib, "ck_batch_kv_update");
+    ck.prefill_attn_batched     = (fn_prefill_attn_batched)LIB_SYM(ck.lib, "ck_prefill_attn_batched");
     return 0;
 }
 
@@ -424,6 +458,68 @@ void cuda_set_decode_pos(int pos, int seq_len) {
 
 int cuda_argmax(const float *data, int n) {
     return ck.argmax ? ck.argmax(data, n) : -1;
+}
+
+/* ─── Batched prefill attention wrappers ─── */
+void cuda_batch_fused_qk_norm_rope(float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim)
+{
+    if (ck.batch_fused_qk_norm_rope)
+        ck.batch_fused_qk_norm_rope(Q, K, q_norm_w, k_norm_w,
+            n_heads, n_kv_heads, head_dim,
+            n, start_pos, rope_base, rope_freqs, eps, rope_dim);
+}
+
+void cuda_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps) {
+    if (ck.batch_v_norm) ck.batch_v_norm(V, n_kv_heads, head_dim, n, eps);
+}
+
+void cuda_batch_kv_update(float *K_cache, float *V_cache,
+    const float *K_new, const float *V_new,
+    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq)
+{
+    if (ck.batch_kv_update)
+        ck.batch_kv_update(K_cache, V_cache, K_new, V_new,
+                           n_kv_heads, head_dim, n, start_pos, max_seq);
+}
+
+void cuda_prefill_attn_batched(float *O, const float *Q,
+    const float *K_cache, const float *V_cache,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, int max_seq, float scale, float softcap)
+{
+    if (ck.prefill_attn_batched)
+        ck.prefill_attn_batched(O, Q, K_cache, V_cache,
+                                n_heads, n_kv_heads, head_dim,
+                                n, start_pos, max_seq, scale, softcap);
+}
+
+int cuda_have_batch_attn(void) {
+    return (ck.prefill_attn_batched != NULL) ? 1 : 0;
+}
+
+/* ─── Batch Prefill wrappers ─── */
+void cuda_prefill_batch_presized(int max_batch, int max_dim) {
+    if (ck.prefill_batch_presized) ck.prefill_batch_presized(max_batch, max_dim);
+}
+
+void cuda_prefill_batch_quant(const float *X, int batch, int in_dim) {
+    if (ck.prefill_batch_quant) ck.prefill_batch_quant(X, batch, in_dim);
+}
+
+int cuda_prefill_batch_gemv_q4(float *C, const void *W,
+                                int out_dim, int in_dim, int batch) {
+    if (!ck.prefill_batch_gemv_q4) return 0;
+    ck.prefill_batch_gemv_q4(C, W, out_dim, in_dim, batch);
+    return 1;
+}
+
+void cuda_batched_rmsnorm_out(float *out, const float *in, const float *w,
+                               int n, int d, float eps) {
+    if (ck.batched_rmsnorm_out) ck.batched_rmsnorm_out(out, in, w, n, d, eps);
 }
 
 int cuda_upload_async(void *dst, const void *src, uint64_t size) {

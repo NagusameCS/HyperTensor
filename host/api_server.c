@@ -1,7 +1,7 @@
 /*
- * HyperTensor HTTP API Server
+ * Geodessical HTTP API Server
  *
- * Native HyperTensor REST API for LLM inference.
+ * Native Geodessical REST API for LLM inference.
  * Uses raw Winsock2 — no external dependencies.
  */
 
@@ -230,7 +230,7 @@ static int parse_request(socket_t sock, http_request_t *req) {
 static void handle_version(socket_t sock) {
     char resp[256];
     snprintf(resp, sizeof(resp),
-             "{\"name\":\"HyperTensor\",\"version\":\"0.5.0\",\"backend\":\"%s\"}",
+             "{\"name\":\"Geodessical\",\"version\":\"0.5.0\",\"backend\":\"%s\"}",
              llm_backend_name());
     send_json(sock, 200, resp);
 }
@@ -302,6 +302,20 @@ static void handle_generate(socket_t sock, http_request_t *req) {
     p = json_append_bool(resp, p, sizeof(resp), "done", 1);
     p = json_append(resp, p, sizeof(resp), ",");
     p = json_append_int(resp, p, sizeof(resp), "eval_count", n > 0 ? n : 0);
+    /* Timing fields for daemon client */
+    {
+        float dec_tps  = llm_last_tok_per_sec();
+        float pf_ms    = llm_last_prefill_ms();
+        float total_ms = (dec_tps > 0.0f && n > 0)
+                         ? pf_ms + (float)n * 1000.0f / dec_tps
+                         : pf_ms;
+        char tbuf[192];
+        snprintf(tbuf, sizeof(tbuf),
+                 ",\"decode_tok_per_s\":%.1f,\"prefill_ms\":%.0f,\"total_ms\":%.0f",
+                 (double)dec_tps, (double)pf_ms, (double)total_ms);
+        if (p + (int)strlen(tbuf) < (int)sizeof(resp) - 2)
+            p += snprintf(resp + p, sizeof(resp) - (size_t)p, "%s", tbuf);
+    }
     p = json_append(resp, p, sizeof(resp), "}");
     resp[p] = '\0';
 
@@ -445,7 +459,7 @@ static void handle_request(socket_t client) {
         return;
     }
 
-    /* Route — HyperTensor native API */
+    /* Route — Geodessical native API */
     if (strcmp(req.path, "/") == 0 || strcmp(req.path, "/ui") == 0) {
         /* Serve the web chat UI */
         send_response(client, 200, "text/html", WEB_UI_HTML, WEB_UI_HTML_LEN);
@@ -478,7 +492,7 @@ static void handle_request(socket_t client) {
 }
 
 /* ─── Server main loop ─── */
-int ht_api_serve(int port) {
+int GD_api_serve(int port) {
 #ifdef _WIN32
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
@@ -515,7 +529,7 @@ int ht_api_serve(int port) {
         return -1;
     }
 
-    kprintf("[API] HyperTensor serving on http://0.0.0.0:%d\n", port);
+    kprintf("[API] Geodessical serving on http://0.0.0.0:%d\n", port);
     kprintf("[API] Endpoints: /v1/generate, /v1/chat, /v1/models, /v1/version, /mcp\n");
     kprintf("[API] Ready for inference\n\n");
 
@@ -547,7 +561,7 @@ int ht_api_serve(int port) {
     return 0;
 }
 
-void ht_api_stop(void) {
+void GD_api_stop(void) {
     g_running = 0;
     if (g_listen_sock != SOCKET_INVALID) {
         sock_close(g_listen_sock);

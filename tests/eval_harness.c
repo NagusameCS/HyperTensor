@@ -1,9 +1,9 @@
 /*
- * HyperTensor Eval Harness
+ * Geodessical Eval Harness
  * Deterministic prompt/output regression checks + quality metrics.
  *
  * Build: zig cc -target x86_64-windows-gnu -O2 -mavx2 -mfma
- *        -DHYPERTENSOR_HOSTED=1 -DENABLE_CUDA -DENABLE_MLIR
+ *        -DGEODESSICAL_HOSTED=1 -DENABLE_CUDA -DENABLE_MLIR
  *        -Ihost/shims -I. -Ihost -Wno-unused-function -Wno-unused-variable
  *        -Wno-format -Wno-incompatible-pointer-types -Wno-int-conversion
  *        -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-parameter
@@ -23,7 +23,7 @@
 #include <math.h>
 #include <stdint.h>
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #endif
 
@@ -317,7 +317,7 @@ int main(int argc, char **argv)
     }
 
     /* Load model via mmap (like main.c) */
-    printf("=== HyperTensor Eval Harness ===\n");
+    printf("=== Geodessical Eval Harness ===\n");
     printf("Model: %s\n", model_path);
 
     /* Initialize HAL (CPU detection, thread pool) - must come before model load */
@@ -401,7 +401,7 @@ int main(int argc, char **argv)
     if (save_path) {
         FILE *sf = fopen(save_path, "w");
         if (sf) {
-            fprintf(sf, "# HyperTensor Eval Baseline\n");
+            fprintf(sf, "# Geodessical Eval Baseline\n");
             for (int i = 0; i < (int)NUM_EVAL_CASES; i++) {
                 fprintf(sf, "[%s]\n", eval_suite[i].name);
                 fprintf(sf, "passed=%d\n", results[i].passed);

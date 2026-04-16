@@ -1,5 +1,5 @@
 /*
- * HyperTensor MLIR-Inspired IR Optimizer
+ * Geodessical MLIR-Inspired IR Optimizer
  *
  * Lightweight intermediate representation for tensor computation graphs.
  * Implements the core optimization passes that MLIR provides for inference:
@@ -20,7 +20,7 @@
 
 #include "runtime/nn/backend.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #else
 #include "kernel/core/kernel.h"

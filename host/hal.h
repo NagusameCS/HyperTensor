@@ -1,11 +1,11 @@
 /*
- * HyperTensor — Hardware Abstraction Layer
+ * Geodessical — Hardware Abstraction Layer
  *
  * Maps bare-metal kernel APIs to host OS equivalents (Windows/Linux/macOS).
  * Include this instead of kernel headers when building in hosted mode.
  */
-#ifndef HYPERTENSOR_HAL_H
-#define HYPERTENSOR_HAL_H
+#ifndef GEODESSICAL_HAL_H
+#define GEODESSICAL_HAL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -156,4 +156,4 @@ void crypto_random(void *buf, uint32_t len);
 }
 #endif
 
-#endif /* HYPERTENSOR_HAL_H */
+#endif /* GEODESSICAL_HAL_H */

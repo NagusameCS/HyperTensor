@@ -7,7 +7,7 @@
 
 #include "runtime/nn/model_meta.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #else
 #include "kernel/core/kernel.h"

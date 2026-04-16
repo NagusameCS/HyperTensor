@@ -1,5 +1,5 @@
 /*
- * HyperTensor Token-Space Communication
+ * Geodessical Token-Space Communication
  *
  * Enables two or more LLMs to communicate directly in token space —
  * exchanging raw logit distributions, token sequences, and attention
@@ -25,8 +25,8 @@
  *   [token_channel_t] ←──shared──→ [token_channel_t]
  */
 
-#ifndef HYPERTENSOR_TOKEN_COMM_H
-#define HYPERTENSOR_TOKEN_COMM_H
+#ifndef GEODESSICAL_TOKEN_COMM_H
+#define GEODESSICAL_TOKEN_COMM_H
 
 #include <stdint.h>
 
@@ -173,4 +173,4 @@ void token_comm_stats(const token_channel_t *ch,
 /* Free channel resources. */
 void token_comm_free(token_channel_t *ch);
 
-#endif /* HYPERTENSOR_TOKEN_COMM_H */
+#endif /* GEODESSICAL_TOKEN_COMM_H */

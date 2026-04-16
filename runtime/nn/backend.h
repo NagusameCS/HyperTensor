@@ -189,6 +189,21 @@ int  cuda_graph_end_capture(void);
 int  cuda_graph_launch(void);
 void cuda_graph_destroy(void);
 void cuda_set_decode_pos(int pos, int seq_len);
+/* Batched prefill attention kernels */
+void cuda_batch_fused_qk_norm_rope(float *Q, float *K,
+    const float *q_norm_w, const float *k_norm_w,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, float rope_base, const float *rope_freqs,
+    float eps, int rope_dim);
+void cuda_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps);
+void cuda_batch_kv_update(float *K_cache, float *V_cache,
+    const float *K_new, const float *V_new,
+    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq);
+void cuda_prefill_attn_batched(float *O, const float *Q,
+    const float *K_cache, const float *V_cache,
+    int n_heads, int n_kv_heads, int head_dim,
+    int n, int start_pos, int max_seq, float scale, float softcap);
+int  cuda_have_batch_attn(void); /* returns 1 if batched kernels are loaded */
 #endif
 
 #ifdef ENABLE_MLIR

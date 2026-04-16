@@ -1,0 +1,90 @@
+/*
+ * gd_daemon.h — Geodessical persistent daemon client
+ *
+ * When a prompt is given without --serve, Geodessical defaults to a
+ * "daemon-client" mode: it checks whether a compatible server instance is
+ * already running on localhost, reuses it (warm TTFT), or spawns one in the
+ * background and waits for it to become ready before forwarding the request.
+ *
+ * This mirrors Ollama's architecture: the model lives in a long-running
+ * server process; the CLI is a thin HTTP client.
+ *
+ * Bypass:  geodessical model.gguf -p "..." --no-daemon
+ */
+
+#ifndef GD_DAEMON_H
+#define GD_DAEMON_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Result of a daemon generate call */
+typedef struct {
+    int    ok;           /* 1 = success, 0 = error */
+    char   error[256];
+
+    int    tokens_generated;
+    double decode_tok_per_s;
+    double prefill_ms;
+    double total_ms;
+
+    char   text[65536];  /* generated text (UTF-8, null-terminated) */
+} gd_daemon_result_t;
+
+/*
+ * gd_daemon_generate()
+ *
+ * High-level entry: ensure daemon is running (spawning it if needed), then
+ * send a /v1/generate request and return the result.
+ *
+ *   exe_path   - absolute path to geodessical.exe (argv[0])
+ *   model_path - absolute path to .gguf model
+ *   prompt     - user prompt text
+ *   max_tokens - maximum tokens to generate
+ *   temp       - sampling temperature
+ *   top_k      - top-K
+ *   top_p      - top-P
+ *   port       - TCP port (default: 8080)
+ *   ctx_size   - KV context override (0 = use server default)
+ *   no_think   - 1 to strip thinking, -1 to force-think, 0 = auto
+ */
+gd_daemon_result_t gd_daemon_generate(
+    const char *exe_path,
+    const char *model_path,
+    const char *prompt,
+    int         max_tokens,
+    float       temp,
+    int         top_k,
+    float       top_p,
+    int         port,
+    int         ctx_size,
+    int         no_think
+);
+
+/*
+ * gd_daemon_ping()
+ *
+ * Returns 1 if a Geodessical server is already listening on the given port,
+ * 0 otherwise.
+ */
+int gd_daemon_ping(int port);
+
+/*
+ * gd_daemon_spawn()
+ *
+ * Start a Geodessical server in the background and wait for it to become
+ * ready (up to timeout_ms milliseconds).  Returns 1 on success, 0 on
+ * failure or timeout.
+ */
+int gd_daemon_spawn(const char *exe_path, const char *model_path,
+                    int port, int ctx_size, int timeout_ms);
+
+/* Maximum milliseconds to wait for daemon startup (model load + CUDA init) */
+#define GD_DAEMON_STARTUP_TIMEOUT_MS 25000
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* GD_DAEMON_H */

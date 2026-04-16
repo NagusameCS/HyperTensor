@@ -1,5 +1,5 @@
 /*
- * HyperTensor Model Auto-Download — Implementation
+ * Geodessical Model Auto-Download — Implementation
  *
  * Downloads GGUF models from HuggingFace Hub using WinHTTP.
  * Supports HTTPS, progress reporting, and local caching.
@@ -7,7 +7,7 @@
 
 #include "runtime/nn/hf_download.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 
 #include "hal.h"
 #include <stdio.h>
@@ -120,7 +120,7 @@ static int winhttp_download(hf_download_ctx_t *ctx,
     free(wurl);
 
     /* Open session */
-    hSession = WinHttpOpen(L"HyperTensor/0.5",
+    hSession = WinHttpOpen(L"Geodessical/0.5",
                            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                            WINHTTP_NO_PROXY_NAME,
                            WINHTTP_NO_PROXY_BYPASS, 0);
@@ -272,7 +272,7 @@ static int winhttp_get_json(const char *url, char *buf, int buf_size) {
     if (!WinHttpCrackUrl(wurl, 0, 0, &uc)) { free(wurl); return -1; }
     free(wurl);
 
-    HINTERNET hSession = WinHttpOpen(L"HyperTensor/0.5",
+    HINTERNET hSession = WinHttpOpen(L"Geodessical/0.5",
                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME,
                                      WINHTTP_NO_PROXY_BYPASS, 0);
@@ -339,7 +339,7 @@ static int winhttp_download(hf_download_ctx_t *ctx,
 
 static int winhttp_get_json(const char *url, char *buf, int buf_size) {
     char cmd[1024];
-    char tmpf[] = "/tmp/ht_hf_api.json";
+    char tmpf[] = "/tmp/GD_hf_api.json";
     snprintf(cmd, sizeof(cmd), "curl -sL -o %s \"%s\"", tmpf, url);
     if (system(cmd) != 0) return -1;
 
@@ -564,4 +564,4 @@ void hf_download_free(hf_download_ctx_t *ctx) {
     memset(ctx, 0, sizeof(*ctx));
 }
 
-#endif /* HYPERTENSOR_HOSTED */
+#endif /* GEODESSICAL_HOSTED */

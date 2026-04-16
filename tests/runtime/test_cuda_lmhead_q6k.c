@@ -6,7 +6,7 @@
  *  2) per-launch overhead on tiny GEMV shapes
  *
  * Build (host, Windows GNU toolchain):
- *   zig cc -O2 -target x86_64-windows-gnu -DHYPERTENSOR_HOSTED=1 -DENABLE_CUDA=1 \
+ *   zig cc -O2 -target x86_64-windows-gnu -DGEODESSICAL_HOSTED=1 -DENABLE_CUDA=1 \
  *     -Ihost/shims -I. -Ihost \
  *     tests/runtime/test_cuda_lmhead_q6k.c \
  *     runtime/nn/backend.c runtime/nn/backend_cuda.c host/hal.c \

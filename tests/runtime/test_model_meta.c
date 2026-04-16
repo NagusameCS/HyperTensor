@@ -1,6 +1,6 @@
 /*
  * Test: Model metadata normalization
- * Build: zig cc -O2 -target x86_64-windows-gnu -DHYPERTENSOR_HOSTED=1 -Ihost/shims -I. -Ihost tests/runtime/test_model_meta.c runtime/nn/model_meta.c host/hal.c -o build_host/test_model_meta.exe
+ * Build: zig cc -O2 -target x86_64-windows-gnu -DGEODESSICAL_HOSTED=1 -Ihost/shims -I. -Ihost tests/runtime/test_model_meta.c runtime/nn/model_meta.c host/hal.c -o build_host/test_model_meta.exe
  */
 
 #include <stdio.h>

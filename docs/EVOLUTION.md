@@ -1,7 +1,7 @@
-# HyperTensor Evolution Plan
+# Geodessical Evolution Plan
 
 ## Vision
-HyperTensor is a unified AI inference engine that runs on bare metal (TensorOS) and as a hosted runtime. The roadmap below defines the evolution from the current state (v0.5 "Synapse") through future milestones.
+Geodessical is a unified AI inference engine that runs on bare metal (TensorOS) and as a hosted runtime. The roadmap below defines the evolution from the current state (v0.5 "Synapse") through future milestones.
 
 ---
 
@@ -104,7 +104,7 @@ HyperTensor is a unified AI inference engine that runs on bare metal (TensorOS) 
 
 ### Distribution
 - [ ] Network-distributed inference: split layers across machines
-- [ ] P2P model sharing between HyperTensor instances
+- [ ] P2P model sharing between Geodessical instances
 - [ ] Tensor bridge over TCP/IP (send hidden states across network)
 - [ ] Token-space communication over network sockets
 

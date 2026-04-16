@@ -1,13 +1,13 @@
 /*
- * HyperTensor MLIR-Inspired IR Optimizer — Header
+ * Geodessical MLIR-Inspired IR Optimizer — Header
  *
  * Provides a lightweight intermediate representation that captures
  * tensor computation graphs and optimizes them with fusion, DCE,
  * and buffer planning before lowering to the CPU/CUDA backend.
  */
 
-#ifndef HYPERTENSOR_MLIR_OPS_H
-#define HYPERTENSOR_MLIR_OPS_H
+#ifndef GEODESSICAL_MLIR_OPS_H
+#define GEODESSICAL_MLIR_OPS_H
 
 #include <stdint.h>
 #include "runtime/nn/gguf.h"
@@ -49,4 +49,4 @@ int mlir_optimize_and_execute(void);
 /* Get optimization statistics from the last run. Any param may be NULL. */
 void mlir_get_stats(int *fusions, int *eliminated, int *buf_reused);
 
-#endif /* HYPERTENSOR_MLIR_OPS_H */
+#endif /* GEODESSICAL_MLIR_OPS_H */

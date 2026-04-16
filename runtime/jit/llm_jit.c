@@ -5,12 +5,11 @@
  * inference pipeline. Each kernel is SSE2-vectorized with 4-wide processing,
  * proper register allocation, loop unrolling, and tail handling.
  *
- * Kernels:
+ * Kernels (ACTIVE):
  *   - Fast vectorized exp (building block for SiLU/softmax/sigmoid/GELU)
  *   - SiLU activation (SwiGLU FFN)
  *   - RMSNorm (pre-attention and pre-FFN normalization)
- *   - Softmax (attention score normalization)
- *   - RoPE (rotary position encoding)
+ *   - RoPE (rotary position encoding)  [x86 non-Gemma4 only]
  *   - Element-wise multiply (SwiGLU gate⊙up)
  *   - Element-wise add (residual connections)
  *   - Dot product (attention scores)
@@ -18,6 +17,23 @@
  *   - Fused SiLU*multiply (SwiGLU single-pass)
  *   - GELU activation
  *   - LayerNorm
+ *   - Q8_0 GEMV (AVX2 + SSE2 caches)
+ *   - Q4_0×Q8_0 integer GEMV (AVX2)
+ *
+ * JIT BACKLOG — high-impact targets not yet compiled at runtime:
+ *   [JIT-TODO-1] Variable-length softmax kernel (bucketed seq_len: 64/128/256/512)
+ *                Currently bypassed with jit_fwd_softmax=NULL in llm.c:3261.
+ *                Impact: saves C loop overhead on every attention head per token.
+ *   [JIT-TODO-2] Gemma4-safe RoPE JIT  (lhd != hd guard in llm.c:3998 blocks JIT)
+ *                Needs a secondary kernel compiled for lhd (SWA head dim = 256).
+ *                Impact: eliminates scalar RoPE path for Gemma4-family models.
+ *   [JIT-TODO-3] LRU GEMV kernel cache (current limit: 8 slots per quant type)
+ *                Replace static arrays with 64-slot LRU in llm_get_jit_gemv*.
+ *                Impact: prevents recompilation churn in mixed-dim workloads.
+ *   [JIT-TODO-4] Fused RMSNorm+scale (pre-attn norm fused with QKV projection
+ *                quantization for Q8 activations; saves one full dim-pass per layer).
+ *   [JIT-TODO-5] Batched GEMV (batch_size > 1 decode for speculative drafting).
+ *   [JIT-TODO-6] AVX-512 GEMV variant for hosts with AVX-512 (detected at runtime).
  *
  * All generated code follows System V AMD64 calling convention.
  * =============================================================================*/

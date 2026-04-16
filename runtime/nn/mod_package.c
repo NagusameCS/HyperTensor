@@ -1,5 +1,5 @@
 /*
- * HyperTensor Modification Packaging — Implementation
+ * Geodessical Modification Packaging — Implementation
  *
  * Packages original token sequences with edit operations so that
  * multi-model pipelines can refine output directly in token space
@@ -8,7 +8,7 @@
 
 #include "runtime/nn/mod_package.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #else
 #include "kernel/core/kernel.h"

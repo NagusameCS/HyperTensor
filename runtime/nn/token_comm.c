@@ -1,5 +1,5 @@
 /*
- * HyperTensor Token-Space Communication — Implementation
+ * Geodessical Token-Space Communication — Implementation
  *
  * Enables direct token/logit/distributional exchange between LLMs
  * without converting to text. This is the "distributional structure"
@@ -8,7 +8,7 @@
 
 #include "runtime/nn/token_comm.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #include <math.h>
 #else
@@ -73,32 +73,32 @@ int token_comm_build_vocab_map(token_channel_t *ch,
     for (int i = 0; i < n_vocab_b; i++) ch->vocab_map_b_to_a[i] = -1;
 
     /* Build hash table of vocab B for O(V) mapping instead of O(V²) */
-    int ht_size = 1;
-    while (ht_size < n_vocab_b * 2) ht_size <<= 1;
-    int ht_mask = ht_size - 1;
+    int GD_size = 1;
+    while (GD_size < n_vocab_b * 2) GD_size <<= 1;
+    int GD_mask = GD_size - 1;
 
-    int32_t *ht_keys = (int32_t *)tensor_alloc(ht_size * sizeof(int32_t));
-    int32_t *ht_vals = (int32_t *)tensor_alloc(ht_size * sizeof(int32_t));
-    if (!ht_keys || !ht_vals) {
-        if (ht_keys) tensor_free(ht_keys);
-        if (ht_vals) tensor_free(ht_vals);
+    int32_t *GD_keys = (int32_t *)tensor_alloc(GD_size * sizeof(int32_t));
+    int32_t *GD_vals = (int32_t *)tensor_alloc(GD_size * sizeof(int32_t));
+    if (!GD_keys || !GD_vals) {
+        if (GD_keys) tensor_free(GD_keys);
+        if (GD_vals) tensor_free(GD_vals);
         return -1;
     }
-    for (int i = 0; i < ht_size; i++) ht_keys[i] = -1;
+    for (int i = 0; i < GD_size; i++) GD_keys[i] = -1;
 
     /* Insert vocab B into hash table */
     for (int b = 0; b < n_vocab_b; b++) {
-        uint32_t h = vocab_hash(vocab_b_strs[b], vocab_b_lens[b]) & ht_mask;
-        while (ht_keys[h] != -1) h = (h + 1) & ht_mask;
-        ht_keys[h] = b;
+        uint32_t h = vocab_hash(vocab_b_strs[b], vocab_b_lens[b]) & GD_mask;
+        while (GD_keys[h] != -1) h = (h + 1) & GD_mask;
+        GD_keys[h] = b;
     }
 
     /* Look up each vocab A token in vocab B */
     int mapped = 0;
     for (int a = 0; a < n_vocab_a; a++) {
-        uint32_t h = vocab_hash(vocab_a_strs[a], vocab_a_lens[a]) & ht_mask;
-        while (ht_keys[h] != -1) {
-            int b = ht_keys[h];
+        uint32_t h = vocab_hash(vocab_a_strs[a], vocab_a_lens[a]) & GD_mask;
+        while (GD_keys[h] != -1) {
+            int b = GD_keys[h];
             if (vocab_a_lens[a] == vocab_b_lens[b] &&
                 kmemcmp(vocab_a_strs[a], vocab_b_strs[b], vocab_a_lens[a]) == 0) {
                 ch->vocab_map_a_to_b[a] = b;
@@ -106,12 +106,12 @@ int token_comm_build_vocab_map(token_channel_t *ch,
                 mapped++;
                 break;
             }
-            h = (h + 1) & ht_mask;
+            h = (h + 1) & GD_mask;
         }
     }
 
-    tensor_free(ht_keys);
-    tensor_free(ht_vals);
+    tensor_free(GD_keys);
+    tensor_free(GD_vals);
 
     ch->has_vocab_map = 1;
     ch->vocab_a_size = n_vocab_a;

@@ -1,6 +1,6 @@
 
 <p align="center">
-  <h1 align="center">HyperTensor</h1>
+  <h1 align="center">Geodessical</h1>
   <p align="center"><b>High-Performance AI Inference Runtime</b></p>
 </p>
 
@@ -10,10 +10,10 @@
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
   <img src="https://img.shields.io/badge/mode-hosted_%7C_bare--metal-informational" alt="Mode">
   <img src="https://img.shields.io/badge/LLM-GGUF_models_working-success" alt="LLM Working">
-  <img src="https://img.shields.io/github/last-commit/NagusameCS/HyperTensor?label=last%20commit" alt="Last Commit">
+  <img src="https://img.shields.io/github/last-commit/NagusameCS/Geodessical?label=last%20commit" alt="Last Commit">
 </p>
 
-HyperTensor is a C-based inference runtime for GGUF language models. It can run as a normal host application (Windows/Linux) and shares core inference code with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is straightforward: predictable runtime behavior, low overhead, and transparent performance tuning.
+Geodessical is a C-based inference runtime for GGUF language models. It can run as a normal host application (Windows/Linux) and shares core inference code with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is straightforward: predictable runtime behavior, low overhead, and transparent performance tuning.
 
 ### Key Features
 
@@ -47,22 +47,22 @@ The numbers below are from an actual local run on April 13, 2026.
 
 | Engine | Model | Throughput Metric | Measured Value |
 |---|---|---|---|
-| HyperTensor | `google_gemma-4-E2B-it-Q4_0.gguf` | End-to-end generation rate | **92.5 tok/s** |
-| HyperTensor | `google_gemma-4-E2B-it-Q4_0.gguf` | Decode-only rate | **107.7 tok/s** |
+| Geodessical | `google_gemma-4-E2B-it-Q4_0.gguf` | End-to-end generation rate | **92.5 tok/s** |
+| Geodessical | `google_gemma-4-E2B-it-Q4_0.gguf` | Decode-only rate | **107.7 tok/s** |
 | Ollama | `gemma3:4b` | Eval rate (`eval_count / eval_duration`) | **75.36 tok/s** |
 | Ollama | `gemma4:latest` | Eval rate (`eval_count / eval_duration`) | **30.21 tok/s** |
 
 ### Direct Comparison (same machine, same prompt length)
 
-- HyperTensor end-to-end (92.5 tok/s) vs Ollama `gemma3:4b` (75.36 tok/s): **+22.7%**
-- HyperTensor end-to-end (92.5 tok/s) vs Ollama `gemma4:latest` (30.21 tok/s): **+206.2%**
+- Geodessical end-to-end (92.5 tok/s) vs Ollama `gemma3:4b` (75.36 tok/s): **+22.7%**
+- Geodessical end-to-end (92.5 tok/s) vs Ollama `gemma4:latest` (30.21 tok/s): **+206.2%**
 
 ### Repro Commands
 
-HyperTensor:
+Geodessical:
 
 ```powershell
-.\build_host\hypertensor.exe "C:\Users\legom\TensorOS\models\google_gemma-4-E2B-it-Q4_0.gguf" -p "Write a 500-word explanation of how compilers optimize loops, in plain English." -n 256
+.\build_host\geodessical.exe "C:\Users\legom\TensorOS\models\google_gemma-4-E2B-it-Q4_0.gguf" -p "Write a 500-word explanation of how compilers optimize loops, in plain English." -n 256
 ```
 
 Ollama (`gemma3:4b`):
@@ -84,24 +84,24 @@ $r = Invoke-RestMethod -Uri 'http://localhost:11434/api/generate' -Method Post -
 Notes:
 
 - This is a practical runtime comparison, not a strict model-equivalence benchmark.
-- HyperTensor and Ollama model packages are not byte-identical here, so use these results as operational guidance, not a canonical leaderboard.
+- Geodessical and Ollama model packages are not byte-identical here, so use these results as operational guidance, not a canonical leaderboard.
 
 ### Demo: Hosted Inference
 
 ```
-$ ./hypertensor phi3.5-mini-q4_0.gguf -p "What is an operating system?"
+$ ./geodessical phi3.5-mini-q4_0.gguf -p "What is an operating system?"
 
-  HyperTensor v0.4.0 "Axon"
+  Geodessical v0.4.0 "Axon"
   High-Performance AI Inference Runtime
 
 [CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
 [SMP] 8 CPUs online (7 workers + BSP)
-[HT] Loading model: phi3.5-mini-q4_0.gguf
-[HT] Mapped 2081 MB
+[GD] Loading model: phi3.5-mini-q4_0.gguf
+[GD] Mapped 2081 MB
 [LLM] Model: Phi 3.5 Mini Instruct (phi3)
 [LLM] 32 layers, 3072-dim, 32064 vocab, 32 heads
-[HT] Model loaded in 1240 ms
-[HT] Prompt: "What is an operating system?"
+[GD] Model loaded in 1240 ms
+[GD] Prompt: "What is an operating system?"
 
 An operating system (OS) is a complex piece of software that manages...
 ```
@@ -123,10 +123,10 @@ An operating system (OS) is a complex piece of software that manages...
 .\build_host.ps1
 
 # Run with a GGUF model
-.\build_host\hypertensor.exe phi3.5.gguf -p "Hello world"
+.\build_host\geodessical.exe phi3.5.gguf -p "Hello world"
 
 # Interactive chat mode
-.\build_host\hypertensor.exe phi3.5.gguf -i
+.\build_host\geodessical.exe phi3.5.gguf -i
 ```
 
 Or with CMake (if GCC/Clang available):
@@ -135,7 +135,7 @@ Or with CMake (if GCC/Clang available):
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
-./hypertensor phi3.5.gguf -i
+./geodessical phi3.5.gguf -i
 ```
 
 ### Bare-Metal Mode (QEMU)
@@ -153,7 +153,7 @@ make -j$(nproc)
 ## Usage
 
 ```
-hypertensor <model.gguf> [options]
+Geodessical <model.gguf> [options]
 
 Options:
   -p, --prompt <text>    Prompt text (default: interactive)
@@ -170,13 +170,13 @@ Options:
 
 ## Architecture
 
-HyperTensor operates in two modes:
+Geodessical operates in two modes:
 
 ### Host Mode (new)
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  hypertensor.exe / hypertensor                  │
+│  geodessical.exe / Geodessical                  │
 │  CLI: model load, prompt, interactive chat      │
 ├─────────────────────────────────────────────────┤
 │  HAL (Hardware Abstraction Layer)               │
@@ -204,7 +204,7 @@ The full TensorOS kernel boots via Multiboot1, runs on x86_64/ARM64, and include
 ## Project Structure
 
 ```
-HyperTensor/
+Geodessical/
 ├── host/                      # Host-mode runtime (NEW)
 │   ├── hal.h                  # Hardware Abstraction Layer header
 │   ├── hal.c                  # Cross-platform HAL implementation
@@ -265,7 +265,7 @@ Quantization: Q4_0, Q8_0, F16, F32
 
 ## Origin
 
-HyperTensor evolved from [TensorOS](https://github.com/NagusameCS/TensorOS), a bare-metal AI operating system. The core inference engine, GGUF parser, BPE tokenizer, JIT compiler, and SMP parallel GEMV are shared between both projects. HyperTensor adds the HAL layer to run the same inference code as a native application on Windows and Linux.
+Geodessical evolved from [TensorOS](https://github.com/NagusameCS/TensorOS), a bare-metal AI operating system. The core inference engine, GGUF parser, BPE tokenizer, JIT compiler, and SMP parallel GEMV are shared between both projects. Geodessical adds the HAL layer to run the same inference code as a native application on Windows and Linux.
 
 ---
 

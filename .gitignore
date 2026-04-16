@@ -60,3 +60,13 @@ diff_full.txt
 
 # Axiomatic subsystem generated reports
 axiom_beta_report*.json
+
+# Theory / research documents (never commit)
+organic_training_theory/
+*.tex
+*.aux
+*.toc
+
+# Internal development scripts
+_fix_case*.ps1
+_*.ps1

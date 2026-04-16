@@ -1,5 +1,5 @@
-# HyperTensor - Host-Mode Build Script
-# Builds the HyperTensor inference runtime for Windows x86_64
+# Geodessical - Host-Mode Build Script
+# Builds the Geodessical inference runtime for Windows x86_64
 #
 # Requirements: zig (0.15+)
 # Usage: .\build_host.ps1 [-Run] [-Clean]
@@ -8,6 +8,7 @@ param(
     [switch]$Run,
     [switch]$Clean,
     [switch]$Cuda,
+    [switch]$NoCuda,
     [string]$Model
 )
 
@@ -15,13 +16,13 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $BUILD = "build_host"
-$OUT = "$BUILD\hypertensor.exe"
+$OUT = "$BUILD\geodessical.exe"
 
 $CFLAGS = @(
     "-target", "x86_64-windows-gnu",
     "-O2",
     "-msse2", "-mavx2", "-mfma",
-    "-DHYPERTENSOR_HOSTED=1",
+    "-DGEODESSICAL_HOSTED=1",
     "-Ihost/shims",
     "-I.",
     "-Ihost",
@@ -35,6 +36,7 @@ $SOURCES = @(
     "host/hal.c",
     "host/main.c",
     "host/api_server.c",
+    "host/gd_daemon.c",
     "host/mcp_server.c",
     "runtime/nn/llm.c",
     "runtime/nn/gguf.c",
@@ -44,6 +46,8 @@ $SOURCES = @(
     "runtime/nn/mod_package.c",
     "runtime/nn/token_comm.c",
     "runtime/nn/hf_download.c",
+    "runtime/nn/axiom_linalg.c",
+    "runtime/nn/axiom_geo.c",
     "runtime/nn/axiom_beta.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
@@ -55,11 +59,15 @@ $LDFLAGS = @(
     "-lwinhttp"
 )
 
-# Optional CUDA backend
-if ($Cuda) {
+# Default to CUDA backend unless explicitly disabled.
+# Keep -Cuda for backward compatibility with existing scripts.
+$EnableCuda = $Cuda -or (-not $NoCuda)
+if ($EnableCuda) {
     $CFLAGS += "-DENABLE_CUDA"
     $SOURCES += "runtime/nn/backend_cuda.c"
-    Write-Host '  CUDA backend enabled' -ForegroundColor Yellow
+    Write-Host '  CUDA backend enabled (default)' -ForegroundColor Yellow
+} else {
+    Write-Host '  CUDA backend disabled via -NoCuda' -ForegroundColor Yellow
 }
 
 # MLIR IR optimizer (always included)
@@ -76,7 +84,7 @@ if ($Clean) {
 if (!(Test-Path $BUILD)) { New-Item -ItemType Directory -Path $BUILD | Out-Null }
 
 Write-Host ''
-Write-Host '  HyperTensor Build System' -ForegroundColor Cyan
+Write-Host '  Geodessical Build System' -ForegroundColor Cyan
 Write-Host '  Host-mode inference runtime (x86_64)' -ForegroundColor Cyan
 Write-Host ''
 

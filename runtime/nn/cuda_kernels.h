@@ -184,6 +184,14 @@ CUDA_API int  ck_graph_begin_capture(void);
 CUDA_API int  ck_graph_end_capture(void);
 CUDA_API int  ck_graph_launch(void);
 
+/* ─── Batch Prefill API ─── */
+CUDA_API void ck_prefill_batch_presized(int max_batch, int max_dim);
+CUDA_API void ck_prefill_batch_quant(const float *X, int batch, int in_dim);
+CUDA_API void ck_prefill_batch_gemv_q4(float *C, const void *W,
+    int out_dim, int in_dim, int batch);
+CUDA_API void ck_batched_rmsnorm_out(float *out, const float *in,
+    const float *w, int n_slices, int slice_dim, float eps);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,5 +1,5 @@
 /*
- * HyperTensor MCP Server — Implementation
+ * Geodessical MCP Server — Implementation
  *
  * MCP 2024-11-05 over Streamable HTTP transport.
  * Self-contained JSON-RPC 2.0 handler with built-in inference tools.
@@ -29,7 +29,7 @@
  * ═══════════════════════════════════════════════════════════════════════ */
 
 #define MCP_PROTOCOL_VERSION  "2024-11-05"
-#define MCP_SERVER_NAME       "HyperTensor"
+#define MCP_SERVER_NAME       "Geodessical"
 #define MCP_SERVER_VERSION    "0.5.0"
 #define MCP_MAX_RESP          (512 * 1024)
 

@@ -6,7 +6,7 @@
  *         Q4 GEMV, Q8 GEMV, RMSNorm, SiLU, softmax, RoPE.
  *
  * Build (host): zig cc -target x86_64-windows-gnu -O2 -mavx2 -mfma
- *               -DHYPERTENSOR_HOSTED=1 -Ihost/shims -I. -Ihost
+ *               -DGEODESSICAL_HOSTED=1 -Ihost/shims -I. -Ihost
  *               tests/runtime/test_kernels.c host/hal.c
  *               runtime/nn/llm.c runtime/nn/gguf.c
  *               runtime/jit/x86_jit.c runtime/jit/llm_jit.c

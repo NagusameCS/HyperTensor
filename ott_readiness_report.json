@@ -1,0 +1,43 @@
+{
+  "ott_full": true,
+  "ott_theorem": false,
+  "ready": false,
+  "hybrid_ready": true,
+  "degraded_geodesic": true,
+  "status": "degraded_geodesic",
+  "model": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+  "generation": {
+    "tokens": 1,
+    "total_ms": 123,
+    "tok_per_s": 8.13,
+    "prefill_ms": 19.00,
+    "decode_tok_per_s": 50.65
+  },
+  "geodesic": {
+    "enabled": true,
+    "runtime_tokens": 0,
+    "local_tokens": 1,
+    "runtime_rejects": 1,
+    "runtime_share": 0.0000,
+    "runtime_reject_rate": 1.0000,
+    "quality_gate_pass": true,
+    "generated_tokens": 1,
+    "fallback_used": false
+  },
+  "axiom": {
+    "ran": true,
+    "intrinsic_dim": 22,
+    "consistency": 0.9401,
+    "projected_speedup": 9139.83,
+    "total_ms": 86360
+  },
+  "attnres": {
+    "enabled": true,
+    "strength": 0.350
+  },
+  "depth_attention": {
+    "enabled": false,
+    "strength": 0.550,
+    "window": 16
+  }
+}

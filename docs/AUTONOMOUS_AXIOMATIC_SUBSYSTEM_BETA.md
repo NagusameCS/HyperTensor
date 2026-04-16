@@ -1,212 +1,209 @@
-# Autonomous Axiomatic Subsystem (Beta)
+# Autonomous Axiomatic Subsystem — Beta-2
 
-This document defines the HyperTensor-hosted beta implementation of an autonomous axiomatic manifold subsystem.
+Real-geometry implementation of the 5-phase manifold analysis pipeline for neural network models. This version replaces all Beta-1 surrogate metrics with actual mathematical operations on model weights and embedding geometry.
 
-Scope for this phase:
-- HyperTensor-only integration (no TensorOS runtime changes yet)
-- measurable, deterministic 5-phase pipeline
-- model-specific report artifact for iterative R&D
-- explicit separation between implemented behavior and future geodesic-native inference goals
+## 1. What Changed from Beta-1
 
-## 1. Objective
+| Aspect | Beta-1 (Surrogate) | Beta-2 (Real Geometry) |
+|--------|-------------------|----------------------|
+| Manifold ID | Architecture heuristic | PCA + TwoNN on real embeddings |
+| Symmetry | Random perturbation proxy | Attention head weight analysis |
+| Curvature | SiLU−linear gap | Christoffel symbols + Ricci tensor |
+| Axioms | Random candidate scoring | Active learning with oracle validation |
+| Geodesic | Cost formula only | RK4 geodesic integrator with convergence testing |
+| Math libraries | None | axiom_linalg (Jacobi eigendecomp, PCA) + axiom_geo (Riemannian geometry) |
 
-Treat a trained model as a constrained mathematical world and derive a compact, testable axiom set describing that world.
+## 2. Architecture
 
-In this beta, the subsystem does not replace standard transformer inference. Instead, it provides:
-- manifold and symmetry survey primitives
-- curvature/nonlinearity surrogate analysis
-- axiom-set candidate scoring
-- projected complexity comparison between standard transformer cost and geodesic-style cost
+```
+┌──────────────────────────────────────────────────────────┐
+│                    axiom_beta.c                          │
+│  Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase 5  │
+└────┬───────────┬───────────┬───────────┬──────────┬──────┘
+     │           │           │           │          │
+     ▼           ▼           ▼           ▼          ▼
+  axiom_linalg  llm.h     axiom_geo  axiom_geo  axiom_geo
+  (PCA, TwoNN)  (model    (metric    (oracle    (geodesic
+                 weights)   field,    calls)     integrator)
+                           Christoffel,
+                           curvature)
+```
 
-The intended outcome is reproducible diagnostics and a hard engineering base for future single-step geodesic inference work.
+### New Files
 
-## 2. Design Principles
+| File | Lines | Purpose |
+|------|-------|---------|
+| `runtime/nn/axiom_linalg.h` | ~130 | Dense matrix, PCA, TwoNN, dequantization API |
+| `runtime/nn/axiom_linalg.c` | ~490 | Jacobi eigendecomp, economy-mode PCA, TwoNN ID estimator, Q4_0/Q8_0/Q6_K/F16/BF16/F32 dequant |
+| `runtime/nn/axiom_geo.h` | ~165 | Metric field, Christoffel, curvature, geodesic, Fisher types |
+| `runtime/nn/axiom_geo.c` | ~540 | IDW metric interpolation, Christoffel via finite differences, Ricci contraction, RK4 geodesic integrator |
+| `runtime/nn/axiom_beta.h` | ~165 | Per-phase result structs, expanded config |
+| `runtime/nn/axiom_beta.c` | ~730 | Complete 5-phase pipeline with real model probes |
 
-1. Deterministic first
-- Every run is reproducible from a seed.
-- Outputs are suitable for regression tracking.
+### Modified Files
 
-2. Honest signal labeling
-- Surrogate metrics are marked as surrogates.
-- No claim of replacing forward pass until objective parity thresholds are met.
+- `runtime/nn/llm.h` — added `llm_get_model()`, `llm_get_embedding_vec()`
+- `runtime/nn/llm.c` — accessor implementations
+- `host/main.c` — updated CLI for Beta-2 config, new `--axiom-skip-geodesic` flag
+- `build_host.ps1` — added axiom_linalg.c, axiom_geo.c to SOURCES
 
-3. Incremental integration
-- Additive beta module in runtime/nn.
-- Optional CLI path via host main.
-- No disruption to baseline inference paths.
-
-4. Production constraints
-- bounded runtime
-- bounded memory
-- graceful failure and explicit status codes
-
-## 3. Five-Phase Pipeline (Implemented Beta Mapping)
+## 3. Five-Phase Pipeline
 
 ### Phase 1: Manifold Identification
 
-Implemented now:
-- model context capture: dim, layers, vocab, parameter count
-- intrinsic dimensionality estimate (architecture-scale heuristic)
-- local metric rank estimate
-- Fisher-trace proxy via deterministic perturbation energy sampling
+**Method**: Sample N random token embeddings from the model's embedding matrix (dequantized via `llm_get_embedding_vec()`), compute PCA on the N×dim cloud, then estimate intrinsic dimensionality via the Facco et al. TwoNN estimator.
 
-Output fields:
-- intrinsic_dim_estimate
-- metric_rank_estimate
-- fisher_trace_proxy
-- uses_surrogate_metric
+**Key algorithms**:
+- Jacobi iterative eigenvalue decomposition for symmetric matrices
+- Economy-mode PCA: uses Gram matrix X·X^T when n < d (avoids d×d covariance)
+- TwoNN: sorts pairwise distances, computes μ = r₂/r₁ ratios, estimates ID via MLE
+
+**Outputs**: `axiom_phase1_t`
+- `intrinsic_dim` — TwoNN integer estimate
+- `twonn_raw` — raw TwoNN estimator value
+- `pca_components_kept` — components retained at variance threshold
+- `explained_ratio` — fraction of total variance explained
+- `embedding_dim`, `samples_used`, `total_variance`
+
+**Example result** (Gemma 4 E2B, 256 samples):
+- Intrinsic dim: 41 (TwoNN raw=40.95)
+- PCA: 221 components at 95.1% variance
 
 ### Phase 2: Symmetry Extraction
 
-Implemented now:
-- deterministic random invariance probes
-- invariance score accumulation
-- symmetry generator count estimate
+**Method**: For each sampled layer, extract attention head Q-weight statistics. Compute per-head energy fingerprints from quantized block scale values, then measure pairwise similarity between heads.
 
-Output fields:
-- symmetry_invariance_score
-- symmetry_generators_estimate
+**Key insight**: Heads with similar weight distributions are "permutation invariant" — swapping them preserves model behavior. Each such pair corresponds to a generator of the model's symmetry group.
 
-### Phase 3: Nonlinearity Absorption Proxy
+**Outputs**: `axiom_phase2_t`
+- `symmetry_score` — mean pairwise head similarity
+- `generators_found` — estimated Lie algebra dimension
+- `permutation_invariant_heads` — count of near-identical head pairs
+- `head_similarity_mean`, `head_similarity_max`, `total_heads_tested`
 
-Implemented now:
-- local nonlinearity gap proxy (SiLU vs linear local approximation)
-- curvature_proxy score as nonlinearity concentration indicator
+**Example result**: score=0.81, 80 invariant pairs, 64 generators
 
-Output fields:
-- curvature_proxy
-- uses_surrogate_curvature
+### Phase 3: Nonlinearity Absorption (Curvature)
+
+**Method**: Build a metric tensor field in PCA subspace (capped at max 64 dims for O(d³) tractability). At each of N sample points, compute local covariance of nearby embedding projections as the metric tensor. Then:
+1. Numerical Christoffel symbols Γ^k_{ij} via finite-difference metric derivatives
+2. Ricci tensor R_{ij} via algebraic Γ·Γ contraction
+3. Scalar curvature R = g^{ij} R_{ij}
+
+**Key algorithms**:
+- IDW metric interpolation (k=8 nearest neighbors, Shepard p=2)
+- Gauss-Jordan matrix inversion with 1e-10 regularization
+- Christoffel: Γ^k_{ij} = ½ g^{kl} (∂_i g_{jl} + ∂_j g_{il} - ∂_l g_{ij})
+
+**Outputs**: `axiom_phase3_t`
+- `mean_scalar_curvature`, `max_scalar_curvature`, `min_scalar_curvature`
+- `curvature_std` — standard deviation of curvature across sample points
+- `high_curvature_loci` — points with |R| > mean + 2σ
+- `metric_field_points`, `christoffel_computed`
 
 ### Phase 4: Axiom Formalization
 
-Implemented now:
-- active-iteration candidate scoring loop
-- acceptance thresholding
-- minimal axiom count estimate
-- consistency score estimate
+**Method**: Generate axiom candidates from geometric features discovered in Phases 1–3. Four axiom types:
+- **METRIC** — distance structure from PCA variance ratio
+- **SYMMETRY** — head-permutation invariance from similarity score
+- **GEODESIC** — curvature constraints on token trajectories
+- **BOUNDARY** — embedding space boundary behavior
 
-Output fields:
-- axiom_count_estimate
-- axiom_consistency_score
+Active learning loop selects least-confident candidates for oracle testing. Oracle validation: compare embedding pairs via distance/cosine metrics. Bayesian confidence update: posterior = 0.7·prior + 0.3·evidence.
 
-### Phase 5: Native Inference Projection
+**Outputs**: `axiom_phase4_t`
+- `axiom_count` — unique axioms after deduplication
+- `consistency_score` — mean confidence of accepted axioms
+- `candidates_tested`, `candidates_accepted`, `oracle_calls_used`
+- `information_gain` — total information gained from oracle calls
 
-Implemented now:
-- projected baseline transformer complexity: O(n^2 * d * L)
-- projected geodesic-style complexity: O(n * ID^2)
-- projected_speedup ratio
+### Phase 5: Geodesic Pilot
 
-Output fields:
-- projected_transformer_cost
-- projected_geodesic_cost
-- projected_speedup
-- supports_single_step_native_infer = 0 (explicitly disabled in beta)
+**Method**: Proof-of-concept for geodesic inference. For N test token pairs:
+1. Project start/end embeddings into PCA subspace (capped at 64 dims)
+2. Build local metric field at 32 sample points
+3. Compute Christoffel symbols
+4. Integrate geodesic equation with RK4: ẍ^k + Γ^k_{ij} ẋ^i ẋ^j = 0
+5. Compare geodesic endpoint with target embedding
 
-## 4. CLI and Runtime Integration
+**Outputs**: `axiom_phase5_t`
+- `geodesic_cosine_similarity` — endpoint vs target cosine sim
+- `geodesic_reconstruction_error` — L2 distance to target
+- `geodesic_path_length` — integrated arc length
+- `projected_speedup` — O(n²dL) / O(n·ID²) complexity ratio
+- `geodesic_converged` — whether all test geodesics converged
 
-New host CLI options:
-- --axiom-beta-run
-- --axiom-beta-only
-- --axiom-report <path>
-- --axiom-samples <n>
-- --axiom-seed <n>
+**Example result**: 8/8 converged, speedup=8187x (projected)
 
-Execution flow:
-1. Load model as normal.
-2. If --axiom-beta-run is enabled, execute the 5-phase pipeline.
-3. Emit summary to stdout.
-4. Write JSON report to --axiom-report path (default: axiom_beta_report.json).
-5. Continue normal inference, unless --axiom-beta-only is specified.
+## 4. Linear Algebra Library (axiom_linalg)
 
-## 5. Report Schema
+Zero-dependency C11 linear algebra for the axiomatic pipeline:
 
-Top-level sections:
-- subsystem
-- model
-- config
-- phases
-- timings_us
+- **Dense matrix**: row-major `axmat_t`, create/destroy/multiply/transpose
+- **Eigendecomposition**: Jacobi iterative method for symmetric matrices (max 100 sweeps, tol=1e-12)
+- **PCA**: handles n≥d (standard covariance) and n<d (economy Gram matrix). Variance thresholding for component selection
+- **TwoNN**: Facco et al. intrinsic dimensionality estimator via nearest-neighbor distance ratios
+- **Dequantization**: Q4_0, Q8_0, Q6_K, F16, BF16, F32 → f32/f64
 
-The schema is designed for machine ingestion in future regression dashboards.
+## 5. Differential Geometry Engine (axiom_geo)
 
-## 6. Current Limitations
+Custom Riemannian geometry for neural manifold analysis:
 
-1. Hidden-state probes are not yet fully exposed through public runtime API.
-2. Fisher metric and Christoffel symbols are approximated by surrogate measurements.
-3. No geodesic solver is in the inference hot path.
-4. Report is a diagnostics artifact, not a formal proof certificate.
+- **Metric field**: N sample points with d×d symmetric positive-definite metric tensors. IDW interpolation for querying arbitrary points
+- **Christoffel symbols**: Γ^k_{ij} from metric finite differences with off-axis displacement filtering (threshold=0.3)
+- **Curvature**: Ricci tensor via algebraic Γ·Γ contraction (derivative terms omitted for sparse grids). Scalar curvature via trace with inverse metric
+- **Geodesic integrator**: 4th-order Runge-Kutta with divergence detection (velocity norm > 1e10 or NaN). Supports trajectory recording for path analysis
+- **Geodesic length**: numerical integration via midpoint metric evaluation
 
-These are intentional for Beta-1 and tracked as next milestones.
+## 6. CLI
 
-## 7. Validation Strategy
+```
+--axiom-beta-run          Run 5-phase survey after model load
+--axiom-beta-only         Run survey then exit
+--axiom-report <path>     JSON report path (default: axiom_beta_report.json)
+--axiom-samples <n>       Embedding samples (default: 2048)
+--axiom-seed <n>          Deterministic RNG seed
+--axiom-skip-geodesic     Skip Phase 5 geodesic pilot
+-v                        Verbose per-phase logging
+```
 
-Near-term validation targets:
-1. Stability
-- same model + same seed => identical report values
+## 7. Example Run
 
-2. Sensitivity
-- altered model checkpoints should produce measurable report drift
+```powershell
+.\build_host\geodessical.exe model.gguf --axiom-beta-only --axiom-samples 256 -v
+```
 
-3. Correlation
-- report trends should correlate with measured decode throughput and perplexity changes
+Output:
+```
+[AXIOM-BETA-2] Phase 1: ID=41, PCA=221 components (95.1% var), 1146 ms
+[AXIOM-BETA-2] Phase 2: score=0.8149, generators=64, 1 ms
+[AXIOM-BETA-2] Phase 3: mean_R=..., max_R=..., high-curv=7, 1817 ms
+[AXIOM-BETA-2] Phase 4: 49 axioms, consistency=0.8530, oracle_calls=64, 0.5 ms
+[AXIOM-BETA-2] Phase 5: cos_sim=-0.04, L2_err=13.4, speedup=8187x, 1308 ms
+[AXIOM-BETA-2] Complete: 4274 ms total
+```
 
-4. Safety
-- subsystem failure must not affect baseline generation path
+## 8. Known Limitations (Beta-2)
 
-## 8. Roadmap to Geodesic-Native Inference
+1. **Curvature magnitudes**: Scalar curvature values can be very large due to sparse metric field sampling. Need denser sampling or regularized Christoffel computation.
+2. **Geodesic reconstruction**: cosine similarity is low (near zero) — expected, since the geodesic in embedding PCA subspace does not model the full transformer computation. Future work: layer-wise hidden-state trajectory analysis.
+3. **Symmetry probing**: Currently uses quantized block statistics rather than full attention weight dequantization. Accurate for Q4_0 but approximate for other quantization types.
+4. **Memory**: Phase 1 PCA with N>1024 samples at dim=1536 requires ~20MB. Phase 3 Christoffel with d=64 requires ~2MB. All allocations bounded.
+5. **No forward-pass instrumentation**: Beta-2 works entirely with embedding weights and model structure. Hidden-state trajectory analysis is planned for Beta-3.
 
-### Beta-2: Observability Upgrade
-- expose internal hidden-state trajectory taps
-- add local Jacobian probes on controlled token traces
-- replace Fisher proxy with measured local Fisher blocks
+## 9. Roadmap
 
-### Beta-3: Geometry Core
-- estimate local metric tensor field g_ij(x)
-- compute approximate Christoffel symbols Gamma^u_vr from fitted metric patches
-- add manifold charts and transition consistency checks
+### Beta-3: Hidden-State Trajectories
+- Wire tensor_bridge into forward pass for per-layer hidden state capture
+- Compute Fisher Information Matrix from actual output Jacobians
+- Layer-wise metric field construction
 
 ### Beta-4: Axiom Compiler
-- formal candidate grammar for primitive/metric/symmetry/geodesic axioms
-- active-learning oracle loop against model behavior
-- automated contradiction pruning
+- Formal axiom grammar and consistency checker
+- Automated axiom simplification (Gröbner basis or equivalent)
+- Axiom → C code generation for specialized inference kernels
 
-### Beta-5: Geodesic Pilot
-- limited-scope geodesic integrator for selected subspaces
-- parity checks against baseline forward pass on bounded tasks
-- acceptance criteria for moving from projection to partial native path
-
-### Beta-6: Production Candidate
-- optional hybrid runtime mode with guarded geodesic path
-- strict accuracy gates, fallback guarantees, telemetry, and rollback hooks
-
-## 9. Engineering Acceptance Gates
-
-Before any claim of native single-step inference:
-1. quality parity within agreed tolerance on benchmark suites
-2. deterministic behavior across repeated runs
-3. robust fallback to standard inference path
-4. no regression in reliability or serving stability
-
-## 10. Files Added in HyperTensor (Beta-1)
-
-- runtime/nn/axiom_beta.h
-- runtime/nn/axiom_beta.c
-- host/main.c (CLI and runtime hook)
-- build_host.ps1 (source wiring)
-- docs/AUTONOMOUS_AXIOMATIC_SUBSYSTEM_BETA.md
-
-## 11. Practical Use Right Now
-
-Example command:
-
-```powershell
-.\build_host\hypertensor.exe <model.gguf> --axiom-beta-run --axiom-report axiom_beta_report.json --axiom-samples 4096 --axiom-seed 1337 -n 256
-```
-
-Survey only:
-
-```powershell
-.\build_host\hypertensor.exe <model.gguf> --axiom-beta-only --axiom-report axiom_beta_report.json
-```
-
-This gives a deterministic geometry/axiom diagnostics report while leaving baseline inference behavior intact.
+### Beta-5: Geodesic Production Pilot
+- Layer-wise geodesic paths through layer-specific metric fields
+- Accuracy parity gates against standard forward pass
+- Hybrid mode: standard inference with geodesic verification

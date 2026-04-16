@@ -1,5 +1,5 @@
 /*
- * HyperTensor MCP (Model Context Protocol) Server
+ * Geodessical MCP (Model Context Protocol) Server
  *
  * Implements MCP 2024-11-05 over Streamable HTTP transport.
  * JSON-RPC 2.0 protocol with built-in tools for LLM inference.
@@ -19,8 +19,8 @@
  * Reference: https://modelcontextprotocol.io/specification/2024-11-05
  */
 
-#ifndef HT_MCP_SERVER_H
-#define HT_MCP_SERVER_H
+#ifndef GD_MCP_SERVER_H
+#define GD_MCP_SERVER_H
 
 #ifdef _WIN32
 #  include <winsock2.h>
@@ -37,4 +37,4 @@ typedef int mcp_socket_t;
 int mcp_handle_request(mcp_socket_t sock, const char *method,
                        const char *body, int body_len);
 
-#endif /* HT_MCP_SERVER_H */
+#endif /* GD_MCP_SERVER_H */

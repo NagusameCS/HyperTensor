@@ -1,5 +1,5 @@
 /*
- * HyperTensor Web UI — Embedded HTML/CSS/JS
+ * Geodessical Web UI — Embedded HTML/CSS/JS
  *
  * This file contains the web chat interface as a C string constant.
  * Served by the API server at GET / when running with --serve.
@@ -7,8 +7,8 @@
  * Design: Monochrome black/white aesthetic inspired by nagusamecs.github.io
  */
 
-#ifndef HYPERTENSOR_WEB_UI_H
-#define HYPERTENSOR_WEB_UI_H
+#ifndef GEODESSICAL_WEB_UI_H
+#define GEODESSICAL_WEB_UI_H
 
 static const char WEB_UI_HTML[] =
 "<!DOCTYPE html>\n"
@@ -16,7 +16,7 @@ static const char WEB_UI_HTML[] =
 "<head>\n"
 "<meta charset=\"UTF-8\">\n"
 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-"<title>HyperTensor</title>\n"
+"<title>Geodessical</title>\n"
 "<style>\n"
 ":root{--bg:#000;--bg2:#0a0a0a;--bg3:#141414;--border:#222;--text:#fff;--text2:#999;--text3:#666;--radius:8px;--transition:.2s ease}\n"
 "*{margin:0;padding:0;box-sizing:border-box}\n"
@@ -95,7 +95,7 @@ static const char WEB_UI_HTML[] =
 "<body>\n"
 "<div class=\"header\">\n"
 "  <div style=\"display:flex;align-items:center\">\n"
-"    <h1>HyperTensor</h1>\n"
+"    <h1>Geodessical</h1>\n"
 "    <span class=\"ver\" id=\"ver\">v0.5.0</span>\n"
 "  </div>\n"
 "  <div class=\"stats-bar\">\n"
@@ -107,7 +107,7 @@ static const char WEB_UI_HTML[] =
 "</div>\n"
 "\n"
 "<div class=\"chat-area\" id=\"chat\">\n"
-"  <div class=\"msg system\">Welcome to HyperTensor. Type a message to begin.</div>\n"
+"  <div class=\"msg system\">Welcome to Geodessical. Type a message to begin.</div>\n"
 "</div>\n"
 "\n"
 "<div class=\"input-area\">\n"
@@ -247,7 +247,7 @@ static const char WEB_UI_HTML[] =
 "  const text=chatHistory.map(m=>m.role.toUpperCase()+': '+m.content).join('\\n\\n');\n"
 "  const blob=new Blob([text],{type:'text/plain'});\n"
 "  const a=document.createElement('a');a.href=URL.createObjectURL(blob);\n"
-"  a.download='hypertensor-chat-'+new Date().toISOString().slice(0,10)+'.txt';\n"
+"  a.download='Geodessical-chat-'+new Date().toISOString().slice(0,10)+'.txt';\n"
 "  a.click();\n"
 "}\n"
 "\n"
@@ -258,4 +258,4 @@ static const char WEB_UI_HTML[] =
 
 static const int WEB_UI_HTML_LEN = sizeof(WEB_UI_HTML) - 1;
 
-#endif /* HYPERTENSOR_WEB_UI_H */
+#endif /* GEODESSICAL_WEB_UI_H */

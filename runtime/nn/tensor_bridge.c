@@ -6,7 +6,7 @@
 
 #include "runtime/nn/tensor_bridge.h"
 
-#ifdef HYPERTENSOR_HOSTED
+#ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #else
 #include "kernel/core/kernel.h"
@@ -79,6 +79,11 @@ void tensor_bridge_capture(tensor_bridge_t *bridge,
     if (!bridge || !hidden) return;
     if (!(bridge->mode & BRIDGE_MODE_CAPTURE)) return;
     if (!bridge->capture_buf.data) return;
+
+    /* CAP_ONCE: lock the buffer after the first successful capture so that
+     * decode-step passes don't overwrite the prefill hidden state. */
+    if ((bridge->mode & BRIDGE_MODE_CAP_ONCE) && bridge->capture_buf.valid)
+        return;
 
     int copy_dim = dim < bridge->capture_buf.dim ? dim : bridge->capture_buf.dim;
     kmemcpy(bridge->capture_buf.data, hidden, copy_dim * sizeof(float));
