@@ -1523,3 +1523,251 @@ void axgeo_apply_rmsnorm_connection(double *gamma, const double *p,
         }
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * axgeo_compute_jacobi_propagator
+ *
+ * Integrate the Jacobi ODE along a precomputed geodesic trajectory to obtain
+ * J(λ_f) ∈ R^{k×k}.
+ *
+ * The Jacobi equation for a deviation field J^α (one column):
+ *   dJ/dλ = Z
+ *   dZ/dλ = -K(λ) · J
+ *
+ * where K^α_β(λ) = R^α_μβν v^μ v^ν is the geodesic tidal operator.
+ * We approximate K from the Christoffel symbols via:
+ *   K^α_β ≈ (Γ^α_μγ Γ^γ_νβ - Γ^α_νγ Γ^γ_μβ) v^μ v^ν   (flat-space Riemann)
+ *
+ * For k ≤ 30, this is O(k^3) per waypoint — negligible.
+ * Initial conditions: J(0) = I (identity), Z(0) = 0.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+int axgeo_compute_jacobi_propagator(const double *trajectory,
+                                     const double *velocities,
+                                     int n_wp, int k,
+                                     const axgeo_christoffel_t *ch,
+                                     const axgeo_metric_field_t *mf,
+                                     double *J_out)
+{
+    if (!trajectory || !J_out || n_wp < 2 || k <= 0 || !ch || !mf) return -1;
+
+    int kk = k * k;
+
+    /* J[k×k] and Z[k×k] (dJ/dλ) — stored row-major J[α*k + β] */
+    double *J = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
+    double *Z = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
+    double *K = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
+    double *gamma_wp = (double *)tensor_alloc((uint64_t)k * kk * sizeof(double));
+    double *v_est    = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+
+    if (!J || !Z || !K || !gamma_wp || !v_est) {
+        if (J)        tensor_free(J);
+        if (Z)        tensor_free(Z);
+        if (K)        tensor_free(K);
+        if (gamma_wp) tensor_free(gamma_wp);
+        if (v_est)    tensor_free(v_est);
+        return -1;
+    }
+
+    /* Initial conditions: J = identity, Z = 0 */
+    memset(J, 0, (uint64_t)kk * sizeof(double));
+    memset(Z, 0, (uint64_t)kk * sizeof(double));
+    for (int i = 0; i < k; i++) J[i * k + i] = 1.0;
+
+    double dt = 1.0 / (double)(n_wp - 1);  /* affine parameter step */
+
+    for (int wi = 0; wi < n_wp - 1; wi++) {
+        const double *pos = trajectory + (uint64_t)wi * k;
+        const double *pos_next = trajectory + (uint64_t)(wi + 1) * k;
+
+        /* Velocity at this waypoint */
+        const double *v;
+        if (velocities) {
+            v = velocities + (uint64_t)wi * k;
+        } else {
+            /* Estimate from finite difference */
+            for (int i = 0; i < k; i++)
+                v_est[i] = (pos_next[i] - pos[i]) / dt;
+            v = v_est;
+        }
+
+        /* Interpolate Christoffel symbols Γ^α_μν at this waypoint */
+        axgeo_christoffel_interpolate(ch, mf, pos, gamma_wp);
+
+        /* Compute tidal operator K^α_β = R^α_μβν v^μ v^ν
+         * Approximation via Christoffel products (flat-space Riemann):
+         *   K^α_β ≈ Σ_{μ,ν,γ} (Γ^α_μγ Γ^γ_νβ - Γ^α_νγ Γ^γ_μβ) v^μ v^ν
+         */
+        memset(K, 0, (uint64_t)kk * sizeof(double));
+        for (int alpha = 0; alpha < k; alpha++) {
+            for (int beta = 0; beta < k; beta++) {
+                double kval = 0.0;
+                for (int mu = 0; mu < k; mu++) {
+                    for (int nu = 0; nu < k; nu++) {
+                        double vv = v[mu] * v[nu];
+                        if (vv == 0.0) continue;
+                        for (int gamma_idx = 0; gamma_idx < k; gamma_idx++) {
+                            /* Γ^α_μγ * Γ^γ_νβ */
+                            kval += gamma_wp[alpha * kk + mu * k + gamma_idx]
+                                  * gamma_wp[gamma_idx * kk + nu * k + beta] * vv;
+                            /* - Γ^α_νγ * Γ^γ_μβ */
+                            kval -= gamma_wp[alpha * kk + nu * k + gamma_idx]
+                                  * gamma_wp[gamma_idx * kk + mu * k + beta] * vv;
+                        }
+                    }
+                }
+                K[alpha * k + beta] = kval;
+            }
+        }
+
+        /* Euler step: Z_new = Z - K·J·dt, J_new = J + Z·dt */
+        double *J_new = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
+        double *Z_new = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
+        if (!J_new || !Z_new) {
+            if (J_new) tensor_free(J_new);
+            if (Z_new) tensor_free(Z_new);
+            break;
+        }
+
+        /* Z_new^α_i = Z^α_i - (K·J)^α_i · dt */
+        for (int alpha = 0; alpha < k; alpha++) {
+            for (int i = 0; i < k; i++) {
+                double kj = 0.0;
+                for (int beta = 0; beta < k; beta++)
+                    kj += K[alpha * k + beta] * J[beta * k + i];
+                Z_new[alpha * k + i] = Z[alpha * k + i] - kj * dt;
+            }
+        }
+        /* J_new^α_i = J^α_i + Z^α_i · dt */
+        for (int alpha = 0; alpha < k; alpha++) {
+            for (int i = 0; i < k; i++)
+                J_new[alpha * k + i] = J[alpha * k + i] + Z[alpha * k + i] * dt;
+        }
+
+        tensor_free(J); tensor_free(Z);
+        J = J_new; Z = Z_new;
+    }
+
+    memcpy(J_out, J, (uint64_t)kk * sizeof(double));
+
+    tensor_free(J); tensor_free(Z); tensor_free(K);
+    tensor_free(gamma_wp); tensor_free(v_est);
+    return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * GRC Library — insert / lookup
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+axgeo_grc_library_t axgeo_grc_library_create(int k, int cap)
+{
+    axgeo_grc_library_t lib;
+    memset(&lib, 0, sizeof(lib));
+    if (k <= 0 || cap <= 0) return lib;
+
+    lib.k   = k;
+    lib.cap = cap;
+
+    lib.q_bars    = (double *)tensor_alloc((uint64_t)cap * k * sizeof(double));
+    lib.Js        = (double *)tensor_alloc((uint64_t)cap * k * k * sizeof(double));
+    lib.x_ends    = (double *)tensor_alloc((uint64_t)cap * k * sizeof(double));
+    lib.rhos      = (double *)tensor_alloc((uint64_t)cap * sizeof(double));
+    lib.best_toks = (int    *)tensor_alloc((uint64_t)cap * sizeof(int));
+
+    if (!lib.q_bars || !lib.Js || !lib.x_ends || !lib.rhos || !lib.best_toks) {
+        if (lib.q_bars)    tensor_free(lib.q_bars);
+        if (lib.Js)        tensor_free(lib.Js);
+        if (lib.x_ends)    tensor_free(lib.x_ends);
+        if (lib.rhos)      tensor_free(lib.rhos);
+        if (lib.best_toks) tensor_free(lib.best_toks);
+        memset(&lib, 0, sizeof(lib));
+    }
+    return lib;
+}
+
+void axgeo_grc_library_destroy(axgeo_grc_library_t *lib)
+{
+    if (!lib) return;
+    if (lib->q_bars)    tensor_free(lib->q_bars);
+    if (lib->Js)        tensor_free(lib->Js);
+    if (lib->x_ends)    tensor_free(lib->x_ends);
+    if (lib->rhos)      tensor_free(lib->rhos);
+    if (lib->best_toks) tensor_free(lib->best_toks);
+    memset(lib, 0, sizeof(*lib));
+}
+
+void axgeo_grc_insert(axgeo_grc_library_t *lib,
+                      const double *q_bar, const double *J,
+                      const double *x_end, double rho, int best_tok)
+{
+    if (!lib || !lib->q_bars || lib->k <= 0 || !q_bar || !J || !x_end) return;
+
+    int k  = lib->k;
+    int kk = k * k;
+
+    /* Round-robin insertion — overwrite oldest when full */
+    int slot = lib->count % lib->cap;
+    if (lib->count < lib->cap) lib->count++;
+
+    memcpy(lib->q_bars + (uint64_t)slot * k,  q_bar, (uint64_t)k  * sizeof(double));
+    memcpy(lib->Js     + (uint64_t)slot * kk, J,     (uint64_t)kk * sizeof(double));
+    memcpy(lib->x_ends + (uint64_t)slot * k,  x_end, (uint64_t)k  * sizeof(double));
+    lib->rhos[slot]      = rho;
+    lib->best_toks[slot] = best_tok;
+}
+
+int axgeo_grc_lookup(axgeo_grc_library_t *lib,
+                     const double *q, int k,
+                     double *x_end_out,
+                     int *best_tok_out)
+{
+    if (!lib || !lib->q_bars || lib->count <= 0 || lib->k != k
+            || !q || !x_end_out || !best_tok_out)
+        return 0;
+
+    int n   = lib->count;
+    int kk  = k * k;
+
+    /* Linear scan: find nearest q_bar by squared Euclidean distance */
+    int    best_idx  = -1;
+    double best_dist = 1e300;
+    for (int i = 0; i < n; i++) {
+        const double *qb = lib->q_bars + (uint64_t)i * k;
+        double d2 = 0.0;
+        for (int j = 0; j < k; j++) {
+            double diff = q[j] - qb[j];
+            d2 += diff * diff;
+        }
+        if (d2 < best_dist) {
+            best_dist = d2;
+            best_idx  = i;
+        }
+    }
+
+    if (best_idx < 0) return 0;
+
+    double dist = sqrt(best_dist);
+    double rho  = lib->rhos[best_idx];
+
+    /* Check validity radius */
+    if (dist >= rho) {
+        lib->misses++;
+        return 0;
+    }
+
+    /* Jacobi correction: δx = J · δq */
+    const double *J    = lib->Js     + (uint64_t)best_idx * kk;
+    const double *xbar = lib->x_ends + (uint64_t)best_idx * k;
+    const double *qbar = lib->q_bars + (uint64_t)best_idx * k;
+
+    for (int alpha = 0; alpha < k; alpha++) {
+        double dx = 0.0;
+        for (int beta = 0; beta < k; beta++)
+            dx += J[alpha * k + beta] * (q[beta] - qbar[beta]);
+        x_end_out[alpha] = xbar[alpha] + dx;
+    }
+
+    *best_tok_out = lib->best_toks[best_idx];
+    lib->hits++;
+    return 1;
+}

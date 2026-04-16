@@ -511,6 +511,10 @@ static int                  phase3_geo_valid;
 static axgeo_traj_cache_t   p5_traj_cache;
 static int                  p5_traj_cache_dim = 0;
 
+/* GRC library — persists across axiom_beta_run() calls */
+static axgeo_grc_library_t  phase_grc;
+static int                  phase_grc_k = 0;
+
 static int                  phase_cache_valid;
 static int                  phase_cache_sink_layer = -2; /* -2 = never set */
 static int                  phase_cache_model_dim;
@@ -1710,6 +1714,13 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
         p5_traj_cache_dim = sub_dim;
     }
 
+    /* GRC library: init or reinit if subspace dimension changed */
+    if (phase_grc_k != sub_dim) {
+        if (phase_grc_k > 0) axgeo_grc_library_destroy(&phase_grc);
+        phase_grc = axgeo_grc_library_create(sub_dim, AXGEO_GRC_CAP);
+        phase_grc_k = (phase_grc.q_bars != NULL) ? sub_dim : 0;
+    }
+
     r->phase5.warp_points_accumulated = phase_warp_points_accum;
     r->phase5.warp_cross_term_estimate = phase_warp_cross_term_accum;
     r->phase5.recalc_triggered = 0;
@@ -1895,6 +1906,25 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
                     /* Item 4: insert into trajectory cache */
                     axgeo_traj_cache_insert(&p5_traj_cache, proj_a, proj_b,
                                             geo.x, geo.v, geo.steps);
+                    /* GRC insert: compute Jacobi propagator and store record */
+                    if (phase_grc_k == sub_dim && geo.trajectory && geo.steps >= 2) {
+                        double *J_rec = (double *)tensor_alloc(
+                            (uint64_t)sub_dim * sub_dim * sizeof(double));
+                        if (J_rec) {
+                            int jrc = axgeo_compute_jacobi_propagator(
+                                geo.trajectory, NULL,
+                                geo.steps, sub_dim,
+                                ch_eval, &mf, J_rec);
+                            if (jrc == 0) {
+                                /* Injectivity radius: 0.5× mean step size (conservative) */
+                                double rho = 0.5 * ax_vec_norm(geo.v, sub_dim);
+                                if (rho < 0.05) rho = 0.05;
+                                axgeo_grc_insert(&phase_grc, proj_a, J_rec,
+                                                  geo.x, rho, tok_end);
+                            }
+                            tensor_free(J_rec);
+                        }
+                    }
                     break;
                 }
                 axgeo_geodesic_destroy(&geo);
@@ -2637,20 +2667,18 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
     double *p_curr   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
     double *p_prev   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
     double *v        = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
-    double *gamma    = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double));
     double *p_pred   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
     double *e_pred_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
     float  *e_curr_f = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
     float  *e_cand   = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
 
     if (!e_curr_d || !e_prev_d || !p_curr || !p_prev || !v ||
-        !gamma || !p_pred || !e_pred_d || !e_curr_f || !e_cand) {
+        !p_pred || !e_pred_d || !e_curr_f || !e_cand) {
         if (e_curr_d) tensor_free(e_curr_d);
         if (e_prev_d) tensor_free(e_prev_d);
         if (p_curr)   tensor_free(p_curr);
         if (p_prev)   tensor_free(p_prev);
         if (v)        tensor_free(v);
-        if (gamma)    tensor_free(gamma);
         if (p_pred)   tensor_free(p_pred);
         if (e_pred_d) tensor_free(e_pred_d);
         if (e_curr_f) tensor_free(e_curr_f);
@@ -2658,11 +2686,11 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
         return AXIOM_BETA_ERR_OOM;
     }
 
-    /* Fetch embeddings (float → double) */
+    /* Fetch current embedding */
     int ok_curr = (llm_get_embedding_vec(tok_curr, e_curr_f, dim) == 0);
     if (!ok_curr) {
         tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
-        tensor_free(p_prev); tensor_free(v); tensor_free(gamma);
+        tensor_free(p_prev); tensor_free(v);
         tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
         return AXIOM_BETA_ERR_INVALID;
     }
@@ -2670,51 +2698,66 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
 
     /* Fetch prev embedding for velocity */
     float *e_prev_f = e_curr_f; /* reuse buffer */
-    int ok_prev = (tok_prev != tok_curr)
-                    ? (llm_get_embedding_vec(tok_prev, e_prev_f, dim) == 0)
-                    : 1;
-    if (!ok_prev) {
-        /* Fall back: use same embedding → zero velocity */
-        for (int i = 0; i < dim; i++) e_prev_d[i] = e_curr_d[i];
+    if (tok_prev != tok_curr && llm_get_embedding_vec(tok_prev, e_prev_f, dim) == 0) {
+        for (int i = 0; i < dim; i++) e_prev_d[i] = (double)e_prev_f[i];
     } else {
-        if (tok_prev != tok_curr) {
-            for (int i = 0; i < dim; i++) e_prev_d[i] = (double)e_prev_f[i];
-        } else {
-            for (int i = 0; i < dim; i++) e_prev_d[i] = e_curr_d[i];
-        }
+        for (int i = 0; i < dim; i++) e_prev_d[i] = e_curr_d[i];
     }
 
-    /* Project to PCA subspace: p_curr, p_prev ∈ R^k */
+    /* Project to PCA subspace */
     axpca_project(&phase1_pca, e_curr_d, p_curr);
     axpca_project(&phase1_pca, e_prev_d, p_prev);
+    for (int i = 0; i < k; i++) v[i] = p_curr[i] - p_prev[i];
 
-    /* Velocity in subspace */
-    for (int i = 0; i < k; i++)
-        v[i] = p_curr[i] - p_prev[i];
+    /* ── GRC fast path: O(k²) Jacobi correction ──────────────────────────
+     * Try looking up a stored geodesic record near p_curr.
+     * If hit: p_pred = x_end + J·(p_curr − q_bar)  (Jacobi correction)
+     *         and if best_tok is known, return it directly.
+     */
+    int    grc_best_tok = -1;
+    int    grc_hit = 0;
+    if (phase_grc_k == k && phase_grc.count > 0) {
+        /* Build query as p_curr + v (predict forward one step) */
+        double *q_fwd = p_pred; /* reuse p_pred as temp */
+        for (int i = 0; i < k; i++) q_fwd[i] = p_curr[i] + v[i];
+        grc_hit = axgeo_grc_lookup(&phase_grc, q_fwd, k, p_pred, &grc_best_tok);
+    }
 
-    /* Interpolate Christoffel symbols Γ^k_ij at p_curr */
-    axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, p_curr, gamma);
-
-    /* Geodesic step: p' = p + v·dt - ½ Γ^α_μν v^μ v^ν dt²
-     * Use dt=1 (one token step). */
-    for (int alpha = 0; alpha < k; alpha++) {
-        double correction = 0.0;
-        for (int mu = 0; mu < k; mu++) {
-            for (int nu = 0; nu < k; nu++) {
-                /* gamma[alpha*k*k + mu*k + nu] = Γ^alpha_mu_nu */
-                correction += gamma[alpha * k * k + mu * k + nu] * v[mu] * v[nu];
-            }
+    if (!grc_hit) {
+        /* ── Christoffel fallback: single O(k²) geodesic step ─────────── */
+        double *gamma = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double));
+        if (!gamma) {
+            tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
+            tensor_free(p_prev); tensor_free(v);
+            tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
+            return AXIOM_BETA_ERR_OOM;
         }
-        p_pred[alpha] = p_curr[alpha] + v[alpha] - 0.5 * correction;
+        axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, p_curr, gamma);
+        for (int alpha = 0; alpha < k; alpha++) {
+            double correction = 0.0;
+            for (int mu = 0; mu < k; mu++)
+                for (int nu = 0; nu < k; nu++)
+                    correction += gamma[alpha * k * k + mu * k + nu] * v[mu] * v[nu];
+            p_pred[alpha] = p_curr[alpha] + v[alpha] - 0.5 * correction;
+        }
+        tensor_free(gamma);
+    }
+
+    /* If GRC gave us a best_tok and it's valid, return it directly */
+    if (grc_hit && grc_best_tok >= 0 && grc_best_tok < m->vocab_size) {
+        if (out_confidence) *out_confidence = 0.75f; /* GRC hit confidence */
+        tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
+        tensor_free(p_prev); tensor_free(v);
+        tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
+        *out_token = grc_best_tok;
+        return AXIOM_BETA_OK;
     }
 
     /* Reconstruct predicted embedding in full space */
     axpca_reconstruct(&phase1_pca, p_pred, e_pred_d);
 
-    /* Compute norm of predicted embedding for cosine similarity */
     double pred_norm2 = 0.0;
-    for (int i = 0; i < dim; i++)
-        pred_norm2 += e_pred_d[i] * e_pred_d[i];
+    for (int i = 0; i < dim; i++) pred_norm2 += e_pred_d[i] * e_pred_d[i];
     double pred_norm = sqrt(pred_norm2);
 
     /* Find nearest token by cosine similarity (probe 8192 candidates) */
@@ -2746,7 +2789,7 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
         *out_confidence = (float)best_score;
 
     tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
-    tensor_free(p_prev); tensor_free(v); tensor_free(gamma);
+    tensor_free(p_prev); tensor_free(v);
     tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
 
     *out_token = best_tok;

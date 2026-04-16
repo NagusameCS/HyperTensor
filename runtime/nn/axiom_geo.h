@@ -377,4 +377,101 @@ int axgeo_build_metric_from_weights(axgeo_metric_field_t *mf,
 void axgeo_apply_rmsnorm_connection(double *gamma, const double *p,
                                     int k, double alpha);
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Geodesic Resonance Caching (GRC) — OTT paper §4
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The Jacobi propagator J(λ_f) ∈ R^{k×k} maps an initial perturbation δq
+ * at the query point to the corresponding perturbation δx(λ_f) at the
+ * geodesic endpoint:
+ *
+ *   δx(λ_f) ≈ J(λ_f) · δq                        O(k²) correction
+ *
+ * J is computed by integrating k independent Jacobi ODEs along a stored
+ * geodesic trajectory:
+ *
+ *   D²J^α_i/dλ² + K^α_β(λ) J^β_i = 0
+ *
+ * where K^α_β = R^α_μβν (dx̄^μ/dλ)(dx̄^ν/dλ) is the geodesic tidal operator,
+ * approximated from finite differences of the Christoffel symbols.
+ */
+
+/*
+ * Compute the Jacobi propagator matrix J ∈ R^{k×k} along a precomputed
+ * geodesic trajectory.
+ *
+ * trajectory:  [n_wp × k] waypoints (row-major), from axgeo_geodesic_t
+ * velocities:  [n_wp × k] tangent vectors at each waypoint (or NULL to
+ *              estimate by finite difference from trajectory)
+ * n_wp:        number of waypoints (≥ 2)
+ * k:           subspace dimension
+ * ch:          precomputed Christoffel symbols
+ * mf:          metric field (for interpolation)
+ * J_out:       output propagator [k × k], row-major (J_out[α*k + β] = J^α_β)
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int axgeo_compute_jacobi_propagator(const double *trajectory,
+                                     const double *velocities,
+                                     int n_wp, int k,
+                                     const axgeo_christoffel_t *ch,
+                                     const axgeo_metric_field_t *mf,
+                                     double *J_out);
+
+/*
+ * GRC library — stores geodesic records for Jacobi-based fast correction.
+ *
+ * Each record encodes:
+ *   q_bar[k]   — query embedding (PCA-projected)
+ *   J[k×k]     — Jacobi propagator at terminal waypoint
+ *   x_end[k]   — geodesic endpoint (PCA-projected)
+ *   rho        — estimated injectivity radius
+ *   best_tok   — nearest-vocab token at endpoint (-1 = unknown)
+ */
+#define AXGEO_GRC_CAP  4096   /* max stored records */
+
+typedef struct {
+    double  q_bar[1];  /* [k] — flexible array tacked on via alloc */
+} axgeo_grc_record_t;  /* internal; use axgeo_grc_library_t accessors */
+
+typedef struct {
+    int     k;                      /* subspace dimension */
+    int     count;                  /* records stored */
+    int     cap;                    /* allocated capacity */
+    double *q_bars;                 /* [cap × k] query centers */
+    double *Js;                     /* [cap × k × k] Jacobi propagators */
+    double *x_ends;                 /* [cap × k] geodesic endpoints */
+    double *rhos;                   /* [cap] injectivity radii */
+    int    *best_toks;              /* [cap] nearest vocab tokens at endpoint */
+    int     hits;
+    int     misses;
+} axgeo_grc_library_t;
+
+/* Initialise / destroy library. */
+axgeo_grc_library_t axgeo_grc_library_create(int k, int cap);
+void                axgeo_grc_library_destroy(axgeo_grc_library_t *lib);
+
+/*
+ * Insert a geodesic record.
+ * q_bar[k], J[k×k], x_end[k], rho, best_tok.
+ * If the library is full, the oldest entry is overwritten.
+ */
+void axgeo_grc_insert(axgeo_grc_library_t *lib,
+                      const double *q_bar, const double *J,
+                      const double *x_end, double rho, int best_tok);
+
+/*
+ * Look up the nearest stored record to query q[k].
+ * If ||q - q_bar|| < rho for the nearest record:
+ *   fills delta_x_out[k] = J · (q - q_bar)  (Jacobi correction)
+ *   fills x_end_out[k] = x_end + delta_x
+ *   *best_tok_out = best_tok of that record (may be -1)
+ *   returns 1 (hit)
+ * Otherwise returns 0 (miss).
+ */
+int axgeo_grc_lookup(axgeo_grc_library_t *lib,
+                     const double *q, int k,
+                     double *x_end_out,
+                     int *best_tok_out);
+
 #endif /* GEODESSICAL_AXIOM_GEO_H */
