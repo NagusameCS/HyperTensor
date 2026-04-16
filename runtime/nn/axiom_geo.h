@@ -509,4 +509,34 @@ int axgeo_grc_lookup_with_summaries(axgeo_grc_library_t *lib,
                                     double *block_summaries_out,
                                     int *n_summaries_out);
 
+/*
+ * Persist the GRC library to / from a binary file.
+ * Format: magic + version + k + count + all arrays.
+ * Returns 0 on success, -1 on error.
+ */
+int axgeo_grc_save(const axgeo_grc_library_t *lib, const char *path);
+int axgeo_grc_load(axgeo_grc_library_t *lib, const char *path);
+
+/* ─── Per-QKV head pullback metric ─── */
+/*
+ * Compute separate pullback metrics for Q, K, and V weight matrices of a
+ * single attention layer, then blend them (equal weights) into a single
+ * d×d metric.  More accurate than using only one weight matrix because
+ * Q, K, V have different geometry (Q/K live on sphere via RoPE, V is linear).
+ *
+ * W_Q [dim × n_heads*head_dim],  type: quantised
+ * W_K [dim × n_kv_heads*head_dim], type: quantised
+ * W_V [dim × n_kv_heads*head_dim], type: quantised
+ * U   [d × dim]   PCA projection (d rows, dim cols)
+ * out G_out[d×d]  accumulated (summed) — caller should divide by n_layers
+ */
+void axgeo_pullback_metric_qkv(const void *W_Q, int nq_rows, int nq_cols,
+                                ggml_type_t qtype,
+                                const void *W_K, int nk_rows, int nk_cols,
+                                ggml_type_t ktype,
+                                const void *W_V, int nv_rows, int nv_cols,
+                                ggml_type_t vtype,
+                                const double *U, int d, int dim,
+                                double *G_out);
+
 #endif /* GEODESSICAL_AXIOM_GEO_H */

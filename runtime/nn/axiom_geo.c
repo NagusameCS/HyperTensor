@@ -12,6 +12,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
 
 #ifdef GEODESSICAL_HOSTED
 #include "host/hal.h"
@@ -1964,4 +1965,176 @@ int axgeo_grc_lookup_with_summaries(axgeo_grc_library_t *lib,
     tensor_free(dx);
     lib->hits++;
     return 1;
+}
+
+/* ── GRC Disk Persistence ─────────────────────────────────────────────── */
+#define AXGEO_GRC_MAGIC   0x4752434C4942ULL  /* "GRCLIB" */
+#define AXGEO_GRC_FVER    1
+
+int axgeo_grc_save(const axgeo_grc_library_t *lib, const char *path)
+{
+    if (!lib || !path || lib->k <= 0 || lib->count <= 0) return -1;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    int ok = 1;
+    uint64_t magic   = AXGEO_GRC_MAGIC;
+    int      ver     = AXGEO_GRC_FVER;
+    int      k       = lib->k;
+    int      count   = lib->count;
+    int      cap     = lib->cap;
+    int      write_idx = lib->write_idx;
+    int      hits    = lib->hits;
+    int      misses  = lib->misses;
+    int      nbu     = lib->n_buckets_used;
+
+#define GS_WRITE(p,n) do { if (fwrite((p),1,(n),f)!=(n)){ok=0;goto gs_done;} } while(0)
+    GS_WRITE(&magic,    sizeof(magic));
+    GS_WRITE(&ver,      sizeof(ver));
+    GS_WRITE(&k,        sizeof(k));
+    GS_WRITE(&count,    sizeof(count));
+    GS_WRITE(&cap,      sizeof(cap));
+    GS_WRITE(&write_idx,sizeof(write_idx));
+    GS_WRITE(&hits,     sizeof(hits));
+    GS_WRITE(&misses,   sizeof(misses));
+    GS_WRITE(&nbu,      sizeof(nbu));
+    GS_WRITE(lib->bucket_counts, sizeof(lib->bucket_counts));
+
+    GS_WRITE(lib->q_bars,           (uint64_t)cap * k * sizeof(double));
+    GS_WRITE(lib->Js,               (uint64_t)cap * k * k * sizeof(double));
+    GS_WRITE(lib->x_ends,           (uint64_t)cap * k * sizeof(double));
+    GS_WRITE(lib->rhos,             (uint64_t)cap * sizeof(double));
+    GS_WRITE(lib->best_toks,        (uint64_t)cap * sizeof(int));
+    GS_WRITE(lib->x_wps,            (uint64_t)cap * AXGEO_GRC_N_WP * k * sizeof(double));
+    GS_WRITE(lib->bucket_centroids, (uint64_t)AXGEO_GRC_N_BUCKETS * k * sizeof(double));
+    GS_WRITE(lib->bucket_assign,    (uint64_t)cap * sizeof(int));
+#undef GS_WRITE
+
+gs_done:
+    fclose(f);
+    return ok ? 0 : -1;
+}
+
+int axgeo_grc_load(axgeo_grc_library_t *lib, const char *path)
+{
+    if (!lib || !path) return -1;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    int ok = 1;
+    uint64_t magic = 0;
+    int ver = 0, k = 0, count = 0, cap = 0, write_idx = 0, hits = 0, misses = 0, nbu = 0;
+
+#define GS_READ(p,n) do { if (fread((p),1,(n),f)!=(n)){ok=0;goto gl_done;} } while(0)
+    GS_READ(&magic,    sizeof(magic));
+    GS_READ(&ver,      sizeof(ver));
+    GS_READ(&k,        sizeof(k));
+    GS_READ(&count,    sizeof(count));
+    GS_READ(&cap,      sizeof(cap));
+    GS_READ(&write_idx,sizeof(write_idx));
+    GS_READ(&hits,     sizeof(hits));
+    GS_READ(&misses,   sizeof(misses));
+    GS_READ(&nbu,      sizeof(nbu));
+
+    if (magic != AXGEO_GRC_MAGIC || ver != AXGEO_GRC_FVER
+        || k <= 0 || count < 0 || cap <= 0) {
+        ok = 0; goto gl_done;
+    }
+
+    /* Destroy old library if it has different k or capacity */
+    if (lib->k != k || lib->cap != cap) {
+        axgeo_grc_library_destroy(lib);
+        *lib = axgeo_grc_library_create(k, cap);
+        if (!lib->q_bars) { ok = 0; goto gl_done; }
+    }
+
+    GS_READ(lib->bucket_counts, sizeof(lib->bucket_counts));
+    GS_READ(lib->q_bars,           (uint64_t)cap * k * sizeof(double));
+    GS_READ(lib->Js,               (uint64_t)cap * k * k * sizeof(double));
+    GS_READ(lib->x_ends,           (uint64_t)cap * k * sizeof(double));
+    GS_READ(lib->rhos,             (uint64_t)cap * sizeof(double));
+    GS_READ(lib->best_toks,        (uint64_t)cap * sizeof(int));
+    GS_READ(lib->x_wps,            (uint64_t)cap * AXGEO_GRC_N_WP * k * sizeof(double));
+    GS_READ(lib->bucket_centroids, (uint64_t)AXGEO_GRC_N_BUCKETS * k * sizeof(double));
+    GS_READ(lib->bucket_assign,    (uint64_t)cap * sizeof(int));
+
+    lib->count         = count;
+    lib->write_idx     = write_idx;
+    lib->hits          = hits;
+    lib->misses        = misses;
+    lib->n_buckets_used = nbu;
+#undef GS_READ
+
+gl_done:
+    fclose(f);
+    return ok ? 0 : -1;
+}
+
+/* ── Per-QKV Head Pullback Metric ──────────────────────────────────────── */
+/*
+ * Compute a blended pullback metric from Q, K, V weight matrices.
+ * For each weight matrix W [n_rows × n_cols]:
+ *   w̃_i = U · W[i,:]^T  (project row into PCA subspace, d-vector)
+ *   G   += w̃_i ⊗ w̃_i   (outer product accumulation)
+ * The three contributions are summed and the caller can normalise.
+ * This gives a more accurate geometric picture than using W alone because
+ * Q and K have spherical geometry (via RoPE normalisation) while V is linear.
+ */
+void axgeo_pullback_metric_qkv(const void *W_Q, int nq_rows, int nq_cols,
+                                ggml_type_t qtype,
+                                const void *W_K, int nk_rows, int nk_cols,
+                                ggml_type_t ktype,
+                                const void *W_V, int nv_rows, int nv_cols,
+                                ggml_type_t vtype,
+                                const double *U, int d, int dim,
+                                double *G_out)
+{
+    if (!G_out || !U || d <= 0 || dim <= 0) return;
+
+    double *row_buf = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    double *proj    = (double *)tensor_alloc((uint64_t)d   * sizeof(double));
+    if (!row_buf || !proj) {
+        if (row_buf) tensor_free(row_buf);
+        if (proj)    tensor_free(proj);
+        return;
+    }
+
+    /* Helper: accumulate outer product from one weight matrix */
+#define BYTES_PER_ROW(ncols_, type_) \
+    ((type_) == GGML_TYPE_Q4_0 ? ((size_t)(ncols_) / 32 * 18) : \
+     (type_) == GGML_TYPE_Q8_0 ? ((size_t)(ncols_) / 32 * 34) : \
+     (size_t)(ncols_) * sizeof(float))
+
+#define ACCUM_PULLBACK(W_, nrows_, ncols_, type_) \
+    do { \
+        if ((W_) && (nrows_) > 0 && (ncols_) > 0) { \
+            size_t row_bytes = BYTES_PER_ROW((ncols_), (type_)); \
+            for (int ri = 0; ri < (nrows_); ri++) { \
+                const void *rptr = (const char *)(W_) + (size_t)ri * row_bytes; \
+                axgeo_dequant_row_f64(rptr, row_buf, dim, (int)(type_)); \
+                /* proj = U · row_buf */ \
+                for (int a = 0; a < d; a++) { \
+                    double s = 0.0; \
+                    for (int j = 0; j < dim; j++) \
+                        s += U[(uint64_t)a * dim + j] * row_buf[j]; \
+                    proj[a] = s; \
+                } \
+                /* G_out += proj ⊗ proj */ \
+                for (int a = 0; a < d; a++) \
+                    for (int b = 0; b < d; b++) \
+                        G_out[(uint64_t)a * d + b] += proj[a] * proj[b]; \
+            } \
+        } \
+    } while(0)
+
+    ACCUM_PULLBACK(W_Q, nq_rows, nq_cols, qtype);
+    ACCUM_PULLBACK(W_K, nk_rows, nk_cols, ktype);
+    ACCUM_PULLBACK(W_V, nv_rows, nv_cols, vtype);
+
+#undef ACCUM_PULLBACK
+#undef BYTES_PER_ROW
+    tensor_free(row_buf);
+    tensor_free(proj);
 }

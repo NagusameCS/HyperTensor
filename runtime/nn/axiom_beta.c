@@ -1007,6 +1007,49 @@ static int phase3_curvature(const axiom_beta_config_t *cfg,
                             for (int qi = 0; qi < kk2; qi++)
                                 g_cov[qi] = (1.0 - beta) * g_cov[qi] + beta * g_pw[qi];
                         }
+
+                        /* OTT k⁴ Step 1 Enhancement: supplement with K and V
+                         * head pullback metrics.  Q captures query geometry,
+                         * K captures key geometry, V captures value geometry.
+                         * Blending all three gives a more accurate Riemannian
+                         * metric on the representation manifold. */
+                        {
+                            double *G_kv = (double *)tensor_alloc(
+                                (uint64_t)sub_dim * sub_dim * sizeof(double));
+                            if (G_kv) {
+                                for (int mpi = 0; mpi < n_mp; mpi++) {
+                                    memset(G_kv, 0,
+                                           (uint64_t)sub_dim * sub_dim * sizeof(double));
+                                    int kv_rows = m->n_kv_heads * m->head_dim;
+                                    if (kv_rows <= 0) kv_rows = m->dim;
+                                    /* Accumulate K + V from all layers */
+                                    for (int L = 0; L < n_lay; L++) {
+                                        const llm_layer_t *lay = &m->layers[L];
+                                        axgeo_pullback_metric_qkv(
+                                            NULL, 0, 0, GGML_TYPE_F32, /* skip Q */
+                                            lay->k_weight, kv_rows, m->dim, lay->k_type,
+                                            lay->v_weight, kv_rows, m->dim, lay->v_type,
+                                            U_basis, sub_dim, m->dim, G_kv);
+                                    }
+                                    /* Normalise and blend (weight 0.25 each for K,V
+                                     * vs 0.5 for Q — Q dominates token prediction) */
+                                    double n_total = (double)(n_lay * 2 * kv_rows);
+                                    if (n_total > 0.0) {
+                                        double kv_beta = beta * 0.5;
+                                        double *g = axgeo_metric_at(&mf, mpi);
+                                        for (int qi = 0; qi < kk2; qi++)
+                                            g[qi] = (1.0 - kv_beta) * g[qi]
+                                                    + kv_beta * G_kv[qi] / n_total;
+                                    }
+                                }
+                                tensor_free(G_kv);
+                                if (cfg->verbose)
+                                    kprintf("[AXIOM-P3] Per-QKV pullback blended "
+                                            "(K+V beta=%.2f, %d layers)\n",
+                                            beta * 0.5, n_lay);
+                            }
+                        }
+
                         if (cfg->verbose)
                             kprintf("[AXIOM-P3] OTT pullback blended (beta=%.2f, %d layers)\n",
                                     beta, n_lay);
@@ -2209,6 +2252,14 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
             kprintf("[AXIOM-BETA-3] Loaded Phase-3 geometry from disk (ott_geometry.bin).\n");
         }
     }
+
+    /* GRC Disk Persistence: load learned trajectories from prior session */
+    if (phase_grc_k > 0 && phase_grc.q_bars != NULL && phase_grc.count == 0) {
+        if (axgeo_grc_load(&phase_grc, "ott_grc.bin") == 0) {
+            kprintf("[AXIOM-BETA-3] Loaded GRC library from disk (%d records).\n",
+                    phase_grc.count);
+        }
+    }
     report->beta_version = 3;
     t0 = hal_timer_us();
 
@@ -2418,6 +2469,13 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
         phase_warp_points_accum = 0;
         phase_warp_cross_term_accum = 0.0;
         if (cfg->enable_recalc_trigger) axiom_warp_state_save();
+    }
+
+    /* GRC Disk Persistence: save learned trajectories for next session */
+    if (phase_grc_k > 0 && phase_grc.count > 0 && phase_grc.q_bars != NULL) {
+        if (axgeo_grc_save(&phase_grc, "ott_grc.bin") == 0)
+            kprintf("[AXIOM-BETA-3] GRC library saved to ott_grc.bin (%d records)\n",
+                    phase_grc.count);
     }
 
     if (cfg->enable_recalc_trigger)
