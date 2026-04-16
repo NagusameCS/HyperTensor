@@ -47,6 +47,10 @@ typedef struct {
     int      metric_sample_points; /* Sample points for metric field */
     int      use_fisher;           /* 1 = compute & blend Fisher metric */
     double   fisher_blend;         /* Fisher blend factor α ∈ [0,1] (0.2 default) */
+    int      use_weight_pullback;  /* 1 = blend weight-derived pullback metric (OTT k^4 Step 1) */
+    double   pullback_blend;       /* Pullback blend factor β ∈ [0,1] (0.5 default) */
+    int      pullback_rmsnorm;     /* 1 = apply RMSNorm sphere connection correction */
+    double   pullback_rmsnorm_alpha; /* Connection correction blend [0,1] (0.3 default) */
 
     /* Phase 4: axiom formalization */
     int      active_iterations;  /* Axiom candidate iterations */

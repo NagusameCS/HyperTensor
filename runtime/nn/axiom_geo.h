@@ -289,4 +289,92 @@ int axgeo_apply_local_warp_many(axgeo_christoffel_t *ch,
                                 double alpha,
                                 double sigma);
 
+/* ─── Weight-Derived Pullback Metric (Step 1 of OTT k⁴ plan) ─────────────
+ *
+ * Build a Riemannian metric field from the actual transformer weight matrices
+ * rather than from token embedding covariance.
+ *
+ * For a layer with weight matrix W ∈ R^{out×d}, the pullback metric on the
+ * k-dimensional PCA subspace (spanned by U ∈ R^{d×k}) is:
+ *
+ *   G = (WU)^T (WU) ∈ R^{k×k}              (Fisher/Gram metric)
+ *
+ * This is the exact local geometry that the layer "sees" when operating on
+ * an input in the PCA subspace. It is independent of sample distribution and
+ * reflects the actual parameter structure of the model.
+ *
+ * For multiple layers, the metric varies with depth — we average across a
+ * sliding window of layers to obtain a smooth per-point metric field.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Dequantize one row of a weight matrix into a float64 buffer.
+ * type: GGML_TYPE_Q4_0 (10) or GGML_TYPE_Q8_0 (8).
+ * Returns 0 on success.
+ */
+int axgeo_dequant_row_f64(const void *row_ptr, double *out, int dim, int type);
+
+/*
+ * Compute the pullback metric G = (W_sub)^T W_sub in R^{k×k},
+ * where W_sub = W · U (projection of weight rows onto PCA subspace).
+ *
+ * W_ptr:    pointer to weight matrix data (Q4_0 or F32)
+ * w_type:   GGML_type of the weight
+ * n_rows:   number of rows in W (output dimension)
+ * n_cols:   number of columns in W (input dimension = d)
+ * U:        PCA basis matrix U ∈ R^{d×k}, column-major (d rows, k cols)
+ * k:        subspace dimension
+ * G_out:    output metric G ∈ R^{k×k}, row-major
+ * row_buf:  scratch buffer of size ≥ n_cols doubles
+ * wu_buf:   scratch buffer of size ≥ n_rows × k doubles
+ *
+ * Returns 0 on success.
+ */
+int axgeo_pullback_metric(const void *W_ptr, int w_type,
+                          int n_rows, int n_cols,
+                          const double *U, int k,
+                          double *G_out,
+                          double *row_buf, double *wu_buf);
+
+/*
+ * Build a full metric field from weight matrices across layers.
+ *
+ * mf:       pre-allocated metric field (n_points sample points, dim=k)
+ * U:        PCA basis U ∈ R^{d×k} (row-major: U[i*k + j] = U_{ij})
+ * k:        subspace dimension
+ * d:        full model dimension
+ * layer_weights: array of n_layers weight pointers (QKV concatenated or Q only)
+ * layer_types:   array of n_layers GGML types
+ * n_rows_each:   array of n_layers row counts
+ * n_layers:  number of layers
+ * sample_pts: optional pre-projected sample points [n_points × k];
+ *             if NULL, sample points are set to equally-spaced grid
+ *
+ * Returns 0 on success.
+ */
+int axgeo_build_metric_from_weights(axgeo_metric_field_t *mf,
+                                    const double *U, int k, int d,
+                                    const void **layer_weights,
+                                    const int *layer_types,
+                                    const int *n_rows_each,
+                                    int n_layers,
+                                    const double *sample_pts);
+
+/*
+ * Apply RMSNorm sphere correction to Christoffel symbols at a point.
+ *
+ * The connection correction for RMSNorm(x) on the (d-1)-sphere:
+ *   ΔΓ^k_ij = -(δ^k_j p_i + δ^k_i p_j)/||p||² + 2 p^k p_i p_j/||p||⁴
+ *
+ * This absorbs the RMSNorm nonlinearity into the Riemannian connection,
+ * implementing the diffeomorphism ϕ described in the OTT paper §11.
+ *
+ * gamma: Christoffel tensor at one point, size k×k×k (index: [μ*k*k + ν*k + ρ])
+ * p:     position vector in PCA subspace, size k
+ * k:     subspace dimension
+ * alpha: blend factor (0 = no correction, 1 = full correction)
+ */
+void axgeo_apply_rmsnorm_connection(double *gamma, const double *p,
+                                    int k, double alpha);
+
 #endif /* GEODESSICAL_AXIOM_GEO_H */

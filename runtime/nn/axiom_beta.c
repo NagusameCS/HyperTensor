@@ -453,6 +453,10 @@ void axiom_beta_default_config(axiom_beta_config_t *cfg)
     cfg->metric_sample_points = 128;
     cfg->use_fisher           = 1;
     cfg->fisher_blend         = 0.2;
+    cfg->use_weight_pullback  = 1;    /* OTT k^4 Step 1: weight-derived pullback metric */
+    cfg->pullback_blend       = 0.4;  /* blend factor: 40% pullback, 60% covariance */
+    cfg->pullback_rmsnorm     = 1;    /* apply RMSNorm sphere correction to Christoffels */
+    cfg->pullback_rmsnorm_alpha = 0.3;
     cfg->active_iterations    = 256;
     cfg->oracle_calls_max     = 64;
     cfg->geodesic_steps       = 200;
@@ -960,6 +964,60 @@ static int phase3_curvature(const axiom_beta_config_t *cfg,
     tensor_free(emb_f64);
     tensor_free(all_proj);
 
+    /* -- OTT k^4 Step 1: Weight-Derived Pullback Metric --
+     * Blend the weight-based pullback metric G = (W*U)^T (W*U) into the
+     * covariance metric field.  This grounds the geometry in the actual
+     * transformer weights rather than just embedding distribution statistics.
+     */
+    if (cfg->use_weight_pullback) {
+        const llm_model_t *m = llm_get_model();
+        if (m && m->n_layers > 0 && m->dim > 0) {
+            int n_lay = m->n_layers;
+            const void **lay_weights = (const void **)tensor_alloc((uint64_t)n_lay * sizeof(void *));
+            int *lay_types = (int *)tensor_alloc((uint64_t)n_lay * sizeof(int));
+            int *lay_rows  = (int *)tensor_alloc((uint64_t)n_lay * sizeof(int));
+            double *U_basis = phase1_pca.components.data;
+            if (lay_weights && lay_types && lay_rows && U_basis) {
+                for (int L = 0; L < n_lay; L++) {
+                    const llm_layer_t *layer = &m->layers[L];
+                    lay_weights[L] = layer->q_weight;
+                    lay_types[L]   = (int)layer->q_type;
+                    lay_rows[L]    = m->n_heads * m->head_dim;
+                    if (lay_rows[L] <= 0) lay_rows[L] = m->dim;
+                }
+                axgeo_metric_field_t mf_pull = axgeo_metric_field_create(n_mp, sub_dim);
+                if (mf_pull.points && mf_pull.metrics) {
+                    memcpy(mf_pull.points, mf.points,
+                           (uint64_t)n_mp * sub_dim * sizeof(double));
+                    int rc_pull = axgeo_build_metric_from_weights(
+                        &mf_pull, U_basis, sub_dim, m->dim,
+                        lay_weights, lay_types, lay_rows, n_lay, NULL);
+                    if (rc_pull == 0) {
+                        double beta = cfg->pullback_blend;
+                        if (beta <= 0.0) beta = 0.5;
+                        if (beta > 1.0) beta = 1.0;
+                        int kk2 = sub_dim * sub_dim;
+                        for (int mpi = 0; mpi < n_mp; mpi++) {
+                            double *g_cov = axgeo_metric_at(&mf, mpi);
+                            double *g_pw  = axgeo_metric_at(&mf_pull, mpi);
+                            for (int qi = 0; qi < kk2; qi++)
+                                g_cov[qi] = (1.0 - beta) * g_cov[qi] + beta * g_pw[qi];
+                        }
+                        if (cfg->verbose)
+                            kprintf("[AXIOM-P3] OTT pullback blended (beta=%.2f, %d layers)\n",
+                                    beta, n_lay);
+                    } else if (cfg->verbose) {
+                        kprintf("[AXIOM-P3] OTT pullback build failed (rc=%d)\n", rc_pull);
+                    }
+                    axgeo_metric_field_destroy(&mf_pull);
+                }
+            }
+            if (lay_weights) tensor_free(lay_weights);
+            if (lay_types)   tensor_free(lay_types);
+            if (lay_rows)    tensor_free(lay_rows);
+        }
+    }
+
     /* â”€â”€ Fisher Information Metric â”€â”€
      * Compute Fisher (inverse covariance) at each sample point and
      * optionally blend into the metric field for information-geometric
@@ -1011,6 +1069,21 @@ static int phase3_curvature(const axiom_beta_config_t *cfg,
     /* Compute Christoffel symbols from (possibly Fisher-blended) metric */
     axgeo_christoffel_t ch = axgeo_christoffel_create(n_mp, sub_dim);
     int rc_ch = axgeo_compute_christoffel(&mf, &ch);
+
+    /* OTT k^4 Step 4: RMSNorm sphere connection correction. */
+    if (cfg->pullback_rmsnorm && ch.gamma && ch.n_points > 0 && ch.dim > 0) {
+        double phi_alpha = cfg->pullback_rmsnorm_alpha;
+        if (phi_alpha <= 0.0) phi_alpha = 0.3;
+        int ch_d = ch.dim;
+        for (int pi = 0; pi < ch.n_points; pi++) {
+            double *gp = axgeo_gamma_at(&ch, pi);
+            const double *pt = axgeo_point_at(&mf, pi);
+            axgeo_apply_rmsnorm_connection(gp, pt, ch_d, phi_alpha);
+        }
+        if (cfg->verbose)
+            kprintf("[AXIOM-P3] RMSNorm connection correction applied (alpha=%.2f)\n",
+                    phi_alpha);
+    }
 
     if (cfg->verbose)
         kprintf("[AXIOM-P3] Computing full Riemann curvature tensor...\n");

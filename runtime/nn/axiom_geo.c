@@ -1264,3 +1264,262 @@ int axgeo_apply_local_warp_many(axgeo_christoffel_t *ch,
 
     return total_touched;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Weight-Derived Pullback Metric (Step 1 of OTT k⁴ plan)
+ *
+ * Build a Riemannian metric field from the actual transformer weight matrices.
+ * The pullback metric G = (W·U)^T (W·U) captures the geometry that each
+ * weight matrix imposes on the k-dimensional PCA subspace U.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * axgeo_dequant_row_f64 — thin wrapper kept for axiom_geo.c internal use.
+ * Delegates to ax_dequant_row from axiom_linalg.h.
+ */
+int axgeo_dequant_row_f64(const void *row_ptr, double *out, int dim, int type)
+{
+    return ax_dequant_row(row_ptr, out, dim, (ggml_type_t)type);
+}
+
+/*
+ * axgeo_pullback_metric — compute G = (W·U)^T (W·U) ∈ R^{k×k}.
+ *
+ * For each row w_i ∈ R^d of W, compute the projected row:
+ *   w̃_i = U^T w_i  ∈ R^k
+ * Then accumulate:
+ *   G += w̃_i ⊗ w̃_i   (outer product)
+ *
+ * The result G is a positive semi-definite k×k matrix representing the
+ * pullback of the Euclidean metric on the output space through U.
+ *
+ * We normalise by n_rows so that G is the *mean* outer product — this makes
+ * the metric scale-invariant to layer width.
+ */
+int axgeo_pullback_metric(const void *W_ptr, int w_type,
+                          int n_rows, int n_cols,
+                          const double *U, int k,
+                          double *G_out,
+                          double *row_buf, double *wu_buf)
+{
+    if (!W_ptr || !U || !G_out || !row_buf || !wu_buf) return -1;
+    if (n_rows <= 0 || n_cols <= 0 || k <= 0 || k > AXGEO_MAX_DIM) return -1;
+
+    /* Compute bytes per row for pointer arithmetic */
+    uint64_t row_stride;
+    switch (w_type) {
+        case 10: /* GGML_TYPE_Q4_0 */
+            row_stride = (uint64_t)(n_cols / 32) * 18;
+            break;
+        case 8:  /* GGML_TYPE_Q8_0 */
+            row_stride = (uint64_t)(n_cols / 32) * 34;
+            break;
+        case 0:  /* GGML_TYPE_F32 */
+            row_stride = (uint64_t)n_cols * 4;
+            break;
+        case 1:  /* GGML_TYPE_F16 */
+            row_stride = (uint64_t)n_cols * 2;
+            break;
+        default:
+            return -1;
+    }
+
+    /* Zero output metric */
+    memset(G_out, 0, (uint64_t)k * k * sizeof(double));
+
+    const uint8_t *wbase = (const uint8_t *)W_ptr;
+
+    /* Process rows in blocks to amortize allocation cost.
+     * wu_buf must hold at least n_rows × k doubles. */
+    for (int r = 0; r < n_rows; r++) {
+        const void *row_ptr = wbase + (uint64_t)r * row_stride;
+
+        /* Dequantize row r → row_buf ∈ R^d */
+        if (ax_dequant_row(row_ptr, row_buf, n_cols, (ggml_type_t)w_type) != 0)
+            continue;
+
+        /* Project onto PCA subspace: w̃ = U^T w ∈ R^k
+         * U is stored as U[col][dim_idx]: U[j*n_cols + i] = U_{ij}
+         * (column-major: each column of U is a basis vector in R^d)
+         */
+        double *w_tilde = wu_buf + (uint64_t)r * k;
+        for (int j = 0; j < k; j++) {
+            double dot = 0.0;
+            const double *u_col = U + (uint64_t)j * n_cols;
+            for (int i = 0; i < n_cols; i++)
+                dot += u_col[i] * row_buf[i];
+            w_tilde[j] = dot;
+        }
+
+        /* Accumulate outer product w̃ ⊗ w̃ into G */
+        for (int a = 0; a < k; a++) {
+            for (int b = a; b < k; b++) {
+                double v = w_tilde[a] * w_tilde[b];
+                G_out[a * k + b] += v;
+                if (b != a) G_out[b * k + a] += v;
+            }
+        }
+    }
+
+    /* Normalise by n_rows */
+    double inv_n = (n_rows > 0) ? 1.0 / (double)n_rows : 1.0;
+    for (int i = 0; i < k * k; i++)
+        G_out[i] *= inv_n;
+
+    /* Add small regularization to the diagonal for numerical stability */
+    for (int i = 0; i < k; i++)
+        G_out[i * k + i] += 1e-8;
+
+    return 0;
+}
+
+/*
+ * axgeo_build_metric_from_weights — construct a metric field from the actual
+ * transformer weight matrices across all layers.
+ *
+ * Strategy:
+ * 1. For each sample point p (index into mf->points):
+ *    - Determine which layer L this point is "closest to" by mapping p index
+ *      uniformly across [0, n_layers].
+ *    - Compute per-layer pullback metric G_L = (W_L · U)^T (W_L · U)
+ *    - Blend with adjacent layers for smoothness.
+ * 2. Set mf->metrics[p] = blended G.
+ * 3. If sample_pts is provided, copy the sample points into mf->points.
+ *    Otherwise, leave mf->points as-is (caller should set them up).
+ */
+int axgeo_build_metric_from_weights(axgeo_metric_field_t *mf,
+                                    const double *U, int k, int d,
+                                    const void **layer_weights,
+                                    const int *layer_types,
+                                    const int *n_rows_each,
+                                    int n_layers,
+                                    const double *sample_pts)
+{
+    if (!mf || !U || k <= 0 || d <= 0 || !layer_weights || !layer_types || !n_rows_each || n_layers <= 0)
+        return -1;
+    if (mf->n_points <= 0 || mf->dim != k) return -1;
+
+    int np = mf->n_points;
+
+    /* Copy sample points if provided */
+    if (sample_pts) {
+        memcpy(mf->points, sample_pts, (uint64_t)np * k * sizeof(double));
+    }
+
+    /* Allocate scratch buffers */
+    int max_rows = 0;
+    for (int L = 0; L < n_layers; L++)
+        if (n_rows_each[L] > max_rows) max_rows = n_rows_each[L];
+
+    double *row_buf = (double *)tensor_alloc((uint64_t)d * sizeof(double));
+    double *wu_buf  = (double *)tensor_alloc((uint64_t)max_rows * k * sizeof(double));
+    double *G_layer = (double *)tensor_alloc((uint64_t)k * k * sizeof(double));
+    double *G_blend = (double *)tensor_alloc((uint64_t)k * k * sizeof(double));
+
+    if (!row_buf || !wu_buf || !G_layer || !G_blend) {
+        if (row_buf)  tensor_free(row_buf);
+        if (wu_buf)   tensor_free(wu_buf);
+        if (G_layer)  tensor_free(G_layer);
+        if (G_blend)  tensor_free(G_blend);
+        return -1;
+    }
+
+    int kk = k * k;
+
+    /* Precompute per-layer pullback metrics.
+     * Store in a temporary array so we can blend adjacent layers. */
+    double *all_G = (double *)tensor_alloc((uint64_t)n_layers * kk * sizeof(double));
+    if (!all_G) {
+        tensor_free(row_buf); tensor_free(wu_buf);
+        tensor_free(G_layer); tensor_free(G_blend);
+        return -1;
+    }
+
+    for (int L = 0; L < n_layers; L++) {
+        if (!layer_weights[L]) {
+            /* No weight for this layer — use identity metric */
+            double *G_L = all_G + (uint64_t)L * kk;
+            memset(G_L, 0, (uint64_t)kk * sizeof(double));
+            for (int i = 0; i < k; i++) G_L[i * k + i] = 1.0;
+            continue;
+        }
+
+        int rc = axgeo_pullback_metric(layer_weights[L], layer_types[L],
+                                       n_rows_each[L], d,
+                                       U, k,
+                                       all_G + (uint64_t)L * kk,
+                                       row_buf, wu_buf);
+        if (rc != 0) {
+            /* Fallback: identity */
+            double *G_L = all_G + (uint64_t)L * kk;
+            memset(G_L, 0, (uint64_t)kk * sizeof(double));
+            for (int i = 0; i < k; i++) G_L[i * k + i] = 1.0;
+        }
+    }
+
+    /* Assign metrics to sample points.
+     * Each sample point p ∈ [0, np) maps to a fractional layer index
+     * f = p * (n_layers - 1) / (np - 1). Blend the two neighboring layers. */
+    for (int p = 0; p < np; p++) {
+        double f = (np > 1) ? (double)p * (double)(n_layers - 1) / (double)(np - 1) : 0.0;
+        int L0 = (int)f;
+        int L1 = L0 + 1;
+        if (L0 < 0) L0 = 0;
+        if (L1 >= n_layers) L1 = n_layers - 1;
+        double t = f - (double)L0;  /* blend weight [0,1] */
+
+        const double *G0 = all_G + (uint64_t)L0 * kk;
+        const double *G1 = all_G + (uint64_t)L1 * kk;
+        double *G_p = axgeo_metric_at(mf, p);
+
+        for (int i = 0; i < kk; i++)
+            G_p[i] = (1.0 - t) * G0[i] + t * G1[i];
+    }
+
+    tensor_free(all_G);
+    tensor_free(row_buf);
+    tensor_free(wu_buf);
+    tensor_free(G_layer);
+    tensor_free(G_blend);
+    return 0;
+}
+
+/*
+ * axgeo_apply_rmsnorm_connection — apply the Levi-Civita connection correction
+ * for RMSNorm on the (k-1)-sphere.
+ *
+ * For RMSNorm(p) = p / ||p||, the Christoffel correction implements the
+ * diffeomorphism ϕ that absorbs the normalization into the connection:
+ *
+ *   ΔΓ^μ_νρ = -(δ^μ_ρ p_ν + δ^μ_ν p_ρ)/||p||² + 2 p^μ p_ν p_ρ/||p||⁴
+ *
+ * This is the pullback of the sphere connection onto the ambient R^k space.
+ * Blended by alpha ∈ [0,1] for gradual activation.
+ */
+void axgeo_apply_rmsnorm_connection(double *gamma, const double *p,
+                                    int k, double alpha)
+{
+    if (!gamma || !p || k <= 0 || alpha <= 0.0) return;
+
+    double norm2 = 0.0;
+    for (int i = 0; i < k; i++) norm2 += p[i] * p[i];
+    if (norm2 < 1e-20) return;  /* zero vector — no correction */
+
+    double inv_n2 = 1.0 / norm2;
+    double inv_n4 = inv_n2 * inv_n2;
+
+    /* ΔΓ^μ_νρ = alpha * [-(δ^μ_ρ p_ν + δ^μ_ν p_ρ)/||p||² + 2 p^μ p_ν p_ρ/||p||⁴] */
+    for (int mu = 0; mu < k; mu++) {
+        for (int nu = 0; nu < k; nu++) {
+            for (int rho = 0; rho < k; rho++) {
+                double delta_mu_rho = (mu == rho) ? 1.0 : 0.0;
+                double delta_mu_nu  = (mu == nu)  ? 1.0 : 0.0;
+
+                double corr = -(delta_mu_rho * p[nu] + delta_mu_nu * p[rho]) * inv_n2
+                              + 2.0 * p[mu] * p[nu] * p[rho] * inv_n4;
+
+                gamma[mu * k * k + nu * k + rho] += alpha * corr;
+            }
+        }
+    }
+}
