@@ -205,4 +205,19 @@ axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
 
 const char *axiom_beta_status_string(axiom_beta_status_t st);
 
+/*
+ * Fast single geodesic step using cached Phase-3 geometry (computed by a
+ * prior axiom_beta_run() call).  Projects the last two context embeddings
+ * into the PCA subspace, integrates one geodesic step using the cached
+ * Christoffel symbols, reconstructs the predicted embedding, and returns
+ * the nearest-token ID and cosine-similarity confidence.
+ *
+ * Returns AXIOM_BETA_OK on success, AXIOM_BETA_ERR_INVALID when the
+ * geometry cache is not ready (caller should fall back to heuristic).
+ */
+axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
+                                                   int n_context,
+                                                   int *out_token,
+                                                   float *out_confidence);
+
 #endif /* GEODESSICAL_AXIOM_BETA_H */

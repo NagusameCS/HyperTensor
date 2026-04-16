@@ -14,7 +14,6 @@
 #include "../runtime/nn/hf_download.h"
 #include "../runtime/nn/axiom_beta.h"
 #include "api_server.h"
-#include "gd_daemon.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +50,6 @@ static void print_usage(const char *argv0) {
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
     kprintf("  --serve                Start Geodessical HTTP API server\n");
-    kprintf("  --no-daemon            Run single-shot (skip persistent daemon)\n");
     kprintf("  --port <num>           API server port (default: 8080)\n");
     kprintf("  --download <repo>      Download model from HuggingFace\n");
     kprintf("  --quant <type>         Quantization hint for download (default: q4_0)\n");
@@ -146,7 +144,6 @@ typedef struct {
     int         axiom_skip_geodesic;
     const char *axiom_report_path;
     int         ctx_size;   /* 0 = default (2048); user override via --ctx-size */
-    int         no_daemon;  /* 1 = bypass daemon/client mode, force cold-start */
 } GD_args_t;
 
 static int GD_ott_theorem_active = 0;
@@ -221,7 +218,6 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->axiom_reuse_cache = 1;
     args->axiom_seed = 0;
     args->axiom_skip_geodesic = 0;
-    args->no_daemon = 0;
     args->axiom_report_path = "axiom_beta_report.json";
     args->ctx_size = 0;
 
@@ -248,8 +244,6 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
             args->top_p = (float)atof(argv[i]);
         } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interactive") == 0) {
             args->interactive = 1;
-        } else if (strcmp(argv[i], "--no-daemon") == 0) {
-            args->no_daemon = 1;
         } else if (strcmp(argv[i], "--serve") == 0) {
             args->serve = 1;
         } else if (strcmp(argv[i], "--port") == 0) {
@@ -562,6 +556,17 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
 }
 
 static int geodesic_next_token_local(const int *ctx, int n_ctx, int *out_tok) {
+    /* Fast path: use real Christoffel-based geodesic step when geometry is cached. */
+    {
+        int fast_tok = -1;
+        float fast_conf = 0.0f;
+        if (axiom_beta_geodesic_step_fast(ctx, n_ctx, &fast_tok, &fast_conf)
+                == AXIOM_BETA_OK && fast_tok >= 0 && fast_conf > 0.05f) {
+            *out_tok = fast_tok;
+            return 0;
+        }
+    }
+
     const llm_model_t *m = llm_get_model();
     if (!m || !ctx || n_ctx <= 0 || !out_tok) return -1;
 
@@ -1157,48 +1162,6 @@ int main(int argc, char **argv) {
     /* Initialize HAL (CPU detection, thread pool) */
     hal_init();
     enable_max_performance_host();
-
-    /* ── Daemon fast path (before model load) ──────────────────────────────
-     * If a prompt is given with no special flags and we are NOT starting a
-     * server ourselves, check whether a persistent daemon is already up on
-     * the same port.  If it is, delegate the request there and exit without
-     * ever loading the model — giving warm TTFT (~10–15 ms, like Ollama).
-     * If no daemon is running, spawn one in the background, wait for it to
-     * become ready, then forward the request.
-     * Use --no-daemon to force the legacy cold-start single-shot path.
-     */
-    if (!args.serve && !args.interactive && !args.no_daemon
-        && args.prompt != NULL && args.model_path != NULL
-        && !args.axiom_beta_run && !args.axiom_geodesic_first
-        && !args.ott_full && !args.ott_theorem) {
-
-        char exe_abs[MAX_PATH] = {0};
-#ifdef _WIN32
-        GetModuleFileNameA(NULL, exe_abs, sizeof(exe_abs));
-#else
-        snprintf(exe_abs, sizeof(exe_abs), "%s", argv[0]);
-#endif
-
-        gd_daemon_result_t dr = gd_daemon_generate(
-            exe_abs, args.model_path, args.prompt,
-            args.max_tokens, args.temperature, args.top_k, args.top_p,
-            args.port, args.ctx_size, args.no_think);
-
-        if (dr.ok) {
-            kprintf("%s\n", dr.text);
-            if (dr.tokens_generated > 0) {
-                kprintf("\n[GD] %d tokens  decode %.1f t/s  prefill %.0f ms  total %.0f ms\n",
-                        dr.tokens_generated, dr.decode_tok_per_s,
-                        dr.prefill_ms, dr.total_ms);
-                kprintf("[GD] (warm — model resident in daemon on port %d)\n", args.port);
-            }
-            hal_shutdown();
-            return 0;
-        }
-
-        /* Daemon path unavailable — fall through to cold-start inference */
-        fprintf(stderr, "[GD] Daemon unavailable (%s); using cold-start.\n", dr.error);
-    }
 
     /* Configure logging level */
     if (args.log_level >= 0) {

@@ -2606,6 +2606,152 @@ axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
                 : 0.0);
     return AXIOM_BETA_OK;
 }
+
+axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
+                                                   int n_context,
+                                                   int *out_token,
+                                                   float *out_confidence)
+{
+    if (!context_tokens || n_context <= 0 || !out_token)
+        return AXIOM_BETA_ERR_INVALID;
+
+    /* Require cached Phase-3 geometry */
+    if (!phase3_geo_valid || phase1_pca.n_components <= 0)
+        return AXIOM_BETA_ERR_INVALID;
+
+    const llm_model_t *m = llm_get_model();
+    if (!m) return AXIOM_BETA_ERR_INVALID;
+
+    int vocab   = m->vocab_size;
+    int dim     = m->dim;
+    int k       = phase1_pca.n_components;
+
+    int tok_curr = context_tokens[n_context - 1];
+    int tok_prev = (n_context >= 2) ? context_tokens[n_context - 2] : tok_curr;
+    if (tok_curr < 0 || tok_curr >= vocab) tok_curr = 0;
+    if (tok_prev < 0 || tok_prev >= vocab) tok_prev = tok_curr;
+
+    /* Allocate working buffers */
+    double *e_curr_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    double *e_prev_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    double *p_curr   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
+    double *p_prev   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
+    double *v        = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
+    double *gamma    = (double *)tensor_alloc((uint64_t)k * k * k * sizeof(double));
+    double *p_pred   = (double *)tensor_alloc((uint64_t)k   * sizeof(double));
+    double *e_pred_d = (double *)tensor_alloc((uint64_t)dim * sizeof(double));
+    float  *e_curr_f = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
+    float  *e_cand   = (float  *)tensor_alloc((uint64_t)dim * sizeof(float));
+
+    if (!e_curr_d || !e_prev_d || !p_curr || !p_prev || !v ||
+        !gamma || !p_pred || !e_pred_d || !e_curr_f || !e_cand) {
+        if (e_curr_d) tensor_free(e_curr_d);
+        if (e_prev_d) tensor_free(e_prev_d);
+        if (p_curr)   tensor_free(p_curr);
+        if (p_prev)   tensor_free(p_prev);
+        if (v)        tensor_free(v);
+        if (gamma)    tensor_free(gamma);
+        if (p_pred)   tensor_free(p_pred);
+        if (e_pred_d) tensor_free(e_pred_d);
+        if (e_curr_f) tensor_free(e_curr_f);
+        if (e_cand)   tensor_free(e_cand);
+        return AXIOM_BETA_ERR_OOM;
+    }
+
+    /* Fetch embeddings (float → double) */
+    int ok_curr = (llm_get_embedding_vec(tok_curr, e_curr_f, dim) == 0);
+    if (!ok_curr) {
+        tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
+        tensor_free(p_prev); tensor_free(v); tensor_free(gamma);
+        tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
+        return AXIOM_BETA_ERR_INVALID;
+    }
+    for (int i = 0; i < dim; i++) e_curr_d[i] = (double)e_curr_f[i];
+
+    /* Fetch prev embedding for velocity */
+    float *e_prev_f = e_curr_f; /* reuse buffer */
+    int ok_prev = (tok_prev != tok_curr)
+                    ? (llm_get_embedding_vec(tok_prev, e_prev_f, dim) == 0)
+                    : 1;
+    if (!ok_prev) {
+        /* Fall back: use same embedding → zero velocity */
+        for (int i = 0; i < dim; i++) e_prev_d[i] = e_curr_d[i];
+    } else {
+        if (tok_prev != tok_curr) {
+            for (int i = 0; i < dim; i++) e_prev_d[i] = (double)e_prev_f[i];
+        } else {
+            for (int i = 0; i < dim; i++) e_prev_d[i] = e_curr_d[i];
+        }
+    }
+
+    /* Project to PCA subspace: p_curr, p_prev ∈ R^k */
+    axpca_project(&phase1_pca, e_curr_d, p_curr);
+    axpca_project(&phase1_pca, e_prev_d, p_prev);
+
+    /* Velocity in subspace */
+    for (int i = 0; i < k; i++)
+        v[i] = p_curr[i] - p_prev[i];
+
+    /* Interpolate Christoffel symbols Γ^k_ij at p_curr */
+    axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, p_curr, gamma);
+
+    /* Geodesic step: p' = p + v·dt - ½ Γ^α_μν v^μ v^ν dt²
+     * Use dt=1 (one token step). */
+    for (int alpha = 0; alpha < k; alpha++) {
+        double correction = 0.0;
+        for (int mu = 0; mu < k; mu++) {
+            for (int nu = 0; nu < k; nu++) {
+                /* gamma[alpha*k*k + mu*k + nu] = Γ^alpha_mu_nu */
+                correction += gamma[alpha * k * k + mu * k + nu] * v[mu] * v[nu];
+            }
+        }
+        p_pred[alpha] = p_curr[alpha] + v[alpha] - 0.5 * correction;
+    }
+
+    /* Reconstruct predicted embedding in full space */
+    axpca_reconstruct(&phase1_pca, p_pred, e_pred_d);
+
+    /* Compute norm of predicted embedding for cosine similarity */
+    double pred_norm2 = 0.0;
+    for (int i = 0; i < dim; i++)
+        pred_norm2 += e_pred_d[i] * e_pred_d[i];
+    double pred_norm = sqrt(pred_norm2);
+
+    /* Find nearest token by cosine similarity (probe 2048 candidates) */
+    int probe = vocab < 2048 ? vocab : 2048;
+    int start = (tok_curr * 1315423911u) % (unsigned)vocab;
+    int best_tok = tok_curr;
+    double best_score = -1e30;
+
+    for (int i = 0; i < probe; i++) {
+        int tid = (start + i) % vocab;
+        if (llm_get_embedding_vec(tid, e_cand, dim) != 0) continue;
+
+        double dot       = 0.0;
+        double cand_norm2 = 0.0;
+        for (int j = 0; j < dim; j++) {
+            double c = (double)e_cand[j];
+            dot       += e_pred_d[j] * c;
+            cand_norm2 += c * c;
+        }
+        double denom = pred_norm * sqrt(cand_norm2);
+        double sim   = (denom > 1e-12) ? (dot / denom) : -1e30;
+        if (sim > best_score) {
+            best_score = sim;
+            best_tok   = tid;
+        }
+    }
+
+    if (out_confidence)
+        *out_confidence = (float)best_score;
+
+    tensor_free(e_curr_d); tensor_free(e_prev_d); tensor_free(p_curr);
+    tensor_free(p_prev); tensor_free(v); tensor_free(gamma);
+    tensor_free(p_pred); tensor_free(e_pred_d); tensor_free(e_curr_f); tensor_free(e_cand);
+
+    *out_token = best_tok;
+    return AXIOM_BETA_OK;
+}
 const char *axiom_beta_status_string(axiom_beta_status_t st)
 {
     switch (st) {
