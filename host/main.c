@@ -896,6 +896,12 @@ static int geodesic_generate_text(const char *prompt,
     int bad_piece_streak = 0;
     int eos = m->eos_id;
 
+    /* Todo 27: Warm context-conditioned hidden state snapshot before loop.
+     * This prefills the full prompt context once, snapshots the KV state,
+     * and eagerly captures hidden states for the last 8 prompt tokens so
+     * the first geodesic steps hit the LRU without forward passes. */
+    ott_set_generation_context(ctx, n_ctx);
+
     /* Per-request timing accumulators */
     uint64_t t_runtime_us = 0;
     uint64_t t_local_us   = 0;
@@ -1045,6 +1051,8 @@ static int geodesic_generate_text(const char *prompt,
         GD_geodesic_last_fallback_requested = s_fallback_requested;
     }
 
+    /* Clear context snapshot — restore clean KV state for subsequent calls */
+    ott_set_generation_context(NULL, 0);
     free(ctx);
     return generated;
 }
@@ -1088,11 +1096,32 @@ static int geodesic_speculative_generate_text(const char *prompt,
     int xfmr_accepted = 0;
     int eos = m->eos_id;
 
+    /* Dynamic batch sizing: track rolling acceptance rate and adapt every 8 rounds */
+    int dyn_batch     = batch_size;
+    int dyn_round     = 0;       /* rounds since last adjustment */
+    int dyn_accepted  = 0;
+    int dyn_generated = 0;
+
     kprintf("[SPEC] Starting OTT speculative decode (batch=%d, thresh=%.2f)\n",
             batch_size, (double)conf_thresh);
 
     while (generated < max_tokens && n_ctx < max_ctx) {
-        /* ── Step 1: collect up to batch_size geodesic draft tokens ────────────
+        /* ── Dynamic batch size adaptation (every 8 verification rounds) ────────
+         * Increase batch when acceptance rate > 70% (geodesic is reliable here),
+         * decrease when < 40% (geodesic is diverging, smaller batches reduce waste).
+         */
+        dyn_round++;
+        if (dyn_round >= 8 && dyn_generated > 0) {
+            float acc_rate = (float)dyn_accepted / (float)dyn_generated;
+            if (acc_rate > 0.70f && dyn_batch < 8)
+                dyn_batch++;
+            else if (acc_rate < 0.40f && dyn_batch > 1)
+                dyn_batch--;
+            dyn_round     = 0;
+            dyn_accepted  = 0;
+            dyn_generated = 0;
+        }
+        /* ── Step 1: collect up to dyn_batch geodesic draft tokens ────────────
          * Use axiom_beta_geodesic_rollout() which integrates a trajectory-coherent
          * geodesic path — carrying the velocity vector between steps so curvature
          * corrections accumulate properly.  Falls back to individual step_fast calls
@@ -1106,14 +1135,14 @@ static int geodesic_speculative_generate_text(const char *prompt,
             int   roll_toks[16];
             float roll_conf[16];
             int   roll_n = 0;
-            int   need   = batch_size;
+            int   need   = dyn_batch;
             if (need > 16) need = 16;
 
             if (axiom_beta_geodesic_rollout(ctx, n_ctx, need,
                                             roll_toks, roll_conf, &roll_n)
                 == AXIOM_BETA_OK && roll_n > 0) {
                 /* Accept rollout tokens that pass threshold and quality gate */
-                for (int d = 0; d < roll_n && n_drafts < batch_size; d++) {
+                for (int d = 0; d < roll_n && n_drafts < dyn_batch; d++) {
                     if (roll_conf[d] < conf_thresh) break;
                     int draft_tok = roll_toks[d];
                     if (draft_tok < 0 || draft_tok >= m->vocab_size) break;
@@ -1127,7 +1156,7 @@ static int geodesic_speculative_generate_text(const char *prompt,
         }
 
         /* Fallback: fill remaining slots with individual step_fast calls */
-        for (int d = n_drafts; d < batch_size && n_ctx + d < max_ctx - 1; d++) {
+        for (int d = n_drafts; d < dyn_batch && n_ctx + d < max_ctx - 1; d++) {
             int *view_ctx = ctx;
             int  view_n   = n_ctx + d;
             int *view_buf = NULL;
@@ -1165,6 +1194,10 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 /* verification error — fall back to standard generation */
                 break;
             }
+
+            /* Track acceptance for dynamic batch sizing */
+            dyn_accepted  += n_acc;
+            dyn_generated += n_drafts;
 
             /* Emit accepted draft tokens */
             for (int i = 0; i < n_acc && generated < max_tokens; i++) {
@@ -1253,9 +1286,10 @@ static int geodesic_speculative_generate_text(const char *prompt,
     }
 
 spec_done:
-    kprintf("[SPEC] Done: %d tokens (geo_accepted=%d xfmr=%d, acceptance_rate=%.1f%%)\n",
+    kprintf("[SPEC] Done: %d tokens (geo_accepted=%d xfmr=%d, acceptance_rate=%.1f%%, final_batch=%d)\n",
             generated, geo_accepted, xfmr_accepted,
-            generated > 0 ? 100.0f * (float)geo_accepted / (float)generated : 0.0f);
+            generated > 0 ? 100.0f * (float)geo_accepted / (float)generated : 0.0f,
+            dyn_batch);
 
     GD_geodesic_last_runtime_hits  = geo_accepted;
     GD_geodesic_last_local_hits    = 0;

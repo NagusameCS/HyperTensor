@@ -148,6 +148,18 @@ static int            ott_hs_lru_clock = 0;
 static int            ott_hs_hits  = 0;
 static int            ott_hs_misses = 0;
 
+/* Todo 27: Generation context state — declared here so ott_get_hidden_state
+ * can reference it; ott_set_generation_context() defined after ott_get_hidden_state. */
+#define OTT_CTX_MAX 32768
+static int  ott_gen_ctx_tokens[OTT_CTX_MAX];
+static int  ott_gen_ctx_n      = 0;  /* 0 = no active context snapshot */
+
+/* Todo 25: Depth-sink layer global — declared early for use in ott_set_generation_context */
+static int ott_depth_sink_layer = -1;
+
+/* Forward declaration — defined below after ott_hs_disk_* helpers */
+static int ott_get_hidden_state(int token_id, int layer, float *out, int dim);
+
 static float *ott_hs_cache_lookup(int token_id, int layer, int dim)
 {
     for (int i = 0; i < OTT_HS_CACHE_CAP; i++) {
@@ -200,6 +212,73 @@ static void ott_hs_cache_flush(void)
     }
     ott_hs_lru_clock = 0;
     ott_hs_hits = ott_hs_misses = 0;
+}
+
+/* ── Todo 27: Set generation context for context-conditioned probing ────────
+ * Called by host/main.c before each geodesic generation turn.
+ * Stores the full prompt context, prefills it through the transformer to
+ * warm the KV cache, captures the last token's hidden state, then takes a
+ * KV snapshot.  Subsequent ott_get_hidden_state() calls restore this snapshot
+ * so that probed activations are conditioned on the real conversation context.
+ *
+ * Also captures hidden states for the last 8 prompt tokens eagerly so that
+ * the first few geodesic steps hit the LRU immediately.
+ * ─────────────────────────────────────────────────────────────────────── */
+void ott_set_generation_context(const int *ctx, int n_ctx)
+{
+    if (!ctx || n_ctx <= 0 || !llm_is_loaded()) {
+        ott_gen_ctx_n = 0;
+        return;
+    }
+    if (n_ctx > OTT_CTX_MAX) n_ctx = OTT_CTX_MAX;
+
+    int dim   = llm_model_dim();
+    int layer = ott_depth_sink_layer >= 0 ? ott_depth_sink_layer
+                                          : llm_model_layers() - 1;
+    if (dim <= 0 || layer < 0) { ott_gen_ctx_n = 0; return; }
+
+    /* Eager capture for the last up to 8 prompt tokens using current LRU path.
+     * These calls use the old context-free path (ott_gen_ctx_n still 0 here). */
+    int eager_start = n_ctx - 8;
+    if (eager_start < 0) eager_start = 0;
+    float *tmp = (float *)tensor_alloc((uint64_t)dim * sizeof(float));
+    if (tmp) {
+        for (int i = eager_start; i < n_ctx; i++) {
+            int tok = ctx[i];
+            /* Only probe if not already cached */
+            if (!ott_hs_cache_lookup(tok, layer, dim))
+                ott_get_hidden_state(tok, -1, tmp, dim);
+        }
+        tensor_free(tmp);
+    }
+
+    /* Now prefill the full context to warm the KV cache, then snapshot. */
+    llm_reset_cache();
+    int dummy_out[2];
+    /* A 0-token generation request just runs the prefill phase */
+    llm_generate_tokens(ctx, n_ctx, dummy_out, 2, 1, 0.0f, 0);
+
+    /* Capture the KV state after full context prefill */
+    int snap_len = llm_kv_snapshot_prefix(ctx, n_ctx);
+    if (snap_len < 0) {
+        /* Snapshot failed (model too large for memory?) — still reset cleanly */
+        llm_reset_cache();
+        ott_gen_ctx_n = 0;
+        kprintf("[OTT-CTX] Context snapshot failed (n=%d) — using context-free probing\n", n_ctx);
+        return;
+    }
+
+    /* Store context for ott_get_hidden_state to reference */
+    memcpy(ott_gen_ctx_tokens, ctx, (size_t)n_ctx * sizeof(int));
+    ott_gen_ctx_n = n_ctx;
+    kprintf("[OTT-CTX] Context snapshot set: %d tokens, eager-warmed %d tokens, snap_len=%d\n",
+            n_ctx, n_ctx - eager_start, snap_len);
+}
+
+/* Clear the generation context (called at turn end) */
+static void ott_clear_generation_context(void)
+{
+    ott_gen_ctx_n = 0;
 }
 
 /* Todo 26: Disk-persistent HS cache — eliminate redundant forward passes
@@ -280,12 +359,6 @@ static void ott_hs_disk_save(int model_dim, int sink_layer)
     kprintf("[OTT-DISK] Saved %d hidden states to %s\n", n, OTT_HS_DISK_PATH);
 }
 
-/* Todo 25: Depth-sink layer global.
- * -1 = not yet detected, use last layer as fallback.
- * Detected at axiom_beta_run() start; all ott_get_hidden_state(-1) calls
- * resolve to this layer once set. */
-static int ott_depth_sink_layer = -1;
-
 /* ── OTT helper: last-layer hidden state capture (with LRU cache + RMSNorm key) ─
  * Runs one prefill+decode forward pass and captures the last-layer hidden
  * state via tensor_bridge. BRIDGE_MODE_CAP_ONCE prevents the decode step
@@ -294,6 +367,8 @@ static int ott_depth_sink_layer = -1;
  * Todo 21: On cache hit the forward pass is skipped entirely.
  * Todo 24: The captured vector is RMSNorm-normalised before storage so that
  *          large-magnitude late-layer activations don't bias Phase-3 covariance.
+ * Todo 27: On cache miss, restores generation context KV snapshot so that
+ *          captured activations are context-conditioned.
  *
  * layer == -1  =>  last layer (llm_model_layers() - 1)
  * Returns 0 on success, -1 on failure (caller should fall back to embedding).
@@ -323,11 +398,24 @@ static int ott_get_hidden_state(int token_id, int layer, float *out, int dim)
     ott_hs_misses++;
 
     /* ── Forward pass to capture hidden state ───────────────────────────────── */
+    /* Todo 27: If a generation context snapshot exists, restore it first so
+     * the hidden state capture is context-conditioned (not single-token pos=0). */
+    if (ott_gen_ctx_n > 0) {
+        int snap_ok = llm_kv_restore_prefix(ott_gen_ctx_tokens, ott_gen_ctx_n);
+        if (snap_ok < 0) {
+            /* Snapshot expired or invalid — fall back to context-free probe */
+            ott_gen_ctx_n = 0;
+        }
+    } else {
+        llm_reset_cache();  /* context-free path: start from pos=0 */
+    }
+
     tensor_bridge_t *bridge = llm_get_bridge();
-    if (!bridge) return -1;
+    if (!bridge) { if (!ott_gen_ctx_n) {} else llm_reset_cache(); return -1; }
     tensor_bridge_init(bridge);
     if (tensor_bridge_set_capture(bridge, resolved_layer, dim) != 0) {
         bridge->mode = BRIDGE_MODE_NONE;
+        llm_reset_cache();
         return -1;
     }
     bridge->mode = (bridge_mode_t)(bridge->mode | BRIDGE_MODE_CAP_ONCE);
@@ -341,7 +429,12 @@ static int ott_get_hidden_state(int token_id, int layer, float *out, int dim)
         kprintf("[OTT-HS] FAIL call #%d: gen_rc=%d valid=%d dim=%d need=%d\n",
                 ott_fail_count, gen_rc, (int)bridge->capture_buf.valid,
                 bridge->capture_buf.dim, dim);
-    if (!ok) { bridge->mode = BRIDGE_MODE_NONE; llm_reset_cache(); return -1; }
+    /* Restore context snapshot if available; otherwise reset cache */
+    if (ott_gen_ctx_n > 0)
+        llm_kv_restore_prefix(ott_gen_ctx_tokens, ott_gen_ctx_n);
+    else
+        llm_reset_cache();
+    if (!ok) { bridge->mode = BRIDGE_MODE_NONE; return -1; }
 
     /* ── RMSNorm key normalisation (todo 24) ─────────────────────────────────
      * Apply RMSNorm to the captured hidden state before storing so that
@@ -355,7 +448,6 @@ static int ott_get_hidden_state(int token_id, int layer, float *out, int dim)
     for (int j = 0; j < dim; j++) out[j] = (float)((double)raw[j] * rms_inv);
 
     bridge->mode = BRIDGE_MODE_NONE;
-    llm_reset_cache();
 
     /* Store RMSNorm-normalised vector in cache */
     ott_hs_cache_insert(token_id, resolved_layer, dim, out);
@@ -2900,11 +2992,7 @@ axiom_beta_status_t axiom_beta_geodesic_next_token_v2(const int *context_tokens,
 
     tensor_free(e_curr); tensor_free(e_prev); tensor_free(e_pred); tensor_free(e_cand);
     *out_token = best_tok;
-    kprintf("[OTT-HS] cache hits=%d misses=%d (%.1f%% hit rate)\n",
-            ott_hs_hits, ott_hs_misses,
-            ott_hs_hits + ott_hs_misses > 0
-                ? 100.0 * ott_hs_hits / (ott_hs_hits + ott_hs_misses)
-                : 0.0);
+    /* Log hit rate at debug verbosity only (not per-token) */
     return AXIOM_BETA_OK;
 }
 

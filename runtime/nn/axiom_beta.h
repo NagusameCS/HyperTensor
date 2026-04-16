@@ -264,4 +264,15 @@ axiom_beta_status_t axiom_beta_geometry_save(const char *path);
  */
 axiom_beta_status_t axiom_beta_geometry_load(const char *path);
 
+/* ── Todo 27: Context-conditioned hidden state warmup ──────────────────────
+ * Call before geodesic generation starts with the full prompt token sequence.
+ * Prefills the context through the transformer, snapshots the KV state, and
+ * eagerly captures hidden states for the last 8 prompt tokens.
+ * Subsequent ott_get_hidden_state() calls will use this snapshot for
+ * context-conditioned activations instead of single-token pos=0 probing.
+ * Clears automatically at the end of axiom_beta_run(); caller may also clear
+ * by calling ott_set_generation_context(NULL, 0).
+ */
+void ott_set_generation_context(const int *ctx, int n_ctx);
+
 #endif /* GEODESSICAL_AXIOM_BETA_H */

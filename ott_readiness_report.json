@@ -8,18 +8,18 @@
   "model": "Gemma 4 E2B It",
   "generation": {
     "tokens": 40,
-    "total_ms": 3726,
-    "tok_per_s": 10.74,
-    "prefill_ms": 49.00,
-    "decode_tok_per_s": 20.03
+    "total_ms": 3852,
+    "tok_per_s": 10.38,
+    "prefill_ms": 36.00,
+    "decode_tok_per_s": 28.16
   },
   "geodesic": {
     "enabled": true,
-    "runtime_tokens": 3,
-    "local_tokens": 37,
-    "runtime_rejects": 37,
-    "runtime_share": 0.0750,
-    "runtime_reject_rate": 0.9250,
+    "runtime_tokens": 18,
+    "local_tokens": 22,
+    "runtime_rejects": 22,
+    "runtime_share": 0.4500,
+    "runtime_reject_rate": 0.5500,
     "quality_gate_pass": true,
     "generated_tokens": 40,
     "fallback_used": false
@@ -27,9 +27,9 @@
   "axiom": {
     "ran": true,
     "intrinsic_dim": 36,
-    "consistency": 0.9330,
+    "consistency": 0.8482,
     "projected_speedup": 10619.26,
-    "total_ms": 50203
+    "total_ms": 193749
   },
   "attnres": {
     "enabled": true,
