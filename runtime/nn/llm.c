@@ -59,21 +59,36 @@ void cuda_fused_qk_norm_rope(float *Q, float *K,
     int n_heads, int n_kv_heads, int head_dim,
     int pos, float rope_base, const float *rope_freqs,
     float eps, int rope_dim);
-void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
-/* Batched prefill: replaces per-token attention loop */
-void cuda_batch_fused_qk_norm_rope(float *Q, float *K,
-    const float *q_norm_w, const float *k_norm_w,
-    int n_heads, int n_kv_heads, int head_dim,
-    int n, int start_pos, float rope_base, const float *rope_freqs,
-    float eps, int rope_dim);
-void cuda_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps);
-void cuda_batch_kv_update(float *K_cache, float *V_cache,
-    const float *K_new, const float *V_new,
-    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq);
-void cuda_prefill_attn_batched(float *O, const float *Q,
-    const float *K_cache, const float *V_cache,
-    int n_heads, int n_kv_heads, int head_dim,
-    int n, int start_pos, int max_seq, float scale, float softcap);
+void cuda_v_norm(float *V, int n_kv_heads, int head_dim, float eps);
+
+/* Batched prefill: replaces per-token attention loop */
+
+void cuda_batch_fused_qk_norm_rope(float *Q, float *K,
+
+    const float *q_norm_w, const float *k_norm_w,
+
+    int n_heads, int n_kv_heads, int head_dim,
+
+    int n, int start_pos, float rope_base, const float *rope_freqs,
+
+    float eps, int rope_dim);
+
+void cuda_batch_v_norm(float *V, int n_kv_heads, int head_dim, int n, float eps);
+
+void cuda_batch_kv_update(float *K_cache, float *V_cache,
+
+    const float *K_new, const float *V_new,
+
+    int n_kv_heads, int head_dim, int n, int start_pos, int max_seq);
+
+void cuda_prefill_attn_batched(float *O, const float *Q,
+
+    const float *K_cache, const float *V_cache,
+
+    int n_heads, int n_kv_heads, int head_dim,
+
+    int n, int start_pos, int max_seq, float scale, float softcap);
+
 int  cuda_have_batch_attn(void);
 void cuda_fused_geglu(float *gate, const float *up, int n);
 void cuda_fused_swiglu(float *gate, const float *up, int n);
@@ -9209,6 +9224,59 @@ int llm_speculative_verify_tokens(const int *context_tokens, int n_context,
         next = llm_sample(llm_logits, m->vocab_size, 0.0f);
     }
 
+    m->cache_len = pos;
+    __sync_lock_release(&llm_inference_active);
+    return accepted;
+}
+
+/**
+ * Like llm_speculative_verify_tokens but also returns the transformer's
+ * correction token at the first rejection point (or after the last accepted
+ * draft token when all drafts are accepted).
+ *
+ * correction_tok_out: set to the model's greedy next-token prediction
+ *   immediately after the last accepted draft position.
+ *   If all n_draft tokens are accepted this is the NEXT token (bonus token).
+ *   If 0 tokens are accepted this is the model's first token (full correction).
+ *
+ * Returns number of accepted draft tokens (0..n_draft), or -1 on error.
+ */
+int llm_speculative_verify_with_correction(const int *context_tokens, int n_context,
+                                           const int *draft_tokens,  int n_draft,
+                                           int *correction_tok_out)
+{
+    llm_model_t *m;
+    int pos = 0;
+    int accepted = 0;
+    int next;
+
+    if (!llm_is_loaded() || !context_tokens || !draft_tokens) return -1;
+    if (n_context <= 0 || n_draft <= 0) return 0;
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+
+    m = &llm_model;
+    llm_reset_cache();
+
+    for (int i = 0; i < n_context && pos < m->max_seq - 1; i++) {
+        llm_forward_token(m, llm_logits, context_tokens[i], pos);
+        pos++;
+    }
+
+    if (pos <= 0) {
+        __sync_lock_release(&llm_inference_active);
+        return 0;
+    }
+
+    next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+    for (int i = 0; i < n_draft && pos < m->max_seq - 1; i++) {
+        if (draft_tokens[i] != next) break;
+        accepted++;
+        llm_forward_token(m, llm_logits, draft_tokens[i], pos);
+        pos++;
+        next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+    }
+
+    if (correction_tok_out) *correction_tok_out = next;
     m->cache_len = pos;
     __sync_lock_release(&llm_inference_active);
     return accepted;

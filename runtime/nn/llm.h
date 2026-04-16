@@ -406,6 +406,16 @@ void llm_clear_vector_prefix(void);
 int llm_speculative_verify_tokens(const int *context_tokens, int n_context,
                                   const int *draft_tokens, int n_draft);
 
+/**
+ * Like llm_speculative_verify_tokens but also outputs the transformer's greedy
+ * correction token at the first rejection point (or the bonus next token when
+ * all drafts are accepted).  correction_tok_out may be NULL.
+ * Returns number of accepted draft tokens (0..n_draft), or -1 on error.
+ */
+int llm_speculative_verify_with_correction(const int *context_tokens, int n_context,
+                                           const int *draft_tokens,  int n_draft,
+                                           int *correction_tok_out);
+
 /** Maximum number of rollout steps retained in token-native trace buffer. */
 #define LLM_ROLLOUT_MAX_STEPS 4096
 

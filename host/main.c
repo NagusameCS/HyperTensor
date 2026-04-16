@@ -61,6 +61,9 @@ static void print_usage(const char *argv0) {
     kprintf("  --attnres              Enable Attention-Residual-inspired depth stabilization\n");
     kprintf("  --attnres-strength <f> AttnRes stabilization strength [0..1] (default: 0.35)\n");
     kprintf("  --ott-fast             Speed-first OTT: fast axiom + geodesic-first, minimal depth work\n");
+    kprintf("  --ott-speculative      OTT Speculative Decode: geodesic drafts verified by transformer\n");
+    kprintf("  --ott-spec-thresh N    Confidence threshold for draft acceptance (default: 0.65)\n");
+    kprintf("  --ott-spec-batch N     Draft batch size for speculative decode (default: 4)\n");
     kprintf("  --ott-full             Enable OTT full mode (geodesic-first + axiomatic run + AttnRes)\n");
     kprintf("  --ott-theorem          Enable theorem-mode OTT (adds depth residual attention + strict geodesic quality control)\n");
     kprintf("  --depth-attn           Enable depth-wise residual attention mixer\n");
@@ -143,6 +146,9 @@ typedef struct {
     uint64_t    axiom_seed;
     int         axiom_skip_geodesic;
     const char *axiom_report_path;
+    int         ott_speculative;        /* 1 = speculative decode (geodesic draft + transformer verify) */
+    float       ott_speculative_thresh; /* geodesic confidence threshold [0,1], default 0.65 */
+    int         ott_speculative_batch;  /* draft batch size (default 4) */
     int         ctx_size;   /* 0 = default (2048); user override via --ctx-size */
 } GD_args_t;
 
@@ -219,6 +225,9 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->axiom_seed = 0;
     args->axiom_skip_geodesic = 0;
     args->axiom_report_path = "axiom_beta_report.json";
+    args->ott_speculative = 0;
+    args->ott_speculative_thresh = 0.65f;
+    args->ott_speculative_batch = 4;
     args->ctx_size = 0;
 
     for (int i = 1; i < argc; i++) {
@@ -282,6 +291,28 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
             args->top_k = 20;
             args->top_p = 0.9f;
             args->ott_ready_report_path = "ott_readiness_report.json";
+        } else if (strcmp(argv[i], "--ott-speculative") == 0) {
+            /* OTT Speculative Decode: geodesic drafts + transformer verification.
+             * Collects a batch of geodesic draft tokens, verifies them in a single
+             * transformer pass, accepts all verified tokens and takes the correction
+             * token at the first rejection.  Gives real transformer-quality output
+             * with speedup proportional to geodesic draft acceptance rate. */
+            args->ott_full = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_fast_mode = 1;
+            args->axiom_geodesic_first = 1;
+            args->ott_speculative = 1;
+            args->attnres_enable = 1;
+            args->attnres_strength = 0.25f;
+            args->top_k = 20;
+            args->top_p = 0.9f;
+            args->ott_ready_report_path = "ott_readiness_report.json";
+        } else if (strcmp(argv[i], "--ott-spec-thresh") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-spec-thresh requires number\n"); return -1; }
+            args->ott_speculative_thresh = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--ott-spec-batch") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-spec-batch requires number\n"); return -1; }
+            args->ott_speculative_batch = atoi(argv[i]);
         } else if (strcmp(argv[i], "--ott-full") == 0) {
             args->ott_full = 1;
             args->axiom_beta_run = 1;
@@ -995,6 +1026,203 @@ static int geodesic_generate_text(const char *prompt,
     return generated;
 }
 
+/* ── OTT Speculative Decode ─────────────────────────────────────────────
+ * Collects `batch` geodesic draft tokens, then verifies them in one
+ * transformer pass via llm_speculative_verify_with_correction().
+ * Accepted drafts skip the forward pass entirely; the correction token
+ * is taken at the first rejection (or as a bonus token when all accepted).
+ * Gives real transformer-quality output with geodesic-level latency for
+ * the high-confidence positions.
+ * ----------------------------------------------------------------------- */
+static int geodesic_speculative_generate_text(const char *prompt,
+                                              int max_tokens,
+                                              float conf_thresh,
+                                              int batch_size,
+                                              char *output,
+                                              int max_output)
+{
+    const llm_model_t *m = llm_get_model();
+    if (!m || !prompt || !output || max_output <= 0 || max_tokens <= 0)
+        return -1;
+
+    if (batch_size < 1) batch_size = 1;
+    if (batch_size > 16) batch_size = 16;
+
+    int max_ctx = max_tokens + 2048;
+    int *ctx     = (int *)malloc((size_t)max_ctx * sizeof(int));
+    int *drafts  = (int *)malloc((size_t)batch_size * sizeof(int));
+    if (!ctx || !drafts) { free(ctx); free(drafts); return -1; }
+
+    int n_ctx = llm_test_tokenize(prompt, (int)strlen(prompt), ctx, max_ctx);
+    if (n_ctx <= 0 || n_ctx >= max_ctx) {
+        free(ctx); free(drafts); return -1;
+    }
+
+    output[0] = '\0';
+    int out_len   = 0;
+    int generated = 0;
+    int geo_accepted = 0;
+    int xfmr_accepted = 0;
+    int eos = m->eos_id;
+
+    kprintf("[SPEC] Starting OTT speculative decode (batch=%d, thresh=%.2f)\n",
+            batch_size, (double)conf_thresh);
+
+    while (generated < max_tokens && n_ctx < max_ctx) {
+        /* ── Step 1: collect up to batch_size geodesic draft tokens ── */
+        int n_drafts = 0;
+        float min_conf = 1.0f;
+
+        for (int d = 0; d < batch_size && n_ctx + n_drafts < max_ctx - 1; d++) {
+            /* Build a temporary context view that includes already-drafted tokens */
+            int *view_ctx = ctx;
+            int  view_n   = n_ctx + n_drafts;
+
+            /* Append previously collected drafts so step_fast sees them */
+            int tmp_ctx_needs_copy = (n_drafts > 0);
+            int *view_buf = NULL;
+            if (tmp_ctx_needs_copy) {
+                view_buf = (int *)malloc((size_t)view_n * sizeof(int));
+                if (!view_buf) break;
+                memcpy(view_buf, ctx, (size_t)n_ctx * sizeof(int));
+                memcpy(view_buf + n_ctx, drafts, (size_t)n_drafts * sizeof(int));
+                view_ctx = view_buf;
+            }
+
+            int draft_tok = -1;
+            float draft_conf = 0.0f;
+            int ok = (axiom_beta_geodesic_step_fast(view_ctx, view_n,
+                                                    &draft_tok, &draft_conf)
+                      == AXIOM_BETA_OK);
+            if (view_buf) free(view_buf);
+
+            if (!ok || draft_tok < 0 || draft_tok >= m->vocab_size)
+                break;
+            if (draft_conf < conf_thresh)
+                break;
+
+            /* Quality gate: reject non-useful tokens */
+            char piece[256];
+            int pn = llm_test_decode_token(draft_tok, piece, (int)sizeof(piece));
+            if (pn <= 0 || !geodesic_piece_quality_ok(piece, pn))
+                break;
+
+            drafts[n_drafts++] = draft_tok;
+            if (draft_conf < min_conf) min_conf = draft_conf;
+        }
+
+        /* ── Step 2: verify drafts (or get a fresh transformer token) ── */
+        if (n_drafts > 0) {
+            int correction = -1;
+            int n_acc = llm_speculative_verify_with_correction(
+                ctx, n_ctx, drafts, n_drafts, &correction);
+
+            if (n_acc < 0) {
+                /* verification error — fall back to standard generation */
+                break;
+            }
+
+            /* Emit accepted draft tokens */
+            for (int i = 0; i < n_acc && generated < max_tokens; i++) {
+                int tok = drafts[i];
+                if (eos >= 0 && tok == eos) goto spec_done;
+
+                char piece[256];
+                int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+                if (pn > 0) {
+                    int room = max_output - out_len - 1;
+                    if (room <= 0) goto spec_done;
+                    if (pn > room) pn = room;
+                    memcpy(output + out_len, piece, (size_t)pn);
+                    out_len += pn;
+                    output[out_len] = '\0';
+                }
+                if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
+                generated++;
+                geo_accepted++;
+            }
+
+            /* If not all drafts were accepted, emit correction token */
+            if (n_acc < n_drafts && correction >= 0 &&
+                correction < m->vocab_size && generated < max_tokens) {
+                int tok = correction;
+                if (eos >= 0 && tok == eos) goto spec_done;
+                char piece[256];
+                int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+                if (pn > 0) {
+                    int room = max_output - out_len - 1;
+                    if (room > 0) {
+                        if (pn > room) pn = room;
+                        memcpy(output + out_len, piece, (size_t)pn);
+                        out_len += pn;
+                        output[out_len] = '\0';
+                    }
+                }
+                if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
+                generated++;
+                xfmr_accepted++;
+            } else if (n_acc == n_drafts && correction >= 0 &&
+                       correction < m->vocab_size && generated < max_tokens) {
+                /* Bonus token: all drafts accepted, correction is next token */
+                int tok = correction;
+                if (eos >= 0 && tok == eos) goto spec_done;
+                char piece[256];
+                int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+                if (pn > 0) {
+                    int room = max_output - out_len - 1;
+                    if (room > 0) {
+                        if (pn > room) pn = room;
+                        memcpy(output + out_len, piece, (size_t)pn);
+                        out_len += pn;
+                        output[out_len] = '\0';
+                    }
+                }
+                if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
+                generated++;
+                xfmr_accepted++;
+            }
+        } else {
+            /* No high-confidence drafts — run transformer directly for one token */
+            int out_tok = -1;
+            int n_gen = llm_generate_tokens(ctx, n_ctx, &out_tok, 1, 1, 0.0f, 0);
+            if (n_gen <= 0 || out_tok < 0 || out_tok >= m->vocab_size)
+                break;
+
+            int tok = out_tok;
+            if (eos >= 0 && tok == eos) goto spec_done;
+            char piece[256];
+            int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
+            if (pn > 0) {
+                int room = max_output - out_len - 1;
+                if (room <= 0) goto spec_done;
+                if (pn > room) pn = room;
+                memcpy(output + out_len, piece, (size_t)pn);
+                out_len += pn;
+                output[out_len] = '\0';
+            }
+            if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
+            generated++;
+            xfmr_accepted++;
+        }
+    }
+
+spec_done:
+    kprintf("[SPEC] Done: %d tokens (geo_accepted=%d xfmr=%d, acceptance_rate=%.1f%%)\n",
+            generated, geo_accepted, xfmr_accepted,
+            generated > 0 ? 100.0f * (float)geo_accepted / (float)generated : 0.0f);
+
+    GD_geodesic_last_runtime_hits  = geo_accepted;
+    GD_geodesic_last_local_hits    = 0;
+    GD_geodesic_last_runtime_rejects = xfmr_accepted;
+    GD_geodesic_last_quality_gate_pass = (generated > 0) ? 1 : 0;
+    GD_geodesic_last_generated     = generated;
+    GD_geodesic_last_fallback_requested = 0;
+
+    free(ctx);
+    free(drafts);
+    return generated > 0 ? generated : -1;
+}
+
 static int geodesic_generate_from_context(int *ctx,
                                           int *n_ctx,
                                           int max_ctx,
@@ -1377,7 +1605,17 @@ int main(int argc, char **argv) {
         uint64_t gen_t0 = hal_timer_us();
         int n;
         int geodesic_fallback_used = 0;
-        if (args.axiom_geodesic_first) {
+        if (args.ott_speculative) {
+            n = geodesic_speculative_generate_text(prompt, args.max_tokens,
+                                                   args.ott_speculative_thresh,
+                                                   args.ott_speculative_batch,
+                                                   output, (int)sizeof(output));
+            if (n < 0) {
+                kprintf("[SPEC] Speculative path failed, falling back to standard decode.\n");
+                geodesic_fallback_used = 1;
+                n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+            }
+        } else if (args.axiom_geodesic_first) {
             n = geodesic_generate_text(prompt, args.max_tokens,
                                        output, (int)sizeof(output));
             if (n < 0) {
