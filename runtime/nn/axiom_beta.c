@@ -1908,22 +1908,35 @@ static int phase5_geodesic(const axiom_beta_config_t *cfg,
                                             geo.x, geo.v, geo.steps);
                     /* GRC insert: compute Jacobi propagator and store record */
                     if (phase_grc_k == sub_dim && geo.trajectory && geo.steps >= 2) {
-                        double *J_rec = (double *)tensor_alloc(
+                        double *J_rec  = (double *)tensor_alloc(
                             (uint64_t)sub_dim * sub_dim * sizeof(double));
-                        if (J_rec) {
+                        double *wps    = (double *)tensor_alloc(
+                            (uint64_t)AXGEO_GRC_N_WP * sub_dim * sizeof(double));
+                        if (J_rec && wps) {
                             int jrc = axgeo_compute_jacobi_propagator(
                                 geo.trajectory, NULL,
                                 geo.steps, sub_dim,
                                 ch_eval, &mf, J_rec);
                             if (jrc == 0) {
-                                /* Injectivity radius: 0.5× mean step size (conservative) */
-                                double rho = 0.5 * ax_vec_norm(geo.v, sub_dim);
-                                if (rho < 0.05) rho = 0.05;
+                                /* Extract intermediate waypoints for AttnRes
+                                 * block summaries (at 25%, 50%, 75%, 100%) */
+                                for (int wp = 0; wp < AXGEO_GRC_N_WP; wp++) {
+                                    int wstep = (int)(((double)(wp + 1) /
+                                        (double)AXGEO_GRC_N_WP) * (double)(geo.steps - 1));
+                                    if (wstep >= geo.steps) wstep = geo.steps - 1;
+                                    memcpy(wps + (uint64_t)wp * sub_dim,
+                                           geo.trajectory + (uint64_t)wstep * sub_dim,
+                                           (uint64_t)sub_dim * sizeof(double));
+                                }
+                                /* Curvature-based injectivity radius */
+                                double rho = axgeo_estimate_injectivity_radius(
+                                    ch_eval, &mf, proj_a, sub_dim);
                                 axgeo_grc_insert(&phase_grc, proj_a, J_rec,
-                                                  geo.x, rho, tok_end);
+                                                  geo.x, rho, tok_end, wps);
                             }
-                            tensor_free(J_rec);
                         }
+                        if (J_rec) tensor_free(J_rec);
+                        if (wps)   tensor_free(wps);
                     }
                     break;
                 }

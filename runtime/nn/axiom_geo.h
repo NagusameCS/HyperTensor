@@ -425,14 +425,26 @@ int axgeo_compute_jacobi_propagator(const double *trajectory,
  *   q_bar[k]   — query embedding (PCA-projected)
  *   J[k×k]     — Jacobi propagator at terminal waypoint
  *   x_end[k]   — geodesic endpoint (PCA-projected)
- *   rho        — estimated injectivity radius
+ *   rho        — injectivity radius estimate (curvature-based)
  *   best_tok   — nearest-vocab token at endpoint (-1 = unknown)
+ *   x_wps[N_WP × k] — intermediate waypoints (block summaries, §6)
  */
-#define AXGEO_GRC_CAP  4096   /* max stored records */
+#define AXGEO_GRC_CAP      4096  /* max stored records */
+#define AXGEO_GRC_N_BUCKETS  16  /* ANN bucket count (O(cap/B) lookup) */
+#define AXGEO_GRC_N_WP        4  /* intermediate waypoints (AttnRes blocks) */
 
-typedef struct {
-    double  q_bar[1];  /* [k] — flexible array tacked on via alloc */
-} axgeo_grc_record_t;  /* internal; use axgeo_grc_library_t accessors */
+/*
+ * Estimate the injectivity radius at q_bar using the Christoffel norm:
+ *
+ *   K_est  = ||Γ(q_bar)||²_F / (k·(k-1) + 1)      ← bounding sectional K
+ *   ρ(q̄) = π / sqrt(K_est)    clamped to [0.05, 5.0]
+ *
+ * This replaces the ad-hoc 0.5·||v_final|| heuristic with a proper
+ * differential-geometry bound (inj_rad ≥ π/√K_max for sectional K_max).
+ */
+double axgeo_estimate_injectivity_radius(const axgeo_christoffel_t *ch,
+                                          const axgeo_metric_field_t *mf,
+                                          const double *q_bar, int k);
 
 typedef struct {
     int     k;                      /* subspace dimension */
@@ -443,6 +455,13 @@ typedef struct {
     double *x_ends;                 /* [cap × k] geodesic endpoints */
     double *rhos;                   /* [cap] injectivity radii */
     int    *best_toks;              /* [cap] nearest vocab tokens at endpoint */
+    double *x_wps;                  /* [cap × N_WP × k] intermediate waypoints */
+    /* ANN bucket index */
+    double *bucket_centroids;       /* [N_BUCKETS × k] cluster means */
+    int    *bucket_assign;          /* [cap] bucket id per record */
+    int     bucket_counts[AXGEO_GRC_N_BUCKETS]; /* records per bucket */
+    int     n_buckets_used;
+    int     write_idx;              /* next write slot (ring buffer) */
     int     hits;
     int     misses;
 } axgeo_grc_library_t;
@@ -454,18 +473,21 @@ void                axgeo_grc_library_destroy(axgeo_grc_library_t *lib);
 /*
  * Insert a geodesic record.
  * q_bar[k], J[k×k], x_end[k], rho, best_tok.
- * If the library is full, the oldest entry is overwritten.
+ * x_wps: optional [N_WP × k] intermediate waypoints for block summaries.
+ *        Pass NULL to skip (waypoints stored as zeros).
+ * If the library is full, the oldest entry is overwritten (ring buffer).
  */
 void axgeo_grc_insert(axgeo_grc_library_t *lib,
                       const double *q_bar, const double *J,
-                      const double *x_end, double rho, int best_tok);
+                      const double *x_end, double rho, int best_tok,
+                      const double *x_wps);
 
 /*
  * Look up the nearest stored record to query q[k].
- * If ||q - q_bar|| < rho for the nearest record:
- *   fills delta_x_out[k] = J · (q - q_bar)  (Jacobi correction)
- *   fills x_end_out[k] = x_end + delta_x
- *   *best_tok_out = best_tok of that record (may be -1)
+ * Uses two-stage ANN: find nearest buckets, scan only those records.
+ * If dist(q, q_bar*) < rho:
+ *   fills x_end_out[k] = x_end + J·δq  (Jacobi correction)
+ *   *best_tok_out = stored best_tok
  *   returns 1 (hit)
  * Otherwise returns 0 (miss).
  */
@@ -473,5 +495,18 @@ int axgeo_grc_lookup(axgeo_grc_library_t *lib,
                      const double *q, int k,
                      double *x_end_out,
                      int *best_tok_out);
+
+/*
+ * Lookup with AttnRes block summaries (OTT paper §6).
+ * On hit: fills x_end_out AND block_summaries_out[N_WP × k] with
+ * Jacobi-corrected intermediate waypoints:
+ *   b_n(q) ≈ x_wp_n(q̄) + J·δq · (n+1)/N_WP
+ * n_summaries_out = AXGEO_GRC_N_WP on hit, 0 on miss.
+ */
+int axgeo_grc_lookup_with_summaries(axgeo_grc_library_t *lib,
+                                    const double *q, int k,
+                                    double *x_end_out, int *best_tok_out,
+                                    double *block_summaries_out,
+                                    int *n_summaries_out);
 
 #endif /* GEODESSICAL_AXIOM_GEO_H */

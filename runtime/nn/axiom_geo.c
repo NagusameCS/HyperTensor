@@ -1525,6 +1525,49 @@ void axgeo_apply_rmsnorm_connection(double *gamma, const double *p,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * axgeo_estimate_injectivity_radius
+ *
+ * Proper curvature-based injectivity radius estimate at q_bar.
+ * Uses the Frobenius norm of the Christoffel tensor as a proxy for sectional
+ * curvature:  K_est ≈ ||Γ||²_F / (k(k-1)+1)
+ * Inj radius ≥ π / sqrt(K_max) (standard Riemannian comparison theorem).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+double axgeo_estimate_injectivity_radius(const axgeo_christoffel_t *ch,
+                                          const axgeo_metric_field_t *mf,
+                                          const double *q_bar, int k)
+{
+    if (!ch || !mf || !q_bar || k <= 0) return 0.05;
+
+    int kkk = k * k * k;
+    double *gamma = (double *)tensor_alloc((uint64_t)kkk * sizeof(double));
+    if (!gamma) return 0.05;
+
+    axgeo_christoffel_interpolate(ch, mf, q_bar, gamma);
+
+    double frob2 = 0.0;
+    for (int i = 0; i < kkk; i++) frob2 += gamma[i] * gamma[i];
+    tensor_free(gamma);
+
+    double denom = (double)(k * (k - 1) + 1);
+    double K_est = frob2 / denom;
+
+    double rho;
+    if (K_est > 1e-10)
+        rho = 3.14159265358979323846 / sqrt(K_est);
+    else
+        rho = 5.0;  /* flat region: large validity radius */
+
+    /* Clamp to practical range */
+    if (rho < 0.05) rho = 0.05;
+    if (rho > 5.0)  rho = 5.0;
+    return rho;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * axgeo_compute_jacobi_propagator (defined below)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * axgeo_compute_jacobi_propagator
  *
  * Integrate the Jacobi ODE along a precomputed geodesic trajectory to obtain
@@ -1656,7 +1699,7 @@ int axgeo_compute_jacobi_propagator(const double *trajectory,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * GRC Library — insert / lookup
+ * GRC Library — ANN bucket index + AttnRes waypoints
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 axgeo_grc_library_t axgeo_grc_library_create(int k, int cap)
@@ -1665,55 +1708,182 @@ axgeo_grc_library_t axgeo_grc_library_create(int k, int cap)
     memset(&lib, 0, sizeof(lib));
     if (k <= 0 || cap <= 0) return lib;
 
-    lib.k   = k;
-    lib.cap = cap;
+    lib.k         = k;
+    lib.cap       = cap;
+    lib.write_idx = 0;
 
-    lib.q_bars    = (double *)tensor_alloc((uint64_t)cap * k * sizeof(double));
-    lib.Js        = (double *)tensor_alloc((uint64_t)cap * k * k * sizeof(double));
-    lib.x_ends    = (double *)tensor_alloc((uint64_t)cap * k * sizeof(double));
-    lib.rhos      = (double *)tensor_alloc((uint64_t)cap * sizeof(double));
-    lib.best_toks = (int    *)tensor_alloc((uint64_t)cap * sizeof(int));
+    int kk  = k * k;
+    int nwp = AXGEO_GRC_N_WP;
 
-    if (!lib.q_bars || !lib.Js || !lib.x_ends || !lib.rhos || !lib.best_toks) {
-        if (lib.q_bars)    tensor_free(lib.q_bars);
-        if (lib.Js)        tensor_free(lib.Js);
-        if (lib.x_ends)    tensor_free(lib.x_ends);
-        if (lib.rhos)      tensor_free(lib.rhos);
-        if (lib.best_toks) tensor_free(lib.best_toks);
+    lib.q_bars           = (double *)tensor_alloc((uint64_t)cap * k      * sizeof(double));
+    lib.Js               = (double *)tensor_alloc((uint64_t)cap * kk     * sizeof(double));
+    lib.x_ends           = (double *)tensor_alloc((uint64_t)cap * k      * sizeof(double));
+    lib.rhos             = (double *)tensor_alloc((uint64_t)cap          * sizeof(double));
+    lib.best_toks        = (int    *)tensor_alloc((uint64_t)cap          * sizeof(int));
+    lib.x_wps            = (double *)tensor_alloc((uint64_t)cap * nwp * k* sizeof(double));
+    lib.bucket_centroids = (double *)tensor_alloc((uint64_t)AXGEO_GRC_N_BUCKETS * k * sizeof(double));
+    lib.bucket_assign    = (int    *)tensor_alloc((uint64_t)cap          * sizeof(int));
+
+    if (!lib.q_bars || !lib.Js || !lib.x_ends || !lib.rhos || !lib.best_toks
+            || !lib.x_wps || !lib.bucket_centroids || !lib.bucket_assign) {
+        axgeo_grc_library_destroy(&lib);
         memset(&lib, 0, sizeof(lib));
+        return lib;
     }
+
+    memset(lib.bucket_assign,    -1, (uint64_t)cap          * sizeof(int));
+    memset(lib.bucket_counts,     0, sizeof(lib.bucket_counts));
+    memset(lib.bucket_centroids,  0, (uint64_t)AXGEO_GRC_N_BUCKETS * k * sizeof(double));
     return lib;
 }
 
 void axgeo_grc_library_destroy(axgeo_grc_library_t *lib)
 {
     if (!lib) return;
-    if (lib->q_bars)    tensor_free(lib->q_bars);
-    if (lib->Js)        tensor_free(lib->Js);
-    if (lib->x_ends)    tensor_free(lib->x_ends);
-    if (lib->rhos)      tensor_free(lib->rhos);
-    if (lib->best_toks) tensor_free(lib->best_toks);
+    if (lib->q_bars)           tensor_free(lib->q_bars);
+    if (lib->Js)               tensor_free(lib->Js);
+    if (lib->x_ends)           tensor_free(lib->x_ends);
+    if (lib->rhos)             tensor_free(lib->rhos);
+    if (lib->best_toks)        tensor_free(lib->best_toks);
+    if (lib->x_wps)            tensor_free(lib->x_wps);
+    if (lib->bucket_centroids) tensor_free(lib->bucket_centroids);
+    if (lib->bucket_assign)    tensor_free(lib->bucket_assign);
     memset(lib, 0, sizeof(*lib));
+}
+
+/* ─── ANN bucket helpers ── */
+
+static int grc_nearest_bucket(const axgeo_grc_library_t *lib, const double *q)
+{
+    int k = lib->k;
+    int best = 0;
+    double best_d2 = 1e300;
+    for (int b = 0; b < lib->n_buckets_used; b++) {
+        const double *c = lib->bucket_centroids + (uint64_t)b * k;
+        double d2 = 0.0;
+        for (int i = 0; i < k; i++) { double diff = q[i] - c[i]; d2 += diff * diff; }
+        if (d2 < best_d2) { best_d2 = d2; best = b; }
+    }
+    return best;
+}
+
+static void grc_update_centroid(axgeo_grc_library_t *lib, int b, const double *q)
+{
+    int k = lib->k;
+    double *c = lib->bucket_centroids + (uint64_t)b * k;
+    int cnt = lib->bucket_counts[b];
+    /* Online mean update: c = c*(cnt-1)/cnt + q/cnt */
+    if (cnt <= 0) cnt = 1;
+    double inv = 1.0 / (double)cnt;
+    double scale = (double)(cnt - 1) * inv;
+    for (int i = 0; i < k; i++)
+        c[i] = c[i] * scale + q[i] * inv;
 }
 
 void axgeo_grc_insert(axgeo_grc_library_t *lib,
                       const double *q_bar, const double *J,
-                      const double *x_end, double rho, int best_tok)
+                      const double *x_end, double rho, int best_tok,
+                      const double *x_wps_in)
 {
     if (!lib || !lib->q_bars || lib->k <= 0 || !q_bar || !J || !x_end) return;
 
-    int k  = lib->k;
-    int kk = k * k;
+    int k    = lib->k;
+    int kk   = k * k;
+    int nwp  = AXGEO_GRC_N_WP;
+    int nb   = AXGEO_GRC_N_BUCKETS;
 
-    /* Round-robin insertion — overwrite oldest when full */
-    int slot = lib->count % lib->cap;
+    /* Ring-buffer slot selection */
+    int slot = lib->write_idx;
+    lib->write_idx = (lib->write_idx + 1) % lib->cap;
     if (lib->count < lib->cap) lib->count++;
 
+    /* If this slot was occupied, decrement old bucket count */
+    if (lib->bucket_assign[slot] >= 0 && lib->count > 1) {
+        int old_b = lib->bucket_assign[slot];
+        if (old_b < nb && lib->bucket_counts[old_b] > 0)
+            lib->bucket_counts[old_b]--;
+    }
+
+    /* Store record */
     memcpy(lib->q_bars + (uint64_t)slot * k,  q_bar, (uint64_t)k  * sizeof(double));
     memcpy(lib->Js     + (uint64_t)slot * kk, J,     (uint64_t)kk * sizeof(double));
     memcpy(lib->x_ends + (uint64_t)slot * k,  x_end, (uint64_t)k  * sizeof(double));
     lib->rhos[slot]      = rho;
     lib->best_toks[slot] = best_tok;
+
+    if (x_wps_in) {
+        memcpy(lib->x_wps + (uint64_t)slot * nwp * k, x_wps_in,
+               (uint64_t)nwp * k * sizeof(double));
+    } else {
+        memset(lib->x_wps + (uint64_t)slot * nwp * k, 0,
+               (uint64_t)nwp * k * sizeof(double));
+    }
+
+    /* Assign bucket (ANN index) */
+    int bucket;
+    if (lib->n_buckets_used < nb) {
+        /* Seed a new centroid */
+        bucket = lib->n_buckets_used++;
+        memcpy(lib->bucket_centroids + (uint64_t)bucket * k, q_bar,
+               (uint64_t)k * sizeof(double));
+        lib->bucket_counts[bucket] = 0;
+    } else {
+        bucket = grc_nearest_bucket(lib, q_bar);
+    }
+    lib->bucket_assign[slot] = bucket;
+    lib->bucket_counts[bucket]++;
+    grc_update_centroid(lib, bucket, q_bar);
+}
+
+/* ─── Core lookup (shared between lookup and lookup_with_summaries) ── */
+
+static int grc_find_best(axgeo_grc_library_t *lib, const double *q,
+                          int *best_slot_out)
+{
+    if (!lib || !lib->q_bars || lib->count <= 0) return 0;
+
+    int k  = lib->k;
+    int nb = lib->n_buckets_used;
+
+    /* Stage 1: find the 2 nearest buckets */
+    int   top_b[2]  = {0, 0};
+    double top_d2[2] = {1e300, 1e300};
+    for (int b = 0; b < nb; b++) {
+        const double *c = lib->bucket_centroids + (uint64_t)b * k;
+        double d2 = 0.0;
+        for (int i = 0; i < k; i++) { double diff = q[i] - c[i]; d2 += diff * diff; }
+        if (d2 < top_d2[0]) {
+            top_d2[1] = top_d2[0]; top_b[1] = top_b[0];
+            top_d2[0] = d2;        top_b[0] = b;
+        } else if (d2 < top_d2[1]) {
+            top_d2[1] = d2; top_b[1] = b;
+        }
+    }
+
+    /* Stage 2: scan only records in those 2 buckets (+ overflow: also scan
+     * any record whose bucket was evicted so bucket_assign is stale) */
+    int    best_slot = -1;
+    double best_dist = 1e300;
+    int n = lib->count;
+    for (int i = 0; i < n; i++) {
+        int ba = lib->bucket_assign[i];
+        if (ba != top_b[0] && ba != top_b[1] && nb > 2) continue;
+        const double *qb = lib->q_bars + (uint64_t)i * k;
+        double d2 = 0.0;
+        for (int j = 0; j < k; j++) {
+            double diff = q[j] - qb[j]; d2 += diff * diff;
+        }
+        if (d2 < best_dist) { best_dist = d2; best_slot = i; }
+    }
+
+    if (best_slot < 0) return 0;
+
+    double dist = sqrt(best_dist);
+    double rho  = lib->rhos[best_slot];
+    if (dist >= rho) return 0;
+
+    *best_slot_out = best_slot;
+    return 1;
 }
 
 int axgeo_grc_lookup(axgeo_grc_library_t *lib,
@@ -1721,44 +1891,15 @@ int axgeo_grc_lookup(axgeo_grc_library_t *lib,
                      double *x_end_out,
                      int *best_tok_out)
 {
-    if (!lib || !lib->q_bars || lib->count <= 0 || lib->k != k
-            || !q || !x_end_out || !best_tok_out)
-        return 0;
+    if (!x_end_out || !best_tok_out || !lib || lib->k != k) return 0;
 
-    int n   = lib->count;
-    int kk  = k * k;
+    int slot = -1;
+    if (!grc_find_best(lib, q, &slot)) { lib->misses++; return 0; }
 
-    /* Linear scan: find nearest q_bar by squared Euclidean distance */
-    int    best_idx  = -1;
-    double best_dist = 1e300;
-    for (int i = 0; i < n; i++) {
-        const double *qb = lib->q_bars + (uint64_t)i * k;
-        double d2 = 0.0;
-        for (int j = 0; j < k; j++) {
-            double diff = q[j] - qb[j];
-            d2 += diff * diff;
-        }
-        if (d2 < best_dist) {
-            best_dist = d2;
-            best_idx  = i;
-        }
-    }
-
-    if (best_idx < 0) return 0;
-
-    double dist = sqrt(best_dist);
-    double rho  = lib->rhos[best_idx];
-
-    /* Check validity radius */
-    if (dist >= rho) {
-        lib->misses++;
-        return 0;
-    }
-
-    /* Jacobi correction: δx = J · δq */
-    const double *J    = lib->Js     + (uint64_t)best_idx * kk;
-    const double *xbar = lib->x_ends + (uint64_t)best_idx * k;
-    const double *qbar = lib->q_bars + (uint64_t)best_idx * k;
+    int kk = k * k;
+    const double *J    = lib->Js     + (uint64_t)slot * kk;
+    const double *xbar = lib->x_ends + (uint64_t)slot * k;
+    const double *qbar = lib->q_bars + (uint64_t)slot * k;
 
     for (int alpha = 0; alpha < k; alpha++) {
         double dx = 0.0;
@@ -1766,8 +1907,61 @@ int axgeo_grc_lookup(axgeo_grc_library_t *lib,
             dx += J[alpha * k + beta] * (q[beta] - qbar[beta]);
         x_end_out[alpha] = xbar[alpha] + dx;
     }
+    *best_tok_out = lib->best_toks[slot];
+    lib->hits++;
+    return 1;
+}
 
-    *best_tok_out = lib->best_toks[best_idx];
+int axgeo_grc_lookup_with_summaries(axgeo_grc_library_t *lib,
+                                    const double *q, int k,
+                                    double *x_end_out, int *best_tok_out,
+                                    double *block_summaries_out,
+                                    int *n_summaries_out)
+{
+    if (n_summaries_out) *n_summaries_out = 0;
+    if (!x_end_out || !best_tok_out || !lib || lib->k != k) return 0;
+
+    int slot = -1;
+    if (!grc_find_best(lib, q, &slot)) { lib->misses++; return 0; }
+
+    int kk  = k * k;
+    int nwp = AXGEO_GRC_N_WP;
+    const double *J     = lib->Js     + (uint64_t)slot * kk;
+    const double *xbar  = lib->x_ends + (uint64_t)slot * k;
+    const double *qbar  = lib->q_bars + (uint64_t)slot * k;
+    const double *wps   = lib->x_wps  + (uint64_t)slot * nwp * k;
+
+    /* Compute base Jacobi correction δx = J·δq */
+    double *dx = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    if (!dx) { lib->misses++; return 0; }
+
+    for (int alpha = 0; alpha < k; alpha++) {
+        double d = 0.0;
+        for (int beta = 0; beta < k; beta++)
+            d += J[alpha * k + beta] * (q[beta] - qbar[beta]);
+        dx[alpha] = d;
+    }
+
+    /* Terminal endpoint */
+    for (int i = 0; i < k; i++)
+        x_end_out[i] = xbar[i] + dx[i];
+    *best_tok_out = lib->best_toks[slot];
+
+    /* AttnRes block summaries (§6): b_n(q) ≈ x_wp_n(q̄) + J·δq·(n+1)/N_WP
+     * The Jacobi correction at fraction t of the path is J(λ_f)·δq·t
+     * (linear interpolation — see paper §6.2: "same propagator at shallower λ") */
+    if (block_summaries_out) {
+        for (int n = 0; n < nwp; n++) {
+            double t = (double)(n + 1) / (double)nwp;
+            const double *wp_n = wps + (uint64_t)n * k;
+            double *out_n = block_summaries_out + (uint64_t)n * k;
+            for (int i = 0; i < k; i++)
+                out_n[i] = wp_n[i] + dx[i] * t;
+        }
+        if (n_summaries_out) *n_summaries_out = nwp;
+    }
+
+    tensor_free(dx);
     lib->hits++;
     return 1;
 }
