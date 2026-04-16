@@ -555,15 +555,26 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
     printf("\n" GD_DIM "  [Session ended]\n" GD_RESET "\n");
 }
 
+/* Forward declaration — defined later in this file. */
+static int geodesic_piece_quality_ok(const char *piece, int piece_n);
+
 static int geodesic_next_token_local(const int *ctx, int n_ctx, int *out_tok) {
-    /* Fast path: use real Christoffel-based geodesic step when geometry is cached. */
+    /* Fast path: use real Christoffel-based geodesic step when geometry is cached.
+     * Requires high confidence (>= 0.65) and passes the piece quality gate to
+     * avoid returning garbage tokens. */
     {
         int fast_tok = -1;
         float fast_conf = 0.0f;
         if (axiom_beta_geodesic_step_fast(ctx, n_ctx, &fast_tok, &fast_conf)
-                == AXIOM_BETA_OK && fast_tok >= 0 && fast_conf > 0.05f) {
-            *out_tok = fast_tok;
-            return 0;
+                == AXIOM_BETA_OK && fast_tok >= 0 && fast_conf >= 0.65f) {
+            /* Quality gate: reject control-char or entirely-non-useful pieces */
+            char fast_piece[256];
+            int fast_pn = llm_test_decode_token(fast_tok, fast_piece,
+                                                (int)sizeof(fast_piece));
+            if (fast_pn > 0 && geodesic_piece_quality_ok(fast_piece, fast_pn)) {
+                *out_tok = fast_tok;
+                return 0;
+            }
         }
     }
 

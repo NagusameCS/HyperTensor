@@ -2717,8 +2717,8 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
         pred_norm2 += e_pred_d[i] * e_pred_d[i];
     double pred_norm = sqrt(pred_norm2);
 
-    /* Find nearest token by cosine similarity (probe 2048 candidates) */
-    int probe = vocab < 2048 ? vocab : 2048;
+    /* Find nearest token by cosine similarity (probe 8192 candidates) */
+    int probe = vocab < 8192 ? vocab : 8192;
     int start = (tok_curr * 1315423911u) % (unsigned)vocab;
     int best_tok = tok_curr;
     double best_score = -1e30;
