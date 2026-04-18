@@ -1,0 +1,17 @@
+{
+  "phase": 4,
+  "title": "Axiom Formalization",
+  "model_name": "Phi 3.5 Mini Instruct",
+  "model_arch": "phi3",
+  "model_dim": 3072,
+  "model_layers": 32,
+  "model_vocab": 32064,
+  "model_heads": 32,
+  "quant_type": "Q4_0",
+  "axiom_count": 22,
+  "consistency_score": 0.959012,
+  "candidates_tested": 96,
+  "candidates_accepted": 96,
+  "oracle_calls_used": 10,
+  "information_gain": 1.350593
+}

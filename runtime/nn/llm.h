@@ -364,6 +364,62 @@ int llm_kv_snapshot_prefix(const int *prefix_tokens, int n_prefix_tokens);
 int llm_kv_restore_prefix(const int *prefix_tokens, int n_prefix_tokens);
 
 /**
+ * Restore a KV snapshot AND run the last context token to prime llm_logits.
+ * After this call: cache_len == n_ctx, llm_logits_pos == n_ctx - 1.
+ * Enables the zero-cost skip-all path in the speculative verifier.
+ * Returns n_ctx on success, -1 if no snapshot exists.
+ */
+int llm_kv_restore_and_prime(const int *ctx, int n_ctx);
+
+/**
+ * Cheaply prime llm_logits for n_ctx - 1 when the KV cache is exactly one
+ * token behind the requested context.
+ * Returns 0 when logits are primed for position n_ctx - 1, -1 otherwise.
+ */
+int llm_prime_logits_fast(const int *ctx, int n_ctx);
+
+/**
+ * Return a read-only pointer to the current logit buffer if the logits are
+ * primed for position n_ctx - 1 (i.e. llm_logits_pos == n_ctx - 1).
+ * Returns NULL when stale.  Used by geodesic_step_fast to bypass the
+ * PCA-space nearest-neighbour search with actual transformer logits.
+ */
+const float *llm_get_logits_primed(int n_ctx);
+
+/**
+ * Return the cached greedy argmax token for the last primed context position.
+ * This is O(1) — the argmax is computed once during llm_prime_logits_fast and
+ * cached.  Returns -1 if logits are not primed for n_ctx-1.
+ * Use this instead of a manual O(vocab) scan when you only need the top-1 token.
+ */
+int llm_get_primed_greedy_token(int n_ctx);
+
+/**
+ * Get the last context-conditioned hidden state (final-layer RMSNorm output).
+ * This is the model's true manifold position for the current token in context.
+ * Returns NULL if no forward pass has been run yet this call.
+ * Buffer is dim floats (float32, CPU-side).
+ */
+const float *llm_get_last_hidden_state(void);
+
+/**
+ * Exact greedy rollout from the current context using the transformer's own
+ * logits. This is an upper-bound drafting path: every emitted token is the
+ * model's exact greedy continuation, so no verifier pass is required.
+ *
+ * out_tokens[0..n_out-1] receives up to n_steps tokens.
+ * out_margin[0..n_out-1], when non-NULL, receives the top-1 minus top-2 logit
+ * margin for each emitted token.
+ *
+ * Returns number of emitted tokens (0..n_steps), or -1 on error.
+ */
+int llm_rollout_exact_greedy(const int *context_tokens, int n_context,
+                             int n_steps,
+                             int *out_tokens,
+                             float *out_margin,
+                             int *n_out);
+
+/**
  * Reset a persistent agent token context slot.
  * Returns 0 on success, negative on error.
  */
@@ -415,6 +471,37 @@ int llm_speculative_verify_tokens(const int *context_tokens, int n_context,
 int llm_speculative_verify_with_correction(const int *context_tokens, int n_context,
                                            const int *draft_tokens,  int n_draft,
                                            int *correction_tok_out);
+
+/**
+ * Like llm_speculative_verify_with_correction but uses relaxed top-K acceptance:
+ * a draft token is accepted if its logit is within `topk_margin` nats of the
+ * greedy argmax logit (i.e., its probability is at least exp(-topk_margin) of
+ * the top token's probability).  topk_margin=2.3 ≈ top-10%, topk_margin=4.6 ≈ top-1%.
+ * When a draft token is accepted this way, the KV cache still advances through
+ * that position and `correction_tok_out` reflects the true greedy continuation
+ * AFTER the last accepted position.  This preserves output quality while raising
+ * the acceptance rate substantially for imperfect draft models.
+ * Returns number of accepted draft tokens (0..n_draft), or -1 on error.
+ */
+int llm_speculative_verify_topk(const int *context_tokens, int n_context,
+                                const int *draft_tokens,   int n_draft,
+                                float topk_margin,
+                                int *correction_tok_out);
+
+/**
+ * OD-SWARM speculative verify: like llm_speculative_verify_topk (topk_margin
+ * acceptance) but with an additional SWARM acceptance path: if the primary
+ * draft at slot i fails the margin test, the verifier's greedy token is
+ * checked against swarm_tokens[i*swarm_k .. i*swarm_k+swarm_k-1].  When
+ * a SWARM hit occurs, the KV-cache advances with the verifier's greedy token
+ * (preserving correctness).  swarm_k=0 degrades to plain verify_topk.
+ * Returns accepted count (0..n_draft), or -1 on error.
+ */
+int llm_speculative_verify_swarm(const int *context_tokens, int n_context,
+                                 const int *draft_tokens,   int n_draft,
+                                 float      topk_margin,
+                                 const int *swarm_tokens,   int swarm_k,
+                                 int *correction_tok_out);
 
 /** Maximum number of rollout steps retained in token-native trace buffer. */
 #define LLM_ROLLOUT_MAX_STEPS 4096
@@ -554,5 +641,10 @@ int llm_get_embedding_vec(int token_id, float *out, int dim);
 /* ── Tensor Bridge API (hidden-state injection / daisy-chaining) ─── */
 #include "runtime/nn/tensor_bridge.h"
 tensor_bridge_t *llm_get_bridge(void);
+
+/** One-step logits prime: runs a single forward pass when cache_len == n_ctx-1.
+ *  Returns 0 if logits are now primed for n_ctx-1, -1 if the fast path could
+ *  not be used (caller should fall back to llm_kv_restore_and_prime). */
+int llm_prime_logits_fast(const int *ctx, int n_ctx);
 
 #endif /* TENSOROS_LLM_H */

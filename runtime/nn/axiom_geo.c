@@ -141,11 +141,32 @@ axgeo_christoffel_t axgeo_christoffel_create(int n_points, int dim)
     return ch;
 }
 
+axgeo_layer_christoffel_t axgeo_layer_christoffel_create(int n_layers, int dim)
+{
+    axgeo_layer_christoffel_t ch;
+    ch.n_layers = n_layers;
+    ch.dim = dim;
+    ch.gamma = (double *)0;
+    if (n_layers > 0 && dim > 0) {
+        uint64_t size = (uint64_t)n_layers * dim * dim * dim * sizeof(double);
+        ch.gamma = (double *)tensor_alloc(size);
+        if (ch.gamma) memset(ch.gamma, 0, size);
+    }
+    return ch;
+}
+
 void axgeo_christoffel_destroy(axgeo_christoffel_t *ch)
 {
     if (!ch) return;
     if (ch->gamma) { tensor_free(ch->gamma); ch->gamma = NULL; }
     ch->n_points = ch->dim = 0;
+}
+
+void axgeo_layer_christoffel_destroy(axgeo_layer_christoffel_t *ch)
+{
+    if (!ch) return;
+    if (ch->gamma) { tensor_free(ch->gamma); ch->gamma = NULL; }
+    ch->n_layers = ch->dim = 0;
 }
 
 /* Invert a small symmetric matrix (d×d) using Gauss-Jordan elimination */
@@ -157,8 +178,12 @@ static int invert_symmetric(const double *A, double *Ainv, int d)
     if (!aug) return -1;
 
     for (int i = 0; i < d; i++) {
-        for (int j = 0; j < d; j++)
-            aug[i * 2 * d + j] = A[i * d + j];
+        for (int j = 0; j < d; j++) {
+            double v = A[i * d + j];
+            /* Replace NaN/Inf with identity matrix value */
+            if (v != v || v > 1e30 || v < -1e30) v = (i == j) ? 1.0 : 0.0;
+            aug[i * 2 * d + j] = v;
+        }
         for (int j = 0; j < d; j++)
             aug[i * 2 * d + d + j] = (i == j) ? 1.0 : 0.0;
     }
@@ -309,8 +334,11 @@ int axgeo_compute_christoffel(const axgeo_metric_field_t *mf,
                         sum += g_inv[k * d + l] *
                                (dg_i_jl + dg_j_il - dg_l_ij);
                     }
-                    gamma_p[k * dd + i * d + j] = 0.5 * sum;
-                    gamma_p[k * dd + j * d + i] = 0.5 * sum; /* symmetric in i,j */
+                    /* Clamp NaN/Inf to 0 — singular metrics produce garbage Christoffel */
+                    double val = 0.5 * sum;
+                    if (val != val || val > 1e15 || val < -1e15) val = 0.0;
+                    gamma_p[k * dd + i * d + j] = val;
+                    gamma_p[k * dd + j * d + i] = val; /* symmetric in i,j */
                 }
             }
         }
@@ -318,6 +346,112 @@ int axgeo_compute_christoffel(const axgeo_metric_field_t *mf,
 
     tensor_free(g_inv);
     tensor_free(dg);
+    return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * axgeo_compute_christoffel_global
+ *
+ * Computes a single globally-valid Γ^k_ij by:
+ *   1. Mean metric  ḡ_{ij}  = average over all sample points
+ *   2. Global gradient  ∂_m ḡ_{ij}  via marginal OLS regression:
+ *          slope_m = Σ_p (x_m(p) − x̄_m)(g_{ij}(p) − ḡ_{ij})
+ *                  / Σ_p (x_m(p) − x̄_m)²
+ *   3. ḡ^{kl}  from Gauss-Jordan inversion of ḡ
+ *   4. Γ^k_ij = ½ ḡ^{kl}(∂_i ḡ_{jl} + ∂_j ḡ_{il} − ∂_l ḡ_{ij})  (d⁴)
+ *
+ * ch must be created with axgeo_christoffel_create(1, dim).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+int axgeo_compute_christoffel_global(const axgeo_metric_field_t *mf,
+                                     axgeo_christoffel_t *ch)
+{
+    int np = mf->n_points;
+    int d  = mf->dim;
+    if (np < 2 || d <= 0 || d > AXGEO_MAX_DIM) return -1;
+    if (ch->n_points != 1 || ch->dim != d || !ch->gamma) return -1;
+
+    int dd  = d * d;
+    int ddd = d * d * d;
+
+    double *g_mean = (double *)tensor_alloc((uint64_t)dd  * sizeof(double));
+    double *dg     = (double *)tensor_alloc((uint64_t)d * dd * sizeof(double)); /* ∂_m ḡ_{ij} */
+    double *g_inv  = (double *)tensor_alloc((uint64_t)dd  * sizeof(double));
+    double *x_mean = (double *)tensor_alloc((uint64_t)d   * sizeof(double));
+    double *var_m  = (double *)tensor_alloc((uint64_t)d   * sizeof(double));
+    if (!g_mean || !dg || !g_inv || !x_mean || !var_m) {
+        if (g_mean) tensor_free(g_mean);
+        if (dg)     tensor_free(dg);
+        if (g_inv)  tensor_free(g_inv);
+        if (x_mean) tensor_free(x_mean);
+        if (var_m)  tensor_free(var_m);
+        return -1;
+    }
+
+    /* ── Step 1: mean metric and mean sample position ───────────────────── */
+    memset(g_mean, 0, (uint64_t)dd * sizeof(double));
+    memset(x_mean, 0, (uint64_t)d  * sizeof(double));
+    for (int p = 0; p < np; p++) {
+        const double *g_p = mf->metrics + (uint64_t)p * dd;
+        const double *x_p = mf->points  + (uint64_t)p * d;
+        for (int ij = 0; ij < dd; ij++) g_mean[ij] += g_p[ij];
+        for (int j  = 0; j  < d;  j++)  x_mean[j]  += x_p[j];
+    }
+    double inv_np = 1.0 / (double)np;
+    for (int ij = 0; ij < dd; ij++) g_mean[ij] *= inv_np;
+    for (int j  = 0; j  < d;  j++)  x_mean[j]  *= inv_np;
+
+    /* ── Step 2: per-direction variance  Σ (x_m − x̄_m)²  ─────────────── */
+    memset(var_m, 0, (uint64_t)d * sizeof(double));
+    for (int p = 0; p < np; p++) {
+        const double *x_p = mf->points + (uint64_t)p * d;
+        for (int m = 0; m < d; m++) {
+            double dm = x_p[m] - x_mean[m];
+            var_m[m] += dm * dm;
+        }
+    }
+
+    /* ── Step 3: marginal OLS gradient  ∂_m ḡ_{ij}  ────────────────────── */
+    memset(dg, 0, (uint64_t)d * dd * sizeof(double));
+    for (int p = 0; p < np; p++) {
+        const double *g_p = mf->metrics + (uint64_t)p * dd;
+        const double *x_p = mf->points  + (uint64_t)p * d;
+        for (int m = 0; m < d; m++) {
+            double dm = x_p[m] - x_mean[m];
+            if (var_m[m] < 1e-30) continue;
+            double inv_var = dm / var_m[m];
+            for (int ij = 0; ij < dd; ij++)
+                dg[m * dd + ij] += inv_var * (g_p[ij] - g_mean[ij]);
+        }
+    }
+
+    /* ── Step 4: invert mean metric  ḡ^{kl}  ───────────────────────────── */
+    invert_symmetric(g_mean, g_inv, d);
+
+    /* ── Step 5: Γ^k_ij = ½ ḡ^{kl}(∂_i ḡ_{jl} + ∂_j ḡ_{il} − ∂_l ḡ_{ij}) */
+    double *gamma0 = ch->gamma; /* n_points=1, so offset = 0 */
+    for (int k = 0; k < d; k++) {
+        for (int i = 0; i < d; i++) {
+            for (int j = i; j < d; j++) {
+                double sum = 0.0;
+                for (int l = 0; l < d; l++) {
+                    double dg_i_jl = dg[i * dd + j * d + l];
+                    double dg_j_il = dg[j * dd + i * d + l];
+                    double dg_l_ij = dg[l * dd + i * d + j];
+                    sum += g_inv[k * d + l] * (dg_i_jl + dg_j_il - dg_l_ij);
+                }
+                double val = 0.5 * sum;
+                if (val != val || val > 1e15 || val < -1e15) val = 0.0;
+                gamma0[k * dd + i * d + j] = val;
+                gamma0[k * dd + j * d + i] = val; /* symmetric in i,j */
+            }
+        }
+    }
+
+    tensor_free(g_mean);
+    tensor_free(dg);
+    tensor_free(g_inv);
+    tensor_free(x_mean);
+    tensor_free(var_m);
     return 0;
 }
 

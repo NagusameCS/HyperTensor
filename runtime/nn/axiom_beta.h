@@ -72,6 +72,10 @@ typedef struct {
     int      fast_mode;           /* 1 = reduced-cost settings for faster E2E runs */
     int      reuse_cache;         /* 1 = allow in-process reuse of prior Phase 1-4 geometry */
 
+    /* OneDecode: amortised one-time bake → instant per-step decode */
+    int      one_decode_mode;           /* 1 = use precomputed one-shot decode map  */
+    int      one_decode_vocab_coverage; /* Vocab tokens to bake (0 = auto → 2048) */
+
     /* General */
     uint64_t seed;               /* Deterministic seed (0 = default) */
     int      verbose;            /* Print per-phase diagnostics */
@@ -111,6 +115,10 @@ typedef struct {
     double curvature_std;        /* Standard deviation of scalar curvature */
     double fisher_trace_mean;    /* Mean Fisher trace across metric points */
     double fisher_det_log_mean;  /* Mean log-det(Fisher) across points */
+    int    boundary_map_built;   /* 1 if intrinsic-space boundary map was built */
+    int    boundary_anchor_points; /* Extreme-point anchors retained in boundary map */
+    double boundary_shell_radius;  /* 95th percentile normalized shell radius */
+    double boundary_mean_clearance; /* Mean normalized interior clearance */
 } axiom_phase3_t;
 
 /* ─── Phase 4 results ─── */
@@ -147,6 +155,9 @@ typedef struct {
     int    warp_points_accumulated;
     double warp_cross_term_estimate;
     int    recalc_triggered;
+    int    threshold_profile_steps;
+    double threshold_quality;
+    double threshold_step_growth;
 } axiom_phase5_t;
 
 /* ─── Full report ─── */
@@ -182,6 +193,11 @@ typedef struct {
     int  supports_geodesic_pilot;       /* 1 = phase 5 produced results */
     int  reused_geometry_cache;         /* 1 = phases 1-4 reused from in-process cache */
     int  beta_version;                  /* 3 = this version */
+
+    /* OneDecode results */
+    int      one_decode_ready;          /* 1 = bake table loaded and usable */
+    int      one_decode_table_entries;  /* Vocab entries in the bake table */
+    uint64_t one_decode_bake_us;        /* Wall-clock time to build the table (µs) */
 } axiom_beta_report_t;
 
 /* ─── API ─── */
@@ -229,6 +245,7 @@ axiom_beta_status_t axiom_beta_geodesic_step_fast(const int *context_tokens,
 axiom_beta_status_t axiom_beta_grc_feedback(const int *context_tokens,
                                              int n_context,
                                              int correct_tok);
+int axiom_beta_grc_count(void);
 
 /**
  * Multi-step geodesic rollout — generate up to `n_steps` draft tokens in a
@@ -247,6 +264,19 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
                                                  int *out_tokens,
                                                  float *out_conf,
                                                  int *n_out);
+
+/* Return the calibrated acceptance threshold for rollout position `step_index`.
+ * Falls back to `base_thresh` when no Phase-3/5 calibration profile is ready. */
+float axiom_beta_rollout_threshold(int step_index, float base_thresh);
+
+/* Decode hot-path geodesic hook.
+ * axiom_beta_hotpath_ready() reports whether Phase-3 pullback geometry and
+ * per-layer Christoffels are available. axiom_beta_hotpath_apply() projects
+ * the current residual stream into PCA space, applies a layer-specific
+ * Christoffel curvature bias in place, and returns 1 when a correction was
+ * applied, 0 otherwise. */
+int axiom_beta_hotpath_ready(void);
+int axiom_beta_hotpath_apply(float *hidden, int dim, int layer_idx, int token_pos);
 
 /**
  * Save Phase-3 geometry (PCA, metric field, Christoffel symbols) to a binary
@@ -274,5 +304,75 @@ axiom_beta_status_t axiom_beta_geometry_load(const char *path);
  * by calling ott_set_generation_context(NULL, 0).
  */
 void ott_set_generation_context(const int *ctx, int n_ctx);
+
+/* Lightweight context sync — called each decode iteration to keep OTT ctx
+ * current without a full prefill.  Updates ott_gen_ctx_tokens/ott_gen_ctx_n. */
+void ott_update_generation_context(const int *ctx, int n_ctx);
+
+/* ── OneDecode ────────────────────────────────────────────────────────────────
+ *
+ * Amortises ALL geodesic Christoffel math into a one-time "bake" pass so
+ * that every subsequent decode step is O(coverage × pca_dim) — projection
+ * plus a nearest-neighbour table lookup, with no RK4 or Christoffel work
+ * at decode time.
+ *
+ * Tradeoff: one-time bake cost (seconds, runs once and caches to disk) in
+ * exchange for near-instant per-token prediction during generation.
+ *
+ * Workflow:
+ *   1. axiom_beta_run()            — build Phase-3 geometry
+ *   2. axiom_beta_one_decode_load()— try loading ott_one_decode.bin
+ *   3. axiom_beta_one_decode_bake()— if (2) failed, bake from scratch
+ *   4. axiom_beta_one_decode_save()— persist so (2) succeeds next run
+ *   5. axiom_beta_one_decode_next()— fast per-step decode (replaces step_fast)
+ */
+
+/* Returns 1 when the bake table is ready (loaded or freshly baked). */
+int axiom_beta_one_decode_ready(void);
+
+/**
+ * Build the decode map.  For each of `vocab_coverage` vocab tokens (0 =
+ * auto-select 2048), project its embedding into PCA space, integrate one
+ * Christoffel-corrected geodesic step, and record the nearest vocab token
+ * to the predicted endpoint.  Requires valid Phase-3 geometry.
+ */
+axiom_beta_status_t axiom_beta_one_decode_bake(int vocab_coverage);
+
+/**
+ * Serialise the bake table.  Stamped with model identity so a stale file
+ * is rejected on load.
+ */
+axiom_beta_status_t axiom_beta_one_decode_save(const char *path);
+
+/**
+ * Load a previously saved bake table.  Returns AXIOM_BETA_ERR_IO when the
+ * file is absent or stale (wrong model / PCA dim).
+ */
+axiom_beta_status_t axiom_beta_one_decode_load(const char *path);
+
+/**
+ * Single decode step using the bake table.  Projects the last context
+ * token's embedding to PCA space, finds the nearest bake entry by L2
+ * distance, and returns its pre-computed predicted token + confidence.
+ * Returns AXIOM_BETA_ERR_INVALID when the table is not ready.
+ */
+axiom_beta_status_t axiom_beta_one_decode_next(const int *context_tokens,
+                                                int n_context,
+                                                int *out_token,
+                                                float *out_confidence);
+
+/** Maximum SWARM fan-out K for axiom_beta_one_decode_topk(). */
+#define OD_SWARM_MAX 64
+
+/**
+ * OD-SWARM: returns the top k_out nearest-neighbour predicted tokens
+ * sorted best-first by cosine similarity (or by logit when primed).
+ * k_out is clamped to [1, OD_SWARM_MAX].  out_confidences may be NULL.
+ */
+axiom_beta_status_t axiom_beta_one_decode_topk(const int *context_tokens,
+                                                int n_context,
+                                                int *out_tokens,
+                                                float *out_confidences,
+                                                int k_out);
 
 #endif /* GEODESSICAL_AXIOM_BETA_H */

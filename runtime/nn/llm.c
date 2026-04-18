@@ -1,4 +1,4 @@
-﻿/* =============================================================================
+/* =============================================================================
  * TensorOS - Real LLM Inference Engine Implementation
  *
  * Complete pipeline: disk → GGUF parse → tensor map → tokenize → forward →
@@ -109,6 +109,11 @@ int cuda_gemv_triple_q4_0(float *out_q, float *out_k, float *out_v,
                             const void *W_q, const void *W_k, const void *W_v,
                             const float *x,
                             int q_dim, int k_dim, int v_dim, int in_dim);
+int cuda_fused_rmsnorm_triple_q4_0(
+        float *out_q, float *out_k, float *out_v,
+        const void *W_q, const void *W_k, const void *W_v,
+        const float *x, const float *norm_w, float eps,
+        int q_dim, int k_dim, int v_dim, int in_dim);
 int cuda_graph_begin_capture(void);
 int cuda_graph_end_capture(void);
 int cuda_graph_launch(void);
@@ -125,6 +130,7 @@ void cuda_batched_rmsnorm_out(float *out, const float *in, const float *w, int n
 int cuda_graph_decode_ready = 0;  /* set after prefill by llm_generate */
 int cuda_graph_captured = 0;      /* 1 after graph successfully captured */
 int cuda_graph_tried = 0;         /* 1 after first capture attempt */
+int cuda_graph_ctx_len = -1;      /* context length at capture time; -1 = unknown */
 int gpu_skip_logits_download = 0; /* 1 = caller will use GPU argmax, skip D2H */
 #endif
 
@@ -233,6 +239,8 @@ static float *llm_kv_v;
 
 static float *llm_x;           /* [dim]    hidden state */
 static float *llm_xn;          /* [dim]    normalized */
+static float *llm_last_hs;     /* [dim]    last forward-pass hidden state (context-conditioned) */
+static int    llm_last_hs_valid = 0;
 static float *llm_q;           /* [dim]    query */
 static float *llm_k_buf;       /* [dim]    key (current token) */
 static float *llm_v_buf;       /* [dim]    value (current token) */
@@ -242,7 +250,9 @@ static float *llm_ffn_u;       /* [ff_dim] FFN up */
 static float *llm_ffn_d;       /* [dim]    FFN down */
 static float *llm_head_buf;    /* [dim]    LM head scratch */
 static float *llm_attn_scores; /* [max_seq] attention scores */
-static float *llm_logits;      /* [vocab_size] output logits */
+static float *llm_logits;          /* [vocab_size] output logits */
+static int    llm_logits_pos = -1; /* position of last valid llm_logits (-1 = stale) */
+static int    llm_primed_greedy  = -1; /* cached argmax of llm_logits when primed */
 static int   *llm_tokens;      /* [max_tokens] token buffer */
 static float *llm_rope_freqs_buf; /* [head_dim/2] precomputed RoPE */
 static float *llm_iswa_per_layer; /* [iswa_n_embd * n_layers] per-layer embeddings */
@@ -259,7 +269,7 @@ static int llm_alloc_tokens;
 static int llm_alloc_kv_floats;
 
 /* Prefix-keyed KV snapshots (token-native boundary for cache reuse). */
-#define LLM_KV_SNAPSHOT_SLOTS 4
+#define LLM_KV_SNAPSHOT_SLOTS 16
 typedef struct {
     int in_use;
     uint32_t prefix_hash;
@@ -863,6 +873,7 @@ static int llm_alloc_scratch(const llm_model_t *m)
     ARENA_NEXT(llm_kv_v,        float, kv_total);
     ARENA_NEXT(llm_x,           float, dim);
     ARENA_NEXT(llm_xn,          float, dim);
+    ARENA_NEXT(llm_last_hs,     float, dim);
     ARENA_NEXT(llm_q,           float, q_dim);
     ARENA_NEXT(llm_k_buf,       float, kv_dim);
     ARENA_NEXT(llm_v_buf,       float, kv_dim);
@@ -2212,6 +2223,145 @@ static void llm_gemv_q4_fused_range_avx2(float *out, const void *weight,
             __builtin_memcpy(&x1, xp + 8, 32);
             __builtin_memcpy(&x2, xp + 16, 32);
             __builtin_memcpy(&x3, xp + 24, 32);
+            v8f s = q4_unpack_lo_v8f(row[b].qs) * x0;
+            s += q4_unpack_lo_v8f(row[b].qs + 8) * x1;
+            s += q4_unpack_hi_v8f(row[b].qs) * x2;
+            s += q4_unpack_hi_v8f(row[b].qs + 8) * x3;
+            acc += s * d;
+        }
+        out[i] = v8f_reduce(acc);
+    }
+}
+
+/* ─── Fused RMSNorm + Q4_0 GEMV (AVX2) ────────────────────────────────────
+ * Eliminates the intermediate write of the normalized-x buffer (llm_xn).
+ *
+ * Traditional path: llm_rmsnorm writes llm_xn → N separate GEMVs each read
+ * llm_xn.  For Q/K/V (3 projections) this costs: 1 write + 3 reads = 4 streams
+ * of in_dim floats through the cache hierarchy.
+ *
+ * Fused path: inv_rms scalar computed once in pass 1, then applied inline
+ * during each Q4_0 dot-product loop — norm weights are fused with x load.
+ * Cost: 1 read of x for ss-pass + N × 1 read of x during GEMV = (N+1) reads,
+ * zero writes of llm_xn.  For N=3 that saves 1 write + 0 redundant reads.
+ *
+ * void fused(out, weight, x, norm_w, out_dim, in_dim, eps)
+ * ─────────────────────────────────────────────────────────────────────────── */
+__attribute__((target("avx2,fma")))
+static void llm_gemv_q4_fused_rmsnorm_avx2(
+        float *out, const void *weight, const float *x, const float *norm_w,
+        int out_dim, int in_dim, float eps)
+{
+    /* Pass 1: sum of squares using AVX2 eight-wide accumulation */
+    v8f acc_sq = v8f_setzero();
+    int vi;
+    for (vi = 0; vi + 7 < in_dim; vi += 8) {
+        v8f v;
+        __builtin_memcpy(&v, x + vi, 32);
+        acc_sq += v * v;
+    }
+    float ss = v8f_reduce(acc_sq);
+    for (; vi < in_dim; vi++) ss += x[vi] * x[vi];
+    const float inv_rms = 1.0f / llm_sqrtf(ss / (float)in_dim + eps);
+    const v8f v_inv_rms = v8f_set1(inv_rms);
+
+    /* Pass 2: Q4_0 GEMV with inline normalization: xn[i] = x[i]*inv_rms*norm_w[i]
+     * computed per 32-element block, never written to memory. */
+    const int nb = in_dim / 32;
+    const uint64_t rb = (uint64_t)nb * 18;
+    const uint8_t *base = (const uint8_t *)weight;
+    int i = 0;
+
+    for (; i + 3 < out_dim; i += 4) {
+        const ggml_q4_0_t *r0 = (const ggml_q4_0_t *)(base + (uint64_t)(i)   * rb);
+        const ggml_q4_0_t *r1 = (const ggml_q4_0_t *)(base + (uint64_t)(i+1) * rb);
+        const ggml_q4_0_t *r2 = (const ggml_q4_0_t *)(base + (uint64_t)(i+2) * rb);
+        const ggml_q4_0_t *r3 = (const ggml_q4_0_t *)(base + (uint64_t)(i+3) * rb);
+
+        if (i + 7 < out_dim) {
+            __builtin_prefetch(base + (uint64_t)(i+4) * rb, 0, 1);
+            __builtin_prefetch(base + (uint64_t)(i+5) * rb, 0, 1);
+        }
+
+        v8f a0 = v8f_setzero(), a1 = v8f_setzero();
+        v8f a2 = v8f_setzero(), a3 = v8f_setzero();
+
+        for (int b = 0; b < nb; b++) {
+            const float *xp = x      + b * 32;
+            const float *wp = norm_w + b * 32;
+
+            v8f w0, w1, w2, w3, x0, x1, x2, x3;
+            __builtin_memcpy(&w0, wp,      32);
+            __builtin_memcpy(&w1, wp + 8,  32);
+            __builtin_memcpy(&w2, wp + 16, 32);
+            __builtin_memcpy(&w3, wp + 24, 32);
+            __builtin_memcpy(&x0, xp,      32);
+            __builtin_memcpy(&x1, xp + 8,  32);
+            __builtin_memcpy(&x2, xp + 16, 32);
+            __builtin_memcpy(&x3, xp + 24, 32);
+
+            /* Apply RMSNorm inline: xn = x * inv_rms * norm_w */
+            x0 = x0 * v_inv_rms * w0;
+            x1 = x1 * v_inv_rms * w1;
+            x2 = x2 * v_inv_rms * w2;
+            x3 = x3 * v_inv_rms * w3;
+
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r0[b].d));
+                v8f s = q4_unpack_lo_v8f(r0[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r0[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r0[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r0[b].qs + 8) * x3;
+                a0 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r1[b].d));
+                v8f s = q4_unpack_lo_v8f(r1[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r1[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r1[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r1[b].qs + 8) * x3;
+                a1 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r2[b].d));
+                v8f s = q4_unpack_lo_v8f(r2[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r2[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r2[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r2[b].qs + 8) * x3;
+                a2 += s * d;
+            }
+            {
+                v8f d = v8f_set1(fp16_to_fp32_fast(r3[b].d));
+                v8f s = q4_unpack_lo_v8f(r3[b].qs) * x0;
+                s += q4_unpack_lo_v8f(r3[b].qs + 8) * x1;
+                s += q4_unpack_hi_v8f(r3[b].qs) * x2;
+                s += q4_unpack_hi_v8f(r3[b].qs + 8) * x3;
+                a3 += s * d;
+            }
+        }
+        out[i]   = v8f_reduce(a0);
+        out[i+1] = v8f_reduce(a1);
+        out[i+2] = v8f_reduce(a2);
+        out[i+3] = v8f_reduce(a3);
+    }
+
+    /* Tail rows */
+    for (; i < out_dim; i++) {
+        const ggml_q4_0_t *row = (const ggml_q4_0_t *)(base + (uint64_t)i * rb);
+        v8f acc = v8f_setzero();
+        for (int b = 0; b < nb; b++) {
+            const float *xp = x      + b * 32;
+            const float *wp = norm_w + b * 32;
+            v8f w0, w1, w2, w3, x0, x1, x2, x3;
+            __builtin_memcpy(&w0, wp,      32);  __builtin_memcpy(&w1, wp + 8,  32);
+            __builtin_memcpy(&w2, wp + 16, 32);  __builtin_memcpy(&w3, wp + 24, 32);
+            __builtin_memcpy(&x0, xp,      32);  __builtin_memcpy(&x1, xp + 8,  32);
+            __builtin_memcpy(&x2, xp + 16, 32);  __builtin_memcpy(&x3, xp + 24, 32);
+            x0 = x0 * v_inv_rms * w0;
+            x1 = x1 * v_inv_rms * w1;
+            x2 = x2 * v_inv_rms * w2;
+            x3 = x3 * v_inv_rms * w3;
+            v8f d = v8f_set1(fp16_to_fp32_fast(row[b].d));
             v8f s = q4_unpack_lo_v8f(row[b].qs) * x0;
             s += q4_unpack_lo_v8f(row[b].qs + 8) * x1;
             s += q4_unpack_hi_v8f(row[b].qs) * x2;
@@ -3907,21 +4057,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* Graph REPLAY fast-path: skip entire compute */
         if (want_logits && cuda_graph_captured && cuda_graph_decode_ready && d_lm) {
-            uint64_t _gr0 = hal_timer_us();
             cuda_set_decode_pos(pos, pos + 1);
-            uint64_t _gr1 = hal_timer_us();
             cuda_graph_launch();
-            uint64_t _gr2 = hal_timer_us();
             if (!gpu_skip_logits_download) {
                 be->mem.download(logits, gpu_ctx.d_out,
                                  (uint64_t)m->vocab_size * sizeof(float));
                 be->mem.sync();
-            } else {
-                /* GPU argmax mode: still need to sync compute stream
-                 * before argmax (which runs on same stream) */
+                /* Capture hidden state for context-conditioned manifold lookup */
+                if (llm_last_hs)
+                    be->mem.download(llm_last_hs, gpu_ctx.d_xn,
+                                     (uint64_t)dim * sizeof(float));
+                llm_last_hs_valid = (llm_last_hs != NULL);
             }
-            uint64_t _gr3 = hal_timer_us();
-
             return;
         }
 
@@ -3948,11 +4095,13 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     capturing = 1;
                     LOG_DBG("GRAPH", "capture started at pos=%d", pos);
                 } else {
-                    LOG_WARN("GRAPH", "begin_capture failed at pos=%d", pos);
+                    kprintf("[GRAPH] begin_capture failed at pos=%d\n", pos);
                 }
             } else {
-                LOG_DBG("GRAPH", "ISWA weights not on GPU; skipping capture");
+                kprintf("[GRAPH] ISWA weights not on GPU — graph capture skipped (pos=%d)\n", pos);
             }
+        } else if (want_logits && !cuda_graph_decode_ready) {
+            /* graph not ready — will run layerwise */
         }
 
         for (int L = 0; L < m->n_layers; L++) {
@@ -3967,9 +4116,6 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             /* 2a. Pre-attention RMSNorm */
             if (detail_layer) { be->mem.sync(); _lp0 = hal_timer_us(); }
-            be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
-                                dim, gpu_ctx.rms_eps);
-            if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_rmsnorm += (_lp1 - _lp0); _lp0 = _lp1; }
 
             /* 2b. Q/K/V projections on GPU */
             void *d_qw = llm_gpu_lookup(layer->q_weight);
@@ -3977,22 +4123,40 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             if (has_own_kv) {
                 void *d_kw = llm_gpu_lookup(layer->k_weight);
                 void *d_vw = llm_gpu_lookup(layer->v_weight);
-                /* Try fused triple GEMV (Q+K+V in one launch) for Q4_0 */
+                /* Fast path: fused RMSNorm + triple GEMV eliminates d_xn write */
                 int used_triple = 0;
                 if (layer->q_type == GGML_TYPE_Q4_0 &&
                     layer->k_type == GGML_TYPE_Q4_0 &&
-                    layer->v_type == GGML_TYPE_Q4_0) {
-                    used_triple = cuda_gemv_triple_q4_0(
+                    layer->v_type == GGML_TYPE_Q4_0 &&
+                    gl->d_attn_norm) {
+                    used_triple = cuda_fused_rmsnorm_triple_q4_0(
                         gpu_ctx.d_q, gpu_ctx.d_k, gpu_ctx.d_v,
-                        d_qw, d_kw, d_vw, gpu_ctx.d_xn,
+                        d_qw, d_kw, d_vw,
+                        gpu_ctx.d_x, gl->d_attn_norm, gpu_ctx.rms_eps,
                         lq_dim, lkv_dim, lkv_dim, dim);
                 }
+                /* Fallback: separate rmsnorm + regular triple or individual GEMVs */
                 if (!used_triple) {
-                    be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
-                    be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, layer->k_type);
-                    be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, layer->v_type);
+                    be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
+                                        dim, gpu_ctx.rms_eps);
+                    int triple_ok = 0;
+                    if (layer->q_type == GGML_TYPE_Q4_0 &&
+                        layer->k_type == GGML_TYPE_Q4_0 &&
+                        layer->v_type == GGML_TYPE_Q4_0) {
+                        triple_ok = cuda_gemv_triple_q4_0(
+                            gpu_ctx.d_q, gpu_ctx.d_k, gpu_ctx.d_v,
+                            d_qw, d_kw, d_vw, gpu_ctx.d_xn,
+                            lq_dim, lkv_dim, lkv_dim, dim);
+                    }
+                    if (!triple_ok) {
+                        be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
+                        be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, layer->k_type);
+                        be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, layer->v_type);
+                    }
                 }
             } else {
+                be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
+                                    dim, gpu_ctx.rms_eps);
                 be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
             }
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_qkv += (_lp1 - _lp0); _lp0 = _lp1; }
@@ -4261,13 +4425,17 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             /* End graph capture BEFORE download (cudaMemcpy is synchronous) */
             if (capturing) {
-                if (cuda_graph_end_capture() == 0) {
+                uint64_t _cap_t0 = hal_timer_us();
+                int _cap_rc = cuda_graph_end_capture();
+                uint64_t _cap_t1 = hal_timer_us();
+                if (_cap_rc == 0) {
                     cuda_graph_captured = 1;
-                    LOG_DBG("GRAPH", "captured successfully; launching graph");
+                    cuda_graph_ctx_len  = pos; /* record position for validity check */
+                    kprintf("[GRAPH] captured at pos=%d in %llums\n", pos, (unsigned long long)(_cap_t1-_cap_t0)/1000);
                     cuda_graph_launch();
                 } else {
                     /* Capture failed — re-execute without capture */
-                    LOG_WARN("GRAPH", "end_capture failed; re-executing normally");
+                    kprintf("[CUDA Graph] end_capture failed at pos=%d\n", pos);
                     capturing = 0;
                     llm_forward_token(m, logits, token_id, pos);
                     return;
@@ -4277,6 +4445,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             /* Download logits (waits for graph/kernels to finish on stream 0) */
             be->mem.download(logits, gpu_ctx.d_out, (uint64_t)m->vocab_size * sizeof(float));
             be->mem.sync();
+            /* Capture hidden state for context-conditioned manifold lookup */
+            if (llm_last_hs)
+                be->mem.download(llm_last_hs, gpu_ctx.d_xn,
+                                 (uint64_t)dim * sizeof(float));
+            llm_last_hs_valid = (llm_last_hs != NULL);
         } else {
             /* Fallback: download hidden state and run LM head on CPU */
             if (capturing) {
@@ -4284,6 +4457,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 capturing = 0;
             }
             be->mem.download(llm_xn, gpu_ctx.d_xn, (uint64_t)dim * sizeof(float));
+            if (llm_last_hs) kmemcpy(llm_last_hs, llm_xn, (uint64_t)dim * sizeof(float));
+            llm_last_hs_valid = (llm_last_hs != NULL);
             llm_gemv(logits, lm_head, llm_xn, m->vocab_size, dim, lm_type);
             /* Softcap on CPU fallback */
             if (m->logit_softcap > 0.0f) {
@@ -4418,15 +4593,39 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         int lhd = layer->head_dim_layer ? layer->head_dim_layer : hd;
         int lkv_dim = n_kv * lhd;
         int lq_dim = n_heads * lhd;
-
-        /* 2b. Q projection (always computed) */
-        llm_gemv(llm_q,     layer->q_weight, llm_xn, lq_dim, dim, layer->q_type);
-
-        /* K/V projection: skip if reusing another layer's KV cache */
         int has_own_kv = (layer->kv_reuse_layer < 0);
-        if (has_own_kv) {
-            llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
-            llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
+
+        /* 2b. Q/K/V projections.
+         * Fast path: when norm weights are F32 and all projections are Q4_0,
+         * use the fused RMSNorm+GEMV — inv_rms computed once and applied
+         * inline per block, eliminating the llm_xn write + re-read. */
+#ifdef __AVX2__
+        if (!m->use_layernorm &&
+            layer->attn_norm_type == GGML_TYPE_F32 &&
+            layer->q_type == GGML_TYPE_Q4_0) {
+            const float *attn_nw = (const float *)layer->attn_norm;
+            llm_gemv_q4_fused_rmsnorm_avx2(llm_q, layer->q_weight,
+                                            llm_x, attn_nw, lq_dim, dim, m->rms_eps);
+            if (has_own_kv &&
+                layer->k_type == GGML_TYPE_Q4_0 &&
+                layer->v_type == GGML_TYPE_Q4_0) {
+                llm_gemv_q4_fused_rmsnorm_avx2(llm_k_buf, layer->k_weight,
+                                                llm_x, attn_nw, lkv_dim, dim, m->rms_eps);
+                llm_gemv_q4_fused_rmsnorm_avx2(llm_v_buf, layer->v_weight,
+                                                llm_x, attn_nw, lkv_dim, dim, m->rms_eps);
+            } else if (has_own_kv) {
+                llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
+                llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
+            }
+        } else
+#endif
+        {
+            /* Standard path: separate rmsnorm (already written above) + gemv */
+            llm_gemv(llm_q, layer->q_weight, llm_xn, lq_dim, dim, layer->q_type);
+            if (has_own_kv) {
+                llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
+                llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
+            }
         }
 
         /* Add bias if present (Phi-2) */
@@ -4606,9 +4805,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
         } else {
-            /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x) */
-            llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
-            llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
+            /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x)
+             * Fast path: fuse RMSNorm into gate+up GEMVs when both are Q4_0,
+             * eliminating the llm_xn write + two reads. */
+#ifdef __AVX2__
+            if (!m->use_layernorm &&
+                layer->ffn_norm_type == GGML_TYPE_F32 &&
+                layer->gate_type == GGML_TYPE_Q4_0 &&
+                layer->up_type   == GGML_TYPE_Q4_0) {
+                const float *ffn_nw = (const float *)layer->ffn_norm;
+                llm_gemv_q4_fused_rmsnorm_avx2(llm_ffn_g, layer->ffn_gate,
+                                                llm_x, ffn_nw, lff, dim, m->rms_eps);
+                llm_gemv_q4_fused_rmsnorm_avx2(llm_ffn_u, layer->ffn_up,
+                                                llm_x, ffn_nw, lff, dim, m->rms_eps);
+            } else
+#endif
+            {
+                llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
+                llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
+            }
             if (jit_fwd_fused_silu && lff == ff) {
                 jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, lff);
             } else {
@@ -7535,6 +7750,17 @@ void llm_reset_cache(void)
     if (!llm_is_loaded()) return;
     llm_model_t *m = &llm_model;
     m->cache_len = 0;
+    llm_logits_pos = -1;
+    llm_primed_greedy = -1;
+#ifdef ENABLE_CUDA
+    /* Invalidate any captured CUDA graph: it was captured at a specific
+     * position with a specific KV-cache state.  After a full cache reset
+     * the graph is stale and must be re-captured on the next decode step. */
+    cuda_graph_captured    = 0;
+    cuda_graph_tried       = 0;
+    /* Leave cuda_graph_decode_ready as-is: the next llm_generate_token_ids
+     * call will set it appropriately; resetting here could block re-capture. */
+#endif
     int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
     if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
     kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
@@ -8962,6 +9188,31 @@ int llm_kv_snapshot_prefix(const int *prefix_tokens, int n_prefix_tokens)
     if (capture_len > m->cache_len) capture_len = m->cache_len;
     if (capture_len <= 0) return -1;
 
+    /* GPU mode: download KV from device to CPU before copying to snapshot.
+     * In GPU forward mode, m->k_cache/m->v_cache (CPU) are never updated by
+     * llm_forward_token — only gl->d_k_cache (GPU) is updated.  Without this
+     * sync the snapshot contains stale zeros/garbage from the last CPU-path
+     * forward, and llm_kv_restore_prefix then uploads that garbage back to the
+     * GPU, producing completely wrong attention and logits. */
+#ifdef ENABLE_CUDA
+    if (gpu_ctx.gpu_fwd) {
+        const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+        int kv_dim_dl = m->n_kv_heads * m->head_dim;
+        int ls_dl = m->max_seq * kv_dim_dl;
+        uint64_t dl_bytes = (uint64_t)capture_len * kv_dim_dl * sizeof(float);
+        for (int _L = 0; _L < m->n_layers; _L++) {
+            gpu_layer_t *_gl = &gpu_ctx.layers[_L];
+            if (m->layers[_L].kv_reuse_layer < 0 && _gl->d_k_cache) {
+                float *cpu_k = m->k_cache + (uint64_t)_L * ls_dl;
+                float *cpu_v = m->v_cache + (uint64_t)_L * ls_dl;
+                be->mem.download(cpu_k, _gl->d_k_cache, dl_bytes);
+                be->mem.download(cpu_v, _gl->d_v_cache, dl_bytes);
+            }
+        }
+        be->mem.sync();
+    }
+#endif
+
     prefix_hash = llm_hash_tokens(prefix_tokens, n_prefix_tokens);
 
     for (int i = 0; i < LLM_KV_SNAPSHOT_SLOTS; i++) {
@@ -9046,12 +9297,16 @@ int llm_kv_restore_prefix(const int *prefix_tokens, int n_prefix_tokens)
         }
     }
 
-    if (!s || !s->in_use) return -1;
+    if (!s || !s->in_use) { return -1; }
     if (s->n_layers != m->n_layers || s->max_seq != m->max_seq ||
-        s->n_kv_heads != m->n_kv_heads || s->head_dim != m->head_dim)
+        s->n_kv_heads != m->n_kv_heads || s->head_dim != m->head_dim) {
         return -1;
+    }
 
-    llm_reset_cache();
+    /* Restore: overwrite only the snapshot region — no full zero needed since
+     * cache_len guards access to tail positions.  Skipping the full zero saves
+     * ~293MB of GPU bandwidth per token on large models. */
+    m->cache_len = 0;   /* mark cache logically empty during copy */
 
     kv_dim = m->n_kv_heads * m->head_dim;
     layer_stride = m->max_seq * kv_dim;
@@ -9084,6 +9339,96 @@ int llm_kv_restore_prefix(const int *prefix_tokens, int n_prefix_tokens)
 #endif
 
     return s->cached_len;
+}
+
+/* Restore a KV snapshot and then run the last context token through the
+ * transformer to warm llm_logits and set llm_logits_pos = n_ctx - 1.
+ *
+ * After this call:
+ *   m->cache_len  == n_ctx                 (full context cached)
+ *   llm_logits_pos == n_ctx - 1            (logits valid for ctx[n_ctx-1])
+ *
+ * This lets llm_speculative_verify_topk / _with_correction skip their
+ * forward pass entirely via the "already valid" branch:
+ *   cache_len >= n_context && logits_pos == n_context - 1
+ *
+ * Returns n_ctx on success, -1 if no matching snapshot exists.
+ */
+int llm_kv_restore_and_prime(const int *ctx, int n_ctx)
+{
+    if (!ctx || n_ctx <= 0) return -1;
+    int restored = llm_kv_restore_prefix(ctx, n_ctx);
+    if (restored < 0) return -1;
+
+    llm_model_t *m = &llm_model;
+    if (n_ctx - 1 < 0 || n_ctx - 1 >= m->max_seq) return -1;
+#ifdef ENABLE_CUDA
+    cuda_graph_decode_ready = 1;
+#endif
+    llm_forward_token(m, llm_logits, ctx[n_ctx - 1], n_ctx - 1);
+    llm_logits_pos = n_ctx - 1;
+    return n_ctx;
+}
+
+/* Return a pointer to the current logits buffer if the logits are primed for
+ * the given context length (i.e. llm_logits_pos == n_ctx - 1).  Returns NULL
+ * if the logits are stale or n_ctx <= 0.
+ *
+ * This lets geodesic_step_fast / geodesic_rollout read the transformer's
+ * actual next-token probabilities without an additional forward pass.
+ */
+/* Cheaply prime llm_logits for n_ctx-1 when the KV cache is exactly
+ * one step behind (cache_len == n_ctx - 1).  This fires after every
+ * successful speculative-verify call that appended exactly one correction
+ * token, making it free — no snapshot restore needed.
+ *
+ * Returns 0 if logits are now primed for position n_ctx-1, -1 otherwise
+ * (caller should fall back to llm_kv_restore_and_prime).
+ */
+int llm_prime_logits_fast(const int *ctx, int n_ctx)
+{
+    if (!ctx || n_ctx <= 0) return -1;
+    llm_model_t *m = &llm_model;
+    if (llm_logits_pos == n_ctx - 1) return 0;  /* already primed */
+    if (m->cache_len != n_ctx - 1) return -1;   /* can't do single-step prime */
+#ifdef ENABLE_CUDA
+    cuda_graph_decode_ready = 1;
+#endif
+    llm_forward_token(m, llm_logits, ctx[n_ctx - 1], n_ctx - 1);
+    llm_logits_pos = n_ctx - 1;
+    m->cache_len   = n_ctx;   /* GPU path does not update cache_len; set it now */
+    /* Cache greedy argmax so callers pay O(1) instead of O(vocab) */
+    {
+        int   best = 0;
+        float bv   = llm_logits[0];
+        for (int t = 1; t < m->vocab_size; t++)
+            if (llm_logits[t] > bv) { bv = llm_logits[t]; best = t; }
+        llm_primed_greedy = best;
+    }
+    return 0;
+}
+
+/* Return the greedy argmax token for the last primed context position (O(1)).
+ * Returns -1 if logits are not primed for n_ctx-1 or cache is stale. */
+int llm_get_primed_greedy_token(int n_ctx)
+{
+    if (n_ctx <= 0 || llm_logits_pos != n_ctx - 1 || llm_primed_greedy < 0)
+        return -1;
+    return llm_primed_greedy;
+}
+
+const float *llm_get_logits_primed(int n_ctx)
+{
+    if (n_ctx <= 0) return NULL;
+    if (llm_logits_pos != n_ctx - 1) {
+        return NULL;
+    }
+    return llm_logits;
+}
+
+const float *llm_get_last_hidden_state(void)
+{
+    return llm_last_hs_valid ? llm_last_hs : NULL;
 }
 
 int llm_agent_ctx_reset(int ctx_id)
@@ -9250,16 +9595,74 @@ int llm_speculative_verify_with_correction(const int *context_tokens, int n_cont
     int accepted = 0;
     int next;
 
-    if (!llm_is_loaded() || !context_tokens || !draft_tokens) return -1;
-    if (n_context <= 0 || n_draft <= 0) return 0;
+    if (!llm_is_loaded() || !context_tokens) return -1;
+    if (n_draft > 0 && !draft_tokens) return -1;
+    if (n_context <= 0) return 0;
     if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
 
     m = &llm_model;
-    llm_reset_cache();
 
-    for (int i = 0; i < n_context && pos < m->max_seq - 1; i++) {
-        llm_forward_token(m, llm_logits, context_tokens[i], pos);
-        pos++;
+    /* Invalidate stale logits cache at the start of each call.
+     * Only reset when cache is short (we can't trust logits from a different
+     * context position).  When cache_len == n_context (one step ahead due to
+     * a primed snapshot restore), logits_pos == n_context-1 is still valid
+     * and the skip-all branch below can fire. */
+    if (m->cache_len < n_context - 1)
+        llm_logits_pos = -1;
+
+    /* Ultra-fast path: if KV cache already covers context[0..n_context-2] exactly,
+     * just run the last context token — no snapshot restore, no GPU upload. */
+    if (m->cache_len == n_context - 1 &&
+        llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+        /* Re-enable CUDA graph for single-token decode.  Any call to
+         * llm_generate_tokens(max_gen<8) — e.g. ott_get_hidden_state —
+         * sets cuda_graph_decode_ready=0.  We must re-set it here so the
+         * graph is captured/replayed for each single-token verifier step.
+         * cuda_graph_captured stays as-is: if already captured it will be 
+         * replayed; if not yet captured it will be captured on this call. */
+        cuda_graph_decode_ready = 1;
+#endif
+        llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+        llm_logits_pos = n_context - 1;
+        pos = n_context;
+    } else if (m->cache_len >= n_context && llm_logits_pos == n_context - 1) {
+        /* Logits are already valid for n_context-1 — skip forward pass entirely */
+        pos = n_context;
+    }
+    /* Fast path: restore from KV snapshot if available (avoids O(n) prefill) */
+    else if (llm_kv_restore_prefix(context_tokens, n_context) > 0) {
+        pos = m->cache_len;  /* KV cache at snapshot position */
+        /* Forward any gap tokens with NULL logits (skip LM head, no graph capture) */
+        for (int i = pos; i < n_context - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], i);
+            llm_logits_pos = i;
+            m->cache_len = i + 1;
+        }
+        /* Run last context token with logits — triggers CUDA graph capture.
+         * Re-enable decode_ready here so capture is attempted even if a prior
+         * llm_generate_tokens(max_gen<8) call reset it to 0. */
+        if (llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+            cuda_graph_decode_ready = 1;
+#endif
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+            llm_logits_pos = n_context - 1;
+        }
+        pos = n_context;  /* logits now valid for position n_context */
+    } else {
+        /* No snapshot: full prefill from scratch.  Pass NULL logits for all but
+         * the last token (skips LM head cost + avoids stale graph capture). */
+        llm_reset_cache();
+        for (int i = 0; i < n_context - 1 && pos < m->max_seq - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], pos);
+            pos++;
+        }
+        if (pos < m->max_seq - 1) {
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], pos);
+            llm_logits_pos = pos;
+            pos++;
+        }
     }
 
     if (pos <= 0) {
@@ -9272,6 +9675,7 @@ int llm_speculative_verify_with_correction(const int *context_tokens, int n_cont
         if (draft_tokens[i] != next) break;
         accepted++;
         llm_forward_token(m, llm_logits, draft_tokens[i], pos);
+        llm_logits_pos = pos;
         pos++;
         next = llm_sample(llm_logits, m->vocab_size, 0.0f);
     }
@@ -9280,6 +9684,333 @@ int llm_speculative_verify_with_correction(const int *context_tokens, int n_cont
     m->cache_len = pos;
     __sync_lock_release(&llm_inference_active);
     return accepted;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * llm_speculative_verify_topk
+ *
+ * Relaxed speculative decoding acceptance: accept draft token d if
+ *   logits[d] >= max(logits) - topk_margin
+ * i.e., the draft token's probability is at least exp(-topk_margin) of the
+ * top-1 probability.  This gives higher acceptance rate for imperfect draft
+ * models at the cost of occasionally accepting a suboptimal token.
+ *
+ * When a draft is accepted this way, the forward pass still runs AT that
+ * position (so KV cache advances correctly), but we emit the draft token
+ * rather than the greedy argmax.
+ *
+ * topk_margin calibration:
+ *   1.0  ≈ top-36% (aggressive, quality degrades slightly)
+ *   2.0  ≈ top-13% (balanced)
+ *   3.0  ≈ top-5%  (conservative, near-greedy quality)
+ * ───────────────────────────────────────────────────────────────────────── */
+int llm_speculative_verify_topk(const int *context_tokens, int n_context,
+                                const int *draft_tokens,   int n_draft,
+                                float topk_margin,
+                                int *correction_tok_out)
+{
+    llm_model_t *m;
+    int pos = 0;
+    int accepted = 0;
+
+    if (!llm_is_loaded() || !context_tokens) return -1;
+    if (n_draft > 0 && !draft_tokens) return -1;
+    if (n_context <= 0) return 0;
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+
+    m = &llm_model;
+
+    /* Re-use the same fast-path KV cache logic from verify_with_correction.
+     * Only invalidate logits when the cache is short (missing context tokens).
+     * If cache_len == n_context (primed by llm_kv_restore_and_prime), preserve
+     * logits_pos so the skip-all branch fires without any forward pass. */
+    if (m->cache_len < n_context - 1)
+        llm_logits_pos = -1;
+
+    if (m->cache_len == n_context - 1 &&
+        llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+        cuda_graph_decode_ready = 1;
+#endif
+        llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+        llm_logits_pos = n_context - 1;
+        pos = n_context;
+    } else if (m->cache_len >= n_context && llm_logits_pos == n_context - 1) {
+        pos = n_context;
+    } else if (llm_kv_restore_prefix(context_tokens, n_context) > 0) {
+        pos = m->cache_len;
+        for (int i = pos; i < n_context - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], i);
+            llm_logits_pos = i;
+            m->cache_len = i + 1;
+        }
+        if (llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+            cuda_graph_decode_ready = 1;
+#endif
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+            llm_logits_pos = n_context - 1;
+        }
+        pos = n_context;
+    } else {
+        llm_reset_cache();
+        for (int i = 0; i < n_context - 1 && pos < m->max_seq - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], pos);
+            pos++;
+        }
+        if (pos < m->max_seq - 1) {
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], pos);
+            llm_logits_pos = pos;
+            pos++;
+        }
+    }
+
+    if (pos <= 0) {
+        __sync_lock_release(&llm_inference_active);
+        return 0;
+    }
+
+    /* greedy top-1 is always the correction token at first rejection */
+    int greedy_next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+
+    for (int i = 0; i < n_draft && pos < m->max_seq - 1; i++) {
+        int d = draft_tokens[i];
+        if (d < 0 || d >= m->vocab_size) break;
+
+        /* Check logit margin: accept if logit[d] >= max_logit - topk_margin */
+        float max_logit = llm_logits[greedy_next];
+        float draft_logit = llm_logits[d];
+        int accept = (draft_logit >= max_logit - topk_margin);
+
+        if (!accept) break; /* first rejection terminates the chain */
+
+        accepted++;
+        /* Advance KV cache through the (accepted) draft token position */
+        llm_forward_token(m, llm_logits, d, pos);
+        llm_logits_pos = pos;
+        pos++;
+        greedy_next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+    }
+
+    if (correction_tok_out) *correction_tok_out = greedy_next;
+    m->cache_len = pos;
+    __sync_lock_release(&llm_inference_active);
+    return accepted;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * llm_speculative_verify_swarm
+ *
+ * OD-SWARM speculative verify: combines the topk_margin relaxed acceptance
+ * from llm_speculative_verify_topk with a SWARM secondary acceptance path.
+ *
+ * For each draft slot i:
+ *   1. Primary: accept draft_tokens[i] if logit[draft_i] >= max_logit - margin
+ *      (emit draft_tokens[i], KV-advance with draft_tokens[i])
+ *   2. SWARM:   accept if verifier greedy ∈ swarm_tokens[i*swarm_k .. +swarm_k]
+ *      (emit greedy, KV-advance with greedy — preserves correctness exactly)
+ *
+ * With K=16 OD candidates at 2.5% per-candidate accuracy:
+ *   P(primary OR swarm hit) = 1-(1-0.025)^16 ≈ 33% per draft slot.
+ * swarm_k=0 degrades to llm_speculative_verify_topk behaviour.
+ * ───────────────────────────────────────────────────────────────────────── */
+int llm_speculative_verify_swarm(const int *context_tokens, int n_context,
+                                 const int *draft_tokens,   int n_draft,
+                                 float      topk_margin,
+                                 const int *swarm_tokens,   int swarm_k,
+                                 int *correction_tok_out)
+{
+    llm_model_t *m;
+    int pos      = 0;
+    int accepted = 0;
+
+    if (!llm_is_loaded() || !context_tokens) return -1;
+    if (n_draft > 0 && !draft_tokens) return -1;
+    if (n_context <= 0) return 0;
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+
+    m = &llm_model;
+
+    if (m->cache_len < n_context - 1)
+        llm_logits_pos = -1;
+
+    if (m->cache_len == n_context - 1 &&
+        llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+        cuda_graph_decode_ready = 1;
+#endif
+        llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+        llm_logits_pos = n_context - 1;
+        pos = n_context;
+    } else if (m->cache_len >= n_context && llm_logits_pos == n_context - 1) {
+        pos = n_context;
+    } else if (llm_kv_restore_prefix(context_tokens, n_context) > 0) {
+        pos = m->cache_len;
+        for (int i = pos; i < n_context - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], i);
+            llm_logits_pos = i;
+            m->cache_len = i + 1;
+        }
+        if (llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+            cuda_graph_decode_ready = 1;
+#endif
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+            llm_logits_pos = n_context - 1;
+        }
+        pos = n_context;
+    } else {
+        llm_reset_cache();
+        for (int i = 0; i < n_context - 1 && pos < m->max_seq - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], pos);
+            pos++;
+        }
+        if (pos < m->max_seq - 1) {
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], pos);
+            llm_logits_pos = pos;
+            pos++;
+        }
+    }
+
+    if (pos <= 0) {
+        __sync_lock_release(&llm_inference_active);
+        return 0;
+    }
+
+    int greedy_next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+
+    for (int i = 0; i < n_draft && pos < m->max_seq - 1; i++) {
+        int d = draft_tokens[i];
+        if (d < 0 || d >= m->vocab_size) break;
+
+        int   accept_tok = -1;
+        float max_logit  = llm_logits[greedy_next];
+
+        /* Primary: topk margin acceptance (emit draft token) */
+        if (llm_logits[d] >= max_logit - topk_margin) {
+            accept_tok = d;
+        }
+        /* SWARM: greedy token is one of our K candidates (emit greedy — exact) */
+        else if (swarm_tokens && swarm_k > 0) {
+            for (int s = 0; s < swarm_k; s++) {
+                if (swarm_tokens[i * swarm_k + s] == greedy_next) {
+                    accept_tok = greedy_next;
+                    break;
+                }
+            }
+        }
+
+        if (accept_tok < 0) break;  /* first rejection terminates chain */
+
+        accepted++;
+        llm_forward_token(m, llm_logits, accept_tok, pos);
+        llm_logits_pos = pos;
+        pos++;
+        greedy_next = llm_sample(llm_logits, m->vocab_size, 0.0f);
+    }
+
+    if (correction_tok_out) *correction_tok_out = greedy_next;
+    m->cache_len = pos;
+    __sync_lock_release(&llm_inference_active);
+    return accepted;
+}
+
+int llm_rollout_exact_greedy(const int *context_tokens, int n_context,
+                             int n_steps,
+                             int *out_tokens,
+                             float *out_margin,
+                             int *n_out)
+{
+    llm_model_t *m;
+    int pos = 0;
+    int produced = 0;
+
+    if (n_out) *n_out = 0;
+    if (!llm_is_loaded() || !context_tokens || !out_tokens) return -1;
+    if (n_context <= 0 || n_steps <= 0) return 0;
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+
+    m = &llm_model;
+
+    if (m->cache_len < n_context - 1)
+        llm_logits_pos = -1;
+
+    if (m->cache_len == n_context - 1 &&
+        llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+        cuda_graph_decode_ready = 1;
+#endif
+        llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+        llm_logits_pos = n_context - 1;
+        pos = n_context;
+    } else if (m->cache_len >= n_context && llm_logits_pos == n_context - 1) {
+        pos = n_context;
+    } else if (llm_kv_restore_prefix(context_tokens, n_context) > 0) {
+        pos = m->cache_len;
+        for (int i = pos; i < n_context - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], i);
+            llm_logits_pos = i;
+            m->cache_len = i + 1;
+        }
+        if (llm_logits_pos != n_context - 1) {
+#ifdef ENABLE_CUDA
+            cuda_graph_decode_ready = 1;
+#endif
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], n_context - 1);
+            llm_logits_pos = n_context - 1;
+        }
+        pos = n_context;
+    } else {
+        llm_reset_cache();
+        for (int i = 0; i < n_context - 1 && pos < m->max_seq - 1; i++) {
+            llm_forward_token(m, NULL, context_tokens[i], pos);
+            pos++;
+        }
+        if (pos < m->max_seq - 1) {
+            llm_forward_token(m, llm_logits, context_tokens[n_context - 1], pos);
+            llm_logits_pos = pos;
+            pos++;
+        }
+    }
+
+    if (pos <= 0) {
+        __sync_lock_release(&llm_inference_active);
+        return 0;
+    }
+
+    while (produced < n_steps && pos < m->max_seq - 1) {
+        int best_tok = 0;
+        float best_logit = llm_logits[0];
+        float second_logit = -1e30f;
+
+        for (int t = 1; t < m->vocab_size; t++) {
+            float logit = llm_logits[t];
+            if (logit > best_logit) {
+                second_logit = best_logit;
+                best_logit = logit;
+                best_tok = t;
+            } else if (logit > second_logit) {
+                second_logit = logit;
+            }
+        }
+
+        out_tokens[produced] = best_tok;
+        if (out_margin) {
+            out_margin[produced] = (second_logit > -1e30f)
+                ? (best_logit - second_logit)
+                : 8.0f;
+        }
+
+        llm_forward_token(m, llm_logits, best_tok, pos);
+        llm_logits_pos = pos;
+        pos++;
+        produced++;
+    }
+
+    if (n_out) *n_out = produced;
+    m->cache_len = pos;
+    __sync_lock_release(&llm_inference_active);
+    return produced;
 }
 
 int llm_rollout_reset(void)
@@ -9368,3 +10099,4 @@ int llm_test_decode_token(int token_id, char *buf, int max_len)
     if (!llm_is_loaded()) return -1;
     return llm_decode_token(&llm_model, token_id, buf, max_len);
 }
+

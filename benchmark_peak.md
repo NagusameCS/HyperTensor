@@ -1,5 +1,7 @@
 ﻿# Peak Benchmark: Geodessical GPU vs Ollama GPU
 
+This file is a raw benchmark summary. Read it alongside `../BENCHMARK_ANALYSIS.md` if you want the interpretation and follow-up fixes.
+
 **Date:** 2026-04-15 13:47
 **CPU:** AMD Ryzen 9 7940HS w/ Radeon 780M Graphics     
 **GPU:** NVIDIA GeForce RTX 4070 Laptop GPU  |  VRAM total: 8188 MB

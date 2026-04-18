@@ -1797,6 +1797,125 @@ __global__ void kernel_gemv_dual_q4_0(
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Fused RMSNorm + Triple Q4_0 GEMV (GPU)
+ *
+ * Eliminates the separate ck_rmsnorm kernel launch that writes d_xn before
+ * the triple GEMV. Instead, one kernel:
+ *   Phase 0 — all threads cooperatively compute sum_sq(x) → inv_rms
+ *   Phase 1 — quantize x * inv_rms * norm_w to Q8 (cooperative, shared mem)
+ *   Phase 2 — each warp computes its assigned output row via dp4a
+ *
+ * Saves one d_xn write (dim floats) and its re-read per projection.
+ * ════════════════════════════════════════════════════════════════════════ */
+__global__ void kernel_fused_rmsnorm_triple_q4_0(
+    float       *out_q,
+    float       *out_k,
+    float       *out_v,
+    const void  *W_q,
+    const void  *W_k,
+    const void  *W_v,
+    const float *x,
+    const float *norm_w,
+    float        eps,
+    int          q_dim,
+    int          k_dim,
+    int          v_dim,
+    int          in_dim)
+{
+    extern __shared__ char smem_raw[];
+    int nb = in_dim / 32;
+    int8_t *q8      = (int8_t *)smem_raw;
+    float  *q8_sc   = (float *)(smem_raw + in_dim);
+    float  *q8_sums = q8_sc + nb;
+    float  *s_inv   = q8_sums + nb;  /* 1-element: shared inv_rms */
+
+    int n_warps = blockDim.x >> 5;
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * n_warps + warp_id;
+    int total_rows = q_dim + k_dim + v_dim;
+
+    /* Phase 0: cooperative sum_sq → inv_rms */
+    float local_sq = 0.0f;
+    for (int i = threadIdx.x; i < in_dim; i += blockDim.x)
+        local_sq += x[i] * x[i];
+    for (int off = 16; off > 0; off >>= 1)
+        local_sq += __shfl_xor_sync(0xFFFFFFFF, local_sq, off);
+    __shared__ float warp_sq[8];
+    if (lane == 0) warp_sq[warp_id] = local_sq;
+    __syncthreads();
+    if (threadIdx.x == 0) {
+        float total = 0.0f;
+        for (int w = 0; w < n_warps; w++) total += warp_sq[w];
+        s_inv[0] = rsqrtf(total / (float)in_dim + eps);
+    }
+    __syncthreads();
+    const float inv_rms = s_inv[0];
+
+    /* Phase 1: quantize xn = x * inv_rms * norm_w → Q8 (shared memory) */
+    for (int b = warp_id; b < nb; b += n_warps) {
+        float val = x[b * 32 + lane] * inv_rms * norm_w[b * 32 + lane];
+        float amax = fabsf(val);
+        for (int off = 16; off > 0; off >>= 1)
+            amax = fmaxf(amax, __shfl_xor_sync(0xFFFFFFFF, amax, off));
+        float inv_sc = (amax > 1e-10f) ? 127.0f / amax : 0.0f;
+        int qi = __float2int_rn(val * inv_sc);
+        if (qi > 127) qi = 127;
+        if (qi < -127) qi = -127;
+        q8[b * 32 + lane] = (int8_t)qi;
+        int isum = qi;
+        for (int off = 16; off > 0; off >>= 1)
+            isum += __shfl_xor_sync(0xFFFFFFFF, isum, off);
+        if (lane == 0) {
+            float sc = amax / 127.0f;
+            q8_sc[b]   = sc;
+            q8_sums[b] = sc * (float)isum;
+        }
+    }
+    __syncthreads();
+
+    if (row >= total_rows) return;
+
+    /* Phase 2: dp4a GEMV for this row (Q, K, or V) */
+    float *out;
+    const void *W;
+    int local_row;
+    if (row < q_dim) {
+        out = out_q; W = W_q; local_row = row;
+    } else if (row < q_dim + k_dim) {
+        out = out_k; W = W_k; local_row = row - q_dim;
+    } else {
+        out = out_v; W = W_v; local_row = row - q_dim - k_dim;
+    }
+
+    const struct q4_0_block *blocks =
+        (const struct q4_0_block *)W + (int64_t)local_row * nb;
+    float sum = 0.0f;
+    for (int b = lane; b < nb; b += 32) {
+        float d = fp16_to_f32(blocks[b].d);
+        uint32_t raw[4];
+        memcpy(raw, blocks[b].qs, 16);
+        uint32_t qlo[4], qhi[4];
+        #pragma unroll
+        for (int k = 0; k < 4; k++) {
+            qlo[k] = raw[k] & 0x0F0F0F0Fu;
+            qhi[k] = (raw[k] >> 4) & 0x0F0F0F0Fu;
+        }
+        const int32_t *q8_lo = (const int32_t *)(q8 + b * 32);
+        const int32_t *q8_hi = (const int32_t *)(q8 + b * 32 + 16);
+        int isum_all = 0;
+        #pragma unroll
+        for (int k = 0; k < 4; k++) {
+            isum_all = __dp4a((int)qlo[k], q8_lo[k], isum_all);
+            isum_all = __dp4a((int)qhi[k], q8_hi[k], isum_all);
+        }
+        sum += d * (q8_sc[b] * (float)isum_all - 8.0f * q8_sums[b]);
+    }
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) out[local_row] = sum;
+}
+
 __global__ void kernel_gemv_triple_q4_0(
     float       *out_q,
     float       *out_k,
@@ -2597,6 +2716,24 @@ CUDA_API void ck_gemv_triple_q4_0(
     int grid = (total_rows + 7) / 8;
     kernel_gemv_triple_q4_0<<<grid, 256, smem, stream_compute>>>(
         out_q, out_k, out_v, W_q, W_k, W_v, x,
+        q_dim, k_dim, v_dim, in_dim);
+}
+
+/* Fused RMSNorm + triple Q4_0 GEMV.
+ * smem: q8[in_dim] + q8_sc[nb*4] + q8_sums[nb*4] + inv_rms[4] + warp_sq[32] */
+CUDA_API void ck_fused_rmsnorm_triple_q4_0(
+    float *out_q, float *out_k, float *out_v,
+    const void *W_q, const void *W_k, const void *W_v,
+    const float *x, const float *norm_w, float eps,
+    int q_dim, int k_dim, int v_dim, int in_dim)
+{
+    int nb = in_dim / 32;
+    /* smem: q8(in_dim) + q8_sc(nb*4) + q8_sums(nb*4) + s_inv(4) */
+    int smem = in_dim + nb * 8 + 4;
+    int total_rows = q_dim + k_dim + v_dim;
+    int grid = (total_rows + 7) / 8;
+    kernel_fused_rmsnorm_triple_q4_0<<<grid, 256, smem, stream_compute>>>(
+        out_q, out_k, out_v, W_q, W_k, W_v, x, norm_w, eps,
         q_dim, k_dim, v_dim, in_dim);
 }
 

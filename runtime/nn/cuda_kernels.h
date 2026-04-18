@@ -177,6 +177,16 @@ CUDA_API void ck_gemv_triple_q4_0(
     int q_dim, int k_dim, int v_dim,
     int in_dim);
 
+/* Fused RMSNorm + triple Q4_0 GEMV: normalizes x on-the-fly and computes Q+K+V
+ * in one kernel launch (no d_xn write).  Returns void; caller checks availability
+ * via the dynamic-load path in backend_cuda.c. */
+CUDA_API void ck_fused_rmsnorm_triple_q4_0(
+    float *out_q, float *out_k, float *out_v,
+    const void *W_q, const void *W_k, const void *W_v,
+    const float *x, const float *norm_w, float eps,
+    int q_dim, int k_dim, int v_dim,
+    int in_dim);
+
 /* ─── CUDA Graph support ─── */
 CUDA_API void ck_graph_destroy(void);
 CUDA_API void ck_set_decode_pos(int pos, int seq_len);

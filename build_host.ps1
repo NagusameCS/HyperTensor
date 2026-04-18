@@ -49,6 +49,7 @@ $SOURCES = @(
     "runtime/nn/axiom_linalg.c",
     "runtime/nn/axiom_geo.c",
     "runtime/nn/axiom_beta.c",
+    "runtime/nn/axiom_vis.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
 )
@@ -70,9 +71,6 @@ if ($EnableCuda) {
     Write-Host '  CUDA backend disabled via -NoCuda' -ForegroundColor Yellow
 }
 
-# MLIR IR optimizer (always included)
-$CFLAGS += "-DENABLE_MLIR"
-$SOURCES += "runtime/nn/mlir_ops.c"
 
 # Clean
 if ($Clean) {

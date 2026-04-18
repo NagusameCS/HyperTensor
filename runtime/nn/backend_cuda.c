@@ -80,6 +80,10 @@ typedef void     (*fn_gemv_dual_q4_0)(float *, float *, const void *, const void
 typedef void     (*fn_gemv_triple_q4_0)(float *, float *, float *,
                                          const void *, const void *, const void *,
                                          const float *, int, int, int, int);
+typedef void     (*fn_fused_rmsnorm_triple_q4_0)(float *, float *, float *,
+                                                  const void *, const void *, const void *,
+                                                  const float *, const float *, float,
+                                                  int, int, int, int);
 typedef int      (*fn_graph_op)(void);
 typedef void     (*fn_graph_destroy)(void);
 typedef void     (*fn_set_decode_pos)(int, int);
@@ -143,8 +147,9 @@ static struct {
     fn_add_rmsnorm  add_rmsnorm;
     fn_rmsnorm_add  rmsnorm_add;
     fn_gelu_mul     gelu_mul;
-    fn_gemv_dual_q4_0   gemv_dual_q4_0;
-    fn_gemv_triple_q4_0 gemv_triple_q4_0;
+    fn_gemv_dual_q4_0              gemv_dual_q4_0;
+    fn_gemv_triple_q4_0            gemv_triple_q4_0;
+    fn_fused_rmsnorm_triple_q4_0   fused_rmsnorm_triple_q4_0;
     fn_graph_op     graph_begin_capture;
     fn_graph_op     graph_end_capture;
     fn_graph_op     graph_launch;
@@ -230,8 +235,9 @@ static int cuda_load_library(void) {
     ck.add_rmsnorm = (fn_add_rmsnorm)LIB_SYM(ck.lib, "ck_add_rmsnorm");
     ck.rmsnorm_add = (fn_rmsnorm_add)LIB_SYM(ck.lib, "ck_rmsnorm_add");
     ck.gelu_mul    = (fn_gelu_mul)LIB_SYM(ck.lib, "ck_gelu_mul");
-    ck.gemv_dual_q4_0   = (fn_gemv_dual_q4_0)LIB_SYM(ck.lib, "ck_gemv_dual_q4_0");
-    ck.gemv_triple_q4_0 = (fn_gemv_triple_q4_0)LIB_SYM(ck.lib, "ck_gemv_triple_q4_0");
+    ck.gemv_dual_q4_0              = (fn_gemv_dual_q4_0)LIB_SYM(ck.lib, "ck_gemv_dual_q4_0");
+    ck.gemv_triple_q4_0            = (fn_gemv_triple_q4_0)LIB_SYM(ck.lib, "ck_gemv_triple_q4_0");
+    ck.fused_rmsnorm_triple_q4_0   = (fn_fused_rmsnorm_triple_q4_0)LIB_SYM(ck.lib, "ck_fused_rmsnorm_triple_q4_0");
     ck.graph_begin_capture = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_begin_capture");
     ck.graph_end_capture   = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_end_capture");
     ck.graph_launch        = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_launch");
@@ -427,6 +433,23 @@ int cuda_gemv_triple_q4_0(float *out_q, float *out_k, float *out_v,
     if (ck.gemv_triple_q4_0) {
         ck.gemv_triple_q4_0(out_q, out_k, out_v, W_q, W_k, W_v, x,
                              q_dim, k_dim, v_dim, in_dim);
+        return 1;
+    }
+    return 0;
+}
+
+/* Fused RMSNorm + triple Q4_0 GEMV: computes Q, K, V in one kernel
+ * launch, normalizing x on-the-fly with norm_w/eps (no d_xn write).
+ * Returns 1 if the kernel was available, 0 if caller must fall back. */
+int cuda_fused_rmsnorm_triple_q4_0(
+        float *out_q, float *out_k, float *out_v,
+        const void *W_q, const void *W_k, const void *W_v,
+        const float *x, const float *norm_w, float eps,
+        int q_dim, int k_dim, int v_dim, int in_dim) {
+    if (ck.fused_rmsnorm_triple_q4_0) {
+        ck.fused_rmsnorm_triple_q4_0(out_q, out_k, out_v, W_q, W_k, W_v,
+                                      x, norm_w, eps,
+                                      q_dim, k_dim, v_dim, in_dim);
         return 1;
     }
     return 0;

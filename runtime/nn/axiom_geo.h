@@ -74,18 +74,41 @@ typedef struct {
     double *gamma;      /* [n_points × dim × dim × dim] */
 } axgeo_christoffel_t;
 
+/* Layer-stratified global Christoffel cache: one Γ^k_ij tensor per layer. */
+typedef struct {
+    int     n_layers;
+    int     dim;
+    double *gamma;      /* [n_layers × dim × dim × dim] */
+} axgeo_layer_christoffel_t;
+
 axgeo_christoffel_t axgeo_christoffel_create(int n_points, int dim);
 void axgeo_christoffel_destroy(axgeo_christoffel_t *ch);
+axgeo_layer_christoffel_t axgeo_layer_christoffel_create(int n_layers, int dim);
+void axgeo_layer_christoffel_destroy(axgeo_layer_christoffel_t *ch);
 
 /* Get Γ^k_ij at sample point p: gamma[p][k][i][j] */
 static inline double *axgeo_gamma_at(axgeo_christoffel_t *ch, int p) {
     return ch->gamma + (uint64_t)p * ch->dim * ch->dim * ch->dim;
 }
 
+static inline double *axgeo_layer_gamma_at(axgeo_layer_christoffel_t *ch, int layer) {
+    return ch->gamma + (uint64_t)layer * ch->dim * ch->dim * ch->dim;
+}
+
 /* Compute Christoffel symbols from metric field.
  * Uses centered finite differences for metric derivatives. */
 int axgeo_compute_christoffel(const axgeo_metric_field_t *mf,
                               axgeo_christoffel_t *ch);
+
+/* Compute a single global Christoffel tensor valid everywhere on the manifold.
+ * Fits a global linear metric gradient via marginal OLS regression over all
+ * sample points, then computes Γ^k_ij = ½ ḡ^{kl}(∂_i ḡ_{jl} + ∂_j ḡ_{il}
+ * - ∂_l ḡ_{ij}) once.  ch must be created with n_points=1.
+ * Cost: O(n_mp × d²) regression + O(d⁴) Γ tensor — one-time on the manifold.
+ * The resulting ch can be passed directly to axgeo_christoffel_interpolate;
+ * with n_points=1 it always returns the single global Γ. */
+int axgeo_compute_christoffel_global(const axgeo_metric_field_t *mf,
+                                     axgeo_christoffel_t *ch);
 
 /* Interpolate Christoffel symbols at arbitrary point x */
 void axgeo_christoffel_interpolate(const axgeo_christoffel_t *ch,

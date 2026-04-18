@@ -1,7 +1,7 @@
 
 <p align="center">
   <h1 align="center">Geodessical</h1>
-  <p align="center"><b>High-Performance AI Inference Runtime</b></p>
+  <p align="center"><b>Hosted GGUF inference runtime</b></p>
 </p>
 
 <p align="center">
@@ -13,9 +13,16 @@
   <img src="https://img.shields.io/github/last-commit/NagusameCS/Geodessical?label=last%20commit" alt="Last Commit">
 </p>
 
-Geodessical is a C-based inference runtime for GGUF language models. It can run as a normal host application (Windows/Linux) and shares core inference code with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is straightforward: predictable runtime behavior, low overhead, and transparent performance tuning.
+Geodessical is a C-based inference runtime for GGUF language models. It runs as a normal host application on Windows or Linux and shares its inference core with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is practical: predictable behavior, low overhead, and enough visibility to tune the runtime without guessing.
 
-### Key Features
+### Related Docs
+
+- [TensorOS README](../README.md)
+- [HyperTensor and Geodessical Brief](../docs/HYPERTENSOR_GEODESSICAL_ARCHITECTURE_BRIEF.md)
+- [HyperTensor and Geodessical Paper](../docs/HYPERTENSOR_GEODESSICAL_ARCHITECTURE_PAPER.md)
+- [Benchmark Analysis](../BENCHMARK_ANALYSIS.md)
+
+### What It Supports
 
 - **GGUF model loading** — Qwen, LLaMA, Gemma, SmolLM, Mistral, Phi-2/3/3.5
 - **Quantization** — Q4_0, Q8_0, F16, F32 weight formats

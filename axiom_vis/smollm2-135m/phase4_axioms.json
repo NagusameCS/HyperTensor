@@ -1,0 +1,17 @@
+{
+  "phase": 4,
+  "title": "Axiom Formalization",
+  "model_name": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+  "model_arch": "llama",
+  "model_dim": 576,
+  "model_layers": 30,
+  "model_vocab": 49152,
+  "model_heads": 9,
+  "quant_type": "Q8_0",
+  "axiom_count": 24,
+  "consistency_score": 0.920873,
+  "candidates_tested": 96,
+  "candidates_accepted": 96,
+  "oracle_calls_used": 12,
+  "information_gain": 0.191058
+}

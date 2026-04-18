@@ -46,11 +46,38 @@ build_host/
 # Generated/temporary
 iq2xxs_grid_correct.txt
 
+# Internal dev utility scripts (one-off patches/fixes)
+patch_*.py
+patch_template*.ps1
+fix_*.py
+fix_*.ps1
+add_debug.ps1
+add_warmup*.ps1
+apply_patch.ps1
+revert_template.py
+debug_ctx.ps1
+debug_nodrafts.ps1
+scripts/archive_runtime_artifacts.ps1
+
+# Internal raw output files
+baseline_od.txt
+onedecode_od.txt
+out_spec.txt
+diag_out.txt
+qemu_serial*.log
+
+# Internal archives and temp benchmark data
+archives/
+benchmarks/
+
 # Internal planning/notes (local-only)
 docs/internal/
 docs/IMPLEMENTATION_PLANNING.md
+docs/TOKEN_NATIVE_PLANNING.md
 docs/TOKEN_NATIVE_PIPELINE.md
 docs/EVOLUTION.md
+docs/GEODESSICAL_PLAN.md
+docs/AXIOM_BETA_INTERNAL_DESIGN.md
 *.ideas.md
 *.scratch.md
 
@@ -58,8 +85,16 @@ docs/EVOLUTION.md
 bench_*.txt
 diff_full.txt
 
-# Axiomatic subsystem generated reports
+# Axiomatic subsystem generated reports and internal state
 axiom_beta_report*.json
+axiom_warp_state.dat
+
+# OTT internal binary state and reports
+ott_hs_disk.dat
+ott_readiness_report.json
+
+# Internal audit reports
+AUDIT_REPORT.md
 
 # Theory / research documents (never commit)
 organic_training_theory/
