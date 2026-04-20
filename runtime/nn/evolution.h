@@ -1,14 +1,9 @@
 /* =============================================================================
- * TensorOS - Neural Architecture Search via Neuroevolution
+ * Neural Architecture Search via Neuroevolution
  *
- * The most revolutionary feature: the OS discovers optimal neural network
- * architectures for its own hardware during boot. A population of candidate
- * networks competes for fitness (accuracy × speed), with the best surviving
- * and reproducing via mutation. Within seconds, evolution discovers networks
- * that solve problems humans designed by hand.
- *
- * This is what Google Brain's NAS and OpenAI's evolution strategies do —
- * but running at the OS kernel level, with JIT-compiled candidates.
+ * Evolves neural network architectures at runtime.
+ * A population of candidate networks competes by fitness (accuracy × speed);
+ * survivors reproduce via mutation and crossover.
  * =============================================================================*/
 
 #ifndef TENSOROS_NN_EVOLUTION_H

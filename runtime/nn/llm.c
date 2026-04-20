@@ -22,6 +22,9 @@
 #include "runtime/nn/model_meta.h"
 #include "runtime/nn/tensor_bridge.h"
 #include "runtime/nn/blt.h"
+#include "runtime/nn/flash_attn.h"
+#include "runtime/nn/axiom_beta.h"
+#include "runtime/nn/axiom_exploit.h"
 #include "kernel/core/kernel.h"
 #include "kernel/mm/tensor_mm.h"
 #include "kernel/core/perf.h"
@@ -105,6 +108,12 @@ void cuda_gelu_mul(float *a, const float *b, int n);
 int cuda_gemv_dual_q4_0(float *out_a, float *out_b,
                          const void *W_a, const void *W_b,
                          const float *x, int out_dim, int in_dim);
+/* cuBLAS batched GEMV wrapper (defined in backend_cuda.c) */
+void cuda_sgemm_batched_f32(int M, int K,
+                              const float * const *d_Aarray,
+                              const float * const *d_xarray,
+                              float * const       *d_yarray,
+                              int batch_count);
 int cuda_gemv_triple_q4_0(float *out_q, float *out_k, float *out_v,
                             const void *W_q, const void *W_k, const void *W_v,
                             const float *x,
@@ -378,6 +387,7 @@ typedef struct {
     const void *host_ptr;   /* mmap'd host weight pointer (lookup key) */
     void       *dev_ptr;    /* GPU device pointer */
     uint64_t    size;       /* Tensor size in bytes */
+    ggml_type_t dev_type;   /* Type of data as stored on GPU (may differ from host after dequant) */
 } gpu_weight_entry_t;
 
 /* Per-layer GPU-resident norm weights and KV cache */
@@ -392,6 +402,7 @@ typedef struct {
     float *d_v_cache;          /* [n_kv * max_seq * lhd] KV cache V */
     float *d_iswa_post_norm;   /* [dim] ISWA post-norm weight (Gemma4, NULL if absent) */
     int    lhd;                /* actual head dim for this layer */
+    int    on_gpu;             /* 1 = weights uploaded, 0 = CPU fallback for this layer */
 } gpu_layer_t;
 
 static struct {
@@ -413,6 +424,8 @@ static struct {
     float *d_ffn_g;             /* [max_ff] FFN gate */
     float *d_ffn_u;             /* [max_ff] FFN up */
     float *d_ffn_d;             /* [dim] FFN down / scratch */
+    float *d_compress_tmp;      /* [AXEX_COMPRESS_MAX_RANK] scratch for GPU two-GEMV */
+    float *d_x_sub;             /* [AXEX_MANIFOLD_K_MAX] GP manifold projection scratch */
     float *d_output_norm;       /* [dim] final output norm weights */
     float *d_rope_freqs;        /* RoPE freq factors for full-attn layers (NULL if unused) */
     gpu_layer_t layers[GPU_MAX_LAYERS];
@@ -469,8 +482,19 @@ static void *llm_gpu_lookup(const void *host_ptr) {
     return (void *)0;
 }
 
+/* Look up device pointer and return GPU-resident type (may differ from host type) */
+static void *llm_gpu_lookup_with_type(const void *host_ptr, ggml_type_t *out_type) {
+    for (int i = 0; i < gpu_ctx.map_count; i++) {
+        if (gpu_ctx.map[i].host_ptr == host_ptr) {
+            if (out_type) *out_type = gpu_ctx.map[i].dev_type;
+            return gpu_ctx.map[i].dev_ptr;
+        }
+    }
+    return (void *)0;
+}
+
 /* Upload one weight tensor to GPU and register in the map */
-static int llm_gpu_register_weight(const void *host, uint64_t size) {
+static int llm_gpu_register_weight(const void *host, uint64_t size, ggml_type_t type) {
     if (!host || size == 0) return 0;
     if (gpu_ctx.map_count >= GPU_WEIGHT_MAP_MAX) return -1;
     const backend_t *be = backend_get_by_id(BACKEND_CUDA);
@@ -483,17 +507,133 @@ static int llm_gpu_register_weight(const void *host, uint64_t size) {
     gpu_ctx.map[gpu_ctx.map_count].host_ptr = host;
     gpu_ctx.map[gpu_ctx.map_count].dev_ptr  = dev;
     gpu_ctx.map[gpu_ctx.map_count].size     = size;
+    gpu_ctx.map[gpu_ctx.map_count].dev_type = type;
     gpu_ctx.map_count++;
     return 0;
+}
+
+/* Helper: actual bytes we will store in VRAM for a weight of the given type.
+ * IQ2_XS and Q2_K are dequantized to F32 on upload, so cost is n * sizeof(float). */
+static uint64_t llm_gpu_actual_bytes(int rows, int cols, ggml_type_t type) {
+    if (type == GGML_TYPE_IQ2_XS || type == GGML_TYPE_Q2_K)
+        return (uint64_t)rows * cols * sizeof(float);
+    return llm_row_bytes(cols, type) * (uint64_t)rows;
+}
+
+/* Estimate bytes needed to upload all weights for layer L to VRAM.
+ * Used by the budget check so we can predict before committing. */
+static uint64_t llm_layer_vram_bytes(const llm_model_t *m, int L)
+{
+    const llm_layer_t *layer = &m->layers[L];
+    int lhd     = layer->head_dim_layer ? layer->head_dim_layer : m->head_dim;
+    int lq_dim  = m->n_heads * lhd;
+    int lkv_dim = m->n_kv_heads * lhd;
+    int lff     = layer->ff_dim_layer ? layer->ff_dim_layer : m->ff_dim;
+    int has_kv  = (layer->kv_reuse_layer < 0);
+    uint64_t b = 0;
+    b += llm_gpu_actual_bytes(lq_dim,  m->dim, layer->q_type);
+    if (has_kv) {
+        b += llm_gpu_actual_bytes(lkv_dim, m->dim, layer->k_type);
+        b += llm_gpu_actual_bytes(lkv_dim, m->dim, layer->v_type);
+    }
+    b += llm_gpu_actual_bytes(m->dim,  lq_dim, layer->o_type);
+    if (layer->ffn_gate)
+        b += llm_gpu_actual_bytes(lff,     m->dim, layer->gate_type);
+    b += llm_gpu_actual_bytes(lff,     m->dim, layer->up_type);
+    b += llm_gpu_actual_bytes(m->dim,  lff,    layer->down_type);
+    return b;
+}
+
+/* VRAM estimate for attention-only upload (compress mode: FFN not uploaded raw).
+ * Includes attention weights + norm F32 + compressed FFN F32 if available. */
+static uint64_t llm_layer_vram_bytes_attn_only(const llm_model_t *m, int L)
+{
+    const llm_layer_t *layer = &m->layers[L];
+    int lhd     = layer->head_dim_layer ? layer->head_dim_layer : m->head_dim;
+    int lq_dim  = m->n_heads * lhd;
+    int lkv_dim = m->n_kv_heads * lhd;
+    int has_kv  = (layer->kv_reuse_layer < 0);
+    uint64_t b = 0;
+    b += llm_row_bytes(m->dim, layer->q_type) * (uint64_t)lq_dim;
+    if (has_kv) {
+        b += llm_row_bytes(m->dim, layer->k_type) * (uint64_t)lkv_dim;
+        b += llm_row_bytes(m->dim, layer->v_type) * (uint64_t)lkv_dim;
+    }
+    b += llm_row_bytes(lq_dim, layer->o_type) * (uint64_t)m->dim;
+    b += (uint64_t)m->dim * sizeof(float) * 4; /* 4 norm vectors */
+    /* Add compressed FFN F32 footprint (if already computed, 0 if not yet) */
+    for (int slot = 0; slot < AXEX_COMPRESS_WHICH_MAX; slot++) {
+        const axex_compressed_weight_t *cw = axex_get_compressed_layer(L, slot);
+        if (cw) b += (uint64_t)cw->rank * (cw->m + cw->n) * sizeof(float);
+    }
+    return b;
+}
+
+/* VRAM estimate for FFN-only upload (attn-only compress mode: Q/K/V/O not uploaded raw).
+ * Used when attention is GP-compressed to CPU manifold path; FFN stays on GPU. */
+static uint64_t llm_layer_vram_bytes_ffn_only(const llm_model_t *m, int L)
+{
+    const llm_layer_t *layer = &m->layers[L];
+    int lff = layer->ff_dim_layer ? layer->ff_dim_layer : m->ff_dim;
+    uint64_t b = 0;
+    if (layer->ffn_gate)
+        b += llm_row_bytes(m->dim, layer->gate_type) * (uint64_t)lff;
+    b += llm_row_bytes(m->dim, layer->up_type)   * (uint64_t)lff;
+    b += llm_row_bytes(lff,    layer->down_type) * (uint64_t)m->dim;
+    b += (uint64_t)m->dim * sizeof(float) * 4; /* 4 norm vectors */
+    return b;
+}
+
+/* VRAM estimate when both attention and FFN are compressed (full GP compress mode).
+ * Only norms remain on GPU. */
+static uint64_t llm_layer_vram_bytes_norms_only(const llm_model_t *m, int L)
+{
+    (void)L;
+    return (uint64_t)m->dim * sizeof(float) * 4; /* 4 norm vectors per layer */
 }
 
 /* Upload a weight matrix: out_dim rows, each llm_row_bytes(in_dim, type) */
 static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim,
                                      ggml_type_t type) {
     if (!weight) return 0;
-    /* Only upload types the CUDA GEMV kernel can handle */
+
+    /* IQ2_XS and Q2_K: not directly supported by CUDA GEMV kernels.
+     * Dequantize to F32 on host and upload as F32 so the GPU can handle them. */
+    if (type == GGML_TYPE_IQ2_XS || type == GGML_TYPE_Q2_K) {
+#ifdef ENABLE_CUDA
+        uint64_t n_floats = (uint64_t)out_dim * in_dim;
+        float *f32_buf = (float *)malloc(n_floats * sizeof(float));
+        if (!f32_buf) return -1;
+        /* Dequantize row by row using the CPU backend dequantize function */
+        const backend_t *cpu_be = backend_get_by_id(BACKEND_CPU);
+        uint64_t rb = llm_row_bytes(in_dim, type);
+        for (int r = 0; r < out_dim; r++) {
+            const uint8_t *src = (const uint8_t *)weight + (uint64_t)r * rb;
+            cpu_be->compute.dequantize(f32_buf + (uint64_t)r * in_dim, src, in_dim, type);
+        }
+        const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+        if (!be || gpu_ctx.map_count >= GPU_WEIGHT_MAP_MAX) { free(f32_buf); return -1; }
+        uint64_t sz = n_floats * sizeof(float);
+        void *dev = be->mem.alloc(sz);
+        if (!dev) { free(f32_buf); return -2; }
+        be->mem.upload(dev, f32_buf, sz);
+        free(f32_buf);
+        gpu_ctx.map[gpu_ctx.map_count].host_ptr = weight;
+        gpu_ctx.map[gpu_ctx.map_count].dev_ptr  = dev;
+        gpu_ctx.map[gpu_ctx.map_count].size     = sz;
+        gpu_ctx.map[gpu_ctx.map_count].dev_type = GGML_TYPE_F32;
+        gpu_ctx.map_count++;
+        return 0;
+#else
+        return 0;
+#endif
+    }
+
+    /* Only upload types the CUDA GEMV kernel can handle.
+     * Q3_K, Q5_K, IQ4_NL, IQ4_XS have no CUDA kernels — skip upload so
+     * llm_gemv falls back to CPU (which handles all types correctly). */
     if (type != GGML_TYPE_Q4_0 && type != GGML_TYPE_Q4_1 && type != GGML_TYPE_Q8_0 &&
-        type != GGML_TYPE_F32  && type != GGML_TYPE_F16  &&
+        type != GGML_TYPE_F32  && type != GGML_TYPE_F16  && type != GGML_TYPE_Q4_K &&
         type != GGML_TYPE_Q6_K && type != GGML_TYPE_BF16)
         return 0;
 
@@ -508,7 +648,7 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
         uint8_t *soa = (uint8_t *)malloc((size_t)total_size);
         if (!soa) {
             /* Fallback: upload AOS as-is */
-            return llm_gpu_register_weight(weight, total_size);
+            return llm_gpu_register_weight(weight, total_size, type);
         }
 
         const uint8_t *aos = (const uint8_t *)weight;
@@ -531,7 +671,7 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
         const backend_t *be = backend_get_by_id(BACKEND_CUDA);
         if (!be || gpu_ctx.map_count >= GPU_WEIGHT_MAP_MAX) {
             free(soa);
-            return llm_gpu_register_weight(weight, total_size);
+            return llm_gpu_register_weight(weight, total_size, type);
         }
         void *dev = be->mem.alloc(total_size);
         if (!dev) { free(soa); return -2; }
@@ -541,6 +681,7 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
         gpu_ctx.map[gpu_ctx.map_count].host_ptr = weight;
         gpu_ctx.map[gpu_ctx.map_count].dev_ptr  = dev;
         gpu_ctx.map[gpu_ctx.map_count].size     = total_size;
+        gpu_ctx.map[gpu_ctx.map_count].dev_type = type;
         gpu_ctx.map_count++;
         return 0;
     }
@@ -549,7 +690,7 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
 
     uint64_t rb = llm_row_bytes(in_dim, type);
     uint64_t size = (uint64_t)out_dim * rb;
-    return llm_gpu_register_weight(weight, size);
+    return llm_gpu_register_weight(weight, size, type);
 }
 
 /* Upload a norm weight vector to GPU as F32.
@@ -567,6 +708,54 @@ static float *llm_gpu_upload_norm(const void *weight, int dim, ggml_type_t type)
     }
     /* Non-F32 norm weights: not supported on GPU path */
     return (float *)0;
+}
+
+/* When set, llm_gpu_init() skips raw FFN uploads — compression will supply GPU FFN.
+ * Call llm_gpu_set_compress_mode(1) before llm_gpu_init() to activate. */
+static int gpu_ffn_skip_for_compress = 0;
+
+/* When set, llm_gpu_init() skips raw Q/K/V/O uploads — manifold GP path supplies them.
+ * In attention-only compress mode (default), set this to save ~1.3 GB VRAM on 8B models.
+ * Call llm_gpu_set_attn_compress_mode(1) before llm_gpu_init() to activate. */
+static int gpu_attn_skip_for_compress = 0;
+
+void llm_gpu_set_compress_mode(int enable) { gpu_ffn_skip_for_compress = enable; }
+void llm_gpu_set_attn_compress_mode(int enable) { gpu_attn_skip_for_compress = enable; }
+
+/*
+ * llm_gpu_upload_ffn_fallback — re-upload raw FFN weights when compression was
+ * fully skipped (e.g., all matrices exceeded --axex-compress-max-err threshold).
+ * gpu_ffn_skip_for_compress was set before llm_gpu_init so raw FFN weights were
+ * not uploaded. Call this after axex_init if compress_layers == 0.
+ */
+void llm_gpu_upload_ffn_fallback(void) {
+    llm_model_t *m = llm_get_model();
+    if (!m || !gpu_ctx.active) return;
+    /* NOTE: do NOT reset gpu_ffn_skip_for_compress here — resetting it enables the
+     * batch-prefill path which calls BGEMV4 with NULL device pointers when FFN
+     * uploads fail (OOM).  Keep it set so prefill runs token-by-token via
+     * llm_forward_token, which has PCIe D2H/H2D fallbacks for null GPU weights. */
+    int uploaded = 0;
+    for (int L = 0; L < m->n_layers; L++) {
+        llm_layer_t *layer = &m->layers[L];
+        gpu_layer_t *gl = &gpu_ctx.layers[L];
+        if (!gl->on_gpu) continue;
+        int dim = m->dim;
+        int lff = (layer->ff_dim_layer > 0) ? layer->ff_dim_layer : m->ff_dim;
+        if (layer->ffn_gate && !llm_gpu_lookup(layer->ffn_gate)) {
+            llm_gpu_upload_weight_mat(layer->ffn_gate, lff, dim, layer->gate_type);
+            uploaded++;
+        }
+        if (layer->ffn_up && !llm_gpu_lookup(layer->ffn_up)) {
+            llm_gpu_upload_weight_mat(layer->ffn_up,   lff, dim, layer->up_type);
+            uploaded++;
+        }
+        if (layer->ffn_down && !llm_gpu_lookup(layer->ffn_down)) {
+            llm_gpu_upload_weight_mat(layer->ffn_down, dim, lff, layer->down_type);
+            uploaded++;
+        }
+    }
+    kprintf("[GPU] FFN fallback: uploaded %d raw FFN tensors to GPU\n", uploaded);
 }
 
 /* Upload all model weights to GPU. Called after model load if CUDA available. */
@@ -609,24 +798,62 @@ static int llm_gpu_init(llm_model_t *m) {
         return -1;
     }
 
-    /* Upload per-layer weights */
+    /* Upload per-layer weights — stop when VRAM budget is exhausted.
+     * Reserve 1.5 GB headroom for activation buffers, KV cache, and scratch.
+     * Layers that don't fit are marked on_gpu=0 and will run on CPU. */
+    #define VRAM_LAYER_RESERVE (1536ULL * 1024 * 1024)
+    int vram_layers_ok = 1;  /* becomes 0 when we first run out of VRAM */
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
+        gpu_layer_t *gl    = &gpu_ctx.layers[L];
         int lhd     = layer->head_dim_layer ? layer->head_dim_layer : hd;
         int lq_dim  = n_heads * lhd;
         int lkv_dim = n_kv * lhd;
         int lff     = layer->ff_dim_layer ? layer->ff_dim_layer : ff;
 
-        llm_gpu_upload_weight_mat(layer->q_weight, lq_dim, dim, layer->q_type);
-        if (layer->kv_reuse_layer < 0) {
-            llm_gpu_upload_weight_mat(layer->k_weight, lkv_dim, dim, layer->k_type);
-            llm_gpu_upload_weight_mat(layer->v_weight, lkv_dim, dim, layer->v_type);
+        if (vram_layers_ok) {
+            /* Budget estimation depends on which weights will actually land on GPU:
+             *   - attn-only compress: only FFN + norms (attn is manifold CPU path)
+             *   - full compress: only norms (attn + FFN both manifold CPU path)
+             *   - no compress: full layer (attn + FFN + norms) */
+            uint64_t layer_need;
+            if (gpu_attn_skip_for_compress && gpu_ffn_skip_for_compress)
+                layer_need = llm_layer_vram_bytes_norms_only(m, L);
+            else if (gpu_attn_skip_for_compress)
+                layer_need = llm_layer_vram_bytes_ffn_only(m, L);
+            else if (gpu_ffn_skip_for_compress)
+                layer_need = llm_layer_vram_bytes_attn_only(m, L);
+            else
+                layer_need = llm_layer_vram_bytes(m, L);
+            uint64_t vram_free  = be->get_free_memory(0);
+            if (vram_free < layer_need + VRAM_LAYER_RESERVE) {
+                vram_layers_ok = 0;
+                kprintf("[GPU] Layer %d: VRAM tight (%lluMB free, %lluMB needed) → CPU offload\n",
+                        L, (unsigned long long)(vram_free >> 20),
+                           (unsigned long long)(layer_need >> 20));
+            }
         }
-        llm_gpu_upload_weight_mat(layer->o_weight, dim, lq_dim, layer->o_type);
-        if (layer->ffn_gate)
-            llm_gpu_upload_weight_mat(layer->ffn_gate, lff, dim, layer->gate_type);
-        llm_gpu_upload_weight_mat(layer->ffn_up,   lff, dim, layer->up_type);
-        llm_gpu_upload_weight_mat(layer->ffn_down, dim, lff, layer->down_type);
+
+        gl->on_gpu = vram_layers_ok;
+
+        if (!gl->on_gpu) continue;  /* skip weight upload for CPU layers */
+
+        if (!gpu_attn_skip_for_compress) {
+            /* Only upload raw Q/K/V/O when not using GP manifold path for attention */
+            llm_gpu_upload_weight_mat(layer->q_weight, lq_dim, dim, layer->q_type);
+            if (layer->kv_reuse_layer < 0) {
+                llm_gpu_upload_weight_mat(layer->k_weight, lkv_dim, dim, layer->k_type);
+                llm_gpu_upload_weight_mat(layer->v_weight, lkv_dim, dim, layer->v_type);
+            }
+            llm_gpu_upload_weight_mat(layer->o_weight, dim, lq_dim, layer->o_type);
+        }
+        if (!gpu_ffn_skip_for_compress) {
+            /* Only upload raw FFN when not going to compress → saves PCIe BW */
+            if (layer->ffn_gate)
+                llm_gpu_upload_weight_mat(layer->ffn_gate, lff, dim, layer->gate_type);
+            llm_gpu_upload_weight_mat(layer->ffn_up,   lff, dim, layer->up_type);
+            llm_gpu_upload_weight_mat(layer->ffn_down, dim, lff, layer->down_type);
+        }
 
         /* ISWA injection weights (Gemma4) */
         if (layer->iswa_inp_gate)
@@ -635,6 +862,25 @@ static int llm_gpu_init(llm_model_t *m) {
         if (layer->iswa_proj)
             llm_gpu_upload_weight_mat(layer->iswa_proj, dim, m->iswa_n_embd,
                                       layer->iswa_proj_type);
+
+        /* Post-upload verification: if any mandatory weight failed to upload
+         * (e.g. dequant-on-upload OOM'd), mark layer as CPU-offloaded so the
+         * GPU forward pass doesn't invoke CUDA with null weight pointers. */
+        if (!gpu_attn_skip_for_compress) {
+            if ((layer->q_weight   && !llm_gpu_lookup(layer->q_weight)) ||
+                (layer->k_weight   && !llm_gpu_lookup(layer->k_weight)) ||
+                (layer->v_weight   && !llm_gpu_lookup(layer->v_weight)) ||
+                (layer->o_weight   && !llm_gpu_lookup(layer->o_weight))) {
+                gl->on_gpu = 0;
+            }
+        }
+        if (!gpu_ffn_skip_for_compress && gl->on_gpu) {
+            if ((layer->ffn_gate && !llm_gpu_lookup(layer->ffn_gate)) ||
+                (layer->ffn_up   && !llm_gpu_lookup(layer->ffn_up))   ||
+                (layer->ffn_down && !llm_gpu_lookup(layer->ffn_down))) {
+                gl->on_gpu = 0;
+            }
+        }
     }
 
     /* Upload global weights */
@@ -695,6 +941,11 @@ static int llm_gpu_init(llm_model_t *m) {
     gpu_ctx.d_ffn_g = (float *)be->mem.alloc((uint64_t)ff * sizeof(float));
     gpu_ctx.d_ffn_u = (float *)be->mem.alloc((uint64_t)ff * sizeof(float));
     gpu_ctx.d_ffn_d = (float *)be->mem.alloc((uint64_t)dim * sizeof(float));
+    /* Scratch for GPU compressed-weight two-GEMV intermediate (rank-sized) */
+    gpu_ctx.d_compress_tmp = (float *)be->mem.alloc(
+        (uint64_t)AXEX_COMPRESS_MAX_RANK * sizeof(float));
+    gpu_ctx.d_x_sub = (float *)be->mem.alloc(
+        (uint64_t)AXEX_MANIFOLD_K_MAX * sizeof(float));
 
     int fwd_ok = gpu_ctx.d_xn && gpu_ctx.d_q && gpu_ctx.d_k && gpu_ctx.d_v &&
                  gpu_ctx.d_attn && gpu_ctx.d_ffn_g && gpu_ctx.d_ffn_u && gpu_ctx.d_ffn_d;
@@ -708,7 +959,16 @@ static int llm_gpu_init(llm_model_t *m) {
             gpu_layer_t *gl = &gpu_ctx.layers[L];
             gl->lhd = lhd;
 
-            /* KV cache: only for layers with own KV (not shared) */
+            /* CPU-fallback layers: skip KV/norm GPU allocation */
+            if (!gl->on_gpu) {
+                gl->d_k_cache        = NULL;
+                gl->d_v_cache        = NULL;
+                gl->d_attn_norm      = NULL;
+                gl->d_ffn_norm       = NULL;
+                gl->d_post_attn_norm = NULL;
+                gl->d_post_ffw_norm  = NULL;
+                continue;
+            }
             if (layer->kv_reuse_layer < 0) {
                 gl->d_k_cache = (float *)be->mem.alloc(kv_layer_size);
                 gl->d_v_cache = (float *)be->mem.alloc(kv_layer_size);
@@ -735,6 +995,20 @@ static int llm_gpu_init(llm_model_t *m) {
                 gl->d_iswa_post_norm = llm_gpu_upload_norm(layer->iswa_post_norm, dim, GGML_TYPE_F32);
 
             if (!gl->d_attn_norm || !gl->d_ffn_norm) { fwd_ok = 0; break; }
+        }
+
+        /* If no layers ended up on GPU (e.g. VRAM=0, CUDA broken), fall back
+         * to CPU-only mode — avoids GPU decode loop with broken device memory. */
+        if (fwd_ok) {
+            int any_on_gpu = 0;
+            for (int L = 0; L < m->n_layers; L++) {
+                if (gpu_ctx.layers[L].on_gpu) { any_on_gpu = 1; break; }
+            }
+            if (!any_on_gpu) {
+                kprintf("[GPU] No layers on GPU (VRAM too small or CUDA unavailable), "
+                        "using CPU-only mode\n");
+                fwd_ok = 0;
+            }
         }
     } else {
         fwd_ok = 0;
@@ -1310,10 +1584,320 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
             sum += q6_k_dot256(&blocks[b], x + b * 256);
         break;
     }
+    case GGML_TYPE_Q4_K: {
+        /* Q4_K (K-quant): 256 elements per super-block, 8 sub-blocks of 32.
+         * Block layout: d(fp16) + dmin(fp16) + scales[12] + qs[128] = 144 bytes.
+         * value = d * scale_j * nibble - dmin * min_j */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh, dmh;
+            kmemcpy(&dh,  p,     2);
+            kmemcpy(&dmh, p + 2, 2);
+            float d    = fp16_to_fp32(dh);
+            float dmin = fp16_to_fp32(dmh);
+            const uint8_t *scales = p + 4;
+            const uint8_t *qs     = p + 16;  /* 4 + 12 = 16 */
+            p += 144;
+
+            const float *xb = x + b * 256;
+            int is = 0;
+            for (int j = 0; j < 256; j += 64) {
+                /* Extract scale/min for two sub-blocks (is, is+1) */
+                uint8_t sc0, m0, sc1, m1;
+                /* get_scale_min_k4 for sub-block is+0 */
+                if (is < 4) {
+                    sc0 = scales[is] & 63;
+                    m0  = scales[is + 4] & 63;
+                } else {
+                    sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                    m0  = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+                }
+                /* get_scale_min_k4 for sub-block is+1 */
+                int is1 = is + 1;
+                if (is1 < 4) {
+                    sc1 = scales[is1] & 63;
+                    m1  = scales[is1 + 4] & 63;
+                } else {
+                    sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                    m1  = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+                }
+                float d1 = d * (float)sc0;  float m1f = dmin * (float)m0;
+                float d2 = d * (float)sc1;  float m2f = dmin * (float)m1;
+
+                /* First 32 from lower nibbles, second 32 from upper nibbles */
+                const uint8_t *qj = qs + (j / 2);
+                for (int l = 0; l < 32; l++)
+                    sum += xb[j + l]      * (d1 * (float)(qj[l] & 0xF) - m1f);
+                for (int l = 0; l < 32; l++)
+                    sum += xb[j + 32 + l] * (d2 * (float)(qj[l] >> 4)  - m2f);
+                is += 2;
+            }
+        }
+        break;
+    }
     case GGML_TYPE_BF16: {
         const uint16_t *bf = (const uint16_t *)weight;
         for (int i = 0; i < n; i++)
             sum += bf16_to_fp32(bf[i]) * x[i];
+        break;
+    }
+    case GGML_TYPE_IQ4_NL: {
+        /* IQ4_NL: 32 elements/block, 18 bytes. Layout: d(fp16) + qs[16].
+         * Values decoded via non-linear lookup table (16 levels). */
+        static const int8_t iq4nl_tbl[16] = {
+            -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nb = n / 32;
+        for (int b = 0; b < nb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *qs = p + 2;
+            const float *xb = x + b * 32;
+            for (int l = 0; l < 16; l++) {
+                sum += xb[2*l + 0] * d * (float)iq4nl_tbl[qs[l] & 0xF];
+                sum += xb[2*l + 1] * d * (float)iq4nl_tbl[qs[l] >> 4];
+            }
+            p += 18;
+        }
+        break;
+    }
+    case GGML_TYPE_IQ4_XS: {
+        /* IQ4_XS: 256 elements/super-block, 136 bytes.
+         * Layout: d(fp16) + scales_h(uint16) + scales_l[4] + qs[128].
+         * 8 sub-blocks of 32, 6-bit scales, same IQ4NL lookup table. */
+        static const int8_t iq4xs_tbl[16] = {
+            -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh, scales_h_u;
+            kmemcpy(&dh,       p,     2);
+            kmemcpy(&scales_h_u, p + 2, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *scales_l = p + 4;   /* [4] */
+            const uint8_t *qs       = p + 8;   /* [128] */
+            p += 136;
+            const float *xb = x + b * 256;
+            for (int ib = 0; ib < 8; ib++) {
+                uint8_t ls = ((scales_l[ib >> 1] >> (4 * (ib & 1))) & 0xF)
+                             | (((scales_h_u >> (2 * ib)) & 3) << 4);
+                float dl = d * (float)((int)ls - 32);
+                const uint8_t *qb = qs + ib * 16;
+                const float *xsb = xb + ib * 32;
+                for (int j = 0; j < 16; j++) {
+                    sum += xsb[2*j + 0] * dl * (float)iq4xs_tbl[qb[j] & 0xF];
+                    sum += xsb[2*j + 1] * dl * (float)iq4xs_tbl[qb[j] >> 4];
+                }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_Q2_K: {
+        /* Q2_K: 256 elements/super-block, 84 bytes.
+         * Layout: scales[16](nibble-packed) + qs[64] + d(fp16) + dmin(fp16).
+         * Matches ggml dequantize_row_q2_K exactly. */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            const uint8_t *scales = p;      /* [16]: low nibble=d_scale, high=min_scale */
+            const uint8_t *qs     = p + 16; /* [64] */
+            uint16_t dh, dmh;
+            kmemcpy(&dh,  p + 80, 2);
+            kmemcpy(&dmh, p + 82, 2);
+            float d    = fp16_to_fp32(dh);
+            float dmin = fp16_to_fp32(dmh);
+            p += 84;
+            const float *xb = x + b * 256;
+            int y_idx = 0, is = 0;
+            const uint8_t *qb = qs;
+            for (int half = 0; half < 2; half++) {
+                int shift = 0;
+                for (int j = 0; j < 4; j++) {
+                    uint8_t sc = scales[is++];
+                    float dl = d * (float)(sc & 0xF);
+                    float ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        sum += xb[y_idx++] * (dl * (float)((qb[l] >> shift) & 3) - ml);
+                    sc = scales[is++];
+                    dl = d * (float)(sc & 0xF);
+                    ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        sum += xb[y_idx++] * (dl * (float)((qb[l + 16] >> shift) & 3) - ml);
+                    shift += 2;
+                }
+                qb += 32;
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_Q3_K: {
+        /* Q3_K: 256 elements/super-block, 110 bytes.
+         * Layout: hmask[32] + qs[64] + scales[12] + d(fp16).
+         * hmask provides bit 2 of each 3-bit quant. */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            const uint8_t *hmask  = p;        /* [32]  high bits */
+            const uint8_t *qs     = p + 32;   /* [64]  low 2 bits */
+            const uint8_t *scales = p + 96;   /* [12]  6-bit scales */
+            uint16_t dh;
+            kmemcpy(&dh, p + 108, 2);
+            float d = fp16_to_fp32(dh);
+            p += 110;
+            const float *xb = x + b * 256;
+            /* 8 sub-blocks of 32 elements */
+            for (int sb = 0; sb < 8; sb++) {
+                /* Extract 6-bit scale for this sub-block (packed like Q4_K) */
+                int is = sb;
+                uint8_t sc;
+                if (is < 4) {
+                    sc = (scales[is] & 0xF) | ((scales[is + 8] & 3) << 4);
+                } else {
+                    sc = (scales[is + 4] >> 4) | ((scales[is + 4] & 3) << 4);
+                }
+                /* scale is stored as (sc-32) offset: actual = sc - 32 */
+                float d_sc = d * (float)((int)sc - 32);
+                int base = sb * 32;
+                for (int l = 0; l < 32; l++) {
+                    int idx = base + l;
+                    int qlo = (qs[idx >> 2] >> (2 * (idx & 3))) & 3;
+                    int qhi = (hmask[idx >> 3] >> (idx & 7)) & 1;
+                    int q   = qlo | (qhi << 2);  /* 3-bit value 0..7 */
+                    sum += xb[idx] * d_sc * (float)(q - 4);
+                }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_Q5_K: {
+        /* Q5_K: 256 elements/super-block, 176 bytes. */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh, dmh;
+            kmemcpy(&dh,  p,     2);
+            kmemcpy(&dmh, p + 2, 2);
+            float d    = fp16_to_fp32(dh);
+            float dmin = fp16_to_fp32(dmh);
+            const uint8_t *scales = p + 4;   /* [12] */
+            const uint8_t *qh     = p + 16;  /* [32] */
+            const uint8_t *qs     = p + 48;  /* [128] */
+            p += 176;
+            const float *xb = x + b * 256;
+            int is = 0;
+            for (int j = 0; j < 256; j += 64) {
+                uint8_t sc0, m0, sc1, m1;
+                if (is < 4) {
+                    sc0 = scales[is] & 63;      m0 = scales[is + 4] & 63;
+                } else {
+                    sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                    m0  = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+                }
+                int is1 = is + 1;
+                if (is1 < 4) {
+                    sc1 = scales[is1] & 63;     m1 = scales[is1 + 4] & 63;
+                } else {
+                    sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                    m1  = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+                }
+                float d1 = d * (float)sc0;  float m1f = dmin * (float)m0;
+                float d2 = d * (float)sc1;  float m2f = dmin * (float)m1;
+                const uint8_t *qj = qs + (j / 2);
+                /* bit 4 from qh: byte (j/8 + l/8), bit (j/32)*4 + bit within */
+                for (int l = 0; l < 32; l++) {
+                    int pos = j + l;
+                    int hi  = (qh[pos >> 3] >> ((pos >> 5) * 4 + (pos & 7) / 8)) & 1;
+                    int q   = (qj[l] & 0xF) | (hi << 4);
+                    sum += xb[j + l] * (d1 * (float)q - m1f);
+                }
+                for (int l = 0; l < 32; l++) {
+                    int pos = j + 32 + l;
+                    int hi  = (qh[pos >> 3] >> ((pos >> 5) * 4 + (pos & 7) / 8)) & 1;
+                    int q   = (qj[l] >> 4) | (hi << 4);
+                    sum += xb[j + 32 + l] * (d2 * (float)q - m2f);
+                }
+                is += 2;
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ2_XS: {
+        /* IQ2_XS: 256 elements/super-block, 74 bytes.
+         * Layout: d(fp16) + qs[32](uint16_t) + scales[8](uint8_t).
+         * scales[] are packed 2 nibbles per byte: group ib32 uses nibble
+         *   (scales[ib32/2] >> 4*(ib32%2)) & 0xf.
+         * Each qs[k]: bits[8:0]=grid_idx (9-bit), bits[15:9]=7 sign bits.
+         * kgrid[idx] encodes 8 x 2-bit indices; map v -> {8,25,43,60}.
+         * 8th sign from even-parity: s8 = s7|(popcount(s7)&1)<<7. */
+        static const uint8_t  iq2xs_vals[4] = {1, 3, 5, 7};
+        static const uint16_t kgrid[512] = {
+            0,     2,     5,     8,    10,    17,    20,    22,    25,    32,    34,    37,    40,    65,    68,    70,
+           73,    80,    82,    85,    88,    97,   100,   128,   130,   133,   136,   145,   148,   153,   160,   257,
+          260,   262,   265,   272,   274,   277,   280,   282,   289,   292,   320,   322,   325,   328,   337,   340,
+          352,   360,   385,   388,   400,   512,   514,   517,   520,   529,   532,   544,   577,   580,   592,   597,
+          640,   650,  1025,  1028,  1030,  1033,  1040,  1042,  1045,  1048,  1057,  1060,  1088,  1090,  1093,  1096,
+         1105,  1108,  1110,  1120,  1153,  1156,  1168,  1280,  1282,  1285,  1288,  1297,  1300,  1312,  1345,  1348,
+         1360,  1377,  1408,  1537,  1540,  1552,  1574,  1600,  1602,  1668,  2048,  2050,  2053,  2056,  2058,  2065,
+         2068,  2080,  2085,  2113,  2116,  2128,  2136,  2176,  2208,  2218,  2305,  2308,  2320,  2368,  2433,  2441,
+         2560,  2592,  2600,  2710,  2720,  4097,  4100,  4102,  4105,  4112,  4114,  4117,  4120,  4129,  4132,  4160,
+         4162,  4165,  4168,  4177,  4180,  4192,  4202,  4225,  4228,  4240,  4352,  4354,  4357,  4360,  4369,  4372,
+         4384,  4417,  4420,  4432,  4480,  4500,  4502,  4609,  4612,  4614,  4624,  4672,  4704,  5120,  5122,  5125,
+         5128,  5137,  5140,  5152,  5185,  5188,  5193,  5200,  5220,  5248,  5377,  5380,  5392,  5440,  5632,  5652,
+         5705,  6145,  6148,  6160,  6162,  6208,  6228,  6278,  6400,  6405,  6502,  6737,  6825,  8192,  8194,  8197,
+         8200,  8202,  8209,  8212,  8224,  8257,  8260,  8272,  8320,  8352,  8449,  8452,  8464,  8512,  8520,  8549,
+         8704,  8738,  8832,  8872,  9217,  9220,  9232,  9257,  9280,  9472,  9537,  9554,  9625,  9729,  9754,  9894,
+        10240, 10248, 10250, 10272, 10325, 10376, 10402, 10600, 10640, 10760, 10784, 10882, 10888, 10890, 16385, 16388,
+        16390, 16393, 16400, 16402, 16405, 16408, 16417, 16420, 16448, 16450, 16453, 16456, 16458, 16465, 16468, 16480,
+        16485, 16513, 16516, 16528, 16640, 16642, 16645, 16648, 16657, 16660, 16672, 16705, 16708, 16720, 16768, 16773,
+        16802, 16897, 16900, 16912, 16914, 16937, 16960, 17408, 17410, 17413, 17416, 17425, 17428, 17433, 17440, 17473,
+        17476, 17488, 17536, 17556, 17665, 17668, 17680, 17700, 17728, 17818, 17920, 17930, 17988, 18000, 18433, 18436,
+        18448, 18496, 18501, 18516, 18530, 18688, 18705, 18756, 18768, 18793, 18948, 20480, 20482, 20485, 20488, 20497,
+        20500, 20512, 20520, 20545, 20548, 20560, 20608, 20737, 20740, 20752, 20757, 20800, 20802, 20992, 21060, 21162,
+        21505, 21508, 21520, 21537, 21568, 21600, 21633, 21665, 21760, 21768, 21888, 21896, 22049, 22120, 22177, 22528,
+        22548, 22593, 22608, 22681, 22810, 22848, 22850, 23173, 24577, 24580, 24592, 24640, 24660, 24674, 24710, 24745,
+        24832, 25124, 25162, 25234, 25600, 25622, 25872, 25920, 25925, 26020, 26625, 26730, 26917, 27142, 27220, 27234,
+        32768, 32770, 32773, 32776, 32785, 32788, 32800, 32810, 32833, 32836, 32848, 32896, 32898, 32936, 32938, 33025,
+        33028, 33030, 33040, 33088, 33105, 33113, 33280, 33312, 33408, 33410, 33440, 33448, 33793, 33796, 33808, 33810,
+        33813, 33856, 33888, 33929, 34048, 34116, 34213, 34328, 34410, 34816, 34824, 34853, 34906, 34944, 34946, 34984,
+        35078, 35362, 35456, 35464, 35478, 35496, 36865, 36868, 36880, 36928, 36950, 36996, 37120, 37154, 37220, 37462,
+        37513, 37888, 37893, 37956, 37968, 37976, 38185, 38288, 38290, 38465, 38993, 39078, 39241, 39445, 39520, 40960,
+        40962, 40968, 40970, 40992, 41002, 41120, 41297, 41305, 41382, 41472, 41474, 41480, 41514, 41600, 41632, 42048,
+        42133, 42597, 42648, 43018, 43040, 43042, 43048, 43168, 43176, 43268, 43396, 43398, 43560, 43562, 43665, 43690,
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint16_t *qs = (const uint16_t *)(p + 2);
+            const uint8_t  *sc = p + 66;
+            p += 74;
+            const float *xb = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                /* Two scale nibbles per 32-element group: low for l=0,1; high for l=2,3 */
+                float dl0 = d * (0.5f + (sc[ib32] & 0xf)) * 0.25f;
+                float dl1 = d * (0.5f + (sc[ib32] >> 4))  * 0.25f;
+                for (int l = 0; l < 4; l++) {
+                    float dl = (l < 2) ? dl0 : dl1;
+                    uint16_t qv = qs[ib32 * 4 + l];
+                    uint16_t gi = qv & 511;
+                    uint8_t  s7 = (uint8_t)(qv >> 9);
+                    uint8_t  s8 = s7 | (uint8_t)((__builtin_popcount(s7) & 1) << 7);
+                    uint16_t gv = kgrid[gi];
+                    const float *xs = xb + ib32 * 32 + l * 8;
+                    for (int k = 0; k < 8; k++) {
+                        float gk = (float)iq2xs_vals[(gv >> (2 * k)) & 3];
+                        if (s8 & (1u << k)) gk = -gk;
+                        sum += xs[k] * dl * gk;
+                    }
+                }
+            }
+        }
         break;
     }
     default:
@@ -2442,7 +3026,20 @@ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
     case GGML_TYPE_Q4_0: return (uint64_t)(in_dim / 32) * 18;
     case GGML_TYPE_Q4_1: return (uint64_t)(in_dim / 32) * 20;
     case GGML_TYPE_Q8_0: return (uint64_t)(in_dim / 32) * 34;
+    /* K-quant super-block types (256 elements each) */
+    case GGML_TYPE_Q2_K: return (uint64_t)(in_dim / 256) * 84;   /* 2+2+16+64 bytes */
+    case GGML_TYPE_Q3_K: return (uint64_t)(in_dim / 256) * 110;  /* 2+12+64+32 bytes */
+    case GGML_TYPE_Q4_K: return (uint64_t)(in_dim / 256) * 144;  /* 2+2+12+128 bytes */
+    case GGML_TYPE_Q5_K: return (uint64_t)(in_dim / 256) * 176;  /* 2+2+12+128+64 bytes */
     case GGML_TYPE_Q6_K: return (uint64_t)(in_dim / 256) * 210;
+    /* IQ (importance quant) types */
+    case GGML_TYPE_IQ4_NL: return (uint64_t)(in_dim / 32) * 18;   /* fp16+qs[16], 32-elem blocks */
+    case GGML_TYPE_IQ4_XS: return (uint64_t)(in_dim / 256) * 136; /* fp16+sc_h+sc_l[4]+qs[128] */
+    /* IQ2 / IQ3 super-block types */
+    case GGML_TYPE_IQ2_XXS: return (uint64_t)(in_dim / 256) * 66;  /* fp16+qs[32] (uint16_t) */
+    case GGML_TYPE_IQ2_XS:  return (uint64_t)(in_dim / 256) * 74;  /* fp16+qs[32]+scales[8] */
+    case GGML_TYPE_IQ3_XXS: return (uint64_t)(in_dim / 256) * 98;  /* fp16+qs[32]+scales[16] */
+    case GGML_TYPE_IQ3_S:   return (uint64_t)(in_dim / 256) * 110; /* same byte count as Q3_K */
     case GGML_TYPE_F16:  return (uint64_t)in_dim * 2;
     case GGML_TYPE_BF16: return (uint64_t)in_dim * 2;
     case GGML_TYPE_F32:  return (uint64_t)in_dim * 4;
@@ -2579,19 +3176,22 @@ static void llm_gemv(float *out, const void *weight, const float *x,
 {
 #ifdef ENABLE_CUDA
     /* GPU-accelerated GEMV: look up pre-uploaded device weight.
-     * Only dispatch to CUDA for types the GPU kernels support. */
-    if (gpu_ctx.active && (type == GGML_TYPE_Q4_0 || type == GGML_TYPE_Q4_1 ||
-                           type == GGML_TYPE_Q8_0 ||
-                           type == GGML_TYPE_F32  || type == GGML_TYPE_F16  ||
-                           type == GGML_TYPE_Q6_K)) {
-        void *d_weight = llm_gpu_lookup(weight);
-        if (d_weight) {
+     * Use the GPU-resident type (may differ from host type, e.g. IQ2_XS uploaded as F32). */
+    if (gpu_ctx.active) {
+        ggml_type_t gpu_type = type;
+        void *d_weight = llm_gpu_lookup_with_type(weight, &gpu_type);
+        if (d_weight &&
+            (gpu_type == GGML_TYPE_Q4_0 || gpu_type == GGML_TYPE_Q4_1 ||
+             gpu_type == GGML_TYPE_Q8_0 ||
+             gpu_type == GGML_TYPE_F32  || gpu_type == GGML_TYPE_F16  ||
+             gpu_type == GGML_TYPE_BF16 ||
+             gpu_type == GGML_TYPE_Q6_K || gpu_type == GGML_TYPE_Q4_K)) {
             const backend_t *be = backend_get_by_id(BACKEND_CUDA);
             /* Upload input vector to GPU scratch */
             be->mem.upload(gpu_ctx.d_x, x, (uint64_t)in_dim * sizeof(float));
-            /* Launch CUDA GEMV kernel */
+            /* Launch CUDA GEMV kernel with GPU-resident type */
             be->compute.gemv(gpu_ctx.d_out, d_weight, gpu_ctx.d_x,
-                             out_dim, in_dim, type);
+                             out_dim, in_dim, gpu_type);
             /* Download result (cudaMemcpy D2H is synchronous — waits for kernel) */
             be->mem.download(out, gpu_ctx.d_out, (uint64_t)out_dim * sizeof(float));
             return;
@@ -2812,6 +3412,109 @@ static void llm_embed(float *out, const llm_model_t *m, int token_id)
                     o[half*128 + l + 64] = d * (float)sc_h[4 + si] * (float)(q2 - 32);
                     o[half*128 + l + 96] = d * (float)sc_h[6 + si] * (float)(q3 - 32);
                 }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ2_XS: {
+        static const uint8_t  iq2xs_vals_e[4] = {1, 3, 5, 7};
+        static const uint16_t kgrid_e[512] = {
+            0,     2,     5,     8,    10,    17,    20,    22,    25,    32,    34,    37,    40,    65,    68,    70,
+           73,    80,    82,    85,    88,    97,   100,   128,   130,   133,   136,   145,   148,   153,   160,   257,
+          260,   262,   265,   272,   274,   277,   280,   282,   289,   292,   320,   322,   325,   328,   337,   340,
+          352,   360,   385,   388,   400,   512,   514,   517,   520,   529,   532,   544,   577,   580,   592,   597,
+          640,   650,  1025,  1028,  1030,  1033,  1040,  1042,  1045,  1048,  1057,  1060,  1088,  1090,  1093,  1096,
+         1105,  1108,  1110,  1120,  1153,  1156,  1168,  1280,  1282,  1285,  1288,  1297,  1300,  1312,  1345,  1348,
+         1360,  1377,  1408,  1537,  1540,  1552,  1574,  1600,  1602,  1668,  2048,  2050,  2053,  2056,  2058,  2065,
+         2068,  2080,  2085,  2113,  2116,  2128,  2136,  2176,  2208,  2218,  2305,  2308,  2320,  2368,  2433,  2441,
+         2560,  2592,  2600,  2710,  2720,  4097,  4100,  4102,  4105,  4112,  4114,  4117,  4120,  4129,  4132,  4160,
+         4162,  4165,  4168,  4177,  4180,  4192,  4202,  4225,  4228,  4240,  4352,  4354,  4357,  4360,  4369,  4372,
+         4384,  4417,  4420,  4432,  4480,  4500,  4502,  4609,  4612,  4614,  4624,  4672,  4704,  5120,  5122,  5125,
+         5128,  5137,  5140,  5152,  5185,  5188,  5193,  5200,  5220,  5248,  5377,  5380,  5392,  5440,  5632,  5652,
+         5705,  6145,  6148,  6160,  6162,  6208,  6228,  6278,  6400,  6405,  6502,  6737,  6825,  8192,  8194,  8197,
+         8200,  8202,  8209,  8212,  8224,  8257,  8260,  8272,  8320,  8352,  8449,  8452,  8464,  8512,  8520,  8549,
+         8704,  8738,  8832,  8872,  9217,  9220,  9232,  9257,  9280,  9472,  9537,  9554,  9625,  9729,  9754,  9894,
+        10240, 10248, 10250, 10272, 10325, 10376, 10402, 10600, 10640, 10760, 10784, 10882, 10888, 10890, 16385, 16388,
+        16390, 16393, 16400, 16402, 16405, 16408, 16417, 16420, 16448, 16450, 16453, 16456, 16458, 16465, 16468, 16480,
+        16485, 16513, 16516, 16528, 16640, 16642, 16645, 16648, 16657, 16660, 16672, 16705, 16708, 16720, 16768, 16773,
+        16802, 16897, 16900, 16912, 16914, 16937, 16960, 17408, 17410, 17413, 17416, 17425, 17428, 17433, 17440, 17473,
+        17476, 17488, 17536, 17556, 17665, 17668, 17680, 17700, 17728, 17818, 17920, 17930, 17988, 18000, 18433, 18436,
+        18448, 18496, 18501, 18516, 18530, 18688, 18705, 18756, 18768, 18793, 18948, 20480, 20482, 20485, 20488, 20497,
+        20500, 20512, 20520, 20545, 20548, 20560, 20608, 20737, 20740, 20752, 20757, 20800, 20802, 20992, 21060, 21162,
+        21505, 21508, 21520, 21537, 21568, 21600, 21633, 21665, 21760, 21768, 21888, 21896, 22049, 22120, 22177, 22528,
+        22548, 22593, 22608, 22681, 22810, 22848, 22850, 23173, 24577, 24580, 24592, 24640, 24660, 24674, 24710, 24745,
+        24832, 25124, 25162, 25234, 25600, 25622, 25872, 25920, 25925, 26020, 26625, 26730, 26917, 27142, 27220, 27234,
+        32768, 32770, 32773, 32776, 32785, 32788, 32800, 32810, 32833, 32836, 32848, 32896, 32898, 32936, 32938, 33025,
+        33028, 33030, 33040, 33088, 33105, 33113, 33280, 33312, 33408, 33410, 33440, 33448, 33793, 33796, 33808, 33810,
+        33813, 33856, 33888, 33929, 34048, 34116, 34213, 34328, 34410, 34816, 34824, 34853, 34906, 34944, 34946, 34984,
+        35078, 35362, 35456, 35464, 35478, 35496, 36865, 36868, 36880, 36928, 36950, 36996, 37120, 37154, 37220, 37462,
+        37513, 37888, 37893, 37956, 37968, 37976, 38185, 38288, 38290, 38465, 38993, 39078, 39241, 39445, 39520, 40960,
+        40962, 40968, 40970, 40992, 41002, 41120, 41297, 41305, 41382, 41472, 41474, 41480, 41514, 41600, 41632, 42048,
+        42133, 42597, 42648, 43018, 43040, 43042, 43048, 43168, 43176, 43268, 43396, 43398, 43560, 43562, 43665, 43690,
+        };
+        const uint8_t *bptr = row;
+        int nb = dim / 256;
+        float *y = out;
+        for (int b = 0; b < nb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, bptr, 2);
+            float d = fp16_to_fp32(dh);
+            const uint16_t *qs = (const uint16_t *)(bptr + 2);
+            const uint8_t  *sc = bptr + 66;
+            bptr += 74;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                float dl0 = d * (0.5f + (sc[ib32] & 0xf)) * 0.25f;
+                float dl1 = d * (0.5f + (sc[ib32] >> 4))  * 0.25f;
+                for (int l = 0; l < 4; l++) {
+                    float dl = (l < 2) ? dl0 : dl1;
+                    uint16_t qv = qs[ib32 * 4 + l];
+                    uint16_t gi = qv & 511;
+                    uint8_t  s7 = (uint8_t)(qv >> 9);
+                    uint8_t  s8 = s7 | (uint8_t)((__builtin_popcount(s7) & 1) << 7);
+                    uint16_t gv = kgrid_e[gi];
+                    for (int k = 0; k < 8; k++) {
+                        float gk = (float)iq2xs_vals_e[(gv >> (2 * k)) & 3];
+                        if (s8 & (1u << k)) gk = -gk;
+                        *y++ = dl * gk;
+                    }
+                }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_Q2_K: {
+        /* Q2_K: 256 elements/super-block, 84 bytes.
+         * Layout: scales[16](nibble-packed) + qs[64] + d(fp16) + dmin(fp16). */
+        const uint8_t *p = row;
+        int nsb = dim / 256;
+        float *outp = out;
+        for (int b = 0; b < nsb; b++) {
+            const uint8_t *scales = p;
+            const uint8_t *qs     = p + 16;
+            uint16_t dh, dmh;
+            kmemcpy(&dh,  p + 80, 2);
+            kmemcpy(&dmh, p + 82, 2);
+            float d    = fp16_to_fp32(dh);
+            float dmin = fp16_to_fp32(dmh);
+            p += 84;
+            int is = 0;
+            const uint8_t *qb = qs;
+            for (int half = 0; half < 2; half++) {
+                int shift = 0;
+                for (int j = 0; j < 4; j++) {
+                    uint8_t sc = scales[is++];
+                    float dl = d * (float)(sc & 0xF);
+                    float ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        *outp++ = dl * (float)((qb[l] >> shift) & 3) - ml;
+                    sc = scales[is++];
+                    dl = d * (float)(sc & 0xF);
+                    ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        *outp++ = dl * (float)((qb[l + 16] >> shift) & 3) - ml;
+                    shift += 2;
+                }
+                qb += 32;
             }
         }
         break;
@@ -3506,6 +4209,19 @@ static int llm_ensure_prefill_scratch(llm_model_t *m, int n) {
     return 0;
 }
 
+/* Per-token compressed GEMV for prefill batch.
+ * Used when raw GPU FFN weights are freed but compressed (U/S/Vt) are on GPU.
+ * _out: [n × _rows] output, _in: [n × _cols] input, both in device memory. */
+#define PF_CMPR_GEMV_N(_out, _in, _n, _rows, _cols, _cw) \
+    do { for (int _pfi = 0; _pfi < (_n); _pfi++) { \
+        be->compute.gemv(gpu_ctx.d_compress_tmp, (_cw)->d_Vt, \
+                         (_in)  + (int64_t)(_pfi) * (_cols), \
+                         (_cw)->rank, (_cw)->n, GGML_TYPE_F32); \
+        be->compute.gemv((_out) + (int64_t)(_pfi) * (_rows), \
+                         (_cw)->d_U, gpu_ctx.d_compress_tmp, \
+                         (_cw)->m, (_cw)->rank, GGML_TYPE_F32); \
+    } } while (0)
+
 /* Run a batched GPU prefill for N tokens starting at start_pos.             */
 static void llm_forward_prefill_batch_gpu(
     llm_model_t *m,
@@ -3777,13 +4493,21 @@ static void llm_forward_prefill_batch_gpu(
         /* Pre-FFN batched RMSNorm */
         cuda_batched_rmsnorm_out(d_pfxn, d_pfx, gl->d_ffn_norm, n, dim, gpu_ctx.rms_eps);
 
-        /* FFN */
+        /* FFN — compressed-weight aware: if raw GPU tensor freed, use U/S/Vt path */
         if (m->use_gelu || !layer->ffn_gate) {
             void *d_upw   = llm_gpu_lookup(layer->ffn_up);
             void *d_downw = llm_gpu_lookup(layer->ffn_down);
-            BGEMV4(d_pffu, d_upw, lff, dim, layer->up_type);
+            const axex_compressed_weight_t *_pf_cu = axex_get_compressed_layer(L, 5);
+            const axex_compressed_weight_t *_pf_cd = axex_get_compressed_layer(L, 0);
+            if (!d_upw && _pf_cu && _pf_cu->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffu, d_pfxn, n, lff, dim, _pf_cu);
+            } else {
+                BGEMV4(d_pffu, d_upw, lff, dim, layer->up_type);
+            }
             be->compute.gelu(d_pffu, n * lff);
-            if (layer->down_type == GGML_TYPE_Q4_0) {
+            if (!d_downw && _pf_cd && _pf_cd->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffd, d_pffu, n, dim, lff, _pf_cd);
+            } else if (layer->down_type == GGML_TYPE_Q4_0) {
                 cuda_prefill_batch_quant(d_pffu, n, lff);
                 cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
             } else {
@@ -3795,10 +4519,23 @@ static void llm_forward_prefill_batch_gpu(
             void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
             void *d_upw   = llm_gpu_lookup(layer->ffn_up);
             void *d_downw = llm_gpu_lookup(layer->ffn_down);
-            BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
-            BGEMV4(d_pffu, d_upw,   lff, dim, layer->up_type);
+            const axex_compressed_weight_t *_pf_cg = axex_get_compressed_layer(L, 6);
+            const axex_compressed_weight_t *_pf_cu = axex_get_compressed_layer(L, 5);
+            const axex_compressed_weight_t *_pf_cd = axex_get_compressed_layer(L, 0);
+            if (!d_gatew && _pf_cg && _pf_cg->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffg, d_pfxn, n, lff, dim, _pf_cg);
+            } else {
+                BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
+            }
+            if (!d_upw && _pf_cu && _pf_cu->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffu, d_pfxn, n, lff, dim, _pf_cu);
+            } else {
+                BGEMV4(d_pffu, d_upw, lff, dim, layer->up_type);
+            }
             cuda_fused_geglu(d_pffg, d_pffu, n * lff);
-            if (layer->down_type == GGML_TYPE_Q4_0) {
+            if (!d_downw && _pf_cd && _pf_cd->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffd, d_pffg, n, dim, lff, _pf_cd);
+            } else if (layer->down_type == GGML_TYPE_Q4_0) {
                 cuda_prefill_batch_quant(d_pffg, n, lff);
                 cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
             } else {
@@ -3810,10 +4547,23 @@ static void llm_forward_prefill_batch_gpu(
             void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
             void *d_upw   = llm_gpu_lookup(layer->ffn_up);
             void *d_downw = llm_gpu_lookup(layer->ffn_down);
-            BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
-            BGEMV4(d_pffu, d_upw,   lff, dim, layer->up_type);
+            const axex_compressed_weight_t *_pf_cg = axex_get_compressed_layer(L, 6);
+            const axex_compressed_weight_t *_pf_cu = axex_get_compressed_layer(L, 5);
+            const axex_compressed_weight_t *_pf_cd = axex_get_compressed_layer(L, 0);
+            if (!d_gatew && _pf_cg && _pf_cg->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffg, d_pfxn, n, lff, dim, _pf_cg);
+            } else {
+                BGEMV4(d_pffg, d_gatew, lff, dim, layer->gate_type);
+            }
+            if (!d_upw && _pf_cu && _pf_cu->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffu, d_pfxn, n, lff, dim, _pf_cu);
+            } else {
+                BGEMV4(d_pffu, d_upw, lff, dim, layer->up_type);
+            }
             cuda_fused_swiglu(d_pffg, d_pffu, n * lff);
-            if (layer->down_type == GGML_TYPE_Q4_0) {
+            if (!d_downw && _pf_cd && _pf_cd->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffd, d_pffg, n, dim, lff, _pf_cd);
+            } else if (layer->down_type == GGML_TYPE_Q4_0) {
                 cuda_prefill_batch_quant(d_pffg, n, lff);
                 cuda_prefill_batch_gemv_q4(d_pffd, d_downw, dim, lff, n);
             } else {
@@ -3872,6 +4622,200 @@ static void llm_forward_prefill_batch_gpu(
 }
 
 #endif /* ENABLE_CUDA */
+/* ─── CPU single-layer forward for mixed GPU/CPU mode ───────────────────────
+ * Processes one transformer layer entirely on CPU, in-place on llm_x.
+ * Called from the GPU decode path when gl->on_gpu == 0.
+ * Supports: SwiGLU / GeGLU / GELU FFN, GQA, RoPE, KV cache, compression.
+ * ─────────────────────────────────────────────────────────────────────────*/
+static void llm_cpu_layer(llm_model_t *m, int L, int pos)
+{
+    int dim     = m->dim;
+    int n_heads = m->n_heads;
+    int n_kv    = m->n_kv_heads;
+    int hd      = m->head_dim;
+    int ff      = m->ff_dim;
+    int kv_dim  = n_kv * hd;
+
+    llm_layer_t *layer = &m->layers[L];
+    int lhd     = layer->head_dim_layer ? layer->head_dim_layer : hd;
+    int lkv_dim = n_kv * lhd;
+    int lq_dim  = n_heads * lhd;
+    int lff     = layer->ff_dim_layer ? layer->ff_dim_layer : ff;
+    int has_own_kv = (layer->kv_reuse_layer < 0);
+
+    llm_rmsnorm(llm_xn, llm_x, layer->attn_norm, dim, layer->attn_norm_type, m->rms_eps);
+
+    /* If per-layer GP bases are active, switch to this layer's Pt basis. */
+    if (axex_manifold_has_layer_bases())
+        axex_manifold_select_layer(L);
+
+    /* Manifold projection: if any manifold-compressed weights exist for this
+     * layer, compute x_sub = P^T @ xn once and reuse for Q, K, V, gate, up.
+     * Stack-allocated (512 floats = 2 KB) — no heap cost on the hot path. */
+    float x_sub[AXEX_MANIFOLD_K_MAX];
+    int   x_sub_ready = 0;
+    {
+        const axex_manifold_weight_t *_mq = axex_get_manifold_layer(L, 1);
+        const axex_manifold_weight_t *_mg = axex_get_manifold_layer(L, 6);
+        if (_mq || _mg) {
+            axex_manifold_project_x(llm_xn, x_sub);
+            x_sub_ready = 1;
+        }
+    }
+
+    /* Q/K/V: use manifold GEMV if available, otherwise full GEMV */
+    {
+        const axex_manifold_weight_t *_mq = axex_get_manifold_layer(L, 1);
+        if (_mq && x_sub_ready)
+            axex_manifold_weight_gemv(_mq, x_sub, llm_q);
+        else
+            llm_gemv(llm_q, layer->q_weight, llm_xn, lq_dim, dim, layer->q_type);
+    }
+    if (has_own_kv) {
+        const axex_manifold_weight_t *_mk = axex_get_manifold_layer(L, 2);
+        const axex_manifold_weight_t *_mv = axex_get_manifold_layer(L, 3);
+        if (_mk && x_sub_ready)
+            axex_manifold_weight_gemv(_mk, x_sub, llm_k_buf);
+        else
+            llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
+        if (_mv && x_sub_ready)
+            axex_manifold_weight_gemv(_mv, x_sub, llm_v_buf);
+        else
+            llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
+    }
+
+    {
+        float rope_base = m->rope_base;
+        int   rdim      = m->rope_dim > 0 ? m->rope_dim : lhd;
+        for (int h = 0; h < n_heads; h++)
+            llm_rope(llm_q + h * lhd, pos, rdim, rope_base, NULL);
+        if (has_own_kv)
+            for (int h = 0; h < n_kv; h++)
+                llm_rope(llm_k_buf + h * lhd, pos, rdim, rope_base, NULL);
+    }
+
+    int kv_stride = m->max_seq * kv_dim;
+    if (has_own_kv) {
+        float *kc = m->k_cache + (uint64_t)L * kv_stride + pos * kv_dim;
+        float *vc = m->v_cache + (uint64_t)L * kv_stride + pos * kv_dim;
+        if (lkv_dim < kv_dim) {
+            kmemset(kc, 0, kv_dim * sizeof(float));
+            kmemset(vc, 0, kv_dim * sizeof(float));
+        }
+        axex_kv_ctx_t *_kv = axex_get_global_kv_ctx();
+        for (int h = 0; h < n_kv; h++) {
+            const float *k_head = llm_k_buf + h * lhd;
+            if (_kv && pos > 0) {
+                int store = axex_kv_should_store(_kv, k_head, lhd, L, h, pos);
+                if (!store) {
+                    int16_t tgt = _kv->heads[L * _kv->n_kv_heads + h].merge_into[pos];
+                    if (tgt >= 0 && tgt < pos) {
+                        kmemcpy(kc + h*hd, m->k_cache + (uint64_t)L*kv_stride + tgt*kv_dim + h*hd, lhd*sizeof(float));
+                        kmemcpy(vc + h*hd, m->v_cache + (uint64_t)L*kv_stride + tgt*kv_dim + h*hd, lhd*sizeof(float));
+                        continue;
+                    }
+                }
+            }
+            kmemcpy(kc + h*hd, k_head,            lhd*sizeof(float));
+            kmemcpy(vc + h*hd, llm_v_buf + h*lhd, lhd*sizeof(float));
+        }
+    }
+
+    kmemset(llm_attn_out, 0, lq_dim * sizeof(float));
+    int kv_src = has_own_kv ? L : layer->kv_reuse_layer;
+    {
+        flash_attn_config_t fa;
+        fa.head_dim      = lhd;
+        fa.n_heads       = n_heads;
+        fa.n_kv_heads    = n_kv;
+        fa.seq_len       = m->max_seq;
+        fa.block_size_q  = DEFAULT_BR;
+        fa.block_size_kv = DEFAULT_BC;
+        fa.scale         = 1.0f / llm_sqrtf((float)lhd);
+        fa.causal        = true;
+        fa.use_alibi     = false;
+        flash_attn_decode_strided(
+            llm_attn_out, llm_q,
+            m->k_cache + (uint64_t)kv_src * kv_stride,
+            m->v_cache + (uint64_t)kv_src * kv_stride,
+            pos + 1, kv_dim, &fa);
+    }
+
+    /* O-proj: use GP manifold slot 4 when lq_dim == gp_n (residual stream match) */
+    {
+        const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
+        if (_gp_o && _gp_o->W_proj && lq_dim == axex_manifold_n()) {
+            float x_sub_o[AXEX_MANIFOLD_K_MAX];
+            axex_manifold_project_x(llm_attn_out, x_sub_o);
+            axex_manifold_weight_gemv(_gp_o, x_sub_o, llm_ffn_d);
+        } else {
+            llm_gemv(llm_ffn_d, layer->o_weight, llm_attn_out, dim, lq_dim, layer->o_type);
+        }
+    }
+    llm_vadd_f32(llm_x, llm_ffn_d, dim);
+
+    llm_rmsnorm(llm_xn, llm_x, layer->ffn_norm, dim, layer->ffn_norm_type, m->rms_eps);
+
+    /* Recompute x_sub for FFN norm output if gate/up are manifold-compressed.
+     * (xn is now the FFN-normed residual, which may differ from attn-normed xn) */
+    if (!x_sub_ready) {
+        const axex_manifold_weight_t *_mg6 = axex_get_manifold_layer(L, 6);
+        const axex_manifold_weight_t *_mu5 = axex_get_manifold_layer(L, 5);
+        if (_mg6 || _mu5) {
+            axex_manifold_project_x(llm_xn, x_sub);
+            x_sub_ready = 1;
+        }
+    } else {
+        /* attn-norm and ffn-norm can differ — always re-project for FFN */
+        const axex_manifold_weight_t *_mg6 = axex_get_manifold_layer(L, 6);
+        const axex_manifold_weight_t *_mu5 = axex_get_manifold_layer(L, 5);
+        if (_mg6 || _mu5)
+            axex_manifold_project_x(llm_xn, x_sub);
+    }
+
+    if (m->use_gelu || !layer->ffn_gate) {
+        llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, lff, dim, layer->up_type);
+        llm_add_bias(llm_ffn_u, layer->ffn_up_bias, lff);
+        llm_gelu(llm_ffn_u, lff);
+        const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+        if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_u, llm_ffn_d);
+        else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, dim, lff, layer->down_type);
+        llm_add_bias(llm_ffn_d, layer->ffn_down_bias, dim);
+    } else if (m->use_geglu) {
+        llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
+        llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
+        llm_gelu(llm_ffn_g, lff);
+        llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+        const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+        if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+        else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+    } else {
+        /* SwiGLU */
+        {
+            const axex_manifold_weight_t *_mg = axex_get_manifold_layer(L, 6);
+            const axex_compressed_weight_t *_cw_g = axex_get_compressed_layer(L, 6);
+            if      (_mg   && x_sub_ready) axex_manifold_weight_gemv(_mg, x_sub, llm_ffn_g);
+            else if (_cw_g)                axex_compressed_weight_gemv(_cw_g, llm_xn, llm_ffn_g);
+            else                           llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
+        }
+        {
+            const axex_manifold_weight_t *_mu = axex_get_manifold_layer(L, 5);
+            const axex_compressed_weight_t *_cw_u = axex_get_compressed_layer(L, 5);
+            if      (_mu   && x_sub_ready) axex_manifold_weight_gemv(_mu, x_sub, llm_ffn_u);
+            else if (_cw_u)                axex_compressed_weight_gemv(_cw_u, llm_xn, llm_ffn_u);
+            else                           llm_gemv(llm_ffn_u, layer->ffn_up,  llm_xn, lff, dim, layer->up_type);
+        }
+        llm_silu(llm_ffn_g, lff);
+        llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+        {
+            const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+            if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+            else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+        }
+    }
+    llm_vadd_f32(llm_x, llm_ffn_d, dim);
+}
+
 static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos)
 {
     int dim = m->dim;
@@ -3941,6 +4885,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         } else {
             /* Fallback: embed on CPU (handles all types + embed_scale), upload */
             llm_embed(llm_x, m, token_id);
+            if (pos >= 4 && pos <= 7) {
+                kprintf("[DBG] embed pos=%d tok=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                    pos, token_id, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
+            }
             be->mem.upload(gpu_ctx.d_x, llm_x, (uint64_t)dim * sizeof(float));
         }
         uint64_t _emb1 = hal_timer_us();
@@ -4053,7 +5001,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
          * Subsequent tokens: replay graph (skip all compute dispatch). */
         const void *lm_head = m->output_weight ? m->output_weight : m->token_embd;
         ggml_type_t lm_type = m->output_weight ? m->output_type : m->token_embd_type;
-        void *d_lm = llm_gpu_lookup(lm_head);
+        ggml_type_t d_lm_gpu_type = lm_type;  /* may be promoted to F32 if dequant-on-upload */
+        void *d_lm = llm_gpu_lookup_with_type(lm_head, &d_lm_gpu_type);
 
         /* Graph REPLAY fast-path: skip entire compute */
         if (want_logits && cuda_graph_captured && cuda_graph_decode_ready && d_lm) {
@@ -4074,21 +5023,55 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* Graph CAPTURE: first decode token */
         int capturing = 0;
-        if (want_logits && cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled) {
-            /* Pre-verify: ISWA weights must be GPU-resident to avoid
-             * CPU fallback (which would break stream capture). */
+        /* GP compression uses host-side axex_get_manifold_layer() inside the
+         * layer loop — incompatible with CUDA graph capture (no CPU calls
+         * allowed during stream capture).  Skip graph when GP is active. */
+        int gp_active = (axex_manifold_k() > 0);
+        if (want_logits && cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled && !gp_active) {
+            /* Pre-verify: ALL layer weights must be GPU-resident to avoid
+             * CPU fallback (which would break stream capture).
+             * Types like IQ2_XS are now dequantized to F32 on upload,
+             * so all weights should be on GPU. Verify ISWA if applicable. */
             int iswa_ok = 1;
-            if (m->is_gemma4) {
-                for (int L2 = 0; L2 < m->n_layers && iswa_ok; L2++) {
-                    llm_layer_t *lyr = &m->layers[L2];
-                    if (lyr->iswa_inp_gate) {
-                        if (!llm_gpu_lookup(lyr->iswa_inp_gate) ||
-                            !llm_gpu_lookup(lyr->iswa_proj))
-                            iswa_ok = 0;
-                    }
+            for (int L2 = 0; L2 < m->n_layers && iswa_ok; L2++) {
+                llm_layer_t *lyr = &m->layers[L2];
+                /* Core attention/ffn weights — must all be on GPU */
+                if ((lyr->q_weight   && !llm_gpu_lookup(lyr->q_weight))   ||
+                    (lyr->k_weight   && !llm_gpu_lookup(lyr->k_weight))   ||
+                    (lyr->v_weight   && !llm_gpu_lookup(lyr->v_weight))   ||
+                    (lyr->o_weight   && !llm_gpu_lookup(lyr->o_weight))   ||
+                    (lyr->ffn_gate   && !llm_gpu_lookup(lyr->ffn_gate))   ||
+                    (lyr->ffn_up     && !llm_gpu_lookup(lyr->ffn_up))     ||
+                    (lyr->ffn_down   && !llm_gpu_lookup(lyr->ffn_down)))
+                    iswa_ok = 0;
+                if (m->is_gemma4 && lyr->iswa_inp_gate) {
+                    if (!llm_gpu_lookup(lyr->iswa_inp_gate) ||
+                        !llm_gpu_lookup(lyr->iswa_proj))
+                        iswa_ok = 0;
                 }
             }
             cuda_graph_tried = 1;
+            /* In compressed-FFN mode (gpu_ffn_skip_for_compress), raw FFN tensors
+             * were never uploaded to GPU — compressed factor matrices replaced them.
+             * The iswa_ok raw-tensor lookup above will fail for those slots, so
+             * override here: if all compressed weights are on GPU, it IS fully resident. */
+            if (!iswa_ok && gpu_ffn_skip_for_compress) {
+                iswa_ok = 1;
+                for (int L2 = 0; L2 < m->n_layers && iswa_ok; L2++) {
+                    const axex_compressed_weight_t *_cd = axex_get_compressed_layer(L2, 0);
+                    const axex_compressed_weight_t *_cg = axex_get_compressed_layer(L2, 6);
+                    const axex_compressed_weight_t *_cu = axex_get_compressed_layer(L2, 5);
+                    if (!(_cd && _cd->d_Vt) || !(_cu && _cu->d_Vt) ||
+                        (m->layers[L2].ffn_gate && !(_cg && _cg->d_Vt)))
+                        iswa_ok = 0;
+                    /* Also verify attention weights are still on GPU */
+                    if ((!llm_gpu_lookup(m->layers[L2].q_weight)) ||
+                        (!llm_gpu_lookup(m->layers[L2].k_weight)) ||
+                        (!llm_gpu_lookup(m->layers[L2].v_weight)) ||
+                        (!llm_gpu_lookup(m->layers[L2].o_weight)))
+                        iswa_ok = 0;
+                }
+            }
             if (iswa_ok) {
                 cuda_set_decode_pos(pos, pos + 1);
                 if (cuda_graph_begin_capture() == 0) {
@@ -4098,7 +5081,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     kprintf("[GRAPH] begin_capture failed at pos=%d\n", pos);
                 }
             } else {
-                kprintf("[GRAPH] ISWA weights not on GPU — graph capture skipped (pos=%d)\n", pos);
+                kprintf("[GRAPH] Layer weights not fully GPU-resident — graph capture skipped (pos=%d)\n", pos);
             }
         } else if (want_logits && !cuda_graph_decode_ready) {
             /* graph not ready — will run layerwise */
@@ -4112,52 +5095,131 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             int lq_dim  = n_heads * lhd;
             int has_own_kv = (layer->kv_reuse_layer < 0);
             uint64_t _lp0, _lp1;
+
+            /* ── Mixed GPU/CPU: run CPU-offloaded layers on the host ── */
+            if (!gl->on_gpu) {
+                be->mem.sync();
+                be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
+                if ((pos == 0 || pos == 5) && L == 1) {
+                    kprintf("[DBG] L0→L1 download pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
+                }
+                llm_cpu_layer(m, L, pos);
+                if ((pos == 0 || pos == 5) && L == 1) {
+                    kprintf("[DBG] after L1 cpu pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
+                }
+                be->mem.upload(gpu_ctx.d_x, llm_x, (uint64_t)dim * sizeof(float));
+                continue;
+            }
             int detail_layer = (prof_detail && L == 10);  /* profile layer 10 */
 
             /* 2a. Pre-attention RMSNorm */
             if (detail_layer) { be->mem.sync(); _lp0 = hal_timer_us(); }
 
+            /* Per-layer GP: select layer-specific Pt basis if available */
+            if (axex_manifold_has_layer_bases())
+                axex_manifold_select_layer(L);
+
             /* 2b. Q/K/V projections on GPU */
-            void *d_qw = llm_gpu_lookup(layer->q_weight);
+            ggml_type_t q_gpu_type = layer->q_type;
+            ggml_type_t o_gpu_type = layer->o_type;
+            ggml_type_t gate_gpu_type = layer->gate_type;
+            ggml_type_t up_gpu_type   = layer->up_type;
+            ggml_type_t down_gpu_type = layer->down_type;
+            void *d_qw = llm_gpu_lookup_with_type(layer->q_weight, &q_gpu_type);
+            /* Pre-fetch GPU types for o/gate/up/down (handles IQ2_XS → F32 promotion) */
+            if (layer->o_weight)   llm_gpu_lookup_with_type(layer->o_weight,   &o_gpu_type);
+            if (layer->ffn_gate)   llm_gpu_lookup_with_type(layer->ffn_gate,   &gate_gpu_type);
+            if (layer->ffn_up)     llm_gpu_lookup_with_type(layer->ffn_up,     &up_gpu_type);
+            if (layer->ffn_down)   llm_gpu_lookup_with_type(layer->ffn_down,   &down_gpu_type);
+
+            /* If core attention weights aren't GPU-resident, skip (should not happen after dequant-on-upload) */
+            if (layer->q_weight && !d_qw) {
+                /* Unexpected: weight not on GPU. This layer will produce zeros. */
+                kprintf("[GPU] WARNING: q_weight not on GPU for layer %d, skipping\n", L);
+                continue;
+            }
+
+            /* Geodesic Projection (GP) state for this layer */
+            const axex_manifold_weight_t *_gp_q  = axex_get_manifold_layer(L, 1);
+            const float *_gp_dPt = axex_manifold_d_Pt();
+            int  _gp_k  = axex_manifold_k();
+            int  _gp_n  = axex_manifold_n();
+            int gpu_x_sub_qkv_ready = 0;
 
             if (has_own_kv) {
-                void *d_kw = llm_gpu_lookup(layer->k_weight);
-                void *d_vw = llm_gpu_lookup(layer->v_weight);
-                /* Fast path: fused RMSNorm + triple GEMV eliminates d_xn write */
-                int used_triple = 0;
-                if (layer->q_type == GGML_TYPE_Q4_0 &&
-                    layer->k_type == GGML_TYPE_Q4_0 &&
-                    layer->v_type == GGML_TYPE_Q4_0 &&
-                    gl->d_attn_norm) {
-                    used_triple = cuda_fused_rmsnorm_triple_q4_0(
-                        gpu_ctx.d_q, gpu_ctx.d_k, gpu_ctx.d_v,
-                        d_qw, d_kw, d_vw,
-                        gpu_ctx.d_x, gl->d_attn_norm, gpu_ctx.rms_eps,
-                        lq_dim, lkv_dim, lkv_dim, dim);
-                }
-                /* Fallback: separate rmsnorm + regular triple or individual GEMVs */
-                if (!used_triple) {
+                ggml_type_t k_gpu_type = layer->k_type;
+                ggml_type_t v_gpu_type = layer->v_type;
+                void *d_kw = llm_gpu_lookup_with_type(layer->k_weight, &k_gpu_type);
+                void *d_vw = llm_gpu_lookup_with_type(layer->v_weight, &v_gpu_type);
+                /* GP fast path: d_xn = rmsnorm(d_x), then x_sub = Pt@d_xn once */
+                const axex_manifold_weight_t *_gp_k2 = axex_get_manifold_layer(L, 2);
+                const axex_manifold_weight_t *_gp_v2 = axex_get_manifold_layer(L, 3);
+                if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
                     be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
                                         dim, gpu_ctx.rms_eps);
-                    int triple_ok = 0;
-                    if (layer->q_type == GGML_TYPE_Q4_0 &&
-                        layer->k_type == GGML_TYPE_Q4_0 &&
-                        layer->v_type == GGML_TYPE_Q4_0) {
-                        triple_ok = cuda_gemv_triple_q4_0(
+                    /* Project: d_x_sub[k] = Pt[k×n] @ d_xn[n] */
+                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt, gpu_ctx.d_xn,
+                                     _gp_k, _gp_n, GGML_TYPE_F32);
+                    gpu_x_sub_qkv_ready = 1;
+                    be->compute.gemv(gpu_ctx.d_q, (void *)_gp_q->d_W_proj, gpu_ctx.d_x_sub,
+                                     lq_dim, _gp_k, GGML_TYPE_F32);
+                    if (_gp_k2 && _gp_k2->d_W_proj)
+                        be->compute.gemv(gpu_ctx.d_k, (void *)_gp_k2->d_W_proj, gpu_ctx.d_x_sub,
+                                         lkv_dim, _gp_k, GGML_TYPE_F32);
+                    else
+                        be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
+                    if (_gp_v2 && _gp_v2->d_W_proj)
+                        be->compute.gemv(gpu_ctx.d_v, (void *)_gp_v2->d_W_proj, gpu_ctx.d_x_sub,
+                                         lkv_dim, _gp_k, GGML_TYPE_F32);
+                    else
+                        be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                } else {
+                    /* Fast path: fused RMSNorm + triple GEMV eliminates d_xn write */
+                    int used_triple = 0;
+                    if (q_gpu_type == GGML_TYPE_Q4_0 &&
+                        k_gpu_type == GGML_TYPE_Q4_0 &&
+                        v_gpu_type == GGML_TYPE_Q4_0 &&
+                        gl->d_attn_norm) {
+                        used_triple = cuda_fused_rmsnorm_triple_q4_0(
                             gpu_ctx.d_q, gpu_ctx.d_k, gpu_ctx.d_v,
-                            d_qw, d_kw, d_vw, gpu_ctx.d_xn,
+                            d_qw, d_kw, d_vw,
+                            gpu_ctx.d_x, gl->d_attn_norm, gpu_ctx.rms_eps,
                             lq_dim, lkv_dim, lkv_dim, dim);
                     }
-                    if (!triple_ok) {
-                        be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
-                        be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, layer->k_type);
-                        be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, layer->v_type);
+                    /* Fallback: separate rmsnorm + regular triple or individual GEMVs */
+                    if (!used_triple) {
+                        be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
+                                            dim, gpu_ctx.rms_eps);
+                        int triple_ok = 0;
+                        if (q_gpu_type == GGML_TYPE_Q4_0 &&
+                            k_gpu_type == GGML_TYPE_Q4_0 &&
+                            v_gpu_type == GGML_TYPE_Q4_0) {
+                            triple_ok = cuda_gemv_triple_q4_0(
+                                gpu_ctx.d_q, gpu_ctx.d_k, gpu_ctx.d_v,
+                                d_qw, d_kw, d_vw, gpu_ctx.d_xn,
+                                lq_dim, lkv_dim, lkv_dim, dim);
+                        }
+                        if (!triple_ok) {
+                            be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, q_gpu_type);
+                            be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
+                            be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                        }
                     }
                 }
             } else {
                 be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
                                     dim, gpu_ctx.rms_eps);
-                be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
+                if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
+                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt, gpu_ctx.d_xn,
+                                     _gp_k, _gp_n, GGML_TYPE_F32);
+                    gpu_x_sub_qkv_ready = 1;
+                    be->compute.gemv(gpu_ctx.d_q, (void *)_gp_q->d_W_proj, gpu_ctx.d_x_sub,
+                                     lq_dim, _gp_k, GGML_TYPE_F32);
+                } else {
+                    be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, q_gpu_type);
+                }
             }
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_qkv += (_lp1 - _lp0); _lp0 = _lp1; }
 
@@ -4222,8 +5284,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_attn += (_lp1 - _lp0); _lp0 = _lp1; }
             /* 2f. O projection + post-attn norm + residual (GPU) */
-            void *d_ow = llm_gpu_lookup(layer->o_weight);
-            be->compute.gemv(gpu_ctx.d_ffn_d, d_ow, gpu_ctx.d_attn, dim, lq_dim, layer->o_type);
+            /* GP path: if slot 4 is manifold-compressed and lq_dim == gp_n, project
+             * attention output into manifold subspace and use W_proj GEMV. */
+            {
+                const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
+                const float *_gp_dPt_o = axex_manifold_d_Pt();
+                int _gp_k_o = axex_manifold_k();
+                int _gp_n_o = axex_manifold_n();
+                if (_gp_o && _gp_o->d_W_proj && _gp_dPt_o && _gp_k_o > 0 &&
+                    lq_dim == _gp_n_o) {
+                    /* x_sub_o[k] = Pt[k×n] @ d_attn[n] */
+                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt_o,
+                                     gpu_ctx.d_attn, _gp_k_o, lq_dim, GGML_TYPE_F32);
+                    be->compute.gemv(gpu_ctx.d_ffn_d, (void *)_gp_o->d_W_proj,
+                                     gpu_ctx.d_x_sub, dim, _gp_k_o, GGML_TYPE_F32);
+                } else {
+                    void *d_ow = llm_gpu_lookup(layer->o_weight);
+                    be->compute.gemv(gpu_ctx.d_ffn_d, d_ow, gpu_ctx.d_attn, dim, lq_dim, o_gpu_type);
+                }
+            }
 
             if (layer->post_attn_norm && gl->d_post_attn_norm) {
                 /* Fused: rmsnorm(d_ffn_d) + add to d_x */
@@ -4249,53 +5328,212 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             int lff = layer->ff_dim_layer ? layer->ff_dim_layer : ff;
 
             /* FFN: always GPU (CPU fallback removed for perf) */
-            if (m->use_gelu || !layer->ffn_gate) {
-                /* GELU FFN */
-                void *d_upw = llm_gpu_lookup(layer->ffn_up);
-                be->compute.gemv(gpu_ctx.d_ffn_u, d_upw, gpu_ctx.d_xn, lff, dim, layer->up_type);
-                be->compute.gelu(gpu_ctx.d_ffn_u, lff);
-                void *d_downw = llm_gpu_lookup(layer->ffn_down);
-                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_u, dim, lff, layer->down_type);
-            } else if (m->use_geglu) {
-                /* GeGLU: fused GELU(gate) ⊙ up — single kernel */
-                void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
-                void *d_upw   = llm_gpu_lookup(layer->ffn_up);
-                void *d_downw = llm_gpu_lookup(layer->ffn_down);
-                /* Try fused dual GEMV (gate+up in one launch) for Q4_0 */
-                int used_dual = 0;
-                if (layer->gate_type == GGML_TYPE_Q4_0 &&
-                    layer->up_type == GGML_TYPE_Q4_0) {
-                    used_dual = cuda_gemv_dual_q4_0(
-                        gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u,
-                        d_gatew, d_upw, gpu_ctx.d_xn, lff, dim);
-                }
-                if (!used_dual) {
-                    be->compute.gemv(gpu_ctx.d_ffn_g, d_gatew, gpu_ctx.d_xn, lff, dim, layer->gate_type);
-                    be->compute.gemv(gpu_ctx.d_ffn_u, d_upw,   gpu_ctx.d_xn, lff, dim, layer->up_type);
-                }
+            /* Helper macro: if this layer has a compressed ffn_down, do the
+             * double-GEMV on CPU (U/S/Vt are in RAM, not VRAM) and DMA the
+             * result back.  The compressed matrices are ~34% the size of the
+             * original quantized weight, so they were never uploaded to GPU —
+             * this saves VRAM at the cost of one PCIe round-trip per token. */
+/* GPU two-GEMV using compressed weight matrices.
+ * d_Vt has S baked in, so: tmp[rank] = d_Vt * src, then dst[m] = d_U * tmp */
+#define GPU_COMPRESSED_GEMV(_dst, _src, _cw_) do { \
+    be->compute.gemv(gpu_ctx.d_compress_tmp, (_cw_)->d_Vt, (_src), \
+                     (_cw_)->rank, (_cw_)->n, GGML_TYPE_F32); \
+    be->compute.gemv((_dst), (_cw_)->d_U, gpu_ctx.d_compress_tmp, \
+                     (_cw_)->m, (_cw_)->rank, GGML_TYPE_F32); \
+} while (0)
 
-                cuda_fused_geglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
-                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_g, dim, lff, layer->down_type);
-            } else {
-                /* SwiGLU: fused SiLU(gate) ⊙ up — single kernel */
-                void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
-                void *d_upw   = llm_gpu_lookup(layer->ffn_up);
-                void *d_downw = llm_gpu_lookup(layer->ffn_down);
-                /* Try fused dual GEMV (gate+up in one launch) for Q4_0 */
+#define GPU_FFN_DOWN_GEMV(_dst, _src, _dim, _lff) do { \
+    const axex_compressed_weight_t *_cw_ = axex_get_compressed_layer(L, 0); \
+    if (_cw_ && _cw_->d_Vt) { \
+        /* True GPU two-GEMV — no PCIe round-trip */ \
+        GPU_COMPRESSED_GEMV((_dst), (_src), _cw_); \
+    } else if (_cw_) { \
+        /* Compressed but not on GPU yet — PCIe fallback */ \
+        be->mem.download(llm_ffn_u, (_src), (_lff) * sizeof(float)); \
+        axex_compressed_weight_gemv(_cw_, llm_ffn_u, llm_ffn_d); \
+        be->mem.upload((_dst), llm_ffn_d, (_dim) * sizeof(float)); \
+    } else { \
+        void *_dw_ = llm_gpu_lookup(layer->ffn_down); \
+        if (_dw_) { \
+            be->compute.gemv((_dst), _dw_, (_src), (_dim), (_lff), down_gpu_type); \
+        } else { \
+            /* FFN weight not on GPU (VRAM OOM or compress mode): PCIe D2H→CPU GEMV→H2D */ \
+            be->mem.download(llm_ffn_u, (_src), (uint64_t)(_lff) * sizeof(float)); \
+            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, (_dim), (_lff), layer->down_type); \
+            be->mem.upload((_dst), llm_ffn_d, (uint64_t)(_dim) * sizeof(float)); \
+        } \
+    } \
+} while (0)
+/* Macros for compressed gate and up GEMVs (slots 6 and 5).
+ * Priority: GP manifold (d_W_proj) > SVD compressed (d_Vt) > regular GPU GEMV.
+ * GP path uses _gpu_x_sub which must already hold Pt@d_xn. */
+#define GPU_FFN_GATE_GEMV(_dst, _src, _lff, _dim) do { \
+    const axex_manifold_weight_t *_mg_ = axex_get_manifold_layer(L, 6); \
+    if (_mg_ && _mg_->d_W_proj && _gpu_x_sub_ffn_ready) { \
+        be->compute.gemv((_dst), (void *)_mg_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, GGML_TYPE_F32); \
+    } else { \
+        const axex_compressed_weight_t *_cw_g_ = axex_get_compressed_layer(L, 6); \
+        if (_cw_g_ && _cw_g_->d_Vt) { \
+            GPU_COMPRESSED_GEMV((_dst), (_src), _cw_g_); \
+        } else { \
+            void *_gw_ = llm_gpu_lookup(layer->ffn_gate); \
+            if (_gw_) { \
+                be->compute.gemv((_dst), _gw_, (_src), (_lff), (_dim), gate_gpu_type); \
+            } else { \
+                /* FFN weight not on GPU (VRAM OOM or compress mode): PCIe D2H→CPU GEMV→H2D */ \
+                be->mem.download(llm_xn, (_src), (uint64_t)(_dim) * sizeof(float)); \
+                llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, (_lff), (_dim), layer->gate_type); \
+                be->mem.upload((_dst), llm_ffn_g, (uint64_t)(_lff) * sizeof(float)); \
+            } \
+        } \
+    } \
+} while (0)
+
+#define GPU_FFN_UP_GEMV(_dst, _src, _lff, _dim) do { \
+    const axex_manifold_weight_t *_mu_ = axex_get_manifold_layer(L, 5); \
+    if (_mu_ && _mu_->d_W_proj && _gpu_x_sub_ffn_ready) { \
+        be->compute.gemv((_dst), (void *)_mu_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, GGML_TYPE_F32); \
+    } else { \
+        const axex_compressed_weight_t *_cw_u_ = axex_get_compressed_layer(L, 5); \
+        if (_cw_u_ && _cw_u_->d_Vt) { \
+            GPU_COMPRESSED_GEMV((_dst), (_src), _cw_u_); \
+        } else { \
+            void *_uw_ = llm_gpu_lookup(layer->ffn_up); \
+            if (_uw_) { \
+                be->compute.gemv((_dst), _uw_, (_src), (_lff), (_dim), up_gpu_type); \
+            } else { \
+                /* FFN weight not on GPU (VRAM OOM or compress mode): PCIe D2H→CPU GEMV→H2D */ \
+                be->mem.download(llm_xn, (_src), (uint64_t)(_dim) * sizeof(float)); \
+                llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, (_lff), (_dim), layer->up_type); \
+                be->mem.upload((_dst), llm_ffn_u, (uint64_t)(_lff) * sizeof(float)); \
+            } \
+        } \
+    } \
+} while (0)
+
+            /* Diagnostic: print d_xn (ffn input) and d_x (pre-ffn residual) for L=0, pos=0 */
+            if (pos == 0 && L == 0) {
+                be->mem.sync();
+                float _dbg0[8];
+                be->mem.download(_dbg0, gpu_ctx.d_xn, 8*sizeof(float));
+                kprintf("[DBG-FFN] L0 ffn_in(d_xn)[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                    _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
+                /* Check compressed weight data on GPU */
+                const axex_compressed_weight_t *_cw_dbg = axex_get_compressed_layer(0, 6);
+                if (_cw_dbg && _cw_dbg->d_Vt) {
+                    be->mem.download(_dbg0, _cw_dbg->d_Vt, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 d_Vt[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
+                    be->mem.download(_dbg0, _cw_dbg->d_U, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 d_U[0..7]=    %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
+                    /* Also check host-side U for comparison */
+                    if (_cw_dbg->U) {
+                        kprintf("[DBG-FFN] L0 host U[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                            _cw_dbg->U[0],_cw_dbg->U[1],_cw_dbg->U[2],_cw_dbg->U[3],
+                            _cw_dbg->U[4],_cw_dbg->U[5],_cw_dbg->U[6],_cw_dbg->U[7]);
+                    }
+                    kprintf("[DBG-FFN] L0 rank=%d n=%d m=%d\n",
+                        _cw_dbg->rank, _cw_dbg->n, _cw_dbg->m);
+                } else {
+                    kprintf("[DBG-FFN] L0 slot6 cw=%p d_Vt=%s\n",
+                        (void*)_cw_dbg, _cw_dbg ? (_cw_dbg->d_Vt ? "set" : "NULL") : "N/A");
+                }
+            }
+            /* GP: project FFN-normed d_xn → d_x_sub once, shared by gate and up */
+            int _gpu_x_sub_ffn_ready = 0;
+            int _gp_k_ffn = axex_manifold_k();
+            {
+                const axex_manifold_weight_t *_mg_gate = axex_get_manifold_layer(L, 6);
+                const float *_gp_dPt_ffn = axex_manifold_d_Pt();
+                if (_mg_gate && _mg_gate->d_W_proj && _gp_dPt_ffn && _gp_k_ffn > 0 &&
+                    layer->ffn_gate) {
+                    /* d_xn is already set (FFN RMSNorm was applied just above) */
+                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt_ffn, gpu_ctx.d_xn,
+                                     _gp_k_ffn, axex_manifold_n(), GGML_TYPE_F32);
+                    _gpu_x_sub_ffn_ready = 1;
+                }
+            }
+
+            if (m->use_gelu || !layer->ffn_gate) {
+                /* GELU FFN — GP does not apply (no gate slot) */
+                GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u, gpu_ctx.d_xn, lff, dim);
+                be->compute.gelu(gpu_ctx.d_ffn_u, lff);
+                GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_u, dim, lff);
+            } else if (m->use_geglu) {
+                /* GeGLU: GELU(gate) ⊙ up */
+                /* Skip fused dual Q4_0 path when GP is active */
+                const axex_compressed_weight_t *_cw_g6 = axex_get_compressed_layer(L, 6);
+                const axex_compressed_weight_t *_cw_u5 = axex_get_compressed_layer(L, 5);
                 int used_dual = 0;
-                if (layer->gate_type == GGML_TYPE_Q4_0 &&
+                if (!_gpu_x_sub_ffn_ready &&
+                    !(_cw_g6 && _cw_g6->d_Vt) && !(_cw_u5 && _cw_u5->d_Vt) &&
+                    layer->gate_type == GGML_TYPE_Q4_0 &&
                     layer->up_type == GGML_TYPE_Q4_0) {
+                    void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
+                    void *d_upw   = llm_gpu_lookup(layer->ffn_up);
                     used_dual = cuda_gemv_dual_q4_0(
                         gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u,
                         d_gatew, d_upw, gpu_ctx.d_xn, lff, dim);
                 }
                 if (!used_dual) {
-                    be->compute.gemv(gpu_ctx.d_ffn_g, d_gatew, gpu_ctx.d_xn, lff, dim, layer->gate_type);
-                    be->compute.gemv(gpu_ctx.d_ffn_u, d_upw,   gpu_ctx.d_xn, lff, dim, layer->up_type);
+                    /* cuBLAS batched path disabled — sequential compressed GEMV used */
+                    GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
+                    GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                }
+                cuda_fused_geglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
+                GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_g, dim, lff);
+            } else {
+                /* SwiGLU: SiLU(gate) ⊙ up — skip fused dual path when GP is active */
+                const axex_compressed_weight_t *_cw_g6 = axex_get_compressed_layer(L, 6);
+                const axex_compressed_weight_t *_cw_u5 = axex_get_compressed_layer(L, 5);
+                int used_dual = 0;
+                if (!_gpu_x_sub_ffn_ready &&
+                    !(_cw_g6 && _cw_g6->d_Vt) && !(_cw_u5 && _cw_u5->d_Vt) &&
+                    layer->gate_type == GGML_TYPE_Q4_0 &&
+                    layer->up_type == GGML_TYPE_Q4_0) {
+                    void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
+                    void *d_upw   = llm_gpu_lookup(layer->ffn_up);
+                    used_dual = cuda_gemv_dual_q4_0(
+                        gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u,
+                        d_gatew, d_upw, gpu_ctx.d_xn, lff, dim);
+                }
+                if (!used_dual) {
+                    /* cuBLAS batched path disabled — sequential compressed GEMV used */
+                    GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
+                    GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                }
+                if (pos == 0 && L == 0) {
+                    be->mem.sync();
+                    float _dbg1[8];
+                    be->mem.download(_dbg1, gpu_ctx.d_ffn_g, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 gate[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg1[0],_dbg1[1],_dbg1[2],_dbg1[3],_dbg1[4],_dbg1[5],_dbg1[6],_dbg1[7]);
+                    be->mem.download(_dbg1, gpu_ctx.d_ffn_u, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 up[0..7]=     %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg1[0],_dbg1[1],_dbg1[2],_dbg1[3],_dbg1[4],_dbg1[5],_dbg1[6],_dbg1[7]);
                 }
                 cuda_fused_swiglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
-                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_g, dim, lff, layer->down_type);
+                if (pos == 0 && L == 0) {
+                    be->mem.sync();
+                    float _dbg2[8];
+                    be->mem.download(_dbg2, gpu_ctx.d_ffn_g, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 swiglu[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg2[0],_dbg2[1],_dbg2[2],_dbg2[3],_dbg2[4],_dbg2[5],_dbg2[6],_dbg2[7]);
+                }
+                GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_g, dim, lff);
+                if (pos == 0 && L == 0) {
+                    be->mem.sync();
+                    float _dbg3[8];
+                    be->mem.download(_dbg3, gpu_ctx.d_ffn_d, 8*sizeof(float));
+                    kprintf("[DBG-FFN] L0 down[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                        _dbg3[0],_dbg3[1],_dbg3[2],_dbg3[3],_dbg3[4],_dbg3[5],_dbg3[6],_dbg3[7]);
+                }
             }
+#undef GPU_FFN_GATE_GEMV
+#undef GPU_FFN_UP_GEMV
+#undef GPU_FFN_DOWN_GEMV
+#undef GPU_COMPRESSED_GEMV
 
             /* Post-FFW norm (Gemma4) + Residual — fused when possible */
             if (layer->post_ffw_norm && gl->d_post_ffw_norm) {
@@ -4410,15 +5648,28 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* 3. Final output RMSNorm on GPU (all models) */
         if (prof_enabled) { be->mem.sync(); _pt1 = hal_timer_us(); t_layers = (_pt1 - _pt0) / 1000.0; _pt0 = _pt1; }
+        if (pos >= 4 && pos <= 7) {
+            be->mem.sync();
+            be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
+            kprintf("[DBG] pre-outnorm pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
+        }
         be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gpu_ctx.d_output_norm,
                             dim, gpu_ctx.rms_eps);
+        if (pos >= 4 && pos <= 5) {
+            be->mem.sync();
+            be->mem.download(llm_xn, gpu_ctx.d_xn, (uint64_t)8 * sizeof(float));
+            kprintf("[DBG] post-rmsnorm pos=%d xn[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
+                pos, llm_xn[0],llm_xn[1],llm_xn[2],llm_xn[3],llm_xn[4],llm_xn[5],llm_xn[6],llm_xn[7]);
+            kprintf("[DBG] d_lm=%p d_lm_gpu_type=%d (0=F32,10=Q2K)\n", d_lm, (int)d_lm_gpu_type);
+        }
 
         /* 4. LM head projection on GPU → logits */
         if (!want_logits) {
             return;
         } else if (d_lm) {
             be->compute.gemv(gpu_ctx.d_out, d_lm, gpu_ctx.d_xn,
-                             m->vocab_size, dim, lm_type);
+                             m->vocab_size, dim, d_lm_gpu_type);
             /* 5. Logit softcapping on GPU (before download) */
             if (m->logit_softcap > 0.0f)
                 be->compute.softcap(gpu_ctx.d_out, m->vocab_size, m->logit_softcap);
@@ -4445,6 +5696,16 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             /* Download logits (waits for graph/kernels to finish on stream 0) */
             be->mem.download(logits, gpu_ctx.d_out, (uint64_t)m->vocab_size * sizeof(float));
             be->mem.sync();
+            if (pos >= 4 && pos <= 5) {
+                int _best=0,_best2=1,_best3=2;
+                for (int _i=0;_i<m->vocab_size;_i++) {
+                    if (logits[_i]>logits[_best]) {_best3=_best2;_best2=_best;_best=_i;}
+                    else if (logits[_i]>logits[_best2]) {_best3=_best2;_best2=_i;}
+                    else if (logits[_i]>logits[_best3]) _best3=_i;
+                }
+                kprintf("[DBG] GPU lmhead logits pos=%d: [%d]=%.4f [%d]=%.4f [%d]=%.4f tok0=%.4f\n",
+                    pos, _best,logits[_best],_best2,logits[_best2],_best3,logits[_best3],logits[0]);
+            }
             /* Capture hidden state for context-conditioned manifold lookup */
             if (llm_last_hs)
                 be->mem.download(llm_last_hs, gpu_ctx.d_xn,
@@ -4457,9 +5718,24 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 capturing = 0;
             }
             be->mem.download(llm_xn, gpu_ctx.d_xn, (uint64_t)dim * sizeof(float));
+            if (pos >= 4 && pos <= 7) {
+                kprintf("[DBG] pre-lmhead pos=%d xn[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", pos,
+                    llm_xn[0],llm_xn[1],llm_xn[2],llm_xn[3],llm_xn[4],llm_xn[5],llm_xn[6],llm_xn[7]);
+            }
             if (llm_last_hs) kmemcpy(llm_last_hs, llm_xn, (uint64_t)dim * sizeof(float));
             llm_last_hs_valid = (llm_last_hs != NULL);
             llm_gemv(logits, lm_head, llm_xn, m->vocab_size, dim, lm_type);
+            if (pos == 0) {
+                /* Print top-3 logits for diagnosis */
+                int best=0, best2=1, best3=2;
+                for (int i=0;i<m->vocab_size;i++) {
+                    if (logits[i]>logits[best]) {best3=best2;best2=best;best=i;}
+                    else if (logits[i]>logits[best2]) {best3=best2;best2=i;}
+                    else if (logits[i]>logits[best3]) best3=i;
+                }
+                kprintf("[DBG] top logits pos=%d: [%d]=%.4f [%d]=%.4f [%d]=%.4f tok0=%.4f\n",
+                    pos, best,logits[best],best2,logits[best2],best3,logits[best3],logits[0]);
+            }
             /* Softcap on CPU fallback */
             if (m->logit_softcap > 0.0f) {
                 float cap = m->logit_softcap;
@@ -4489,7 +5765,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     }
 #endif /* ENABLE_CUDA GPU-resident forward */
 
+    static int cpu_fwd_count = 0;
+    if (++cpu_fwd_count <= 2) kprintf("[DBG-CPU] CPU forward pass #%d tok=%d pos=%d dim=%d n_kv=%d n_heads=%d\n",
+                                       cpu_fwd_count, token_id, pos, dim, n_kv, n_heads);
     llm_embed(llm_x, m, token_id);
+    if (cpu_fwd_count <= 2) kprintf("[DBG-CPU] embed done #%d\n", cpu_fwd_count);
 
     /* 2. Process each transformer layer */
     int rope_dim = m->rope_dim > 0 ? m->rope_dim : hd; /* partial RoPE for Phi-2 */
@@ -4570,8 +5850,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             llm_iswa_per_layer[i] = (llm_iswa_per_layer[i] + proj_buf[i]) * inv_sqrt_2;
     }
 
+    if (cpu_fwd_count <= 2) kprintf("[DBG-CPU] entering layer loop #%d pos=%d\n", cpu_fwd_count, pos);
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
+        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 start #%d lhd=%d n_kv=%d n_heads=%d\n",
+            cpu_fwd_count, (layer->head_dim_layer ? layer->head_dim_layer : hd), n_kv, n_heads);
 
         /* Bridge: inject hidden state before this layer */
         if (llm_bridge.mode & BRIDGE_MODE_INJECT) {
@@ -4598,9 +5881,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         /* 2b. Q/K/V projections.
          * Fast path: when norm weights are F32 and all projections are Q4_0,
          * use the fused RMSNorm+GEMV — inv_rms computed once and applied
-         * inline per block, eliminating the llm_xn write + re-read. */
+         * inline per block, eliminating the llm_xn write + re-read.
+         * Manifold path: if Geodesic Projection (GP) compressed weights exist,
+         * compute x_sub = P^T @ xn once, then use m×k GEMVs for Q/K/V. */
+
+        /* Per-layer GP: select layer-specific Pt basis if available */
+        if (axex_manifold_has_layer_bases())
+            axex_manifold_select_layer(L);
+
+        /* Geodesic Projection: project xn into manifold subspace once */
+        float x_sub_fwd[AXEX_MANIFOLD_K_MAX];
+        int   x_sub_fwd_ready = 0;
+        {
+            const axex_manifold_weight_t *_mq = axex_get_manifold_layer(L, 1);
+            if (_mq) { axex_manifold_project_x(llm_xn, x_sub_fwd); x_sub_fwd_ready = 1; }
+        }
+
 #ifdef __AVX2__
-        if (!m->use_layernorm &&
+        if (!x_sub_fwd_ready &&       /* skip fused path when GP is active */
+            !m->use_layernorm &&
             layer->attn_norm_type == GGML_TYPE_F32 &&
             layer->q_type == GGML_TYPE_Q4_0) {
             const float *attn_nw = (const float *)layer->attn_norm;
@@ -4620,11 +5919,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         } else
 #endif
         {
-            /* Standard path: separate rmsnorm (already written above) + gemv */
-            llm_gemv(llm_q, layer->q_weight, llm_xn, lq_dim, dim, layer->q_type);
+            /* Standard / GP path */
+            if (x_sub_fwd_ready)
+                axex_manifold_weight_gemv(axex_get_manifold_layer(L, 1), x_sub_fwd, llm_q);
+            else
+                llm_gemv(llm_q, layer->q_weight, llm_xn, lq_dim, dim, layer->q_type);
             if (has_own_kv) {
-                llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
-                llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
+                const axex_manifold_weight_t *_mk = axex_get_manifold_layer(L, 2);
+                const axex_manifold_weight_t *_mv = axex_get_manifold_layer(L, 3);
+                if (_mk && x_sub_fwd_ready) axex_manifold_weight_gemv(_mk, x_sub_fwd, llm_k_buf);
+                else llm_gemv(llm_k_buf, layer->k_weight, llm_xn, lkv_dim, dim, layer->k_type);
+                if (_mv && x_sub_fwd_ready) axex_manifold_weight_gemv(_mv, x_sub_fwd, llm_v_buf);
+                else llm_gemv(llm_v_buf, layer->v_weight, llm_xn, lkv_dim, dim, layer->v_type);
             }
         }
 
@@ -4699,10 +6005,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     llm_rope(llm_k_buf + h * lhd, pos, rdim, layer_rope_base, rope_f);
         }
 
+        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 after QKV+RoPE #%d lq=%d lkv=%d lhd=%d\n", cpu_fwd_count, lq_dim, lkv_dim, lhd);
         /* 2d. Store K,V in cache */
-        /* KV cache layout: [layer][position][kv_head][max_head_dim]
-         * All layers use the same stride (max head_dim = hd) even if
-         * this layer's actual lhd < hd — we just zero-pad. */
         int kv_stride = m->max_seq * kv_dim;
         int kv_src_layer = has_own_kv ? L : layer->kv_reuse_layer;
         if (has_own_kv) {
@@ -4710,53 +6014,87 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
              * If lhd < hd, we write lkv_dim floats into a kv_dim slot — pad rest with 0. */
             float *kc = m->k_cache + L * kv_stride + pos * kv_dim;
             float *vc = m->v_cache + L * kv_stride + pos * kv_dim;
+
+            /* Geodesic KV compression: check each head independently.
+             * When axex_kv_should_store() returns 0, the new K is geodesically
+             * redundant — copy the merge-target slot instead to save attention work. */
+            axex_kv_ctx_t *_kv_ctx = axex_get_global_kv_ctx();
+
             if (lkv_dim < kv_dim) {
                 kmemset(kc, 0, kv_dim * sizeof(float));
                 kmemset(vc, 0, kv_dim * sizeof(float));
             }
-            /* For GQA with potentially smaller head_dim, copy per-head */
             for (int h = 0; h < n_kv; h++) {
-                kmemcpy(kc + h * hd, llm_k_buf + h * lhd, lhd * sizeof(float));
+                const float *k_head = llm_k_buf + h * lhd;
+                int store = 1;
+                if (_kv_ctx) {
+                    store = axex_kv_should_store(_kv_ctx, k_head, lhd, L, h, pos);
+                    if (!store) {
+                        /* Merge: copy the target slot (already written earlier) */
+                        int16_t tgt = _kv_ctx->heads[L * _kv_ctx->n_kv_heads + h].merge_into[pos];
+                        if (tgt >= 0 && tgt < pos) {
+                            float *ktgt = m->k_cache + L * kv_stride + tgt * kv_dim + h * hd;
+                            float *vtgt = m->v_cache + L * kv_stride + tgt * kv_dim + h * hd;
+                            kmemcpy(kc + h * hd, ktgt, lhd * sizeof(float));
+                            kmemcpy(vc + h * hd, vtgt, lhd * sizeof(float));
+                            continue;
+                        }
+                        /* Fallback: target not valid, store normally */
+                    }
+                }
+                kmemcpy(kc + h * hd, k_head,              lhd * sizeof(float));
                 kmemcpy(vc + h * hd, llm_v_buf + h * lhd, lhd * sizeof(float));
             }
         }
 
+        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 before flash_attn #%d kv_stride=%d pos=%d\n", cpu_fwd_count, (int)(m->max_seq * kv_dim), pos);
         /* 2e. Multi-head attention with GQA */
         kmemset(llm_attn_out, 0, lq_dim * sizeof(float));
 
+        if (n_kv <= 0) kprintf("[DBG-FWD] CRASH GUARD: n_kv=%d n_heads=%d at L=%d pos=%d\n", n_kv, n_heads, L, pos);
         int heads_per_kv = n_heads / n_kv;
 
         /* Gemma4: attention scaling = 1.0 (pre-normalized by Q/K norms) */
         float attn_scale = m->is_gemma4 ? 1.0f : (1.0f / llm_sqrtf((float)lhd));
 
-        for (int h = 0; h < n_heads; h++) {
-            int kv_h = h / heads_per_kv;
-            float *qh = llm_q + h * lhd;
+        {
+            /* Flash Attention decode: single-pass tiled online-softmax.
+             * Avoids materializing the full N attention-score vector per head;
+             * processes KV cache in Bc-sized tiles for better L1 utilisation.
+             * kv_dim = n_kv * hd is the stride between successive positions. */
+            flash_attn_config_t fa_cfg;
+            fa_cfg.head_dim     = lhd;
+            fa_cfg.n_heads      = n_heads;
+            fa_cfg.n_kv_heads   = n_kv;
+            fa_cfg.seq_len      = m->max_seq;
+            fa_cfg.block_size_q = DEFAULT_BR;
+            fa_cfg.block_size_kv = DEFAULT_BC;
+            fa_cfg.scale        = attn_scale;
+            fa_cfg.causal       = true;
+            fa_cfg.use_alibi    = false;
 
-            int seq_len = pos + 1;
-            for (int t = 0; t < seq_len; t++) {
-                float *kt = m->k_cache + kv_src_layer * kv_stride + t * kv_dim + kv_h * hd;
-                /* Dot product uses lhd (actual head dim for this layer) */
-                float d = llm_dot_f32(qh, kt, lhd);
-                llm_attn_scores[t] = d * attn_scale;
-            }
-
-            /* Softmax over scores */
-            llm_softmax(llm_attn_scores, seq_len);
-
-            /* Weighted sum of V */
-            kmemset(llm_head_buf, 0, lhd * sizeof(float));
-            for (int t = 0; t < seq_len; t++) {
-                float s = llm_attn_scores[t];
-                float *vt = m->v_cache + kv_src_layer * kv_stride + t * kv_dim + kv_h * hd;
-                llm_axpy_f32(llm_head_buf, s, vt, lhd);
-            }
-
-            kmemcpy(llm_attn_out + h * lhd, llm_head_buf, lhd * sizeof(float));
+            flash_attn_decode_strided(
+                llm_attn_out,
+                llm_q,
+                m->k_cache + (uint64_t)kv_src_layer * kv_stride,
+                m->v_cache + (uint64_t)kv_src_layer * kv_stride,
+                pos + 1,
+                kv_dim,
+                &fa_cfg);
         }
 
+        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 after flash_attn #%d\n", cpu_fwd_count);
         /* 2f. Output projection + residual */
-        llm_gemv(llm_ffn_d, layer->o_weight, llm_attn_out, dim, lq_dim, layer->o_type);
+        {
+            const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
+            if (_gp_o && _gp_o->W_proj && lq_dim == axex_manifold_n()) {
+                float x_sub_o[AXEX_MANIFOLD_K_MAX];
+                axex_manifold_project_x(llm_attn_out, x_sub_o);
+                axex_manifold_weight_gemv(_gp_o, x_sub_o, llm_ffn_d);
+            } else {
+                llm_gemv(llm_ffn_d, layer->o_weight, llm_attn_out, dim, lq_dim, layer->o_type);
+            }
+        }
 
         /* Gemma4: post-attention RMSNorm */
         if (layer->post_attn_norm) {
@@ -4792,7 +6130,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, lff, dim, layer->up_type);
             llm_add_bias(llm_ffn_u, layer->ffn_up_bias, lff);
             llm_gelu(llm_ffn_u, lff);
-            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, dim, lff, layer->down_type);
+            {
+                const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+                if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_u, llm_ffn_d);
+                else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, dim, lff, layer->down_type);
+            }
             llm_add_bias(llm_ffn_d, layer->ffn_down_bias, dim);
         } else if (m->use_geglu) {
             /* 2h-geglu. GeGLU (Gemma): hidden = GELU(W_gate · x) ⊙ (W_up · x) */
@@ -4803,13 +6145,31 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
 
-            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+            {
+                const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+                if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+                else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+            }
         } else {
             /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x)
-             * Fast path: fuse RMSNorm into gate+up GEMVs when both are Q4_0,
-             * eliminating the llm_xn write + two reads. */
+             * Geodesic Projection (GP) path: if manifold-compressed gate/up
+             * exist, project xn → x_sub once and use the compact W_proj GEMVs.
+             * Fast fused-RMSNorm path: only when GP is not active. */
+
+            /* GP: project FFN-normed xn into manifold subspace */
+            float x_sub_ffn[AXEX_MANIFOLD_K_MAX];
+            int   x_sub_ffn_ready = 0;
+            {
+                const axex_manifold_weight_t *_mg = axex_get_manifold_layer(L, 6);
+                if (_mg) {
+                    axex_manifold_project_x(llm_xn, x_sub_ffn);
+                    x_sub_ffn_ready = 1;
+                }
+            }
+
 #ifdef __AVX2__
-            if (!m->use_layernorm &&
+            if (!x_sub_ffn_ready &&   /* skip fused path when GP is active */
+                !m->use_layernorm &&
                 layer->ffn_norm_type == GGML_TYPE_F32 &&
                 layer->gate_type == GGML_TYPE_Q4_0 &&
                 layer->up_type   == GGML_TYPE_Q4_0) {
@@ -4821,8 +6181,13 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             } else
 #endif
             {
-                llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
-                llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
+                /* GP path or standard path */
+                const axex_manifold_weight_t *_mg = axex_get_manifold_layer(L, 6);
+                const axex_manifold_weight_t *_mu = axex_get_manifold_layer(L, 5);
+                if (_mg && x_sub_ffn_ready) axex_manifold_weight_gemv(_mg, x_sub_ffn, llm_ffn_g);
+                else                        llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
+                if (_mu && x_sub_ffn_ready) axex_manifold_weight_gemv(_mu, x_sub_ffn, llm_ffn_u);
+                else                        llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
             }
             if (jit_fwd_fused_silu && lff == ff) {
                 jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, lff);
@@ -4830,7 +6195,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 llm_silu(llm_ffn_g, lff);
                 llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
             }
-            llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+            {
+                const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
+                if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+                else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+            }
         }
 
         /* Gemma4: post-FFW RMSNorm */
@@ -4927,6 +6296,16 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             int cap_layer = llm_bridge.capture_layer < 0 ? m->n_layers - 1 : llm_bridge.capture_layer;
             if (L == cap_layer)
                 tensor_bridge_capture(&llm_bridge, llm_x, dim, pos);
+        }
+        /* Multi-layer capture: grab hidden state at every layer in one pass.
+         * Used by the per-layer PCA calibration (32x fewer forward passes). */
+        if ((llm_bridge.mode & BRIDGE_MODE_CAP_ALL) &&
+            llm_bridge.multi_cap_bufs && llm_bridge.multi_cap_valid &&
+            L >= 0 && L < llm_bridge.multi_cap_n &&
+            llm_bridge.multi_cap_dim == dim) {
+            float *dst = llm_bridge.multi_cap_bufs + (size_t)L * dim;
+            kmemcpy(dst, llm_x, (size_t)dim * sizeof(float));
+            llm_bridge.multi_cap_valid[L] = 1;
         }
     }
 
@@ -5535,6 +6914,7 @@ static int  llm_think_count     = 0;   /* thinking tokens in last generation */
 static int  llm_think_active    = 0;   /* currently inside thinking block */
 static int  llm_sample_top_k    = 40;
 static float llm_sample_top_p   = 0.9f;
+static float llm_default_temperature = 0.7f; /* used by llm_prompt_n / llm_prompt_tokens */
 static int  llm_attnres_enabled = 0;
 static float llm_attnres_strength = 0.35f;
 static int  llm_depth_attn_enabled = 0;
@@ -5568,6 +6948,7 @@ static uint32_t llm_sample_rand_u32(void)
 /* Optional override for GPU KV-cache context window.  0 = use model default. */
 static int llm_max_ctx_override = 0;
 void llm_set_max_ctx(int n) { llm_max_ctx_override = n; }
+void llm_set_temperature(float t) { if (t >= 0.0f && t <= 2.0f) llm_default_temperature = t; }
 
 void llm_set_thinking(int enable)      { llm_think_enabled = enable; }
 void llm_set_show_thinking(int show)   { llm_think_show = show; }
@@ -5729,8 +7110,17 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
 
 #ifdef ENABLE_CUDA
     int did_batch_prefill = 0;
+    /* Skip batch-prefill when any layer is CPU-offloaded: the batch GPU path
+     * doesn't handle mixed CPU/GPU layers and will crash the CUDA context. */
+    int all_layers_on_gpu = 1;
+    for (int _L = 0; _L < m->n_layers; _L++) {
+        if (!gpu_ctx.layers[_L].on_gpu) { all_layers_on_gpu = 0; break; }
+    }
     if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
-        !llm_attnres_enabled && !llm_depth_attn_enabled) {
+        !llm_attnres_enabled && !llm_depth_attn_enabled &&
+        !gpu_ffn_skip_for_compress &&
+        !gpu_attn_skip_for_compress &&
+        all_layers_on_gpu) {  /* skip batch-prefill when any layer is CPU offloaded */
         /* Batch fills KV for tokens 0..n_prefill-2; caller runs last token
          * sequentially for numerically-exact logits (avoids Q8-quant accumulation). */
         if (gpu_ctx.prefill_max_n < n_prefill - 1)
@@ -5764,6 +7154,12 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     extern int cuda_graph_tried;
     extern int gpu_skip_logits_download;
     int allow_graph_capture = (max_gen >= 8);
+    /* Mixed CPU/GPU layers: can't CUDA-graph across CPU calls */
+    if (allow_graph_capture) {
+        for (int _L = 0; _L < m->n_layers; _L++) {
+            if (!gpu_ctx.layers[_L].on_gpu) { allow_graph_capture = 0; break; }
+        }
+    }
     cuda_graph_decode_ready = allow_graph_capture ? 1 : 0;
     cuda_graph_captured = 0;
     cuda_graph_tried = 0;
@@ -6193,8 +7589,15 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
         if (n_prefill < 0) n_prefill = 0;
 #ifdef ENABLE_CUDA
         int did_batch_pf = 0;
+        int all_layers_on_gpu_2 = 1;
+        for (int _L = 0; _L < m->n_layers; _L++) {
+            if (!gpu_ctx.layers[_L].on_gpu) { all_layers_on_gpu_2 = 0; break; }
+        }
         if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
-            !llm_attnres_enabled && !llm_depth_attn_enabled) {
+            !llm_attnres_enabled && !llm_depth_attn_enabled &&
+            !gpu_ffn_skip_for_compress &&
+            !gpu_attn_skip_for_compress &&
+            all_layers_on_gpu_2) {  /* skip batch-prefill when any layer is CPU offloaded */
             if (gpu_ctx.prefill_max_n < n_prefill - 1)
                 llm_ensure_prefill_scratch(m, n_prefill - 1);
             if (gpu_ctx.prefill_max_n >= n_prefill - 1 && gpu_ctx.d_pfx && n_prefill >= 3) {
@@ -6223,6 +7626,12 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
         extern int cuda_graph_tried;
         extern int gpu_skip_logits_download;
     int allow_graph_capture = (max_gen >= 8);
+    /* Mixed CPU/GPU layers: can't CUDA-graph across CPU calls */
+    if (allow_graph_capture) {
+        for (int _L = 0; _L < m->n_layers; _L++) {
+            if (!gpu_ctx.layers[_L].on_gpu) { allow_graph_capture = 0; break; }
+        }
+    }
     cuda_graph_decode_ready = allow_graph_capture ? 1 : 0;
         cuda_graph_captured = 0;
         cuda_graph_tried = 0;
@@ -6878,12 +8287,14 @@ static int llm_init_parsed_model(llm_model_t *m)
     /* Determine max sequence length from GGUF (already parsed by arch prefix) */
     int ctx_len = (int)llm_gguf_ctx.n_ctx;
     if (ctx_len < 128) ctx_len = 2048;  /* sensible default */
-    /* Default: cap at 2048 tokens to keep GPU KV cache <= ~1 GB on 8 GB cards.
-     * Users can call llm_set_max_ctx() before loading to raise this. */
+    /* Default: cap at 8192 tokens — enough for long conversations.
+     * GPU KV cache for 8192 ctx on an 8B model ≈ 1 GB; the dynamic
+     * memory check below reduces further if RAM is tight.
+     * Users can call llm_set_max_ctx() before loading to override. */
     if (llm_max_ctx_override > 0)
         ctx_len = llm_max_ctx_override;
-    else if (ctx_len > 2048)
-        ctx_len = 2048;
+    else if (ctx_len > 8192)
+        ctx_len = 8192;
 
     /* Dynamically reduce context length if KV cache would exceed available memory */
     {
@@ -7031,6 +8442,9 @@ static int llm_init_parsed_model(llm_model_t *m)
     m->cache_len = 0;
 
     kprintf("[LLM] Model loaded successfully! Ready for inference.\n");
+
+    /* Initialize flash attention scratch buffers */
+    flash_attn_init();
 
     /* Initialize backend registry (CPU always, CUDA/MLIR if compiled) */
     backend_init_all();
@@ -7532,6 +8946,425 @@ int llm_get_embedding_vec(int token_id, float *out, int dim)
     return 0;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  Manifold Exploitation API (axiom_exploit hooks)                            */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+const float *llm_get_kv_k(int layer, int head, int pos)
+{
+    if (!llm_is_loaded()) return NULL;
+    llm_model_t *m = &llm_model;
+    if (layer < 0 || layer >= m->n_layers)  return NULL;
+    if (head  < 0 || head  >= m->n_kv_heads) return NULL;
+    if (pos   < 0 || pos   >= m->cache_len)  return NULL;
+
+    int hd      = m->head_dim;
+    int kv_dim  = m->n_kv_heads * hd;
+    int stride  = m->max_seq * kv_dim;   /* floats per layer in k_cache */
+
+    /* k_cache layout: [n_layers][max_seq][n_kv_heads][head_dim] */
+    return m->k_cache
+           + (uint64_t)layer * stride
+           + (uint64_t)pos   * kv_dim
+           + (uint64_t)head  * hd;
+}
+
+/* Layer-granular GPU management — only meaningful when ENABLE_CUDA is set. */
+int llm_gpu_layer_ensure(int layer)
+{
+#ifdef ENABLE_CUDA
+    if (!llm_is_loaded()) return -1;
+    if (layer < 0 || layer >= llm_model.n_layers) return -1;
+    if (!gpu_ctx.active) return -1;
+    /* If the layer's weight map entry doesn't exist, upload it now.
+     * We piggyback on the existing gpu_upload_weight helper that is already
+     * called per-weight at model load.  Here we re-check whether the layer's
+     * key matrices are already on the GPU; if not we re-upload.
+     * Full selective-upload is handled by axex_offload_apply() which calls
+     * this function per layer — it's a no-op when the layer is already uploaded. */
+    return 0;   /* weights already uploaded by llm_gpu_init — no-op for now */
+#else
+    (void)layer;
+    return -1;  /* No GPU */
+#endif
+}
+
+int llm_gpu_layer_release(int layer)
+{
+#ifdef ENABLE_CUDA
+    if (!llm_is_loaded()) return -1;
+    if (layer < 0 || layer >= llm_model.n_layers) return -1;
+    if (!gpu_ctx.active) return -1;
+    gpu_layer_t *gl = &gpu_ctx.layers[layer];
+    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+    if (!be) return -1;
+    /* Free KV cache buffers (they can be reconstructed from CPU cache). */
+    if (gl->d_k_cache) { be->mem.free(gl->d_k_cache); gl->d_k_cache = NULL; }
+    if (gl->d_v_cache) { be->mem.free(gl->d_v_cache); gl->d_v_cache = NULL; }
+    return 0;
+#else
+    (void)layer;
+    return -1;
+#endif
+}
+
+uint64_t llm_gpu_vram_available(void)
+{
+#ifdef ENABLE_CUDA
+    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+    if (be && be->get_free_memory)
+        return be->get_free_memory(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/*
+ * Upload compressed weight matrices for all on_gpu layers to device memory.
+ * Must be called after both llm_gpu_init() and axex_compress_model_ffn() complete.
+ * Safe to call multiple times — skips layers already uploaded (d_Vt != NULL).
+ */
+void llm_gpu_upload_compressed_weights(void)
+{
+#ifdef ENABLE_CUDA
+    if (!gpu_ctx.gpu_fwd) return;
+    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+    if (!be) return;
+
+    const llm_model_t *m = llm_get_model();
+    if (!m) return;
+
+    int uploaded = 0;
+    uint64_t phase1_freed_bytes = 0;
+    int phase1_freed_entries = 0;
+    for (int L = 0; L < m->n_layers; L++) {
+        if (!gpu_ctx.layers[L].on_gpu) continue;   /* CPU layer — keep host only */
+        for (int slot = 0; slot < AXEX_COMPRESS_WHICH_MAX; slot++) {
+            axex_compressed_weight_t *cw =
+                axex_get_compressed_layer_mut(L, slot);
+            if (!cw || cw->d_Vt) continue;          /* not compressed or already on GPU */
+            axex_upload_compressed_to_gpu(cw,
+                (void *(*)(uint64_t))be->mem.alloc,
+                (void (*)(void *, const void *, uint64_t))be->mem.upload,
+                be->mem.sync);
+            if (cw->d_Vt) {
+                uploaded++;
+                kprintf("[GPU] Layer %d slot %d: compressed weight uploaded to GPU "
+                        "(%dx%d rank %d)\n", L, slot, cw->m, cw->n, cw->rank);
+            }
+        }
+        /* Interleaved free: after uploading all slots for this layer, immediately
+         * free the raw GPU FFN buffers if all three (down/gate/up) are now on GPU.
+         * This recovers ~176 MB per layer DURING the loop, preventing VRAM
+         * exhaustion that would otherwise limit uploads to ~7 layers. */
+        {
+            const llm_layer_t *ly = &m->layers[L];
+            const axex_compressed_weight_t *cd = axex_get_compressed_layer(L, 0);
+            const axex_compressed_weight_t *cg = axex_get_compressed_layer(L, 6);
+            const axex_compressed_weight_t *cu = axex_get_compressed_layer(L, 5);
+            int has_compressed_ffn = (cd && cd->d_Vt) &&
+                                     (!ly->ffn_gate || (cg && cg->d_Vt)) &&
+                                     (cu && cu->d_Vt);
+            if (has_compressed_ffn) {
+                const void *ffn_ptrs[3] = { ly->ffn_down, ly->ffn_gate, ly->ffn_up };
+                for (int fp = 0; fp < 3; fp++) {
+                    if (!ffn_ptrs[fp]) continue;
+                    for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
+                        if (gpu_ctx.map[wi].host_ptr != ffn_ptrs[fp]) continue;
+                        if (!gpu_ctx.map[wi].dev_ptr) continue;
+                        phase1_freed_bytes += gpu_ctx.map[wi].size;
+                        be->mem.free(gpu_ctx.map[wi].dev_ptr);
+                        for (int wj = wi; wj < gpu_ctx.map_count - 1; wj++)
+                            gpu_ctx.map[wj] = gpu_ctx.map[wj + 1];
+                        gpu_ctx.map_count--;
+                        phase1_freed_entries++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if (uploaded)
+        kprintf("[GPU] %d compressed weight matrices uploaded to GPU\n", uploaded);
+    if (phase1_freed_bytes > 0)
+        kprintf("[GPU] Freed %llu MB raw FFN GPU buffers (%d tensors) during upload — "
+                "using compressed path\n",
+                (unsigned long long)(phase1_freed_bytes >> 20), phase1_freed_entries);
+
+    /* ── Phase 1b: build cuBLAS batched GEMV pointer arrays for gate+up ── */
+    {
+        int batched = 0;
+        for (int L = 0; L < m->n_layers; L++) {
+            if (!gpu_ctx.layers[L].on_gpu) continue;
+            axex_compressed_weight_t *cg = axex_get_compressed_layer_mut(L, 6); /* gate */
+            axex_compressed_weight_t *cu = axex_get_compressed_layer_mut(L, 5); /* up   */
+            if (!cg || !cg->d_Vt || !cu || !cu->d_Vt) continue;
+            if (cg->d_Aarray_step1) continue; /* already prepared */
+            axex_prepare_batched_ffn(cg, cu,
+                gpu_ctx.d_xn, gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u,
+                (void *(*)(uint64_t))be->mem.alloc,
+                (void (*)(void *, const void *, uint64_t))be->mem.upload,
+                be->mem.sync);
+            if (cg->d_Aarray_step1) batched++;
+        }
+        if (batched)
+            kprintf("[GPU] %d layers: cuBLAS batched gate+up GEMV ready\n", batched);
+    }
+
+    /* Upload GP manifold: Pt matrix once + all W_proj matrices */
+    {
+        int gp_uploaded = 0;
+        axex_manifold_upload_gpu(
+            (void *(*)(uint64_t))be->mem.alloc,
+            (void (*)(void *, const void *, uint64_t))be->mem.upload,
+            be->mem.sync);
+        /* Count GP layers for logging */
+        if (llm_get_model()) {
+            for (int _L = 0; _L < llm_get_model()->n_layers; _L++)
+                for (int _s = 1; _s <= 6; _s++) {
+                    const axex_manifold_weight_t *_mw = axex_get_manifold_layer(_L, _s);
+                    if (_mw && _mw->d_W_proj) gp_uploaded++;
+                }
+        }
+        if (gp_uploaded)
+            kprintf("[GPU] Manifold GP: Pt + %d W_proj matrices uploaded to GPU\n", gp_uploaded);
+    }
+
+    if (!uploaded && !axex_manifold_k()) return; /* nothing new to do */
+
+    /* ── Phase 2: free raw FFN GPU buffers for compressed layers ── */
+    uint64_t freed_bytes = 0;
+    int freed_entries = 0;
+
+    for (int L = 0; L < m->n_layers; L++) {
+        if (!gpu_ctx.layers[L].on_gpu) continue;
+        const llm_layer_t *ly = &m->layers[L];
+        /* Check if all three FFN projections are compressed on GPU */
+        const axex_compressed_weight_t *cd = axex_get_compressed_layer(L, 0); /* down */
+        const axex_compressed_weight_t *cg = axex_get_compressed_layer(L, 6); /* gate */
+        const axex_compressed_weight_t *cu = axex_get_compressed_layer(L, 5); /* up   */
+        int has_compressed_ffn = (cd && cd->d_Vt) &&
+                                 (!ly->ffn_gate || (cg && cg->d_Vt)) &&
+                                 (cu && cu->d_Vt);
+        if (!has_compressed_ffn) continue;
+
+        /* Free raw GPU tensors for ffn_down, ffn_gate, ffn_up */
+        const void *ffn_ptrs[3] = { ly->ffn_down, ly->ffn_gate, ly->ffn_up };
+        for (int fp = 0; fp < 3; fp++) {
+            if (!ffn_ptrs[fp]) continue;
+            for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
+                if (gpu_ctx.map[wi].host_ptr != ffn_ptrs[fp]) continue;
+                if (!gpu_ctx.map[wi].dev_ptr) continue;
+                freed_bytes += gpu_ctx.map[wi].size;
+                be->mem.free(gpu_ctx.map[wi].dev_ptr);
+                /* Remove from map by shifting */
+                for (int wj = wi; wj < gpu_ctx.map_count - 1; wj++)
+                    gpu_ctx.map[wj] = gpu_ctx.map[wj + 1];
+                gpu_ctx.map_count--;
+                freed_entries++;
+                break; /* host_ptr is unique */
+            }
+        }
+    }
+
+    if (freed_bytes > 0)
+        kprintf("[GPU] Freed %llu MB raw FFN GPU buffers (%d tensors) — "
+                "using compressed path\n",
+                (unsigned long long)(freed_bytes >> 20), freed_entries);
+
+    /* ── Phase 2b: free raw attention GPU buffers for GP-manifold-compressed layers ──
+     * When GP is active, Q/K/V weights are replaced by W_proj[m×k] — up to 64× smaller.
+     * Freeing the original quantized tensors recovers the bulk of VRAM for 70B models. */
+    {
+        uint64_t gp_freed_bytes = 0;
+        int gp_freed_entries = 0;
+        int gp_k = axex_manifold_k();
+
+        for (int L = 0; L < m->n_layers; L++) {
+            if (!gpu_ctx.layers[L].on_gpu) continue;
+            const llm_layer_t *ly = &m->layers[L];
+
+            /* Q/K/V/O: free raw GPU tensor when GP manifold weight is uploaded */
+            struct { const void *host; int slot; } attn_map[] = {
+                { ly->q_weight, 1 }, { ly->k_weight, 2 },
+                { ly->v_weight, 3 }, { ly->o_weight, 4 }
+            };
+            for (int ap = 0; ap < 4; ap++) {
+                if (!attn_map[ap].host) continue;
+                const axex_manifold_weight_t *mw =
+                    axex_get_manifold_layer(L, attn_map[ap].slot);
+                if (!mw || !mw->d_W_proj) continue; /* not GP-compressed on GPU */
+                for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
+                    if (gpu_ctx.map[wi].host_ptr != attn_map[ap].host) continue;
+                    if (!gpu_ctx.map[wi].dev_ptr) continue;
+                    gp_freed_bytes += gpu_ctx.map[wi].size;
+                    be->mem.free(gpu_ctx.map[wi].dev_ptr);
+                    for (int wj = wi; wj < gpu_ctx.map_count - 1; wj++)
+                        gpu_ctx.map[wj] = gpu_ctx.map[wj + 1];
+                    gpu_ctx.map_count--;
+                    gp_freed_entries++;
+                    break;
+                }
+            }
+
+            /* gate/up: free raw GPU tensor when GP W_proj is uploaded */
+            struct { const void *host; int slot; } ffn_gp_map[] = {
+                { ly->ffn_gate, 6 }, { ly->ffn_up, 5 }
+            };
+            for (int fp = 0; fp < 2; fp++) {
+                if (!ffn_gp_map[fp].host) continue;
+                const axex_manifold_weight_t *mw =
+                    axex_get_manifold_layer(L, ffn_gp_map[fp].slot);
+                if (!mw || !mw->d_W_proj) continue;
+                for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
+                    if (gpu_ctx.map[wi].host_ptr != ffn_gp_map[fp].host) continue;
+                    if (!gpu_ctx.map[wi].dev_ptr) continue;
+                    gp_freed_bytes += gpu_ctx.map[wi].size;
+                    be->mem.free(gpu_ctx.map[wi].dev_ptr);
+                    for (int wj = wi; wj < gpu_ctx.map_count - 1; wj++)
+                        gpu_ctx.map[wj] = gpu_ctx.map[wj + 1];
+                    gpu_ctx.map_count--;
+                    gp_freed_entries++;
+                    break;
+                }
+            }
+        }
+        if (gp_freed_bytes > 0)
+            kprintf("[GPU] Freed %llu MB raw Q/K/V/O/gate/up GPU buffers (%d tensors) — "
+                    "GP manifold path active (k=%d)\n",
+                    (unsigned long long)(gp_freed_bytes >> 20), gp_freed_entries, gp_k);
+        freed_bytes += gp_freed_bytes;
+        freed_entries += gp_freed_entries;
+    }
+
+    /* ── Phase 3: promote CPU layers to GPU using freed VRAM ── */
+    int promoted = 0;
+    const llm_model_t *m2 = m; /* alias for clarity */
+    int dim     = gpu_ctx.dim;
+    int hd      = gpu_ctx.head_dim;
+    int n_kv    = gpu_ctx.n_kv;
+    int max_seq = gpu_ctx.max_seq;
+
+    for (int L = 0; L < m2->n_layers; L++) {
+        gpu_layer_t *gl = &gpu_ctx.layers[L];
+        if (gl->on_gpu) continue; /* already on GPU */
+
+        /* Only promote if compressed FFN is available for this layer */
+        const axex_compressed_weight_t *cd2 = axex_get_compressed_layer(L, 0);
+        if (!cd2 || !cd2->U) continue; /* not compressed → skip */
+
+        const llm_layer_t *layer = &m2->layers[L];
+        int lhd     = layer->head_dim_layer ? layer->head_dim_layer : hd;
+        int lq_dim  = m2->n_heads * lhd;
+        int lkv_dim = n_kv * lhd;
+
+        /* Estimate VRAM needed: attention weights + norms + KV + compressed FFN/GP */
+        uint64_t attn_bytes = 0;
+        int gp_k_est = axex_manifold_k();
+        /* Use GP size if manifold is available for this layer, else original size */
+        const axex_manifold_weight_t *_gp_q_est = axex_get_manifold_layer(L, 1);
+        const axex_manifold_weight_t *_gp_k_est = axex_get_manifold_layer(L, 2);
+        const axex_manifold_weight_t *_gp_v_est = axex_get_manifold_layer(L, 3);
+        const axex_manifold_weight_t *_gp_o_est = axex_get_manifold_layer(L, 4);
+        attn_bytes += _gp_q_est ? (uint64_t)lq_dim * gp_k_est * sizeof(float)
+                                : llm_row_bytes(dim, layer->q_type) * (uint64_t)lq_dim;
+        if (layer->kv_reuse_layer < 0) {
+            attn_bytes += _gp_k_est ? (uint64_t)lkv_dim * gp_k_est * sizeof(float)
+                                    : llm_row_bytes(dim, layer->k_type) * (uint64_t)lkv_dim;
+            attn_bytes += _gp_v_est ? (uint64_t)lkv_dim * gp_k_est * sizeof(float)
+                                    : llm_row_bytes(dim, layer->v_type) * (uint64_t)lkv_dim;
+        }
+        attn_bytes += _gp_o_est ? (uint64_t)dim * gp_k_est * sizeof(float)
+                                 : llm_row_bytes(lq_dim, layer->o_type) * (uint64_t)dim;
+        attn_bytes += (uint64_t)dim * sizeof(float) * 4; /* norms */
+        if (layer->kv_reuse_layer < 0)
+            attn_bytes += (uint64_t)n_kv * max_seq * lhd * sizeof(float) * 2; /* KV cache */
+
+        /* Compressed FFN F32 sizes (SVD path) */
+        for (int slot = 0; slot < AXEX_COMPRESS_WHICH_MAX; slot++) {
+            axex_compressed_weight_t *cw2 = axex_get_compressed_layer_mut(L, slot);
+            if (!cw2 || cw2->d_Vt) continue; /* not available or already on GPU */
+            attn_bytes += (uint64_t)cw2->rank * (cw2->m + cw2->n) * sizeof(float);
+        }
+        /* GP W_proj sizes (gate/up slots 5-6 not yet uploaded) */
+        for (int slot = 5; slot <= 6; slot++) {
+            const axex_manifold_weight_t *mw_est = axex_get_manifold_layer(L, slot);
+            if (mw_est && !mw_est->d_W_proj && mw_est->m > 0)
+                attn_bytes += (uint64_t)mw_est->m * gp_k_est * sizeof(float);
+        }
+
+        uint64_t vram_free = be->get_free_memory(0);
+        if (vram_free < attn_bytes + (512ULL << 20)) break; /* keep 512MB headroom */
+
+        /* Upload attention weights */
+        llm_gpu_upload_weight_mat(layer->q_weight, lq_dim, dim, layer->q_type);
+        if (layer->kv_reuse_layer < 0) {
+            llm_gpu_upload_weight_mat(layer->k_weight, lkv_dim, dim, layer->k_type);
+            llm_gpu_upload_weight_mat(layer->v_weight, lkv_dim, dim, layer->v_type);
+        }
+        llm_gpu_upload_weight_mat(layer->o_weight, dim, lq_dim, layer->o_type);
+        if (layer->iswa_inp_gate)
+            llm_gpu_upload_weight_mat(layer->iswa_inp_gate, m2->iswa_n_embd,
+                                      dim, layer->iswa_inp_gate_type);
+        if (layer->iswa_proj)
+            llm_gpu_upload_weight_mat(layer->iswa_proj, dim, m2->iswa_n_embd,
+                                      layer->iswa_proj_type);
+
+        /* Upload norms */
+        gl->d_attn_norm = llm_gpu_upload_norm(layer->attn_norm, dim, layer->attn_norm_type);
+        gl->d_ffn_norm  = llm_gpu_upload_norm(layer->ffn_norm,  dim, layer->ffn_norm_type);
+        gl->d_post_attn_norm = llm_gpu_upload_norm(layer->post_attn_norm, dim, GGML_TYPE_F32);
+        gl->d_post_ffw_norm  = llm_gpu_upload_norm(layer->post_ffw_norm,  dim, GGML_TYPE_F32);
+        if (layer->q_norm)
+            gl->d_q_norm = llm_gpu_upload_norm(layer->q_norm, lhd, GGML_TYPE_F32);
+        if (layer->k_norm)
+            gl->d_k_norm = llm_gpu_upload_norm(layer->k_norm, lhd, GGML_TYPE_F32);
+        if (layer->iswa_post_norm)
+            gl->d_iswa_post_norm = llm_gpu_upload_norm(layer->iswa_post_norm, dim, GGML_TYPE_F32);
+
+        if (!gl->d_attn_norm || !gl->d_ffn_norm) {
+            /* Norm upload failed — don't promote this layer */
+            gl->d_attn_norm = NULL; gl->d_ffn_norm = NULL;
+            continue;
+        }
+
+        /* Alloc KV cache */
+        gl->lhd = lhd;
+        if (layer->kv_reuse_layer < 0) {
+            uint64_t kv_sz = (uint64_t)n_kv * max_seq * lhd * sizeof(float);
+            gl->d_k_cache = (float *)be->mem.alloc(kv_sz);
+            gl->d_v_cache = (float *)be->mem.alloc(kv_sz);
+            if (!gl->d_k_cache || !gl->d_v_cache) {
+                if (gl->d_k_cache) { be->mem.free(gl->d_k_cache); gl->d_k_cache = NULL; }
+                if (gl->d_v_cache) { be->mem.free(gl->d_v_cache); gl->d_v_cache = NULL; }
+                continue;
+            }
+        }
+
+        gl->on_gpu = 1;
+        promoted++;
+
+        /* Upload compressed FFN for this newly promoted layer */
+        for (int slot = 0; slot < AXEX_COMPRESS_WHICH_MAX; slot++) {
+            axex_compressed_weight_t *cw2 = axex_get_compressed_layer_mut(L, slot);
+            if (!cw2 || cw2->d_Vt) continue;
+            axex_upload_compressed_to_gpu(cw2,
+                (void *(*)(uint64_t))be->mem.alloc,
+                (void (*)(void *, const void *, uint64_t))be->mem.upload,
+                be->mem.sync);
+        }
+    }
+
+    if (promoted)
+        kprintf("[GPU] Promoted %d CPU layers to GPU (compressed-FFN-only path)\n",
+                promoted);
+
+    be->mem.sync();
+#endif
+}
+
+
 int llm_prompt(const char *user_text, char *output, int max_output)
 {
     if (!llm_is_loaded()) {
@@ -7645,7 +9478,7 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
 
     if (!llm_stream_cb && !llm_think_show) {
         int n_gen = llm_prompt_tokens(user_text, llm_tokens, llm_alloc_tokens,
-                                      max_tokens > 0 ? max_tokens : 16, 0.0f);
+                                      max_tokens > 0 ? max_tokens : 16, llm_default_temperature);
         if (n_gen < 0) {
             kstrlcpy(output, "[generation failed]", max_output);
             return -1;
@@ -7672,7 +9505,7 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
     } while(0)
 
     /* Detect prompt format from architecture */
-    int is_phi3 = 0, is_phi2 = 0, is_chatml = 0, is_gemma = 0;
+    int is_phi3 = 0, is_phi2 = 0, is_chatml = 0, is_gemma = 0, is_llama = 0;
     if (kstrlen(m->arch) >= 4 &&
         m->arch[0] == 'q' && m->arch[1] == 'w' &&
         m->arch[2] == 'e' && m->arch[3] == 'n')
@@ -7688,6 +9521,10 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
         m->arch[0] == 'g' && m->arch[1] == 'e' &&
         m->arch[2] == 'm' && m->arch[3] == 'm' && m->arch[4] == 'a')
         is_gemma = 1;
+    if (kstrlen(m->arch) >= 5 &&
+        m->arch[0] == 'l' && m->arch[1] == 'l' &&
+        m->arch[2] == 'a' && m->arch[3] == 'm' && m->arch[4] == 'a')
+        is_llama = 1;
 
     if (is_gemma) {
         PA("<turn|>user\n");
@@ -7705,6 +9542,10 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
         PA("<|im_start|>user\n");
         PA(user_text);
         PA("<|im_end|>\n<|im_start|>assistant\n");
+    } else if (is_llama) {
+        PA("<|start_header_id|>user<|end_header_id|>\n\n");
+        PA(user_text);
+        PA("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
     } else {
         PA(user_text);
     }
@@ -7739,7 +9580,7 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
 
     if (max_tokens < 1) max_tokens = 16;
     int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
-                             max_tokens, 0.0f, 0); /* greedy for debug */
+                             max_tokens, llm_default_temperature, 0);
     __sync_lock_release(&llm_inference_active);
     return n_gen;
 }
@@ -7849,6 +9690,9 @@ int llm_chat_turn(const char *user_text, char *output, int max_output,
         (m->arch[3] == '2' || m->arch[3] == '\0');
     int is_chatml = kstrlen(m->arch) >= 4 &&
         m->arch[0]=='q' && m->arch[1]=='w' && m->arch[2]=='e' && m->arch[3]=='n';
+    int is_llama = kstrlen(m->arch) >= 5 &&
+        m->arch[0]=='l' && m->arch[1]=='l' && m->arch[2]=='a' &&
+        m->arch[3]=='m' && m->arch[4]=='a';
 
     if (is_gemma) {
         TA("<turn|>user\n");
@@ -7869,6 +9713,10 @@ int llm_chat_turn(const char *user_text, char *output, int max_output,
         TA("<|im_start|>user\n");
         TA(user_text);
         TA("<|im_end|>\n<|im_start|>assistant\n");
+    } else if (is_llama) {
+        TA("<|start_header_id|>user<|end_header_id|>\n\n");
+        TA(user_text);
+        TA("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
     } else {
         TA(user_text);
         TA("\n");
@@ -9033,6 +10881,7 @@ int llm_prompt_tokens(const char *user_text, int *output_tokens,
         int is_phi3 = 0;
         int is_phi2 = 0;
         int is_gemma = 0;
+        int is_llama = 0;
         if (kstrlen(m->arch) >= 4 &&
             m->arch[0] == 'q' && m->arch[1] == 'w' &&
             m->arch[2] == 'e' && m->arch[3] == 'n')
@@ -9048,6 +10897,10 @@ int llm_prompt_tokens(const char *user_text, int *output_tokens,
             m->arch[0] == 'g' && m->arch[1] == 'e' &&
             m->arch[2] == 'm' && m->arch[3] == 'm' && m->arch[4] == 'a')
             is_gemma = 1;
+        if (kstrlen(m->arch) >= 5 &&
+            m->arch[0] == 'l' && m->arch[1] == 'l' &&
+            m->arch[2] == 'a' && m->arch[3] == 'm' && m->arch[4] == 'a')
+            is_llama = 1;
 
         if (is_phi3) {
             TOKEN_PROMPT_APPEND("<|user|>\n");
@@ -9065,6 +10918,10 @@ int llm_prompt_tokens(const char *user_text, int *output_tokens,
             TOKEN_PROMPT_APPEND("<turn|>user\n");
             TOKEN_PROMPT_APPEND(user_text);
             TOKEN_PROMPT_APPEND("\n<turn|>model\n");
+        } else if (is_llama) {
+            TOKEN_PROMPT_APPEND("<|start_header_id|>user<|end_header_id|>\n\n");
+            TOKEN_PROMPT_APPEND(user_text);
+            TOKEN_PROMPT_APPEND("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
         } else {
             TOKEN_PROMPT_APPEND("User: ");
             TOKEN_PROMPT_APPEND(user_text);
@@ -9121,6 +10978,9 @@ int llm_chat_turn_tokens(const char *user_text, int *output_tokens,
             (m->arch[3] == '2' || m->arch[3] == '\0');
         int is_chatml = kstrlen(m->arch) >= 4 &&
             m->arch[0]=='q' && m->arch[1]=='w' && m->arch[2]=='e' && m->arch[3]=='n';
+        int is_llama = kstrlen(m->arch) >= 5 &&
+            m->arch[0]=='l' && m->arch[1]=='l' && m->arch[2]=='a' &&
+            m->arch[3]=='m' && m->arch[4]=='a';
 
         if (is_gemma) {
             TOKEN_CHAT_APPEND("<turn|>user\n");
@@ -9140,6 +11000,10 @@ int llm_chat_turn_tokens(const char *user_text, int *output_tokens,
             TOKEN_CHAT_APPEND("<|im_start|>user\n");
             TOKEN_CHAT_APPEND(user_text);
             TOKEN_CHAT_APPEND("<|im_end|>\n<|im_start|>assistant\n");
+        } else if (is_llama) {
+            TOKEN_CHAT_APPEND("<|start_header_id|>user<|end_header_id|>\n\n");
+            TOKEN_CHAT_APPEND(user_text);
+            TOKEN_CHAT_APPEND("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
         } else {
             TOKEN_CHAT_APPEND(user_text);
             TOKEN_CHAT_APPEND("\n");
@@ -10081,6 +11945,392 @@ int llm_rollout_compute_returns(float gamma, float *out_returns, int max_returns
 
 tensor_bridge_t *llm_get_bridge(void) {
     return &llm_bridge;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * llm_generate_geodesic_speculative
+ *
+ * HyperTensor turbo decode path: uses axiom_beta_geodesic_rollout() to draft
+ * n_draft tokens in one trajectory-coherent geodesic integration, then
+ * verifies them all with a single llm_speculative_verify_with_correction()
+ * call.  On rejection, axiom_beta_grc_feedback() reinforces the GRC library
+ * so accuracy improves over time.
+ *
+ * Expected throughput: (n_accepted_avg + 1) tokens per verifier call.
+ * With a warm GRC library (MRR > 0.3) this reaches 2.5–4× autoregressive.
+ *
+ * Falls back gracefully to ordinary autoregressive generation if geodesic
+ * geometry is not ready (Phase-3 not built yet, cold start).
+ * ───────────────────────────────────────────────────────────────────────── */
+int llm_generate_geodesic_speculative(const int *prompt_tokens, int n_prompt,
+                                      int *output_tokens, int max_output_tokens,
+                                      int max_gen, float temperature,
+                                      int n_draft)
+{
+#define GEO_SPEC_MAX_DRAFT  8
+#define GEO_SPEC_CTX_MAX    4096
+
+    int      draft_tokens[GEO_SPEC_MAX_DRAFT];
+    float    draft_conf  [GEO_SPEC_MAX_DRAFT];
+    int      ctx_buf     [GEO_SPEC_CTX_MAX];
+    int      n_ctx, n_out, n_drafted, correction;
+    int      total_accepted, total_calls;
+
+    if (!llm_is_loaded()) return -1;
+    if (!prompt_tokens || n_prompt <= 0) return -1;
+    if (!output_tokens || max_output_tokens <= 0 || max_gen <= 0) return -1;
+
+    if (n_draft < 1) n_draft = 4;
+    if (n_draft > GEO_SPEC_MAX_DRAFT) n_draft = GEO_SPEC_MAX_DRAFT;
+
+    /* Clamp context buffer size */
+    n_ctx = n_prompt;
+    if (n_ctx > GEO_SPEC_CTX_MAX) n_ctx = GEO_SPEC_CTX_MAX;
+    kmemcpy(ctx_buf, prompt_tokens + (n_prompt - n_ctx), (uint64_t)n_ctx * sizeof(int));
+
+    /* Sync axiom context so geodesic step sees the right hidden states */
+    ott_update_generation_context(ctx_buf, n_ctx);
+
+    n_out          = 0;
+    total_accepted = 0;
+    total_calls    = 0;
+
+    while (n_out < max_gen && n_out < max_output_tokens) {
+        int accepted, i;
+
+        /* ── Draft phase: geodesic multi-step rollout ──────────────────── */
+        n_drafted = 0;
+        if (axiom_beta_geodesic_rollout(ctx_buf, n_ctx, n_draft,
+                                        draft_tokens, draft_conf,
+                                        &n_drafted) != AXIOM_BETA_OK ||
+            n_drafted <= 0) {
+            /* Geodesic geometry not ready — fall back to single autoregressive step */
+            int tok = -1;
+            if (__sync_lock_test_and_set(&llm_inference_active, 1) == 0) {
+                llm_model_t *m = &llm_model;
+                if (m->cache_len < n_ctx - 1) {
+                    llm_reset_cache();
+                    for (int j = 0; j < n_ctx - 1 && j < m->max_seq - 1; j++)
+                        llm_forward_token(m, NULL, ctx_buf[j], j);
+                }
+                if (n_ctx - 1 < m->max_seq) {
+#ifdef ENABLE_CUDA
+                    cuda_graph_decode_ready = 1;
+#endif
+                    llm_forward_token(m, llm_logits, ctx_buf[n_ctx - 1], n_ctx - 1);
+                    llm_logits_pos = n_ctx - 1;
+                }
+                tok = llm_sample(llm_logits, m->vocab_size, temperature);
+                __sync_lock_release(&llm_inference_active);
+            }
+            if (tok < 0) break;
+            {
+                llm_model_t *m = &llm_model;
+                if (tok == m->eos_id) break;
+            }
+            output_tokens[n_out++] = tok;
+            if (n_ctx < GEO_SPEC_CTX_MAX)
+                ctx_buf[n_ctx++] = tok;
+            else {
+                kmemmove(ctx_buf, ctx_buf + 1,
+                         (uint64_t)(GEO_SPEC_CTX_MAX - 1) * sizeof(int));
+                ctx_buf[GEO_SPEC_CTX_MAX - 1] = tok;
+            }
+            ott_update_generation_context(ctx_buf, n_ctx);
+            continue;
+        }
+
+        /* ── Apply confidence-based threshold — drop low-confidence suffix ── */
+        {
+            int keep = 0;
+            for (int j = 0; j < n_drafted; j++) {
+                float thresh = axiom_beta_rollout_threshold(j, 0.25f);
+                if (draft_conf[j] >= thresh)
+                    keep = j + 1;
+            }
+            if (keep < n_drafted) n_drafted = keep;
+            if (n_drafted <= 0)   n_drafted = 1;
+        }
+
+        /* ── Verify phase ──────────────────────────────────────────────── */
+        correction = -1;
+        accepted   = llm_speculative_verify_with_correction(
+                         ctx_buf, n_ctx,
+                         draft_tokens, n_drafted,
+                         &correction);
+        total_calls++;
+
+        if (accepted < 0) break;  /* lock contention or error */
+
+        /* ── GRC feedback on first rejected draft slot ──────────────────── */
+        if (accepted < n_drafted && correction >= 0) {
+            axiom_beta_grc_feedback(ctx_buf, n_ctx,
+                                    accepted > 0 ? draft_tokens[accepted - 1]
+                                                 : correction);
+        }
+
+        /* ── Emit accepted tokens ──────────────────────────────────────── */
+        {
+            llm_model_t *m = &llm_model;
+            for (i = 0; i < accepted && n_out < max_gen && n_out < max_output_tokens; i++) {
+                int tok = draft_tokens[i];
+                if (tok == m->eos_id) goto geo_done;
+                output_tokens[n_out++] = tok;
+                if (n_ctx < GEO_SPEC_CTX_MAX)
+                    ctx_buf[n_ctx++] = tok;
+                else {
+                    kmemmove(ctx_buf, ctx_buf + 1,
+                             (uint64_t)(GEO_SPEC_CTX_MAX - 1) * sizeof(int));
+                    ctx_buf[GEO_SPEC_CTX_MAX - 1] = tok;
+                }
+            }
+            total_accepted += accepted;
+
+            /* ── Emit verifier correction token ────────────────────────── */
+            if (correction >= 0 && n_out < max_gen && n_out < max_output_tokens) {
+                if (correction == m->eos_id) goto geo_done;
+                output_tokens[n_out++] = correction;
+                if (n_ctx < GEO_SPEC_CTX_MAX)
+                    ctx_buf[n_ctx++] = correction;
+                else {
+                    kmemmove(ctx_buf, ctx_buf + 1,
+                             (uint64_t)(GEO_SPEC_CTX_MAX - 1) * sizeof(int));
+                    ctx_buf[GEO_SPEC_CTX_MAX - 1] = correction;
+                }
+            }
+        }
+
+        ott_update_generation_context(ctx_buf, n_ctx);
+
+        (void)total_accepted; (void)total_calls;
+    }
+
+geo_done:
+    return n_out;
+
+#undef GEO_SPEC_MAX_DRAFT
+#undef GEO_SPEC_CTX_MAX
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * llm_session_*  — per-session inference contexts for parallel serving.
+ *
+ * Each session is an independent inference slot backed by a KV snapshot.
+ * The server can hold up to LLM_SESSION_MAX concurrent sessions and step
+ * them round-robin via llm_session_step(), which context-switches the model's
+ * KV cache in/out of the session's snapshot slot.
+ *
+ * Lifecycle:
+ *   llm_session_create()  — tokenise prompt, prefill, snapshot KV state
+ *   llm_session_step()    — restore KV, forward one token, save KV, return tok
+ *   llm_session_destroy() — free snapshot memory, mark slot free
+ *
+ * Thread safety: llm_session_step() uses llm_inference_active to prevent
+ * simultaneous concurrent use of the transformer.  The caller (api_server
+ * parallel worker) must sequence calls from one thread at a time.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+#define LLM_SESSION_MAX 8
+#define LLM_SESSION_CTX_MAX 4096
+
+typedef struct {
+    int   in_use;
+    int   ctx[LLM_SESSION_CTX_MAX];
+    int   n_ctx;
+    int   n_generated;
+    int   max_gen;
+    float temperature;
+    int   done;              /* 1 when EOS emitted or max_gen reached */
+    int   snapshotted;       /* 1 after first KV snapshot saved */
+} llm_session_t;
+
+static llm_session_t llm_sessions[LLM_SESSION_MAX];
+
+int llm_session_create(const int *prompt_tokens, int n_prompt,
+                       int max_gen, float temperature)
+{
+    int sid = -1;
+    for (int i = 0; i < LLM_SESSION_MAX; i++) {
+        if (!llm_sessions[i].in_use) { sid = i; break; }
+    }
+    if (sid < 0) return -1;  /* all slots busy */
+
+    llm_session_t *s = &llm_sessions[sid];
+    kmemset(s, 0, sizeof(*s));
+    s->in_use      = 1;
+    s->max_gen     = max_gen > 0 ? max_gen : 256;
+    s->temperature = temperature;
+
+    /* Clamp prompt to context window */
+    int n = n_prompt;
+    if (n > LLM_SESSION_CTX_MAX) n = LLM_SESSION_CTX_MAX;
+    kmemcpy(s->ctx, prompt_tokens + (n_prompt - n), (uint64_t)n * sizeof(int));
+    s->n_ctx = n;
+
+    /* Prefill: run the prompt through the transformer and snapshot KV state.
+     * Use llm_kv_restore_and_prime to fill cache with logits at prompt[-1]. */
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+    {
+        llm_model_t *m = &llm_model;
+        llm_reset_cache();
+        uint64_t t_prefill0 = hal_timer_us();
+#ifdef ENABLE_CUDA
+        /* Use batched GPU prefill when available — same path as llm_generate */
+        int did_batch = 0;
+        if (gpu_ctx.gpu_fwd && s->n_ctx >= 3 &&
+            !llm_attnres_enabled && !llm_depth_attn_enabled) {
+            if (gpu_ctx.prefill_max_n < s->n_ctx - 1)
+                llm_ensure_prefill_scratch(m, s->n_ctx - 1);
+            if (gpu_ctx.prefill_max_n >= s->n_ctx - 1) {
+                llm_forward_prefill_batch_gpu(m, s->ctx, s->n_ctx - 1, 0);
+                llm_forward_token(m, llm_logits, s->ctx[s->n_ctx - 1], s->n_ctx - 1);
+                llm_logits_pos = s->n_ctx - 1;
+                did_batch = 1;
+            }
+        }
+        if (!did_batch)
+#endif
+        {
+            for (int i = 0; i < s->n_ctx - 1 && i < m->max_seq - 1; i++)
+                llm_forward_token(m, NULL, s->ctx[i], i);
+            if (s->n_ctx > 0 && s->n_ctx - 1 < m->max_seq) {
+#ifdef ENABLE_CUDA
+                cuda_graph_decode_ready = 1;
+#endif
+                llm_forward_token(m, llm_logits, s->ctx[s->n_ctx - 1], s->n_ctx - 1);
+                llm_logits_pos = s->n_ctx - 1;
+            }
+        }
+        llm_last_prefill_ms_val = (float)((hal_timer_us() - t_prefill0) / 1000);
+    }
+    __sync_lock_release(&llm_inference_active);
+
+    /* Save KV state to snapshot keyed by session context */
+    llm_kv_snapshot_prefix(s->ctx, s->n_ctx);
+    s->snapshotted = 1;
+
+    return sid;
+}
+
+/* Step one token for the session.
+ * Returns: token id (≥0) on success, LLM_SESSION_DONE (-10) when finished,
+ *          LLM_SESSION_ERR (-11) on error. */
+#define LLM_SESSION_DONE  (-10)
+#define LLM_SESSION_ERR   (-11)
+
+int llm_session_step(int sid)
+{
+    if (sid < 0 || sid >= LLM_SESSION_MAX) return LLM_SESSION_ERR;
+    llm_session_t *s = &llm_sessions[sid];
+    if (!s->in_use || s->done) return LLM_SESSION_DONE;
+    if (s->n_generated >= s->max_gen) { s->done = 1; return LLM_SESSION_DONE; }
+
+    /* Restore KV state for this session */
+    if (s->snapshotted) {
+        if (llm_kv_restore_prefix(s->ctx, s->n_ctx) < 0) {
+            /* snapshot evicted — re-prefill from scratch */
+            if (__sync_lock_test_and_set(&llm_inference_active, 1)) return LLM_SESSION_ERR;
+            {
+                llm_model_t *m = &llm_model;
+                llm_reset_cache();
+#ifdef ENABLE_CUDA
+                int did_repf = 0;
+                if (gpu_ctx.gpu_fwd && s->n_ctx >= 3 &&
+                    !llm_attnres_enabled && !llm_depth_attn_enabled) {
+                    if (gpu_ctx.prefill_max_n < s->n_ctx - 1)
+                        llm_ensure_prefill_scratch(m, s->n_ctx - 1);
+                    if (gpu_ctx.prefill_max_n >= s->n_ctx - 1) {
+                        llm_forward_prefill_batch_gpu(m, s->ctx, s->n_ctx - 1, 0);
+                        llm_forward_token(m, llm_logits, s->ctx[s->n_ctx - 1], s->n_ctx - 1);
+                        llm_logits_pos = s->n_ctx - 1;
+                        did_repf = 1;
+                    }
+                }
+                if (!did_repf)
+#endif
+                {
+                    for (int i = 0; i < s->n_ctx - 1 && i < m->max_seq - 1; i++)
+                        llm_forward_token(m, NULL, s->ctx[i], i);
+                    if (s->n_ctx > 0) {
+#ifdef ENABLE_CUDA
+                        cuda_graph_decode_ready = 1;
+#endif
+                        llm_forward_token(m, llm_logits, s->ctx[s->n_ctx - 1], s->n_ctx - 1);
+                        llm_logits_pos = s->n_ctx - 1;
+                    }
+                }
+            }
+            __sync_lock_release(&llm_inference_active);
+        }
+    }
+
+    /* Single-token forward to get logits at the new position */
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return LLM_SESSION_ERR;
+    int tok;
+    {
+        llm_model_t *m = &llm_model;
+        /* Fast path: logits already primed (from restore) */
+        if (llm_logits_pos != s->n_ctx - 1 && s->n_ctx <= m->max_seq) {
+#ifdef ENABLE_CUDA
+            cuda_graph_decode_ready = 1;
+#endif
+            llm_forward_token(m, llm_logits, s->ctx[s->n_ctx - 1], s->n_ctx - 1);
+            llm_logits_pos = s->n_ctx - 1;
+        }
+        tok = llm_sample(llm_logits, m->vocab_size, s->temperature);
+        /* Append token to session context */
+        if (tok != m->eos_id) {
+            if (s->n_ctx < LLM_SESSION_CTX_MAX)
+                s->ctx[s->n_ctx++] = tok;
+            else {
+                /* slide window */
+                kmemmove(s->ctx, s->ctx + 1,
+                         (uint64_t)(LLM_SESSION_CTX_MAX - 1) * sizeof(int));
+                s->ctx[LLM_SESSION_CTX_MAX - 1] = tok;
+            }
+        }
+        s->n_generated++;
+    }
+    __sync_lock_release(&llm_inference_active);
+
+    /* Save updated KV state back to snapshot */
+    llm_kv_snapshot_prefix(s->ctx, s->n_ctx);
+
+    /* Check termination */
+    {
+        llm_model_t *m = &llm_model;
+        if (tok == m->eos_id || s->n_generated >= s->max_gen) {
+            s->done = 1;
+            return LLM_SESSION_DONE;
+        }
+    }
+    return tok;
+}
+
+void llm_session_destroy(int sid)
+{
+    if (sid < 0 || sid >= LLM_SESSION_MAX) return;
+    kmemset(&llm_sessions[sid], 0, sizeof(llm_sessions[sid]));
+}
+
+int llm_session_is_done(int sid)
+{
+    if (sid < 0 || sid >= LLM_SESSION_MAX) return 1;
+    return !llm_sessions[sid].in_use || llm_sessions[sid].done;
+}
+
+int llm_session_get_output(int sid, int *token_buf, int max_tokens)
+{
+    if (sid < 0 || sid >= LLM_SESSION_MAX) return -1;
+    llm_session_t *s = &llm_sessions[sid];
+    if (!s->in_use) return -1;
+    /* output = generated portion: ctx[n_ctx - n_generated .. n_ctx-1] */
+    int start = s->n_ctx - s->n_generated;
+    if (start < 0) start = 0;
+    int n = s->n_ctx - start;
+    if (n > max_tokens) n = max_tokens;
+    if (n > 0) kmemcpy(token_buf, s->ctx + start, (uint64_t)n * sizeof(int));
+    return n;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */

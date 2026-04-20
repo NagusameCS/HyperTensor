@@ -28,6 +28,7 @@ typedef void *lib_handle_t;
 
 #ifdef GEODESSICAL_HOSTED
 #include "hal.h"
+#include <stdlib.h>
 #else
 #include "kernel/core/kernel.h"
 #endif
@@ -102,6 +103,9 @@ typedef void     (*fn_batch_kv_update)(float *, float *, const float *, const fl
                                        int, int, int, int, int);
 typedef void     (*fn_prefill_attn_batched)(float *, const float *, const float *, const float *,
                                             int, int, int, int, int, int, float, float);
+typedef void     (*fn_sgemm_batched_f32)(int, int,
+                                          const float * const *, const float * const *,
+                                          float * const *, int);
 
 /* ─── Dynamic dispatch table ─── */
 static struct {
@@ -166,6 +170,8 @@ static struct {
     fn_batch_v_norm             batch_v_norm;
     fn_batch_kv_update          batch_kv_update;
     fn_prefill_attn_batched     prefill_attn_batched;
+    /* cuBLAS batched GEMV — optional, soft-loaded */
+    fn_sgemm_batched_f32        sgemm_batched_f32;
 } ck;
 
 /* Load a symbol, return 0 on success */
@@ -175,21 +181,46 @@ static struct {
 } while (0)
 
 static int cuda_load_library(void) {
+    /* Allow override via environment variable for testing alternate builds */
+    const char *env_path = getenv("GD_CUDA_KERNELS_PATH");
+
     /* Try several paths */
     const char *paths[] = {
+#ifdef _WIN32
         "cuda_kernels.dll",
         "build_host/cuda_kernels.dll",
         "./cuda_kernels.dll",
+#else
+        "./cuda_kernels.so",
+        "/root/cuda_kernels.so",
+        "/usr/local/lib/cuda_kernels.so",
+#endif
         NULL
     };
 
-    for (int i = 0; paths[i]; i++) {
-        ck.lib = LIB_OPEN(paths[i]);
-        if (ck.lib) break;
+    /* Env var takes highest priority */
+    if (env_path) {
+        ck.lib = LIB_OPEN(env_path);
+        if (ck.lib) {
+            kprintf("[CUDA] Loaded kernels from GD_CUDA_KERNELS_PATH: %s\n", env_path);
+        } else {
+            kprintf("[CUDA] WARNING: GD_CUDA_KERNELS_PATH=%s failed to load, trying defaults\n", env_path);
+        }
     }
 
     if (!ck.lib) {
+        for (int i = 0; paths[i]; i++) {
+            ck.lib = LIB_OPEN(paths[i]);
+            if (ck.lib) break;
+        }
+    }
+
+    if (!ck.lib) {
+#ifdef _WIN32
         kprintf("[CUDA] cuda_kernels.dll not found\n");
+#else
+        kprintf("[CUDA] cuda_kernels.so not found\n");
+#endif
         return -1;
     }
 
@@ -254,6 +285,8 @@ static int cuda_load_library(void) {
     ck.batch_v_norm             = (fn_batch_v_norm)LIB_SYM(ck.lib, "ck_batch_v_norm");
     ck.batch_kv_update          = (fn_batch_kv_update)LIB_SYM(ck.lib, "ck_batch_kv_update");
     ck.prefill_attn_batched     = (fn_prefill_attn_batched)LIB_SYM(ck.lib, "ck_prefill_attn_batched");
+    /* cuBLAS batched GEMV — soft-load (only present when built with -lcublas) */
+    ck.sgemm_batched_f32 = (fn_sgemm_batched_f32)LIB_SYM(ck.lib, "ck_sgemm_batched_f32");
     return 0;
 }
 
@@ -261,11 +294,11 @@ static int cuda_load_library(void) {
  * Backend vtable wrappers — delegate to loaded DLL
  * ════════════════════════════════════════════════════════════════════════ */
 
-static void *cuda_alloc(uint64_t size)                    { return ck.alloc(size); }
-static void  cuda_free(void *ptr)                         { ck.free(ptr); }
-static int   cuda_upload(void *d, const void *s, uint64_t sz) { return ck.upload(d, s, sz); }
-static int   cuda_download(void *d, const void *s, uint64_t sz) { return ck.download(d, s, sz); }
-static void  cuda_sync(void)                              { ck.sync(); }
+static void *cuda_alloc(uint64_t size)                    { return ck.alloc ? ck.alloc(size) : NULL; }
+static void  cuda_free(void *ptr)                         { if (ck.free) ck.free(ptr); }
+static int   cuda_upload(void *d, const void *s, uint64_t sz)   { return ck.upload ? ck.upload(d, s, sz) : -1; }
+static int   cuda_download(void *d, const void *s, uint64_t sz) { return ck.download ? ck.download(d, s, sz) : -1; }
+static void  cuda_sync(void)                              { if (ck.sync) ck.sync(); }
 
 /* When Q4_0 weights are dequantized to F16 on GPU, remap GEMV type */
 static int cuda_q4_as_f16 = 0;
@@ -366,6 +399,18 @@ void cuda_fused_geglu(float *gate, const float *up, int n) {
 
 void cuda_fused_swiglu(float *gate, const float *up, int n) {
     ck.fused_swiglu(gate, up, n);
+}
+
+/* cuBLAS batched GEMV: y[i] = A[i]*x[i], A[i] is [M×K] row-major.
+ * All pointer arrays (d_Aarray, d_xarray, d_yarray) must be in device memory.
+ * Silently falls back to nothing if symbol not available (build without cuBLAS). */
+void cuda_sgemm_batched_f32(int M, int K,
+                              const float * const *d_Aarray,
+                              const float * const *d_xarray,
+                              float * const       *d_yarray,
+                              int batch_count) {
+    if (ck.sgemm_batched_f32)
+        ck.sgemm_batched_f32(M, K, d_Aarray, d_xarray, d_yarray, batch_count);
 }
 
 void cuda_batched_rmsnorm(float *data, const float *w,

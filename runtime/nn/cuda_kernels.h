@@ -187,6 +187,16 @@ CUDA_API void ck_fused_rmsnorm_triple_q4_0(
     int q_dim, int k_dim, int v_dim,
     int in_dim);
 
+/* ─── cuBLAS Batched GEMV (row-major F32) — for compressed weight gate+up fusion ─── */
+/*   y[i] = A[i] * x[i],  A[i] is [M×K] row-major, x[i] is [K], y[i] is [M].       */
+/*   All pointer arrays (d_Aarray, d_xarray, d_yarray) must be in device memory.      */
+CUDA_API void ck_sgemm_batched_f32(
+    int M, int K,
+    const float * const *d_Aarray,
+    const float * const *d_xarray,
+    float * const       *d_yarray,
+    int batch_count);
+
 /* ─── CUDA Graph support ─── */
 CUDA_API void ck_graph_destroy(void);
 CUDA_API void ck_set_decode_pos(int pos, int seq_len);

@@ -18,6 +18,8 @@
 #  pragma comment(lib, "ws2_32.lib")
 #else
 #  include <sys/socket.h>
+#  include <sys/select.h>
+#  include <sys/time.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <unistd.h>

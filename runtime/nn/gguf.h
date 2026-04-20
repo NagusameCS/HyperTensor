@@ -54,6 +54,8 @@ typedef enum {
     GGML_TYPE_IQ3_XXS = 18,
     GGML_TYPE_IQ1_S   = 19,
     GGML_TYPE_IQ4_NL  = 20,
+    GGML_TYPE_IQ3_S   = 22,  /* IQ3_S 3-bit importance quant, 256-elem blocks */
+    GGML_TYPE_IQ4_XS  = 24,  /* IQ4_XS 4-bit importance quant, 256-elem blocks */
     GGML_TYPE_BF16    = 30,
     GGML_TYPE_COUNT,
 } ggml_type_t;

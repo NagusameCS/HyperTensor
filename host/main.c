@@ -13,6 +13,8 @@
 #include "../runtime/nn/llm.h"
 #include "../runtime/nn/hf_download.h"
 #include "../runtime/nn/axiom_beta.h"
+#include "../runtime/nn/axiom_exploit.h"
+#include "../runtime/nn/axiom_linalg.h"
 #include "../runtime/nn/axiom_vis.h"
 #include "api_server.h"
 
@@ -49,6 +51,7 @@ static void print_usage(const char *argv0) {
     kprintf("  --temp <float>         Temperature (default: 0.7)\n");
     kprintf("  --top-k <int>          Top-K sampling (default: 40)\n");
     kprintf("  --top-p <float>        Nucleus sampling (default: 0.9)\n");
+    kprintf("  --ctx-size <n>         KV-cache context window (default: 8192 tokens)\n");
     kprintf("  -i, --interactive      Interactive chat mode\n");
     kprintf("  --serve                Start Geodessical HTTP API server\n");
     kprintf("  --port <num>           API server port (default: 8080)\n");
@@ -86,6 +89,17 @@ static void print_usage(const char *argv0) {
     kprintf("  --axiom-no-cache       Disable in-process geometry cache reuse\n");
     kprintf("  --axiom-seed <n>       Beta deterministic seed\n");
     kprintf("  --axiom-skip-geodesic  Skip geodesic pilot (Phase 5)\n");
+    kprintf("  --axex-kv              Geodesic KV-cache compression (50-80%% KV reduction)\n");
+    kprintf("  --axex-kv-threshold <f> KV merge distance threshold (default: 0.15)\n");
+    kprintf("  --axex-offload         Curvature-guided GPU layer offload (smart --gpu-layers)\n");
+    kprintf("  --axex-compress        Manifold-aware weight compression (geodesic SVD + GP)\n");
+    kprintf("  --axex-ffn-compress    SVD FFN compression only (gate/up/down, no manifold PCA)\n");
+    kprintf("  --axex-compress-rank N Max SVD rank for FFN compression (default 128, use 16-32 for speed)\n");
+    kprintf("                         GP (Geodesic Projection): Q/K/V/gate/up → W@P[m×k]\n");
+    kprintf("                         Enables 22B-70B models in 8 GB VRAM (one-time cost)\n");
+    kprintf("  --axex-compress-max-err <f> Max Frobenius error to accept (0=no limit; use 0.5 to skip\n");
+    kprintf("                         matrices with >50%% error, preventing garbled output)\n");
+    kprintf("  --axex-quality <f>     Weight compression quality floor 0-1 (default: 0.90)\n");
     kprintf("  --one-decode           OneDecode: bake geodesic flow map once, then decode instantly\n");
     kprintf("  --one-decode-coverage <n> Vocab tokens to bake for OneDecode (default: 2048)\n");
     kprintf("  --ott-od               OTT-OD Protocol: OneDecode as speculative draft source (fastest OTT mode)\n");
@@ -164,6 +178,18 @@ typedef struct {
     int         one_decode_coverage; /* Vocab tokens to bake (0 = auto) */
     int         ott_od;              /* 1 = OTT-OD: OneDecode as spec-decode draft source */
     int         od_swarm_k;          /* OD-SWARM fan-out K (0=off); each draft slot gets K candidates */
+    /* Manifold exploitation (axiom_exploit) */
+    int         axex_kv;             /* 1 = geodesic KV compression */
+    float       axex_kv_threshold;   /* geodesic merge threshold (default 0.15) */
+    int         axex_offload;        /* 1 = curvature-guided layer offload */
+    int         axex_compress;       /* 1 = manifold-aware weight compression */
+    int         axex_ffn_compress;   /* 1 = SVD FFN compression only (no manifold PCA) */
+    int         axex_compress_rank;  /* max SVD rank (0 = auto, default 128) */
+    float       axex_compress_quality;  /* 0-1 quality floor (default 0.90) */
+    float       axex_compress_max_err;  /* max Frobenius error to accept (0=no limit) */
+    double      axiom_pca_variance;     /* 0 = default 0.95; override for GP weight basis */
+    int         axex_attn_only;      /* 1 = compress only Q/K/V/O (default); 0 = all incl FFN */
+    int         axex_calib_samples;  /* calibration samples per layer (0 = auto) */
 } GD_args_t;
 
 static int GD_ott_theorem_active = 0;
@@ -250,6 +276,16 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->one_decode_coverage = 0;
     args->ott_od = 0;
     args->od_swarm_k = 0;
+    args->axex_kv = 0;
+    args->axex_kv_threshold = 0.15f;
+    args->axex_offload = 0;
+    args->axex_compress = 0;
+    args->axex_ffn_compress = 0;
+    args->axex_compress_rank = 0;
+    args->axex_compress_quality = 0.90f;
+    args->axex_compress_max_err = 0.0f;  /* 0 = no limit */
+    args->axex_attn_only = 1;      /* default: attention-only (near-lossless accuracy) */
+    args->axex_calib_samples = 0;  /* 0 = auto (512 default, 64 in fast mode) */
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -429,6 +465,43 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
 #endif
         } else if (strcmp(argv[i], "--axiom-skip-geodesic") == 0) {
             args->axiom_skip_geodesic = 1;
+        } else if (strcmp(argv[i], "--axex-kv") == 0) {
+            args->axex_kv = 1;
+            args->axiom_beta_run = 1;   /* need phase1 PCA */
+        } else if (strcmp(argv[i], "--axex-kv-threshold") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-kv-threshold requires float\n"); return -1; }
+            args->axex_kv_threshold = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-offload") == 0) {
+            args->axex_offload = 1;
+        } else if (strcmp(argv[i], "--axex-compress") == 0) {
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;   /* need curvature data */
+            /* NOTE: fast_mode NOT set — need 512 samples for enough PCA components (k~500) */
+            args->axiom_skip_geodesic = 1; /* Phase 5 not needed for GP compression */
+            args->axiom_pca_variance = 0.9999; /* keep all significant PCA components for weight basis */
+        } else if (strcmp(argv[i], "--axex-attn-only") == 0) {
+            /* Explicit: compress only Q/K/V/O attention weights (default behaviour) */
+            args->axex_attn_only = 1;
+        } else if (strcmp(argv[i], "--axex-ffn-compress") == 0) {
+            /* SVD compress gate/up/down only — no axiom survey, no manifold PCA.
+             * Fast path: enables the cuBLAS batched GEMV for gate+up without
+             * waiting 30 min for per-layer PCA.  Uses flat curvature (SVD). */
+            args->axex_ffn_compress = 1;
+        } else if (strcmp(argv[i], "--axex-compress-rank") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-compress-rank requires int\n"); return -1; }
+            args->axex_compress_rank = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axex-compress-max-err") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-compress-max-err requires float\n"); return -1; }
+            args->axex_compress_max_err = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-full-compress") == 0) {
+            /* Override: also compress FFN gate/up (legacy — hurts accuracy ~20-35% perplexity) */
+            args->axex_attn_only = 0;
+        } else if (strcmp(argv[i], "--axex-calib-samples") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-calib-samples requires integer\n"); return -1; }
+            args->axex_calib_samples = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axex-quality") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-quality requires float\n"); return -1; }
+            args->axex_compress_quality = (float)atof(argv[i]);
         } else if (strcmp(argv[i], "--one-decode") == 0) {
             args->one_decode = 1;
             args->axiom_beta_run = 1;       /* need geometry */
@@ -557,6 +630,14 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
     static int geo_ctx_tokens[32768];
     int   geo_n_ctx = 0;
 
+    /* ── Turn history for context sliding window ─────────────────────────── */
+#define CHAT_HIST_MAX  32     /* circular buffer of turns */
+#define CHAT_HIST_TEXT 4096   /* per-turn text (user or AI) */
+    typedef struct { char user[CHAT_HIST_TEXT]; char ai[CHAT_HIST_TEXT]; } chat_hist_t;
+    static chat_hist_t hist[CHAT_HIST_MAX];
+    int hist_n = 0;            /* total turns saved (unbounded; use % CHAT_HIST_MAX for index) */
+    /* ────────────────────────────────────────────────────────────────────── */
+
     GD_ansi_enable();
 
     /* Welcome header */
@@ -603,6 +684,7 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
             if (strcmp(line, "/reset") == 0) {
                 llm_chat_reset();
                 geo_n_ctx = 0;
+                hist_n = 0;
                 printf(GD_DIM "  [Conversation reset — new context started]\n\n" GD_RESET);
                 continue;
             }
@@ -655,7 +737,46 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
                 printf("%s", output);
             }
         } else {
+            /* ── Context sliding window (non-geodesic path) ─────────────── */
+            if (!geodesic_mode) {
+                int ctx_cur = llm_chat_context_tokens();
+                int ctx_max = llm_chat_context_max();
+                /* When > 80% full, slide window: reset + replay last 2 turns */
+                if (ctx_max > 0 && ctx_cur > ctx_max * 4 / 5 && hist_n > 0) {
+                    int keep = (hist_n >= 2) ? 2 : hist_n;
+                    printf(GD_YELLOW "  [Context at %d/%d (%.0f%%) — replaying last %d turn%s to extend conversation]\n\n"
+                           GD_RESET,
+                           ctx_cur, ctx_max, 100.0f * ctx_cur / ctx_max,
+                           keep, keep > 1 ? "s" : "");
+                    llm_chat_reset();
+                    /* Replay silently (suppress streaming) */
+                    llm_set_stream_cb(NULL, NULL);
+                    static char replay_buf[131072];
+                    for (int r = hist_n - keep; r < hist_n; r++) {
+                        int idx = r % CHAT_HIST_MAX;
+                        llm_chat_turn(hist[idx].user, replay_buf,
+                                      (int)sizeof(replay_buf), max_tokens, temperature);
+                    }
+                    llm_set_stream_cb(GD_stream_cb, (void *)0);
+                }
+            }
+            /* Save this user turn in history ring */
+            if (!geodesic_mode) {
+                int idx = hist_n % CHAT_HIST_MAX;
+                strncpy(hist[idx].user, line, CHAT_HIST_TEXT - 1);
+                hist[idx].user[CHAT_HIST_TEXT - 1] = '\0';
+                hist[idx].ai[0] = '\0';
+            }
+
             n = llm_chat_turn(line, output, (int)sizeof(output), max_tokens, temperature);
+
+            /* Save AI reply in history */
+            if (!geodesic_mode && n > 0) {
+                int idx = hist_n % CHAT_HIST_MAX;
+                strncpy(hist[idx].ai, output, CHAT_HIST_TEXT - 1);
+                hist[idx].ai[CHAT_HIST_TEXT - 1] = '\0';
+                hist_n++;
+            }
         }
         uint64_t t1 = hal_timer_us();
 
@@ -667,8 +788,10 @@ static void interactive_loop(const char *model_path, GD_args_t *args) {
                  int ctx    = geodesic_mode ? geo_n_ctx : llm_chat_context_tokens();
                  int ctxmax = geodesic_mode ? (int)(sizeof(geo_ctx_tokens) / sizeof(geo_ctx_tokens[0]))
                                 : llm_chat_context_max();
-            printf(GD_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d]\n\n" GD_RESET,
-                   n, tok_per_s, (unsigned long long)total_ms, ctx, ctxmax);
+            float ctx_pct = ctxmax > 0 ? 100.0f * ctx / ctxmax : 0.0f;
+            const char *ctx_warn = (ctx_pct > 85.0f) ? GD_YELLOW " (!)" GD_RESET GD_DIM : "";
+            printf(GD_DIM "  [%d tok  %.1f tok/s  %llu ms  ctx %d/%d (%.0f%%)%s]\n\n" GD_RESET,
+                   n, tok_per_s, (unsigned long long)total_ms, ctx, ctxmax, ctx_pct, ctx_warn);
         } else {
             printf(GD_RED "  [error generating response (code %d)]\n\n" GD_RESET, n);
         }
@@ -1967,6 +2090,8 @@ int main(int argc, char **argv) {
 
     /* Initialize HAL (CPU detection, thread pool) */
     hal_init();
+    if (args.n_threads > 0)
+        smp_init_hosted(args.n_threads);
     enable_max_performance_host();
 
     /* Configure logging level */
@@ -1981,6 +2106,7 @@ int main(int argc, char **argv) {
     else if (args.no_think == -1) llm_set_thinking(2);  /* force-think */
     if (args.show_think) llm_set_show_thinking(1);
     llm_set_sampling_params(args.top_k, args.top_p);
+    llm_set_temperature(args.temperature);
     llm_set_attention_residuals(args.attnres_enable, args.attnres_strength);
     llm_set_depth_residual_attention(args.depth_attn_enable,
                                      args.depth_attn_strength,
@@ -2034,8 +2160,37 @@ int main(int argc, char **argv) {
     }
     kprintf("[GD] Mapped %llu MB\n", (unsigned long long)(model.size / (1024 * 1024)));
 
-    /* Apply context-size override before loading (0 = use 2048-token default) */
-    llm_set_max_ctx(args.ctx_size);
+    /* Apply context-size override before loading (0 = use 2048-token default).
+     * Without an explicit --ctx-size, the model's native context (e.g. 128K for
+     * LLaMA 3.1) would be capped to 8192, consuming 2 GB of GPU KV cache.
+     * The 2048-token default keeps KV cache at 512 MB — fits in 6 GB VRAM. */
+    llm_set_max_ctx(args.ctx_size > 0 ? args.ctx_size : 2048);
+
+    /* If weight compression is requested, put GPU init in compress-mode so it
+     * skips raw weight uploads for the manifold GP path.
+     * - attn-only (default): skip Q/K/V/O (manifold CPU path), keep FFN on GPU
+     * - full-compress: skip Q/K/V/O + FFN (both replaced by manifold CPU path) */
+    if (args.axex_compress) {
+        /* NOTE: We no longer pre-skip Q/K/V/O upload here.
+         * Axiom beta calibration needs real attention weights on GPU for its
+         * forward-pass hidden-state capture; skipping them before llm_gpu_init
+         * caused STATUS_INTEGER_DIVIDE_BY_ZERO in CUDA attention kernels.
+         * Instead, llm_gpu_upload_compressed_weights() phase 2b frees the raw
+         * Q/K/V/O GPU buffers AFTER the GP W_proj matrices are uploaded,
+         * achieving the same VRAM savings without breaking calibration.
+         * Only full-compress (not attn-only) still skips raw FFN upload, since
+         * FFN is not needed for axiom beta and saves PCIe bandwidth. */
+        if (!args.axex_attn_only)
+            llm_gpu_set_compress_mode(1);   /* skip FFN only in full-compress mode */
+    }
+    /* --axex-ffn-compress: skip raw FFN uploads during llm_gpu_init so that
+     * attn-only VRAM estimates are used.  All 32 layers' attention weights fit
+     * in ~1.3 GB, leaving ample room for compressed FFN uploaded later.
+     * Without this, raw FFN fills VRAM at layer ~18 and the remaining layers
+     * must be promoted via Phase 3 (compress→free→re-upload dance). */
+    if (args.axex_ffn_compress) {
+        llm_gpu_set_compress_mode(1);
+    }
 
     /* Load model via GGUF parser + LLM engine */
     uint64_t t0 = hal_timer_us();
@@ -2057,10 +2212,12 @@ int main(int argc, char **argv) {
     float axiom_consistency = 0.0f;
     float axiom_geodesic_speedup = 0.0f;
     unsigned long long axiom_total_ms = 0;
+    axiom_beta_report_t axiom_rep;
+    memset(&axiom_rep, 0, sizeof(axiom_rep));
 
     if (args.axiom_beta_run) {
         axiom_beta_config_t cfg;
-        axiom_beta_report_t rep;
+        axiom_beta_report_t *rep = &axiom_rep;
         axiom_beta_status_t st;
         axiom_beta_default_config(&cfg);
         if (args.axiom_samples > 0) cfg.embedding_samples = args.axiom_samples;
@@ -2072,11 +2229,12 @@ int main(int argc, char **argv) {
         cfg.seed = args.axiom_seed;
         cfg.verbose = args.verbose;
         cfg.skip_geodesic = args.axiom_skip_geodesic;
+        if (args.axiom_pca_variance > 0.0) cfg.pca_variance_ratio = args.axiom_pca_variance;
 
         if (args.vis_output_dir)
             axiom_vis_init(args.vis_output_dir);
 
-        st = axiom_beta_run(&cfg, &rep);
+        st = axiom_beta_run(&cfg, rep);
         if (st != AXIOM_BETA_OK) {
             kprintf("[AXIOM-BETA-3] ERROR: %s\n", axiom_beta_status_string(st));
             hal_munmap(&model);
@@ -2084,54 +2242,54 @@ int main(int argc, char **argv) {
             return 1;
         }
         axiom_ran_this_invocation = 1;
-        axiom_intrinsic_dim = rep.phase1.intrinsic_dim;
-        axiom_consistency = rep.phase4.consistency_score;
-        axiom_geodesic_speedup = rep.phase5.projected_speedup;
-        axiom_total_ms = (unsigned long long)(rep.total_us / 1000);
+        axiom_intrinsic_dim = rep->phase1.intrinsic_dim;
+        axiom_consistency = rep->phase4.consistency_score;
+        axiom_geodesic_speedup = rep->phase5.projected_speedup;
+        axiom_total_ms = (unsigned long long)(rep->total_us / 1000);
 
         kprintf("\n[AXIOM-BETA-3] === Summary ==========================\n");
         kprintf("  Intrinsic dim : %d (TwoNN=%.2f, PCA=%d components)\n",
-                rep.phase1.intrinsic_dim, rep.phase1.twonn_raw,
-                rep.phase1.pca_components_kept);
+                rep->phase1.intrinsic_dim, rep->phase1.twonn_raw,
+                rep->phase1.pca_components_kept);
         kprintf("  Symmetry      : score=%.4f, generators=%d, invariant=%d\n",
-                rep.phase2.symmetry_score, rep.phase2.generators_found,
-                rep.phase2.permutation_invariant_heads);
+                rep->phase2.symmetry_score, rep->phase2.generators_found,
+                rep->phase2.permutation_invariant_heads);
         kprintf("  Curvature     : mean=%.6f, max=%.6f, high-curv=%d\n",
-                rep.phase3.mean_scalar_curvature,
-                rep.phase3.max_scalar_curvature,
-                rep.phase3.high_curvature_loci);
-        if (rep.uses_fisher_metric)
+                rep->phase3.mean_scalar_curvature,
+                rep->phase3.max_scalar_curvature,
+                rep->phase3.high_curvature_loci);
+        if (rep->uses_fisher_metric)
             kprintf("  Fisher metric : trace_mean=%.4f, det_log_mean=%.4f\n",
-                    rep.phase3.fisher_trace_mean,
-                    rep.phase3.fisher_det_log_mean);
+                    rep->phase3.fisher_trace_mean,
+                    rep->phase3.fisher_det_log_mean);
         kprintf("  Axioms        : %d (consistency=%.4f, oracle=%d)\n",
-                rep.phase4.axiom_count, rep.phase4.consistency_score,
-                rep.phase4.oracle_calls_used);
+                rep->phase4.axiom_count, rep->phase4.consistency_score,
+                rep->phase4.oracle_calls_used);
         kprintf("  Geodesic pilot: speedup=%.1fx\n",
-                rep.phase5.projected_speedup);
+                rep->phase5.projected_speedup);
         kprintf("  Cache reuse   : %s\n",
-            rep.reused_geometry_cache ? "yes" : "no");
-        if (rep.supports_geodesic_pilot)
+            rep->reused_geometry_cache ? "yes" : "no");
+        if (rep->supports_geodesic_pilot)
             kprintf("  Geodesic sim  : cos=%.4f, L2_err=%.4f\n",
-                    rep.phase5.geodesic_cosine_similarity,
-                    rep.phase5.geodesic_reconstruction_error);
-        if (rep.supports_geodesic_pilot)
+                    rep->phase5.geodesic_cosine_similarity,
+                    rep->phase5.geodesic_reconstruction_error);
+        if (rep->supports_geodesic_pilot)
             kprintf("  Geodesic tok  : top1=%.3f (%d/%d), mrr=%.3f, probe=%d, targets(o/r)=%d/%d, gpu=%s\n",
-                    rep.phase5.geodesic_top1_match_rate,
-                    rep.phase5.geodesic_top1_hits,
-                    rep.phase5.pilot_tokens_tested,
-                    rep.phase5.geodesic_target_mrr,
-                rep.phase5.geodesic_vocab_probe,
-                rep.phase5.oracle_target_count,
-                rep.phase5.random_target_count,
-                rep.phase5.used_gpu_scoring ? "yes" : "no");
+                    rep->phase5.geodesic_top1_match_rate,
+                    rep->phase5.geodesic_top1_hits,
+                    rep->phase5.pilot_tokens_tested,
+                    rep->phase5.geodesic_target_mrr,
+                rep->phase5.geodesic_vocab_probe,
+                rep->phase5.oracle_target_count,
+                rep->phase5.random_target_count,
+                rep->phase5.used_gpu_scoring ? "yes" : "no");
         kprintf("  Total time    : %llu ms\n",
-                (unsigned long long)(rep.total_us / 1000));
+                (unsigned long long)(rep->total_us / 1000));
         kprintf("[AXIOM-BETA-3] ======================================\n");
 
         if (args.axiom_report_path) {
             axiom_beta_status_t wr = axiom_beta_write_json(args.axiom_report_path,
-                                                           &rep, &cfg);
+                                                           rep, &cfg);
             if (wr == AXIOM_BETA_OK)
                 kprintf("[AXIOM-BETA-3] Report: %s\n", args.axiom_report_path);
             else
@@ -2144,6 +2302,184 @@ int main(int argc, char **argv) {
             hal_shutdown();
             return 0;
         }
+    }
+
+    /* ── Manifold Exploitation (axex) ──────────────────────────────────── */
+    static axex_state_t g_axex_state;
+    if (args.axex_kv || args.axex_offload || args.axex_compress || args.axex_ffn_compress) {
+        axex_config_t xcfg;
+        memset(&xcfg, 0, sizeof(xcfg));
+        xcfg.enable_kv_compress     = args.axex_kv;
+        xcfg.kv_threshold           = args.axex_kv_threshold;
+        xcfg.enable_layer_offload   = args.axex_offload;
+        /* Enable SVD FFN compression (gate/up/down) when --axex-compress or
+         * --axex-ffn-compress is requested.  This stores compressed weights in
+         * g_compress_table, which the GPU upload path then turns into cuBLAS
+         * batched pointer arrays for gate+up (axex_prepare_batched_ffn).  The
+         * manifold GP path below handles Q/K/V/O separately via per-layer PCA.
+         * --axex-ffn-compress skips the manifold PCA for a faster benchmark. */
+        xcfg.enable_weight_compress = (args.axex_compress || args.axex_ffn_compress) ? 1 : 0;
+        xcfg.weight_quality         = args.axex_compress_quality;
+        xcfg.weight_max_rank        = args.axex_compress_rank;  /* 0 = auto */
+        xcfg.weight_max_err         = args.axex_compress_max_err; /* 0 = no limit */
+        if (axex_init(&g_axex_state, &xcfg,
+                      axiom_ran_this_invocation ? &axiom_rep : NULL,
+                      llm_get_model()) != 0)
+            kprintf("[AXEX] Warning: manifold exploitation init failed — continuing without it\n");
+
+        /* If FFN compression was requested but ALL matrices were skipped (e.g.
+         * max_err threshold rejected everything), the raw FFN weights were
+         * never uploaded to GPU (gpu_ffn_skip_for_compress=1 was set before
+         * llm_gpu_init).  Upload them now so inference isn't using null ptrs. */
+        if (args.axex_ffn_compress && g_axex_state.compress_layers == 0) {
+            kprintf("[AXEX] No FFN layers compressed (all exceeded max_err threshold) — uploading raw FFN weights\n");
+            llm_gpu_upload_ffn_fallback();
+        }
+
+        /* Manifold-projected weight compression (Geodesic Projection).
+         * Must run after axex_init so the PCA is available from axiom_beta.
+         * This compresses Q/K/V/O (attention only by default) to W@P[m×k] —
+         * giving near-lossless accuracy while enabling 70B models in 8 GB VRAM.
+         *
+         * Per-layer mode: compute a separate PCA basis for each transformer
+         * layer so that the projection preserves energy at every depth.
+         * Without per-layer PCA, a single embedding-layer basis gives only
+         * 2–4% energy at deeper layers, producing blank/garbage output.
+         *
+         * Note: we no longer gate this on compress_layers <= 0.  Both paths
+         * can run together: SVD handles gate/up/down (FFN), manifold GP
+         * handles Q/K/V/O (attention).  The GPU upload path keeps them in
+         * separate tables (g_compress_table vs g_manifold_table). */
+        /* --axex-ffn-compress skips manifold PCA (SVD FFN only, faster start). */
+        if (args.axex_compress && !args.axex_ffn_compress && axiom_ran_this_invocation) {
+            const llm_model_t *mdl = llm_get_model();
+            if (mdl) {
+                int dim       = mdl->dim;
+                int n_layers  = mdl->n_layers;
+                int vocab     = llm_model_vocab();
+                /* Calibration sample count:
+                 *   - user override:    --axex-calib-samples N
+                 *   - fast mode:        64  (quick preview)
+                 *   - default:          512 (recommended for k≤512 PCA quality) */
+                int n_samples;
+                if (args.axex_calib_samples > 0)
+                    n_samples = args.axex_calib_samples;
+                else
+                    n_samples = (args.axiom_fast_mode) ? 64 : 512;
+                if (n_samples > vocab) n_samples = vocab;
+
+                /* Wire up attention-only vs full-compress mode */
+                axex_manifold_set_attn_only(args.axex_attn_only);
+                if (args.axex_attn_only)
+                    kprintf("[AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)\n");
+                else
+                    kprintf("[AXEX-MANIFOLD] Full-compress mode: Q/K/V/O + FFN gate/up compressed (lower accuracy)\n");
+
+                float   *hs_buf = NULL; /* unused in multi-layer path, kept for fallback */
+                int      lw_ok  = 1;
+
+                if (lw_ok) {
+                    kprintf("[AXEX-MANIFOLD] Computing per-layer PCA (%d layers × %d samples × dim=%d)...\n",
+                            n_layers, n_samples, dim);
+                    kprintf("[AXEX-MANIFOLD] Using single-pass multi-layer capture (%d forward passes total)\n",
+                            n_samples);
+
+                    /* Allocate flat matrix: all_hs[layer][sample][dim] */
+                    size_t total_f = (size_t)n_layers * n_samples * dim;
+                    float *all_hs = (float *)malloc(total_f * sizeof(float));
+                    int   *all_valid = (int *)calloc((size_t)n_layers, sizeof(int)); /* reused */
+                    int   *cap_valid = (int *)calloc((size_t)n_layers, sizeof(int));
+                    if (!all_hs || !all_valid || !cap_valid) {
+                        free(all_hs); free(all_valid); free(cap_valid);
+                        lw_ok = 0;
+                    }
+
+                    if (lw_ok) {
+                        uint64_t seed = 0x123456789ABCDEF0ULL;
+                        /* Temporary bridge buffer: one forward-pass captures all layers */
+                        float *pass_buf = (float *)malloc((size_t)n_layers * dim * sizeof(float));
+                        if (!pass_buf) lw_ok = 0;
+
+                        for (int s = 0; s < n_samples && lw_ok; s++) {
+                            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+                            int tok = (int)(seed % (uint64_t)vocab);
+
+                            memset(cap_valid, 0, (size_t)n_layers * sizeof(int));
+                            int rc = axiom_beta_probe_all_layer_states(
+                                tok, pass_buf, cap_valid, n_layers, dim);
+
+                            for (int l = 0; l < n_layers; l++) {
+                                float *dst = all_hs + ((size_t)l * n_samples + s) * dim;
+                                if (rc == 0 && cap_valid[l]) {
+                                    memcpy(dst, pass_buf + (size_t)l * dim,
+                                           (size_t)dim * sizeof(float));
+                                    all_valid[l]++;
+                                } else {
+                                    memset(dst, 0, (size_t)dim * sizeof(float));
+                                }
+                            }
+
+                            if ((s % 64) == 63 || s == n_samples - 1)
+                                kprintf("[AXEX-MANIFOLD] Calibration sample %d/%d done\n",
+                                        s + 1, n_samples);
+                        }
+                        free(pass_buf);
+                    }
+
+                    /* Build per-layer PCA from collected samples */
+                    for (int l = 0; l < n_layers && lw_ok; l++) {
+                        axmat_t X = axmat_create(n_samples, dim);
+                        if (!X.data) { lw_ok = 0; break; }
+
+                        for (int s = 0; s < n_samples; s++) {
+                            const float *src = all_hs + ((size_t)l * n_samples + s) * dim;
+                            for (int j = 0; j < dim; j++)
+                                X.data[(size_t)s * dim + j] = (double)src[j];
+                        }
+
+                        double var_ratio = (args.axiom_pca_variance > 0.0)
+                                           ? args.axiom_pca_variance : 0.9999;
+                        axpca_t lpca = axpca_compute(&X, var_ratio);
+                        axmat_destroy(&X);
+
+                        if (lpca.n_components <= 0) {
+                            kprintf("[AXEX-MANIFOLD] Layer %d PCA failed\n", l);
+                            axpca_destroy(&lpca);
+                            lw_ok = 0;
+                            break;
+                        }
+
+                        if (axex_manifold_init_layer(l, &lpca, dim, AXEX_MANIFOLD_K_MAX) != 0) {
+                            kprintf("[AXEX-MANIFOLD] Layer %d basis init failed\n", l);
+                            axpca_destroy(&lpca);
+                            lw_ok = 0;
+                            break;
+                        }
+                        axpca_destroy(&lpca);
+
+                        if ((l % 8) == 7 || l == n_layers - 1)
+                            kprintf("[AXEX-MANIFOLD] Per-layer PCA: %d/%d layers done\n",
+                                    l + 1, n_layers);
+                    }
+                    free(all_hs);
+                    free(all_valid);
+                    free(cap_valid);
+                }
+
+                if (lw_ok) {
+                    int mn = axex_compress_model_manifold_layerwise(
+                        axiom_ran_this_invocation ? &axiom_rep : NULL, mdl);
+                    kprintf("[AXEX-MANIFOLD] Layerwise geodesic projection: %d matrices compressed\n", mn);
+                } else {
+                    kprintf("[AXEX-MANIFOLD] Per-layer PCA failed — skipping GP compression\n");
+                }
+            } else {
+                kprintf("[AXEX-MANIFOLD] Skipped (no PCA — run with --axiom-beta-run first)\n");
+            }
+        }
+
+        /* Upload any compressed weight matrices to GPU device memory */
+        llm_gpu_upload_compressed_weights();
     }
 
     if (args.one_decode || args.ott_od) {

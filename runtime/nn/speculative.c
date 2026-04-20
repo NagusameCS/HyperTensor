@@ -1,40 +1,22 @@
 /* =============================================================================
- * TensorOS - Speculative Neural Execution (SNE) Engine
+ * Speculative Neural Execution (SNE) Engine
  *
- * FIVE REVOLUTIONARY TECHNIQUES — First-ever implementation at OS kernel level.
- *
- * These techniques apply decades of computer architecture and information theory
- * principles to neural network inference in ways never before combined:
+ * Five inference optimizations applied at the OS level:
  *
  * 1. ADAPTIVE PRECISION CASCADE (APC)
- *    Principle: "Precision is a runtime resource, not a compile-time constant."
- *    Like CPU dynamic voltage/frequency scaling, but for numerical precision.
- *    Easy inputs run at INT16 speed; hard inputs automatically escalate to FP32.
+ *    Runs inference at INT16 first; escalates to FP32 on high-entropy inputs.
  *
  * 2. SPECULATIVE LAYER FUSION (SLF)
- *    Principle: "Temporal coherence in activations enables speculative reuse."
- *    Like CPU branch prediction, but for entire tensor operations.
- *    If a layer's input signature matches cached values, skip the matmul.
+ *    Caches layer output signatures; skips recompute when inputs are stable.
  *
  * 3. ENTROPY-AWARE NEURON PRUNING (EANP)
- *    Principle: "The scheduler should understand information theory."
- *    Shannon entropy quantifies neuron usefulness at runtime.
- *    Dead neurons (zero entropy) are pruned without retraining.
+ *    Prunes low-entropy (near-constant) neurons at runtime, no retraining.
  *
  * 4. KERNEL-LEVEL COMPUTE DAG SCHEDULING
- *    Principle: "Tomasulo's algorithm works for tensor ops, not just μops."
- *    Build a dependency DAG of tensor operations, schedule optimally,
- *    with monotonic resource ordering for deadlock-free execution.
+ *    Builds a dependency DAG of tensor ops and schedules for cache locality.
  *
  * 5. CONFIDENCE-GATED EARLY EXIT
- *    Principle: "Execution depth should be proportional to input difficulty."
- *    Like Spectre-style speculation, but constructive: easy inputs exit
- *    after 1-2 layers. No wasted compute on obvious classifications.
- *
- * Together: SPECULATIVE NEURAL EXECUTION (SNE) — the first system to apply
- * CPU microarchitecture principles (speculation, out-of-order execution,
- * branch prediction, dynamic scheduling) to neural network inference at
- * the operating system level.
+ *    Exits after shallower layers when confidence exceeds a threshold.
  * =============================================================================*/
 
 #include "runtime/nn/speculative.h"
@@ -713,9 +695,6 @@ void nn_early_exit_forward(nn_model_t *model, float *output, const float *input,
  *         → [DAG: optimal execution order]
  *         → Output
  *
- * This is the world's first system to combine CPU microarchitecture
- * speculation techniques with information-theoretic optimization
- * for neural network inference at the operating system level.
  * =============================================================================*/
 
 void sne_init(sne_engine_t *engine, nn_model_t *model)
@@ -856,9 +835,7 @@ void sne_print_stats(const sne_engine_t *engine)
 }
 
 /* =============================================================================
- * DEMOS & BENCHMARKS
- *
- * Demonstrate and benchmark all five revolutionary techniques.
+ * Demos and benchmarks
  * =============================================================================*/
 
 /* Shared test model: 3-layer MLP [64→32→16→8] */
@@ -1351,7 +1328,7 @@ void sne_run_demos(void)
 {
     kprintf("\n============================================================\n");
     kprintf("  SPECULATIVE NEURAL EXECUTION (SNE) ENGINE\n");
-    kprintf("  Five Revolutionary Techniques -- First OS-Level Implementation\n");
+    kprintf("  Speculative Neural Execution (SNE) Engine\n");
     kprintf("============================================================\n");
     kprintf("  Principles from CPU microarchitecture + information theory\n");
     kprintf("  applied to neural network inference at the kernel level.\n");
@@ -1367,6 +1344,6 @@ void sne_run_demos(void)
     demo_sne_unified();
 
     kprintf("\n============================================================\n");
-    kprintf("  SNE: 5 techniques, 0 precedent, 1 revolutionary OS.\n");
+    kprintf("  SNE: APC, SLF, EANP, DAG scheduling, early exit.\n");
     kprintf("============================================================\n");
 }

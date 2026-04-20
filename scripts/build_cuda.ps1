@@ -51,7 +51,7 @@ $out = "build_host\cuda_kernels.dll"
 Write-Host "  Compiling $src..."
 
 $arch_flag = "-arch=$gpu_arch"
-$args_list = @("-shared", "-o", $out, $arch_flag, "-O2", "-DCUDA_KERNELS_EXPORTS", "--compiler-options", "/MD", "-I.", $src)
+$args_list = @("-shared", "-o", $out, $arch_flag, "-O2", "-DCUDA_KERNELS_EXPORTS", "--compiler-options", "/MD", "-I.", $src, "-lcublas")
 & $nvcc @args_list 2>&1
 
 if ($LASTEXITCODE -ne 0) {

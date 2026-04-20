@@ -22,6 +22,10 @@ typedef struct {
     bool    use_alibi;      /* Use ALiBi positional encoding */
 } flash_attn_config_t;
 
+/* Default tile sizes — used by llm.c when filling flash_attn_config_t */
+#define DEFAULT_BR  32
+#define DEFAULT_BC  32
+
 /* Flash attention statistics */
 typedef struct {
     uint64_t total_flops;
@@ -49,6 +53,19 @@ int flash_attn_decode_step(
     const float *k_cache,           /* [cache_len, n_kv_heads, head_dim] */
     const float *v_cache,           /* [cache_len, n_kv_heads, head_dim] */
     int cache_len,
+    const flash_attn_config_t *cfg
+);
+
+/* Strided single-query decode: KV cache layout is [pos * kv_pos_stride + kv_head * head_dim]
+ * This matches llm.c's layout: k_cache[layer][pos][kv_head][head_dim] where
+ * kv_pos_stride = n_kv_heads * head_dim.  Pass the layer-base pointer. */
+int flash_attn_decode_strided(
+    float *output,                  /* [n_heads, head_dim] */
+    const float *q,                 /* [n_heads, head_dim] */
+    const float *k_base,            /* layer K cache base pointer */
+    const float *v_base,            /* layer V cache base pointer */
+    int cache_len,                  /* number of valid KV positions */
+    int kv_pos_stride,              /* floats between successive positions */
     const flash_attn_config_t *cfg
 );
 

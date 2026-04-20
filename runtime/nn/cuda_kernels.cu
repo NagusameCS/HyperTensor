@@ -3,17 +3,21 @@
  *
  * Real CUDA kernel implementations for LLM inference.
  * Compile with: nvcc -shared -o cuda_kernels.dll cuda_kernels.cu
- *               -DCUDA_KERNELS_EXPORTS --compiler-options /MD
+ *               -DCUDA_KERNELS_EXPORTS --compiler-options /MD -lcublas
+ *         Linux: nvcc -shared -o cuda_kernels.so  cuda_kernels.cu
+ *               -DCUDA_KERNELS_EXPORTS -fPIC -lcublas
  *
  * Key optimizations:
  *   - Q4_0 dequant fused into GEMV (one kernel, no intermediate buffer)
  *   - Warp-level reductions for RMSNorm/Softmax (shfl_down_sync)
  *   - Coalesced memory access patterns
  *   - Shared memory for attention score computation
+ *   - cuBLAS batched GEMV for compressed FFN gate+up fusion
  */
 
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+#include <cublas_v2.h>
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -966,13 +970,14 @@ __global__ void kernel_gemm(
  * ════════════════════════════════════════════════════════════════════════ */
 
 /* Type IDs from GGML */
-#define TYPE_F32  0
-#define TYPE_F16  1
-#define TYPE_Q4_0 2
-#define TYPE_Q4_1 3
-#define TYPE_Q8_0 8
-#define TYPE_Q6_K 14
-#define TYPE_BF16 30
+#define TYPE_F32   0
+#define TYPE_F16   1
+#define TYPE_Q4_0  2
+#define TYPE_Q4_1  3
+#define TYPE_Q8_0  8
+#define TYPE_Q4_K  12
+#define TYPE_Q6_K  14
+#define TYPE_BF16  30
 
 /* ═══════════════════════════════════════════════════════════════════════
  * GEMV for BF16 weights — BF16 is upper 16 bits of IEEE 754 float32.
@@ -1023,8 +1028,10 @@ __global__ void kernel_gemv_bf16(
         sum += bf16_to_f32(w2) * x_tile_bf16[i4 + 2];
         sum += bf16_to_f32(w3) * x_tile_bf16[i4 + 3];
     }
-    /* Handle remainder */
-    for (int i = i4; i < in_dim; i += 32)
+    /* Scalar remainder: handle elements not covered by the 4-wide loop.
+     * After the loop, the first uncovered position for this lane is i4.
+     * Step by 32 (one element per lane) to cover the tail. */
+    for (int i = lane + (i4 - lane * 4) / 4 * 32; i < in_dim; i += 32)
         sum += bf16_to_f32(row_w[i]) * x_tile_bf16[i];
 
     sum = warp_reduce_sum(sum);
@@ -1038,6 +1045,73 @@ __global__ void kernel_gemv_bf16(
  * each super-block (lanes iterate over super-blocks sequentially).
  * This gives 100% lane utilization even when n_sb < 32 (e.g. lmhead
  * with n_sb=6 was only 19% utilized with lane-per-superblock). */
+__global__ void kernel_gemv_q4_k(
+    float       *out,
+    const void  *W,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    /* One warp (32 threads) per output row, 8 rows per block.
+     * Each lane processes lane-indexed elements within each 32-element
+     * sub-block window across the 256-element super-block. */
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * 8 + warp_id;
+    if (row >= out_dim) return;
+
+    int n_sb = in_dim / 256;
+    /* Q4_K block: 2(d) + 2(dmin) + 12(scales) + 128(qs) = 144 bytes */
+    const uint8_t *row_base = (const uint8_t *)W + (int64_t)row * n_sb * 144;
+
+    float sum = 0.0f;
+
+    for (int sb = 0; sb < n_sb; sb++) {
+        const uint8_t *b = row_base + sb * 144;
+        uint16_t dh, dmh;
+        /* Aligned read via memcpy to avoid misaligned access */
+        dh  = (uint16_t)b[0] | ((uint16_t)b[1] << 8);
+        dmh = (uint16_t)b[2] | ((uint16_t)b[3] << 8);
+        float d    = fp16_to_f32(dh);
+        float dmin = fp16_to_f32(dmh);
+        const uint8_t *scales = b + 4;   /* 12 bytes */
+        const uint8_t *qs     = b + 16;  /* 128 bytes */
+        const float   *xp     = x + sb * 256;
+
+        int is = 0;
+        for (int chunk = 0; chunk < 256; chunk += 64) {
+            /* Extract scale/min for sub-blocks is+0 and is+1 */
+            uint8_t sc0, m0, sc1, m1;
+            if (is < 4) {
+                sc0 = scales[is] & 63;      m0 = scales[is + 4] & 63;
+            } else {
+                sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                m0  = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+            }
+            int is1 = is + 1;
+            if (is1 < 4) {
+                sc1 = scales[is1] & 63;     m1 = scales[is1 + 4] & 63;
+            } else {
+                sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                m1  = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+            }
+            float d1 = d * (float)sc0;  float m1f = dmin * (float)m0;
+            float d2 = d * (float)sc1;  float m2f = dmin * (float)m1;
+
+            /* Nibble pair for lane l: qs[chunk/2 + l] covers positions chunk+l and chunk+32+l */
+            uint8_t byte = qs[chunk / 2 + lane];
+            float q_lo = (float)(byte & 0xF);
+            float q_hi = (float)(byte >> 4);
+            sum += (d1 * q_lo - m1f) * xp[chunk + lane];
+            sum += (d2 * q_hi - m2f) * xp[chunk + 32 + lane];
+            is += 2;
+        }
+    }
+
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) out[row] = sum;
+}
+
 __global__ void kernel_gemv_q6_k(
     float       *out,
     const void  *W,
@@ -2008,6 +2082,7 @@ __global__ void kernel_gemv_triple_q4_0(
 
 static cudaStream_t stream_compute = 0;
 static cudaStream_t stream_transfer = 0;
+static cublasHandle_t g_cublas = NULL;
 
 /* ═══════════════════════════════════════════════════════════════════════
  * CUDA Graph support — capture/replay to eliminate launch overhead
@@ -2184,10 +2259,11 @@ static int ensure_q8_scratch(int in_dim) {
 /* Device-side position vars for capture-once graphs.
  * Kernels read pos/seq_len from device memory so the graph topology
  * stays constant — only the pointed-to values change between replays. */
-static int *d_pos_var     = NULL;
-static int *d_seq_len_var = NULL;
-static int *d_argmax_result = NULL;
-static int *h_argmax_result = NULL;
+static int   *d_pos_var     = NULL;
+static int   *d_seq_len_var = NULL;
+static int   *d_argmax_result = NULL;
+static int   *h_argmax_result = NULL;
+static float *d_dot_result  = NULL;  /* pre-allocated: avoids per-call cudaMalloc in ck_dot */
 
 extern "C" {
 
@@ -2203,12 +2279,19 @@ CUDA_API int ck_init(void) {
     cudaStreamCreate(&stream_compute);
     cudaStreamCreate(&stream_transfer);
 
+    /* Initialize cuBLAS handle bound to the compute stream */
+    if (cublasCreate(&g_cublas) == CUBLAS_STATUS_SUCCESS)
+        cublasSetStream(g_cublas, stream_compute);
+
     /* Allocate device-side position vars for CUDA graph capture */
     cudaMalloc(&d_pos_var, sizeof(int));
     cudaMalloc(&d_seq_len_var, sizeof(int));
     int zero = 0;
     cudaMemcpy(d_pos_var, &zero, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_seq_len_var, &zero, sizeof(int), cudaMemcpyHostToDevice);
+
+    /* Pre-allocate dot product result buffer (avoids per-call cudaMalloc). */
+    cudaMalloc(&d_dot_result, sizeof(float));
 
     /* Pinned host buffer for low-latency argmax result readback. */
     cudaMallocHost(&h_argmax_result, sizeof(int));
@@ -2222,13 +2305,21 @@ CUDA_API void ck_shutdown(void) {
     if (d_q8_sc_scratch)   { cudaFree(d_q8_sc_scratch);   d_q8_sc_scratch = NULL; }
     if (d_q8_sums_scratch) { cudaFree(d_q8_sums_scratch); d_q8_sums_scratch = NULL; }
     g_q8_scratch_in_dim = 0;
+    if (d_bq8) { cudaFree(d_bq8); d_bq8 = NULL; }
+    if (d_bsc) { cudaFree(d_bsc); d_bsc = NULL; }
+    if (d_bsu) { cudaFree(d_bsu); d_bsu = NULL; }
+    g_bq8_batch = 0; g_bq8_dim = 0;
+    if (d_dot_result)    { cudaFree(d_dot_result);    d_dot_result    = NULL; }
     if (h_argmax_result) { cudaFreeHost(h_argmax_result); h_argmax_result = NULL; }
-    if (d_pos_var)     { cudaFree(d_pos_var);     d_pos_var = NULL; }
-    if (d_seq_len_var) { cudaFree(d_seq_len_var); d_seq_len_var = NULL; }
+    if (d_pos_var)       { cudaFree(d_pos_var);       d_pos_var       = NULL; }
+    if (d_seq_len_var)   { cudaFree(d_seq_len_var);   d_seq_len_var   = NULL; }
     if (d_argmax_result) { cudaFree(d_argmax_result); d_argmax_result = NULL; }
-    if (stream_compute)  { cudaStreamDestroy(stream_compute);  stream_compute = 0; }
+    if (stream_compute)  { cudaStreamDestroy(stream_compute);  stream_compute  = 0; }
     if (stream_transfer) { cudaStreamDestroy(stream_transfer); stream_transfer = 0; }
-    cudaDeviceReset();
+    if (g_cublas)        { cublasDestroy(g_cublas);            g_cublas        = NULL; }
+    /* Do NOT call cudaDeviceReset() — it destroys the entire CUDA context for
+     * the process, breaking any other library or static destructor that still
+     * holds GPU resources.  Explicit free of every allocation above is sufficient. */
 }
 
 CUDA_API int ck_device_count(void) {
@@ -2322,6 +2413,9 @@ CUDA_API void ck_gemv(float *out, const void *W, const float *x,
             break;
         case TYPE_F16:
             kernel_gemv_f16<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const __half *)W, x, out_dim, in_dim);
+            break;
+        case TYPE_Q4_K:
+            kernel_gemv_q4_k<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
             break;
         case TYPE_Q6_K:
             kernel_gemv_q6_k<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
@@ -2430,13 +2524,15 @@ CUDA_API void ck_scale(float *out, const float *x, float s, int n) {
 }
 
 CUDA_API float ck_dot(const float *a, const float *b, int n) {
-    float *d_result;
-    cudaMalloc(&d_result, sizeof(float));
+    /* Use pre-allocated device result buffer — avoids cudaMalloc overhead per call. */
+    if (!d_dot_result)
+        cudaMalloc(&d_dot_result, sizeof(float));  /* fallback if init was skipped */
     int threads = (n < 1024) ? n : 1024;
-    kernel_dot<<<1, threads, 0, stream_compute>>>(d_result, a, b, n);
-    float result;
-    cudaMemcpy(&result, d_result, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaFree(d_result);
+    kernel_dot<<<1, threads, 0, stream_compute>>>(d_dot_result, a, b, n);
+    /* Async copy on stream_compute ensures ordering after the kernel. */
+    float result = 0.0f;
+    cudaMemcpyAsync(&result, d_dot_result, sizeof(float), cudaMemcpyDeviceToHost, stream_compute);
+    cudaStreamSynchronize(stream_compute);
     return result;
 }
 
@@ -2580,6 +2676,7 @@ CUDA_API void ck_gemv_async(float *out, const void *W, const float *x,
         case TYPE_Q4_0: work_items = in_dim / 32; break;
         case TYPE_Q4_1: work_items = in_dim / 32; break;
         case TYPE_Q8_0: work_items = in_dim / 32; break;
+        case TYPE_Q4_K: work_items = in_dim / 256; break;
         case TYPE_Q6_K: work_items = in_dim / 256; break;
         case TYPE_F16:  work_items = in_dim; break;
         default:        work_items = in_dim; break;
@@ -2620,6 +2717,9 @@ CUDA_API void ck_gemv_async(float *out, const void *W, const float *x,
             break;
         case TYPE_F16:
             kernel_gemv_f16<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const __half *)W, x, out_dim, in_dim);
+            break;
+        case TYPE_Q4_K:
+            kernel_gemv_q4_k<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
             break;
         case TYPE_Q6_K:
             kernel_gemv_q6_k<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
@@ -2735,6 +2835,46 @@ CUDA_API void ck_fused_rmsnorm_triple_q4_0(
     kernel_fused_rmsnorm_triple_q4_0<<<grid, 256, smem, stream_compute>>>(
         out_q, out_k, out_v, W_q, W_k, W_v, x, norm_w, eps,
         q_dim, k_dim, v_dim, in_dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * cuBLAS Batched GEMV — fused gate+up compressed-weight decode
+ *
+ * Computes:  y[i] = A[i] * x[i]  for i in [0, batch_count)
+ *   A[i] : [M × K] row-major float matrix  (pointer from d_Aarray[i])
+ *   x[i] : [K]     float vector             (pointer from d_xarray[i])
+ *   y[i] : [M]     float vector (output)    (pointer from d_yarray[i])
+ *
+ * cuBLAS is column-major, so row-major A[M×K] is treated as col-major
+ * A^T[K×M], and CUBLAS_OP_T transposes it back → effectively A*x.
+ *
+ * Pointer arrays (d_Aarray, d_xarray, d_yarray) must live in DEVICE memory
+ * so they are compatible with CUDA graph capture.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+CUDA_API void ck_sgemm_batched_f32(
+    int M, int K,
+    const float * const *d_Aarray,   /* [batch] device ptrs to [M×K] matrices */
+    const float * const *d_xarray,   /* [batch] device ptrs to [K] vectors    */
+    float * const       *d_yarray,   /* [batch] device ptrs to [M] outputs    */
+    int batch_count)
+{
+    if (!g_cublas || batch_count <= 0 || M <= 0 || K <= 0) return;
+    if (!d_Aarray || !d_xarray || !d_yarray) return;
+    const float alpha = 1.0f, beta = 0.0f;
+    /* Row-major A[M×K] = col-major (A^T)[K×M].
+     * cublasSgemvBatched with CUBLAS_OP_T on (K×M) col-major → A*x. */
+    cublasStatus_t st = cublasSgemvBatched(g_cublas, CUBLAS_OP_T,
+        K, M,                              /* (rows, cols) of the col-major view */
+        &alpha,
+        d_Aarray, K,                       /* leading dim of col-major A^T = K  */
+        d_xarray, 1,
+        &beta,
+        d_yarray, 1,
+        batch_count);
+    /* On failure the output vectors are undefined — callers should validate
+     * results if status checking is enabled at a higher level. */
+    (void)st;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

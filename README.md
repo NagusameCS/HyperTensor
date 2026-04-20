@@ -1,7 +1,7 @@
 
 <p align="center">
-  <h1 align="center">Geodessical</h1>
-  <p align="center"><b>Hosted GGUF inference runtime</b></p>
+  <h1 align="center">HyperTensor</h1>
+  <p align="center"><b>AI inference runtime, bare-metal OS kernel, and geometric inference research</b></p>
 </p>
 
 <p align="center">
@@ -10,26 +10,88 @@
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
   <img src="https://img.shields.io/badge/mode-hosted_%7C_bare--metal-informational" alt="Mode">
   <img src="https://img.shields.io/badge/LLM-GGUF_models_working-success" alt="LLM Working">
-  <img src="https://img.shields.io/github/last-commit/NagusameCS/Geodessical?label=last%20commit" alt="Last Commit">
+  <img src="https://img.shields.io/github/last-commit/NagusameCS/HyperTensor?label=last%20commit" alt="Last Commit">
 </p>
 
-Geodessical is a C-based inference runtime for GGUF language models. It runs as a normal host application on Windows or Linux and shares its inference core with [TensorOS](https://github.com/NagusameCS/TensorOS). The focus is practical: predictable behavior, low overhead, and enough visibility to tune the runtime without guessing.
+HyperTensor is the umbrella project for three interconnected systems written in C11:
 
-### Related Docs
+| Component | Description |
+|-----------|-------------|
+| **Geodessical** | GGUF inference runtime — runs as a native host application on Windows/Linux. v0.6 "Synapse". |
+| **TensorOS** | Bare-metal AI operating system — Multiboot1 kernel, x86_64/ARM64, AI shell, SMP, JIT, GPU drivers. |
+| **OTT** | Organic Training Theory — research track treating weight space as a Riemannian manifold and replacing the transformer forward pass with geodesic equation solving. |
 
-- [TensorOS README](../README.md)
-- [HyperTensor and Geodessical Brief](../docs/HYPERTENSOR_GEODESSICAL_ARCHITECTURE_BRIEF.md)
-- [HyperTensor and Geodessical Paper](../docs/HYPERTENSOR_GEODESSICAL_ARCHITECTURE_PAPER.md)
-- [Benchmark Analysis](../BENCHMARK_ANALYSIS.md)
+All three share the same inference core (GGUF parser, BPE tokenizer, JIT compiler, SMP parallel GEMV). Geodessical adds a HAL to run that core as a host application; TensorOS boots it on bare metal; OTT experiments on top of both.
 
-### What It Supports
+### Docs
 
-- **GGUF model loading** — Qwen, LLaMA, Gemma, SmolLM, Mistral, Phi-2/3/3.5
-- **Quantization** — Q4_0, Q8_0, F16, F32 weight formats
-- **JIT-compiled kernels** — Native x86_64 SSE2/AVX2 forward pass kernels
-- **SMP parallel GEMV** — Multi-threaded matrix-vector multiply across all CPU cores
-- **Host-mode runtime** — Memory-mapped model loading, native threads, cross-platform
-- **Bare-metal mode** — Still boots as a standalone OS via Multiboot1
+- [Architecture](docs/ARCHITECTURE.md)
+- [Evolution Roadmap](docs/EVOLUTION.md)
+- [Geodessical Development Plan (OTT)](docs/GEODESSICAL_PLAN.md)
+- [Autonomous Axiomatic Subsystem — Beta-3](docs/AUTONOMOUS_AXIOMATIC_SUBSYSTEM_BETA.md)
+- [Axiom Beta Internal Design](docs/AXIOM_BETA_INTERNAL_DESIGN.md)
+- [OTT Whitepaper](docs/OTT_WHITEPAPER.md)
+- [Geodessical System Whitepaper](docs/GEODESSICAL_WHITEPAPER.md)
+- [Changelog](CHANGELOG.md)
+
+### Geodessical — Inference Capabilities (v0.6 "Synapse")
+
+- **GGUF model loading** — Qwen2.5, LLaMA 3, Gemma 2/4 (ISWA), SmolLM 2, Mistral, Phi-3/3.5
+- **Quantization** — Q4_0, Q4_1, Q8_0, Q6_K, F16, BF16, F32 weight formats
+- **JIT-compiled kernels** — 13 SSE2 native kernels (rmsnorm, rope, silu, gelu, dot, axpy, q4/q8 gemv, …); AVX2 for batched GEMV
+- **SMP parallel GEMV** — Multi-threaded matrix-vector multiply across all CPU cores via IPI dispatch
+- **CUDA GPU offload** — Dynamic DLL dispatch (~50 GPU kernels); fused QKV, ISWA, batch prefill, CUDA Graph capture
+- **OTT inference modes** — `--ott-fast`, `--ott-speculative`, `--ott-perfect`, `--ott-full`, `--ott-theorem`
+- **OneDecode / OTT-OD** — Bake geodesic flow map once; use as speculative draft source (`--one-decode`, `--ott-od`)
+- **AttnRes + depth-attn** — Attention residual stabilization and depth-wise cross-layer attention
+- **Thinking token control** — `--no-think`, `--force-think`, `--show-think` for reasoning models (QwQ, DeepSeek-R1, etc.)
+- **HTTP API server** — `/v1/generate`, `/v1/chat`, `/v1/models`, `/v1/version`; `--serve --port 8080`
+- **Host-mode runtime** — Memory-mapped model loading, native threads, cross-platform (Windows/Linux)
+- **Bare-metal mode** — Boots as standalone TensorOS kernel via Multiboot1
+
+### TensorOS — Kernel Capabilities
+
+- **x86_64 bare-metal boot** — Multiboot1, long mode, PAE, 16 GB identity map
+- **SMP** — INIT-SIPI-SIPI AP bootstrap, up to 64 CPUs, LAPIC
+- **Tensor-aware memory** — Heap + arena + slab, LRU model cache (64 slots), 2 MB JIT W^X pool
+- **Pseudocode JIT** — Full lexer/parser/IR/optimizer pipeline
+- **Tensor scheduler, IPC, VFS, sandbox** — Kernel-level AI subsystems
+- **ARM64 / Raspberry Pi 4** — Boot stub + NEON backend (in progress)
+
+### OTT — Research Status (April 2026)
+
+See [docs/GEODESSICAL_PLAN.md](docs/GEODESSICAL_PLAN.md) and [docs/AXIOM_BETA_INTERNAL_DESIGN.md](docs/AXIOM_BETA_INTERNAL_DESIGN.md) for full phase breakdown.
+
+**Axiom Beta-3** is the current survey/research build integrated into the Geodessical runtime.
+
+| Phase | Status | Detail |
+|-------|--------|--------|
+| Phase 1 — Geometry Survey | ✅ Stable | PCA + TwoNN, k≈41 measured (Gemma4 E2B) |
+| Phase 2 — Symmetry | ✅ Stable | Head weight fingerprint analysis using real dequantized Q-weight rows; 80 invariant pairs, 64 generators |
+| Phase 3 — Curvature | ✅ Stable | Full Riemann (∂Γ + Γ·Γ algebraic); Fisher-blended metric, Christoffel symbols; warm-cache 0.17 s (−99.9%) |
+| Phase 4 — Axioms | 🟡 Active | Uncertainty-driven oracle loop (12 calls max), MRR improving |
+| Phase 5 — Geodesic Pilot | 🟡 Active | Decode-aligned oracle targets, persistent warp state, MRR ≈ 0.067 |
+| Knowledge Injection | 🟡 Prototype | Local Christoffel warp with threshold-triggered recompute |
+| Geodesic Forward Pass | ❌ Pending | O(n·k²) transformer replacement — core OTT target |
+
+**Overall OTT readiness: ~70%** (geometry foundation, axiom discovery active; geodesic inference not yet default path)
+
+Fast-mode survey timing (Gemma4 E2B, `--axiom-fast`):
+- Total: ~977 ms | Phase 4: ~669 ms | Phase 5: ~43 ms
+
+CLI flags: `--axiom-beta-run`, `--axiom-beta-only`, `--axiom-fast`, `--axiom-probe <n>`, `--axiom-gpu`, `--axiom-samples <n>`, `--axiom-seed <n>`
+
+**OTT inference modes** (run on top of axiom survey):
+
+| Mode | Flag | Description |
+|------|------|-------------|
+| Standard spec-decode | `--ott-speculative` | Geodesic drafts + transformer verify, batch=2 |
+| Speed-first spec-decode | `--ott-fast` | Batch=16, fast axiom, AttnRes on |
+| Perfect-day upper bound | `--ott-perfect` | Exact greedy rollout, 100% draft acceptance |
+| Full OTT pipeline | `--ott-full` | Axiom + geodesic-first + AttnRes + OneDecode |
+| Theorem mode | `--ott-theorem` | `--ott-full` + depth-attn (maximum reasoning quality) |
+| OneDecode | `--one-decode` | Bake geodesic flow map once → `ott_one_decode.bin` |
+| OTT-OD | `--ott-od` | Use baked OneDecode map as speculative draft source |
 
 ---
 
@@ -98,7 +160,7 @@ Notes:
 ```
 $ ./geodessical phi3.5-mini-q4_0.gguf -p "What is an operating system?"
 
-  Geodessical v0.4.0 "Axon"
+  Geodessical v0.6.0 "Synapse"
   High-Performance AI Inference Runtime
 
 [CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
@@ -204,15 +266,15 @@ Geodessical operates in two modes:
 
 ### Bare-Metal Mode (original TensorOS)
 
-The full TensorOS kernel boots via Multiboot1, runs on x86_64/ARM64, and includes the AI shell, tensor scheduler, native git, GPU drivers, and everything documented in the [TensorOS README](https://github.com/NagusameCS/TensorOS).
+The full TensorOS kernel boots via Multiboot1, runs on x86_64/ARM64, and includes the AI shell, tensor scheduler, native git, GPU drivers. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full boot sequence and memory layout.
 
 ---
 
 ## Project Structure
 
 ```
-Geodessical/
-├── host/                      # Host-mode runtime (NEW)
+HyperTensor/
+├── host/                      # Host-mode runtime (Geodessical)
 │   ├── hal.h                  # Hardware Abstraction Layer header
 │   ├── hal.c                  # Cross-platform HAL implementation
 │   ├── main.c                 # CLI entry point
@@ -272,7 +334,7 @@ Quantization: Q4_0, Q8_0, F16, F32
 
 ## Origin
 
-Geodessical evolved from [TensorOS](https://github.com/NagusameCS/TensorOS), a bare-metal AI operating system. The core inference engine, GGUF parser, BPE tokenizer, JIT compiler, and SMP parallel GEMV are shared between both projects. Geodessical adds the HAL layer to run the same inference code as a native application on Windows and Linux.
+HyperTensor grew out of a bare-metal AI OS experiment (TensorOS). The core inference engine — GGUF parser, BPE tokenizer, JIT compiler, SMP parallel GEMV — was first written for the kernel. Geodessical adds the HAL layer to run that same core as a native host application on Windows and Linux. OTT is the current research track exploring whether the transformer forward pass can be replaced entirely by geodesic equation solving on the weight manifold.
 
 ---
 

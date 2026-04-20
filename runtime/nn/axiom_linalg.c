@@ -13,6 +13,10 @@
 #include <math.h>
 #include <float.h>
 
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
+
 #ifdef GEODESSICAL_HOSTED
 #include "host/hal.h"
 #else
@@ -82,15 +86,39 @@ axmat_t axmat_mul(const axmat_t *A, const axmat_t *B)
     axmat_t C = axmat_create(A->rows, B->cols);
     if (!C.data) return C;
 
-    for (int i = 0; i < A->rows; i++) {
-        for (int k = 0; k < A->cols; k++) {
-            double a_ik = A->data[i * A->cols + k];
+    int M = A->rows, K = A->cols, N = B->cols;
+
+#if defined(__AVX2__) && defined(__FMA__)
+    /* AVX2 row-panel: for each row of A, accumulate into the corresponding
+     * row of C using FMA over the B rows. */
+    for (int i = 0; i < M; i++) {
+        const double *A_row = A->data + (uint64_t)i * K;
+        double       *C_row = C.data  + (uint64_t)i * N;
+        for (int k = 0; k < K; k++) {
+            double a_ik = A_row[k];
             if (a_ik == 0.0) continue;
-            for (int j = 0; j < B->cols; j++) {
-                C.data[i * C.cols + j] += a_ik * B->data[k * B->cols + j];
+            const double *B_row = B->data + (uint64_t)k * N;
+            __m256d va = _mm256_set1_pd(a_ik);
+            int j = 0;
+            for (; j + 4 <= N; j += 4) {
+                __m256d vc = _mm256_loadu_pd(C_row + j);
+                __m256d vb = _mm256_loadu_pd(B_row + j);
+                vc = _mm256_fmadd_pd(va, vb, vc);
+                _mm256_storeu_pd(C_row + j, vc);
             }
+            for (; j < N; j++) C_row[j] += a_ik * B_row[j];
         }
     }
+#else
+    for (int i = 0; i < M; i++) {
+        for (int k = 0; k < K; k++) {
+            double a_ik = A->data[i * K + k];
+            if (a_ik == 0.0) continue;
+            for (int j = 0; j < N; j++)
+                C.data[i * N + j] += a_ik * B->data[k * N + j];
+        }
+    }
+#endif
     return C;
 }
 
@@ -386,6 +414,18 @@ axpca_t axpca_compute(const axmat_t *X, double min_explained_ratio)
     }
 
     tensor_free(evals);
+
+    /* 5. Precompute mean projection: mean_proj[i] = dot(component_i, mean).
+     * This amortizes O(k*d) work that would otherwise repeat on every
+     * axpca_project call, replacing k full dot products with k scalar lookups. */
+    pca.mean_proj = (double *)tensor_alloc((uint64_t)pca.n_components * sizeof(double));
+    if (pca.mean_proj) {
+        for (int i = 0; i < pca.n_components; i++) {
+            const double *row = pca.components.data + (uint64_t)i * d;
+            pca.mean_proj[i] = ax_vec_dot(row, pca.mean, d);
+        }
+    }
+
     return pca;
 }
 
@@ -393,7 +433,8 @@ void axpca_destroy(axpca_t *pca)
 {
     if (!pca) return;
     if (pca->eigenvalues) { tensor_free(pca->eigenvalues); pca->eigenvalues = NULL; }
-    if (pca->mean) { tensor_free(pca->mean); pca->mean = NULL; }
+    if (pca->mean)        { tensor_free(pca->mean);        pca->mean        = NULL; }
+    if (pca->mean_proj)   { tensor_free(pca->mean_proj);   pca->mean_proj   = NULL; }
     axmat_destroy(&pca->components);
     pca->n_components = 0;
 }
@@ -403,10 +444,24 @@ void axpca_project(const axpca_t *pca, const double *x_full, double *x_sub)
     int d = pca->dim;
     int k = pca->n_components;
     for (int i = 0; i < k; i++) {
-        double dot = 0.0;
-        for (int j = 0; j < d; j++)
-            dot += pca->components.data[i * d + j] * (x_full[j] - pca->mean[j]);
-        x_sub[i] = dot;
+        const double *row = pca->components.data + (uint64_t)i * d;
+        double mp = pca->mean_proj ? pca->mean_proj[i]
+                                   : ax_vec_dot(row, pca->mean, d);
+        x_sub[i] = ax_vec_dot(row, x_full, d) - mp;
+    }
+}
+
+/* Float-input variant: avoids a separate f32→f64 widening pass.
+ * Uses ax_f32_f64_dot (AVX2+FMA) to project a float embedding directly. */
+void axpca_project_f32(const axpca_t *pca, const float *x_full_f32, double *x_sub)
+{
+    int d = pca->dim;
+    int k = pca->n_components;
+    for (int i = 0; i < k; i++) {
+        const double *row = pca->components.data + (uint64_t)i * d;
+        double mp = pca->mean_proj ? pca->mean_proj[i]
+                                   : ax_vec_dot(row, pca->mean, d);
+        x_sub[i] = ax_f32_f64_dot(x_full_f32, row, d) - mp;
     }
 }
 
@@ -414,11 +469,29 @@ void axpca_reconstruct(const axpca_t *pca, const double *x_sub, double *x_full)
 {
     int d = pca->dim;
     int k = pca->n_components;
-    for (int j = 0; j < d; j++) {
-        double sum = pca->mean[j];
-        for (int i = 0; i < k; i++)
-            sum += x_sub[i] * pca->components.data[i * d + j];
-        x_full[j] = sum;
+    /* Loop order: k-outer, d-inner (row-major component access).
+     * The original d-outer / k-inner layout caused stride-d column accesses
+     * into the components matrix, thrashing cache when d >= 512. */
+    memcpy(x_full, pca->mean, (uint64_t)d * sizeof(double));
+    for (int i = 0; i < k; i++) {
+        double c = x_sub[i];
+        if (c == 0.0) continue;
+        const double *row = pca->components.data + (uint64_t)i * d;
+#if defined(__AVX2__) && defined(__FMA__)
+        {
+            __m256d vc = _mm256_set1_pd(c);
+            int j = 0;
+            for (; j + 4 <= d; j += 4) {
+                __m256d vx = _mm256_loadu_pd(x_full + j);
+                __m256d vr = _mm256_loadu_pd(row    + j);
+                vx = _mm256_fmadd_pd(vr, vc, vx);
+                _mm256_storeu_pd(x_full + j, vx);
+            }
+            for (; j < d; j++) x_full[j] += c * row[j];
+        }
+#else
+        for (int j = 0; j < d; j++) x_full[j] += c * row[j];
+#endif
     }
 }
 
@@ -479,14 +552,99 @@ double ax_twonn_id(const axmat_t *X)
 
 double ax_vec_dot(const double *a, const double *b, int n)
 {
+#if defined(__AVX2__) && defined(__FMA__)
+    __m256d acc = _mm256_setzero_pd();
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+        __m256d va = _mm256_loadu_pd(a + i);
+        __m256d vb = _mm256_loadu_pd(b + i);
+        acc = _mm256_fmadd_pd(va, vb, acc);
+    }
+    /* Horizontal sum */
+    __m128d lo = _mm256_castpd256_pd128(acc);
+    __m128d hi = _mm256_extractf128_pd(acc, 1);
+    lo = _mm_add_pd(lo, hi);
+    lo = _mm_hadd_pd(lo, lo);
+    double sum = _mm_cvtsd_f64(lo);
+    for (; i < n; i++) sum += a[i] * b[i];
+    return sum;
+#else
     double sum = 0.0;
     for (int i = 0; i < n; i++) sum += a[i] * b[i];
     return sum;
+#endif
 }
 
 double ax_vec_norm(const double *a, int n)
 {
     return sqrt(ax_vec_dot(a, a, n));
+}
+
+/* Mixed-precision dot product: float row × double query.
+ * Used in Phase 5 probe-pool scoring; AVX2 path converts float→double
+ * in-register (256-bit = 4 doubles at a time, loaded from 4 floats). */
+double ax_f32_f64_dot(const float *a, const double *b, int n)
+{
+#if defined(__AVX2__) && defined(__FMA__)
+    __m256d acc = _mm256_setzero_pd();
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+        /* Load 4 floats and widen to 4 doubles */
+        __m128 va_f = _mm_loadu_ps(a + i);
+        __m256d va  = _mm256_cvtps_pd(va_f);
+        __m256d vb  = _mm256_loadu_pd(b + i);
+        acc = _mm256_fmadd_pd(va, vb, acc);
+    }
+    __m128d lo = _mm256_castpd256_pd128(acc);
+    __m128d hi = _mm256_extractf128_pd(acc, 1);
+    lo = _mm_add_pd(lo, hi);
+    lo = _mm_hadd_pd(lo, lo);
+    double sum = _mm_cvtsd_f64(lo);
+    for (; i < n; i++) sum += (double)a[i] * b[i];
+    return sum;
+#else
+    double sum = 0.0;
+    for (int i = 0; i < n; i++) sum += (double)a[i] * b[i];
+    return sum;
+#endif
+}
+
+/* Squared L2 norm of a float vector — returns sum(a[i]^2) in double precision.
+ * Despite the float input, the accumulator is double (__m256d): each group of
+ * 8 floats is split into two __m128 halves, widened to __m256d via cvtps_pd,
+ * then accumulated with FMA.  This is identical in structure to ax_f32_f64_dot
+ * and avoids the ~3× precision loss that a float accumulator would introduce
+ * for large vectors (dim=5120, values ≈ 0.01 → sum ≈ 0.512, but relative error
+ * from float accumulation over 640 additions per lane ≈ 8×10⁻⁵). */
+double ax_f32_norm_sq(const float *a, int n)
+{
+#if defined(__AVX2__) && defined(__FMA__)
+    __m256d acc = _mm256_setzero_pd();
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 v = _mm256_loadu_ps(a + i);
+        /* Widen lower 4 floats to double, FMA into accumulator */
+        __m128 vlo = _mm256_castps256_ps128(v);
+        __m256d vd_lo = _mm256_cvtps_pd(vlo);
+        acc = _mm256_fmadd_pd(vd_lo, vd_lo, acc);
+        /* Widen upper 4 floats to double, FMA into accumulator */
+        __m128 vhi = _mm256_extractf128_ps(v, 1);
+        __m256d vd_hi = _mm256_cvtps_pd(vhi);
+        acc = _mm256_fmadd_pd(vd_hi, vd_hi, acc);
+    }
+    /* Horizontal sum of 4-wide double accumulator */
+    __m128d lo = _mm256_castpd256_pd128(acc);
+    __m128d hi = _mm256_extractf128_pd(acc, 1);
+    lo = _mm_add_pd(lo, hi);
+    lo = _mm_hadd_pd(lo, lo);
+    double sum = _mm_cvtsd_f64(lo);
+    for (; i < n; i++) sum += (double)a[i] * (double)a[i];
+    return sum;
+#else
+    double sum = 0.0;
+    for (int i = 0; i < n; i++) sum += (double)a[i] * (double)a[i];
+    return sum;
+#endif
 }
 
 void ax_vec_scale(double *dst, const double *src, double s, int n)
@@ -665,6 +823,225 @@ int ax_dequant_row_f32(const void *src, float *dst, int n, ggml_type_t type)
                     o[half*128 + l + 64] = d_val * (float)sc_h[4 + si] * (float)(q2 - 32);
                     o[half*128 + l + 96] = d_val * (float)sc_h[6 + si] * (float)(q3 - 32);
                 }
+            }
+        }
+        return 0;
+    }
+    case GGML_TYPE_Q4_K: {
+        /* Q4_K: 256 values per super-block, 144 bytes.
+         * Layout: d(fp16) + dmin(fp16) + scales[12] + qs[128].
+         * value = d * scale_j * nibble - dmin * min_j, 8 sub-blocks of 32 */
+        const uint8_t *p = (const uint8_t *)src;
+        int nsb = n / 256;
+        for (int sb = 0; sb < nsb; sb++) {
+            uint16_t dh, dmh;
+            memcpy(&dh,  p,     2);
+            memcpy(&dmh, p + 2, 2);
+            float d    = ax_fp16_to_f32(dh);
+            float dmin = ax_fp16_to_f32(dmh);
+            const uint8_t *scales = p + 4;
+            const uint8_t *qs     = p + 16;
+            p += 144;
+
+            float *o = dst + sb * 256;
+            int is = 0;
+            for (int j = 0; j < 256; j += 64) {
+                uint8_t sc0, m0, sc1, m1;
+                if (is < 4) {
+                    sc0 = scales[is] & 63;      m0 = scales[is + 4] & 63;
+                } else {
+                    sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                    m0  = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+                }
+                int is1 = is + 1;
+                if (is1 < 4) {
+                    sc1 = scales[is1] & 63;     m1 = scales[is1 + 4] & 63;
+                } else {
+                    sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                    m1  = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+                }
+                float d1 = d * (float)sc0;  float m1f = dmin * (float)m0;
+                float d2 = d * (float)sc1;  float m2f = dmin * (float)m1;
+
+                const uint8_t *qj = qs + (j / 2);
+                for (int l = 0; l < 32; l++)
+                    o[j + l]      = d1 * (float)(qj[l] & 0xF) - m1f;
+                for (int l = 0; l < 32; l++)
+                    o[j + 32 + l] = d2 * (float)(qj[l] >> 4)  - m2f;
+                is += 2;
+            }
+        }
+        return 0;
+    }
+    case GGML_TYPE_IQ4_NL: {
+        /* IQ4_NL: 32 elements/block, 18 bytes. d(fp16) + qs[16]. */
+        static const int8_t tbl[16] = {
+            -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113
+        };
+        const uint8_t *p = (const uint8_t *)src;
+        int nb = n / 32;
+        for (int b = 0; b < nb; b++) {
+            uint16_t dh;
+            memcpy(&dh, p, 2);
+            float d = ax_fp16_to_f32(dh);
+            const uint8_t *qs = p + 2;
+            float *o = dst + b * 32;
+            for (int l = 0; l < 16; l++) {
+                o[2*l + 0] = d * (float)tbl[qs[l] & 0xF];
+                o[2*l + 1] = d * (float)tbl[qs[l] >> 4];
+            }
+            p += 18;
+        }
+        return 0;
+    }
+    case GGML_TYPE_IQ4_XS: {
+        /* IQ4_XS: 256 elements/super-block, 136 bytes.
+         * d(fp16) + scales_h(u16) + scales_l[4] + qs[128]. */
+        static const int8_t tbl[16] = {
+            -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113
+        };
+        const uint8_t *p = (const uint8_t *)src;
+        int nsb = n / 256;
+        for (int sb = 0; sb < nsb; sb++) {
+            uint16_t dh, scales_h_u;
+            memcpy(&dh,         p,     2);
+            memcpy(&scales_h_u, p + 2, 2);
+            float d = ax_fp16_to_f32(dh);
+            const uint8_t *scales_l = p + 4;
+            const uint8_t *qs       = p + 8;
+            p += 136;
+            float *o = dst + sb * 256;
+            for (int ib = 0; ib < 8; ib++) {
+                uint8_t ls = ((scales_l[ib >> 1] >> (4 * (ib & 1))) & 0xF)
+                             | (((scales_h_u >> (2 * ib)) & 3) << 4);
+                float dl = d * (float)((int)ls - 32);
+                const uint8_t *qb = qs + ib * 16;
+                float *ob = o + ib * 32;
+                for (int j = 0; j < 16; j++) {
+                    ob[2*j + 0] = dl * (float)tbl[qb[j] & 0xF];
+                    ob[2*j + 1] = dl * (float)tbl[qb[j] >> 4];
+                }
+            }
+        }
+        return 0;
+    }
+    case GGML_TYPE_Q2_K: {
+        /* Q2_K: 256 elements/super-block, 84 bytes.
+         * Layout: scales[16](nibble-packed) + qs[64] + d(fp16) + dmin(fp16).
+         * Each scales[i]: low nibble = d_scale, high nibble = min_scale. */
+        const uint8_t *p = (const uint8_t *)src;
+        int nsb = n / 256;
+        for (int sb = 0; sb < nsb; sb++) {
+            const uint8_t *scales = p;
+            const uint8_t *qs     = p + 16;
+            uint16_t dh, dmh;
+            memcpy(&dh,  p + 80, 2);
+            memcpy(&dmh, p + 82, 2);
+            float d    = ax_fp16_to_f32(dh);
+            float dmin = ax_fp16_to_f32(dmh);
+            p += 84;
+            float *o = dst + sb * 256;
+            int is = 0;
+            const uint8_t *qb = qs;
+            for (int half = 0; half < 2; half++) {
+                int shift = 0;
+                for (int j = 0; j < 4; j++) {
+                    uint8_t sc = scales[is++];
+                    float dl = d * (float)(sc & 0xF);
+                    float ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        *o++ = dl * (float)((qb[l] >> shift) & 3) - ml;
+                    sc = scales[is++];
+                    dl = d * (float)(sc & 0xF);
+                    ml = dmin * (float)(sc >> 4);
+                    for (int l = 0; l < 16; l++)
+                        *o++ = dl * (float)((qb[l + 16] >> shift) & 3) - ml;
+                    shift += 2;
+                }
+                qb += 32;
+            }
+        }
+        return 0;
+    }
+    case GGML_TYPE_Q3_K: {
+        /* Q3_K: 256 elements/super-block, 110 bytes.
+         * Layout: hmask[32] + qs[64] + scales[12] + d(fp16). */
+        const uint8_t *p = (const uint8_t *)src;
+        int nsb = n / 256;
+        for (int sb = 0; sb < nsb; sb++) {
+            const uint8_t *hmask  = p;
+            const uint8_t *qs     = p + 32;
+            const uint8_t *scales = p + 96;
+            uint16_t dh;
+            memcpy(&dh, p + 108, 2);
+            float d = ax_fp16_to_f32(dh);
+            p += 110;
+            float *o = dst + sb * 256;
+            for (int sub = 0; sub < 8; sub++) {
+                int is = sub;
+                uint8_t sc;
+                if (is < 4)
+                    sc = (scales[is] & 0xF) | ((scales[is + 8] & 3) << 4);
+                else
+                    sc = (scales[is + 4] >> 4) | ((scales[is + 4] & 3) << 4);
+                float d_sc = d * (float)((int)sc - 32);
+                int base = sub * 32;
+                for (int l = 0; l < 32; l++) {
+                    int idx = base + l;
+                    int qlo = (qs[idx >> 2] >> (2 * (idx & 3))) & 3;
+                    int qhi = (hmask[idx >> 3] >> (idx & 7)) & 1;
+                    o[idx] = d_sc * (float)((qlo | (qhi << 2)) - 4);
+                }
+            }
+        }
+        return 0;
+    }
+    case GGML_TYPE_Q5_K: {
+        /* Q5_K: 256 elements/super-block, 176 bytes.
+         * Layout: d(fp16) + dmin(fp16) + scales[12] + qh[32] + qs[128]. */
+        const uint8_t *p = (const uint8_t *)src;
+        int nsb = n / 256;
+        for (int sb = 0; sb < nsb; sb++) {
+            uint16_t dh, dmh;
+            memcpy(&dh,  p,     2);
+            memcpy(&dmh, p + 2, 2);
+            float d    = ax_fp16_to_f32(dh);
+            float dmin = ax_fp16_to_f32(dmh);
+            const uint8_t *scales = p + 4;
+            const uint8_t *qh     = p + 16;
+            const uint8_t *qs     = p + 48;
+            p += 176;
+            float *o = dst + sb * 256;
+            int is = 0;
+            for (int j = 0; j < 256; j += 64) {
+                uint8_t sc0, m0, sc1, m1;
+                if (is < 4) {
+                    sc0 = scales[is] & 63;      m0 = scales[is + 4] & 63;
+                } else {
+                    sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                    m0  = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+                }
+                int is1 = is + 1;
+                if (is1 < 4) {
+                    sc1 = scales[is1] & 63;     m1 = scales[is1 + 4] & 63;
+                } else {
+                    sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                    m1  = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+                }
+                float d1 = d * (float)sc0;  float m1f = dmin * (float)m0;
+                float d2 = d * (float)sc1;  float m2f = dmin * (float)m1;
+                const uint8_t *qj = qs + (j / 2);
+                for (int l = 0; l < 32; l++) {
+                    int pos = j + l;
+                    int hi  = (qh[pos >> 3] >> ((pos >> 5) * 4 + (pos & 7) / 8)) & 1;
+                    o[pos]  = d1 * (float)((qj[l] & 0xF) | (hi << 4)) - m1f;
+                }
+                for (int l = 0; l < 32; l++) {
+                    int pos = j + 32 + l;
+                    int hi  = (qh[pos >> 3] >> ((pos >> 5) * 4 + (pos & 7) / 8)) & 1;
+                    o[pos]  = d2 * (float)((qj[l] >> 4) | (hi << 4)) - m2f;
+                }
+                is += 2;
             }
         }
         return 0;

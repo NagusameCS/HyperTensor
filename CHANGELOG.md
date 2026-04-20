@@ -5,7 +5,172 @@ The focus here is code and measured behavior, not release-note marketing.
 
 ---
 
-## [0.3.0] — 2026-03-24
+## [0.6.0] — 2026-04-18 — "Synapse"
+
+### Summary
+
+**Production host runtime with geometric inference research integration.** Geodessical
+v0.6.0 "Synapse" ships as a fully featured host-mode inference engine while running the
+Axiom Beta-3 OTT survey pipeline in parallel. Peak decode reaches **107.7 tok/s** on
+Gemma 4 E2B (RTX 4070 Laptop), **22.7% ahead of Ollama gemma3:4b** on the same hardware.
+
+### OTT / Axiom Beta-3
+
+#### Decode-Aligned Oracle Targets (Phase 5)
+Phase 5 geodesic pilot now uses deterministic model next-token generation as the target
+embedding instead of random vocabulary selection. This aligns the pilot with actual
+decode behavior and makes top1/MRR metrics directly meaningful.
+
+Telemetry: `oracle_target_count` vs `random_target_count` in JSON report.
+
+#### Persistent Warp State
+Knowledge-injection warp accumulations now survive process restarts via
+`axiom_warp_state.dat`. Warp points accumulated across sessions; threshold-triggered
+manifold recomputation runs in post-Phase-5 control flow (no Phase-5 coupling).
+
+#### Improved Phase 4 Active Learning
+- Uncertainty-based candidate selection with early stop after sustained low uncertainty
+- Adaptive model-oracle budget in fast mode: 2–4 calls (down from 16)
+- Stricter fast-mode uncertainty floor for oracle trigger
+- Result: Phase 4 wall time: 909 ms → **669 ms** (−26%)
+
+#### Phase 5 MRR Improvement
+Curvature-informed initial velocity prior in Phase 5 (bounded local acceleration from
+interpolated Christoffel symbols). Adaptive geodesic retry with step/velocity damping.
+
+| Metric | Previous (cap=16) | Current |
+|--------|------------------|---------|
+| Total time | ~1218 ms | ~977 ms |
+| Phase 4 | ~909 ms | ~669 ms |
+| Phase 5 | — | ~43 ms |
+| MRR | ~0.032 | **~0.067** |
+
+#### Phase 3 Warm-Cache
+LRU hidden-state cache (keyed by token_id × layer) reduces Phase 3 manifold recomputation
+from **197 s cold → 0.17 s warm** (−99.9%) on SmolLM2. Full Phase 3 + Phase 4 refresh
+now triggerable without prohibitive cost.
+
+#### Knowledge Injection Prototype
+`enable_knowledge_injection`, `injection_alpha`, `injection_sigma`, `injection_points`
+controls added. Applies OTT-style local Christoffel warp with Gaussian distance decay.
+Warp accumulation + recalc trigger plumbing fully implemented; training-time coupling
+pending.
+
+#### Fast-Mode Clamp Policy
+`--axiom-fast` activates:
+- `embedding_samples ≤ 64`
+- `metric_sample_points ≤ 64`
+- `oracle_calls_max ≤ 12`
+- `geodesic_test_tokens ≤ 8`
+- `geodesic_vocab_probe ≤ 512`
+
+#### Axiom Beta Benchmark Snapshot (Gemma 4 E2B, April 14, 2026)
+| Config | Total | Phase5 | ID | top1 | MRR |
+|--------|-------|--------|----|------|-----|
+| samples=64, probe=256 | 543 ms | 59 ms | 14 | 0.000 | 0.0153 |
+| samples=128, probe=512 | 1013 ms | 69 ms | 16 | 0.000 | 0.0000 |
+| samples=256, probe=1024 | 3209 ms | 15 ms | 41 | 0.000 | 0.0000 |
+
+### Performance (Geodessical Inference Engine)
+
+| Metric | Value | Context |
+|--------|-------|---------|
+| Decode (Gemma4 E2B, GPU, long/512) | **107.7 tok/s** | RTX 4070 Laptop, decode-only |
+| End-to-end (Gemma4 E2B, GPU) | **92.5 tok/s** | Includes prefill, 256 tokens |
+| vs Ollama gemma3:4b | **+22.7%** | Same prompt, same hardware |
+| vs Ollama gemma4:latest | **+206.2%** | Same prompt, same hardware |
+| SmolLM2-135M GPU (long) | 174–271 tok/s | Q8_0, variable prompt length |
+
+### New Features (Inference Engine)
+- Gemma4 architecture: interleaved sliding-window attention (ISWA), dual RoPE bases, doubled FFN layers 15+
+- `--ott-fast`: speed-first OTT (spec-decode batch=16, AttnRes, fast axiom, max TPS)
+- `--ott-speculative`: geodesic spec-decode (batch=2, geodesic drafts + transformer verify)
+- `--ott-perfect`: exact greedy rollout upper bound (100% draft acceptance rate)
+- `--ott-full`: full OTT pipeline (axiom + geodesic-first + AttnRes + OneDecode prep)
+- `--ott-theorem`: adds depth-attn to ott-full for maximum reasoning quality
+- `--one-decode`: bake geodesic flow map once → `ott_one_decode.bin` for instant decode
+- `--ott-od`: OTT-OD protocol — OneDecode map as speculative draft source
+- `--ott-swarm <K>`: OD-SWARM fan-out (K candidates per draft slot)
+- `--attnres` / `--attnres-strength`: attention residual depth stabilization
+- `--depth-attn` / `--depth-attn-strength` / `--depth-attn-window`: depth-wise residual cross-layer attention
+- `--no-think`, `--force-think`, `--show-think`: thinking token control for reasoning models
+- CUDA: dynamic DLL dispatch (`cuda_kernels.dll`), ~50 GPU operations, CUDA Graph capture
+- CUDA: fused QKV (triple_q4_0), batch prefill, add_rmsnorm, iswa_combine, async transfers
+- CUDA: uploads Q4_0, Q4_1, Q8_0, Q6_K, F16, BF16, F32 (expanded from Q4_0/Q8_0 only)
+- 13 JIT SSE2 kernels (added: gelu, layernorm, q8_0_gemv, q4_0_q8_0_gemv)
+- `--axiom-gpu` flag: runs Phase 3/5 matrix ops on CUDA device
+- `--ctx-size`: user override for context window size
+- `--log-level`: verbosity control (0=quiet to 3=trace)
+- OTT readiness report (`ott_readiness_report.json`) with subsection flags
+- JSON axiom report: `phase5_geodesic.oracle_target_count`, `warp_points_accumulated`
+
+---
+
+## [0.4.0] — 2026-03-30
+
+### Summary
+
+**Host-mode runtime + CUDA GPU offload + speculative execution.** First release that
+runs on Windows/Linux as a native host application without a bootable kernel image.
+Introduced CUDA GPU dispatch (RTX 4070: 29% decode speedup over CPU), five speculative
+execution techniques, and an HTTP API server for programmatic access.
+
+### New Features
+
+#### Host-Mode Runtime (HAL)
+Full hardware abstraction layer for running as a host process:
+- Memory-mapped model loading (GGUF mmap, no copy into heap)
+- Native POSIX/Win32 threads replacing bare-metal SMP dispatch
+- `host/main.c` CLI: flags for prompt, token count, temperature, GPU mode
+- Cross-platform build: `build_host.ps1` / `build_host.sh`
+
+#### CUDA GPU Offload
+Selective dispatch to RTX/Quadro/A-series GPUs via CUDA runtime:
+- Threshold: `out_dim ≥ 8192` (captures all large projection layers)
+- Gemma-4 E2B: GPU decode ~14.5 tok/s at launch; improves to 92.5 tok/s by v0.5
+- `cudaMemcpy` weight staging on first call; cached for subsequent tokens
+- Fallback: CPU AVX2 path for sub-threshold layers
+
+#### Speculative Neural Execution (SNE) — 5 Techniques
+| Technique | Principle |
+|-----------|-----------|
+| **Adaptive Precision Cascade (APC)** | Low entropy inputs fast-path at INT16; high entropy re-runs at FP32 |
+| **Speculative Layer Fusion (SLF)** | Skip matmul when layer input signature matches cached activation |
+| **Entropy-Aware Neuron Pruning (EANP)** | Zero-entropy neurons pruned at runtime (no retraining) |
+| **Compute DAG Scheduling** | Tomasulo-inspired tensor dependency DAG with resource ordering |
+| **Confidence-Gated Early Exit** | Execution depth proportional to input difficulty |
+
+These techniques operate within the SNE engine (`runtime/nn/speculative.c`) as
+microarchitecture-level acceleration of neural inference, independent of the
+OTT speculative decode path.
+
+#### HTTP API Server
+REST API on `localhost:8080`:
+- `POST /v1/generate` — single-turn text completion
+- `POST /v1/chat` — multi-turn conversation (OpenAI-compatible)
+- `GET /v1/models` — list loaded models
+- `GET /v1/version` — runtime version string
+
+#### Additional Architectures
+Added GGUF loaders for: **Qwen2.5**, **LLaMA 3**, **Gemma 2**, **SmolLM 2**, **Mistral**
+
+#### Axiom Beta-1 (Initial Research Build)
+Placeholder geometry survey with architecture-heuristic manifold ID and surrogate
+curvature metrics. Not yet using real model weights. Serves as integration scaffold for
+Beta-2 real-geometry implementation.
+
+### Performance
+
+| Metric | v0.3.0 | v0.4.0 | Improvement |
+|--------|--------|--------|-------------|
+| Decode speed (CPU) | 162 ms/tok | 138 ms/tok | 1.2× |
+| Decode speed (GPU) | N/A | 69 ms/tok | GPU enabled |
+| Host binary size | N/A | ~1.1 MB | Host target |
+| Supported models | 2 | 7 | +5 architectures |
+
+---
+
+
 
 ### Summary
 

@@ -210,15 +210,105 @@ When `ncpu > 1 && out_dim >= 64`, GEMV rows are partitioned across CPUs:
 - Register allocator using System V calling convention
 
 ### LLM Forward Kernels (`llm_jit.c`)
-Lazy-compiled on first inference call. Kernel cache holds up to 32 entries.
+Lazy-compiled on first inference call. JIT pool: 2 MB W^X memory, up to 64 buffers.
+Kernels are SSE2 4-wide (`v4f`). AVX2 is used in separate GEMV helper paths.
 
-| Kernel | Op | Vector Size | Used For |
-|--------|----|-------------|----------|
-| vadd | a[i] + b[i] | dim (3072) | Residual connections |
-| dot | Σ a[i]×b[i] | head_dim (96) | Attention score computation |
-| axpy | a[i] + α×b[i] | head_dim (96) | Attention value accumulation |
-| fused_silu_mul | silu(a[i])×b[i] | ff_dim (8192) | FFN gate ⊙ up projection |
-| rope | Rotary encoding | head_dim (96) | Position encoding for Q/K |
-| rmsnorm | RMS normalize | dim (3072) | Layer normalization |
+| Kernel | Operation | Used For |
+|--------|-----------|----------|
+| `fast_exp` | Fast scalar exp | Building block for silu/gelu |
+| `silu` | x / (1 + e^−x) | FFN gate activation |
+| `rmsnorm` | x / √(mean(x²) + ε) · w | Layer normalization |
+| `rope` | Rotary position encoding | Q/K position embedding (non-Gemma4 only) |
+| `elmul` | a[i] × b[i] | Element-wise multiply |
+| `eladd` | a[i] + b[i] | Residual connections |
+| `dot` | Σ a[i]·b[i] | Attention score computation |
+| `axpy` | a[i] += α·b[i] | Attention value accumulation |
+| `fused_silu_mul` | silu(a[i]) · b[i] | Fused FFN gate ⊙ up projection |
+| `gelu` | GELU activation | GELU-variant FFN |
+| `layernorm` | (x−μ)/σ · w + b | LayerNorm (Phi-3 etc.) |
+| `q8_0_gemv` | Q8_0 quantized GEMV | CPU GEMV for Q8_0 weights |
+| `q4_0_q8_0_gemv` | Q4_0 × Q8_0 integer GEMV | CPU GEMV for Q4_0 weights |
 
-Softmax is not JIT-compiled because sequence length varies per token.
+Known JIT TODOs: softmax kernel, Gemma4-safe RoPE, LRU kernel cache, fused RMSNorm+scale, batched GEMV, AVX-512 variant.
+
+
+## OTT / Axiom Beta Subsystem
+
+The Organic Training Theory (OTT) research subsystem is integrated into the Geodessical
+host runtime under `runtime/nn/axiom_*.{c,h}`. It operates as a parallel survey pipeline
+that analyzes the geometric structure of loaded GGUF models.
+
+### Component Map
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│               axiom_beta.c  (5-phase pipeline)               │
+│  Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5   │
+└────┬─────────────┬───────────────┬──────────────┬────────────┘
+     │             │               │              │
+     ▼             ▼               ▼              ▼
+axiom_linalg   llm.h/llm.c    axiom_geo.c    tensor_bridge
+(PCA, TwoNN,   (embeddings,   (metric field, (hidden-state
+ Jacobi eig,   hidden states, Christoffel,   capture/inject)
+ dequant)      oracle calls)  RK4 geodesic)
+```
+
+### File Inventory
+
+| File | Purpose |
+|------|---------|
+| `runtime/nn/axiom_linalg.h/c` | Dense matrix, PCA (Jacobi eigdecomp), TwoNN, Q4_0/Q8_0/Q6_K/F16/BF16/F32 dequant |
+| `runtime/nn/axiom_geo.h/c` | Riemannian metric field (IDW), Christoffel symbols, Ricci/scalar curvature, RK4 geodesic integrator |
+| `runtime/nn/axiom_beta.h/c` | 5-phase pipeline driver, fast-mode clamp policy, knowledge injection, warp state persistence |
+| `axiom_warp_state.dat` | Persistent warp accumulation state (survives restarts) |
+| `axiom_beta_report.json` | Full JSON survey report (phases 1–5 + timings) |
+| `ott_readiness_report.json` | Operational readiness flags for OTT subsystems |
+
+### Five-Phase Pipeline Summary
+
+| Phase | Operation | Key Output | Typical Time (fast) |
+|-------|-----------|------------|---------------------|
+| 1 | PCA + TwoNN on token embeddings | Intrinsic dim k≈14–41 | ~128 ms |
+| 2 | Attention head weight fingerprints | Symmetry score, generators | ~1 ms |
+| 3 | IDW metric field + Christoffel symbols + Ricci curvature | Scalar curvature field (warm: 0.17 s) | ~43 ms warm |
+| 4 | Uncertainty-driven oracle axiom loop | Axiom set, consistency score | ~669 ms |
+| 5 | RK4 geodesic pilot vs decode-aligned oracle targets | top1, MRR, speedup projection | ~43 ms |
+
+### Tensor Bridge Integration
+
+`tensor_bridge` provides the hidden-state capture API used by the axiom subsystem:
+- `tensor_bridge_capture(layer, hidden_state)` — intercepts forward pass at layer N
+- `tensor_bridge_inject(layer, hidden_state)` — injects modified hidden state
+- Used by Phase 3 metric field construction and Phase 5 oracle target acquisition
+
+### Knowledge Injection Design
+
+```
+  Phase 3 metric field (cached)
+         │
+         ▼
+  Local Christoffel warp:
+    Γ'ᵏᵢⱼ(x) = Γᵏᵢⱼ(x) + α · Δᵏᵢⱼ · exp(−‖x − xᵢₙⱼ‖² / 2σ²)
+         │
+         ▼
+  RK4 geodesic integrator (Phase 5)
+         │
+         ▼
+  Warp accumulation in axiom_warp_state.dat
+         │
+  threshold exceeded?
+    Yes → full Phase 3+4 refresh (recalc_triggered = 1)
+    No  → continue accumulating
+```
+
+### OTT Readiness Gauges (April 2026)
+
+| Component | Readiness |
+|-----------|-----------|
+| Geometry foundation (metric/Christoffel/curvature) | 70% |
+| Axiom discovery (active learning + model oracle) | 65% |
+| Geodesic inference replacement path | 35% |
+| Knowledge injection (local curvature warp) | 55% |
+| End-to-end OTT production replacement | 25% |
+| **Overall** | **~70%** |
+

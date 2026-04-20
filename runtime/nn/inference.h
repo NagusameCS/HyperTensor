@@ -1,9 +1,9 @@
 /* =============================================================================
- * TensorOS - Neural Network Inference Engine
+ * Neural Network Inference Engine
  *
- * Revolutionary: JIT-compiles entire neural networks into single native x86_64
- * functions. Zero interpreter overhead, zero intermediate memory allocation,
- * zero function call dispatch. The OS IS the deep learning compiler.
+ * JIT-compiles neural network graphs into native x86_64 functions.
+ * Zero interpreter overhead, zero intermediate memory allocation,
+ * zero function call dispatch.
  *
  * Supports:
  *   - Multi-layer perceptrons (MLP) — unlimited size

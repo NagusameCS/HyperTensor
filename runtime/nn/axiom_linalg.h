@@ -77,6 +77,8 @@ typedef struct {
     double *eigenvalues;   /* [n_components] */
     axmat_t components;    /* [n_components × dim] */
     double *mean;          /* [dim] */
+    double *mean_proj;     /* [n_components]: dot(component_i, mean) — precomputed at fit time
+                            * so axpca_project needs only k subtractions, not k×d dot products */
     int     n_components;
     int     dim;
     double  total_variance;
@@ -88,6 +90,8 @@ void    axpca_destroy(axpca_t *pca);
 
 /* Project a vector from full space to PCA subspace. */
 void axpca_project(const axpca_t *pca, const double *x_full, double *x_sub);
+/* Float-input variant: avoids a separate f32→f64 widening pass */
+void axpca_project_f32(const axpca_t *pca, const float *x_full_f32, double *x_sub);
 
 /* Reconstruct from subspace to full space. */
 void axpca_reconstruct(const axpca_t *pca, const double *x_sub, double *x_full);
@@ -105,6 +109,10 @@ double ax_twonn_id(const axmat_t *X);
 
 double ax_vec_dot(const double *a, const double *b, int n);
 double ax_vec_norm(const double *a, int n);
+/* Mixed-precision dot: float row vs double query (used in Phase 5 probe scoring) */
+double ax_f32_f64_dot(const float *a, const double *b, int n);
+/* Squared L2 norm of a float vector: sum(a[i]^2) — AVX2 accelerated */
+double ax_f32_norm_sq(const float *a, int n);
 void   ax_vec_scale(double *dst, const double *src, double s, int n);
 void   ax_vec_add(double *dst, const double *a, const double *b, int n);
 void   ax_vec_sub(double *dst, const double *a, const double *b, int n);

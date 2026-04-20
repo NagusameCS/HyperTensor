@@ -5,6 +5,9 @@
  * Provides threading via Win32 threads / pthreads, JIT via VirtualAlloc/mmap.
  */
 #define _CRT_SECURE_NO_WARNINGS
+#ifndef _WIN32
+#  define _POSIX_C_SOURCE 200809L
+#endif
 #include "hal.h"
 
 #include <stdio.h>
@@ -20,6 +23,8 @@
 #else
   #include <pthread.h>
   #include <sys/mman.h>
+  #include <sys/select.h>
+  #include <sys/time.h>
   #include <unistd.h>
   #include <fcntl.h>
   #include <sys/stat.h>
@@ -47,8 +52,9 @@ int            vmm_hypervisor_active = 0;
 void *kmalloc(uint64_t size)  { return malloc((size_t)size); }
 void  kfree(void *ptr)        { free(ptr); }
 
-void *kmemcpy(void *d, const void *s, size_t n) { return memcpy(d, s, n); }
-void *kmemset(void *s, int c, size_t n)          { return memset(s, c, n); }
+void *kmemcpy(void *d, const void *s, size_t n)       { return memcpy(d, s, n); }
+void *kmemmove(void *d, const void *s, size_t n)      { return memmove(d, s, n); }
+void *kmemset(void *s, int c, size_t n)               { return memset(s, c, n); }
 int   kmemcmp(const void *a, const void *b, size_t n) { return memcmp(a, b, n); }
 
 static void *aligned_alloc_impl(uint64_t size) {
@@ -242,7 +248,7 @@ static void *worker_thread(void *arg) {
 
 #endif
 
-int smp_init_hosted(void) {
+int smp_init_hosted(int max_workers) {
 #ifdef _WIN32
     SYSTEM_INFO si;
     GetSystemInfo(&si);
@@ -253,6 +259,8 @@ int smp_init_hosted(void) {
 
     if (ncpu > MAX_CPUS) ncpu = MAX_CPUS;
     n_workers = ncpu - 1;  /* BSP = main thread */
+    if (max_workers > 0 && (uint32_t)max_workers - 1 < n_workers)
+        n_workers = (uint32_t)max_workers - 1;
 
     smp.cpu_count  = ncpu;
     smp.ap_started = n_workers;
@@ -307,6 +315,14 @@ void smp_wait_all(void) {
             __asm__ volatile("pause" ::: "memory");
 #endif
         }
+        /* Acquire fence: ensure worker's memory writes are visible before we
+         * read their outputs.  On x86 TSO this is a no-op but is required by
+         * the C11 memory model and needed for correctness on ARM/RISC-V. */
+#ifdef _WIN32
+        MemoryBarrier();
+#else
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+#endif
     }
 }
 
@@ -569,7 +585,7 @@ void hal_init(void) {
 #endif
 
     cpu_features_detect();
-    smp_init_hosted();
+    smp_init_hosted(0);
 }
 
 void hal_shutdown(void) {

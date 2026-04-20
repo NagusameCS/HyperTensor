@@ -1,0 +1,140 @@
+{
+  "solver": "diffeo_solver.py",
+  "timestamp": "2026-04-18T20:29:52Z",
+  "vis_root": "axiom_vis",
+  "manifolds": [
+    {
+      "name": "gemma-4-e2b",
+      "k": 25,
+      "explained": 0.952721,
+      "arch": "gemma4"
+    },
+    {
+      "name": "phi-3.5-mini",
+      "k": 11,
+      "explained": 0.951519,
+      "arch": "phi3"
+    },
+    {
+      "name": "smollm2-135m",
+      "k": 17,
+      "explained": 0.952741,
+      "arch": "llama"
+    }
+  ],
+  "decisions": [
+    {
+      "pair": [
+        "gemma-4-e2b",
+        "gemma-4-e2b"
+      ],
+      "k_A": 25,
+      "k_B": 25,
+      "model_A": "Gemma 4 E2B It",
+      "model_B": "Gemma 4 E2B It",
+      "verdict": "diffeomorphic",
+      "reason": "k=25\u22604, both manifolds star-shaped, \u03a6=\u03a8_B\u207b\u00b9\u2218\u03a8_A certified",
+      "certificate": {
+        "n_probes": 64,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.9999999999030801,
+        "median_abs_det_dPhi": 1.0000000000141025,
+        "median_inverse_error": 4.984411892556956e-16,
+        "max_inverse_error": 2.5219419200973697e-15,
+        "within_tol": true,
+        "elapsed_s": 0.029,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    },
+    {
+      "pair": [
+        "gemma-4-e2b",
+        "phi-3.5-mini"
+      ],
+      "k_A": 25,
+      "k_B": 11,
+      "model_A": "Gemma 4 E2B It",
+      "model_B": "Phi 3.5 Mini Instruct",
+      "verdict": "not_diffeomorphic",
+      "reason": "k_A=25 \u2260 k_B=11 \u2014 dimension invariant"
+    },
+    {
+      "pair": [
+        "gemma-4-e2b",
+        "smollm2-135m"
+      ],
+      "k_A": 25,
+      "k_B": 17,
+      "model_A": "Gemma 4 E2B It",
+      "model_B": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+      "verdict": "not_diffeomorphic",
+      "reason": "k_A=25 \u2260 k_B=17 \u2014 dimension invariant"
+    },
+    {
+      "pair": [
+        "phi-3.5-mini",
+        "phi-3.5-mini"
+      ],
+      "k_A": 11,
+      "k_B": 11,
+      "model_A": "Phi 3.5 Mini Instruct",
+      "model_B": "Phi 3.5 Mini Instruct",
+      "verdict": "diffeomorphic",
+      "reason": "k=11\u22604, both manifolds star-shaped, \u03a6=\u03a8_B\u207b\u00b9\u2218\u03a8_A certified",
+      "certificate": {
+        "n_probes": 44,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.999999999946101,
+        "median_abs_det_dPhi": 0.9999999999918978,
+        "median_inverse_error": 1.5822644439154055e-16,
+        "max_inverse_error": 6.335327934766281e-16,
+        "within_tol": true,
+        "elapsed_s": 0.014,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    },
+    {
+      "pair": [
+        "phi-3.5-mini",
+        "smollm2-135m"
+      ],
+      "k_A": 11,
+      "k_B": 17,
+      "model_A": "Phi 3.5 Mini Instruct",
+      "model_B": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+      "verdict": "not_diffeomorphic",
+      "reason": "k_A=11 \u2260 k_B=17 \u2014 dimension invariant"
+    },
+    {
+      "pair": [
+        "smollm2-135m",
+        "smollm2-135m"
+      ],
+      "k_A": 17,
+      "k_B": 17,
+      "model_A": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+      "model_B": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+      "verdict": "diffeomorphic",
+      "reason": "k=17\u22604, both manifolds star-shaped, \u03a6=\u03a8_B\u207b\u00b9\u2218\u03a8_A certified",
+      "certificate": {
+        "n_probes": 64,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.9999999997920578,
+        "median_abs_det_dPhi": 0.999999999947489,
+        "median_inverse_error": 4.440892098500626e-16,
+        "max_inverse_error": 3.219646771412954e-15,
+        "within_tol": true,
+        "elapsed_s": 0.018,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    }
+  ],
+  "summary": {
+    "diffeomorphic": 3,
+    "not_diffeomorphic": 3,
+    "undecided": 0
+  }
+}

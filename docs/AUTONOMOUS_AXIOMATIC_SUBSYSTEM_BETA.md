@@ -1,17 +1,22 @@
-# Autonomous Axiomatic Subsystem — Beta-2
+# Autonomous Axiomatic Subsystem — Beta-3
 
-Real-geometry implementation of the 5-phase manifold analysis pipeline for neural network models. This version replaces all Beta-1 surrogate metrics with actual mathematical operations on model weights and embedding geometry.
+Real-geometry implementation of the 5-phase manifold analysis pipeline for neural network models. Beta-3 extends Beta-2 with decode-aligned oracle targets, persistent warp-state storage, knowledge injection plumbing, warm-manifold caching, and a tuned active-learning budget for fast-mode operation.
 
-## 1. What Changed from Beta-1
+## 1. What Changed from Beta-2 to Beta-3
 
-| Aspect | Beta-1 (Surrogate) | Beta-2 (Real Geometry) |
-|--------|-------------------|----------------------|
-| Manifold ID | Architecture heuristic | PCA + TwoNN on real embeddings |
-| Symmetry | Random perturbation proxy | Attention head weight analysis |
-| Curvature | SiLU−linear gap | Christoffel symbols + Ricci tensor |
-| Axioms | Random candidate scoring | Active learning with oracle validation |
-| Geodesic | Cost formula only | RK4 geodesic integrator with convergence testing |
-| Math libraries | None | axiom_linalg (Jacobi eigendecomp, PCA) + axiom_geo (Riemannian geometry) |
+| Aspect | Beta-2 | Beta-3 |
+|--------|--------|--------|
+| Phase 4 oracle budget | Fixed cap (16) | Adaptive (2–4 fast, 12 full) |
+| Phase 4 candidate selection | EMA scoring | Uncertainty-driven, early stop |
+| Phase 5 target | Random vocab token | **Decode-aligned oracle token** |
+| Phase 5 velocity prior | Zero | Curvature-informed (Christoffel acceleration) |
+| Phase 5 retry | None | Adaptive step/velocity damping on divergence |
+| Knowledge injection | Not implemented | Prototype: local Christoffel warp + Gaussian decay |
+| Warp state persistence | None | `axiom_warp_state.dat` survives restarts |
+| Warp recompute trigger | None | Threshold-based: full Phase 3+4 refresh |
+| Warm-cache (Phase 3) | None | LRU token_id → hidden state; 197 s → 0.17 s |
+| MRR (fast mode) | ~0.032 | **~0.067** |
+| Total fast-mode time | ~1218 ms | **~977 ms** |
 
 ## 2. Architecture
 
@@ -71,7 +76,7 @@ Real-geometry implementation of the 5-phase manifold analysis pipeline for neura
 
 ### Phase 2: Symmetry Extraction
 
-**Method**: For each sampled layer, extract attention head Q-weight statistics. Compute per-head energy fingerprints from quantized block scale values, then measure pairwise similarity between heads.
+**Method**: For each sampled layer, extract attention head Q-weight statistics. In Beta-3, Phase 2 uses **real dequantized Q-weight rows** (not block statistics) for per-head energy fingerprints, then measures pairwise similarity between heads.
 
 **Key insight**: Heads with similar weight distributions are "permutation invariant" — swapping them preserves model behavior. Each such pair corresponds to a generator of the model's symmetry group.
 
@@ -151,7 +156,7 @@ Custom Riemannian geometry for neural manifold analysis:
 
 - **Metric field**: N sample points with d×d symmetric positive-definite metric tensors. IDW interpolation for querying arbitrary points
 - **Christoffel symbols**: Γ^k_{ij} from metric finite differences with off-axis displacement filtering (threshold=0.3)
-- **Curvature**: Ricci tensor via algebraic Γ·Γ contraction (derivative terms omitted for sparse grids). Scalar curvature via trace with inverse metric
+- **Curvature**: Ricci tensor via **full Riemann computation** (∂Γ finite-difference derivative + Γ·Γ algebraic contraction). Scalar curvature via trace with inverse metric. AVX2 dot product helper (`ott_dot_kk`) for PCA tensor scans.
 - **Geodesic integrator**: 4th-order Runge-Kutta with divergence detection (velocity norm > 1e10 or NaN). Supports trajectory recording for path analysis
 - **Geodesic length**: numerical integration via midpoint metric evaluation
 
@@ -160,8 +165,11 @@ Custom Riemannian geometry for neural manifold analysis:
 ```
 --axiom-beta-run          Run 5-phase survey after model load
 --axiom-beta-only         Run survey then exit
+--axiom-fast              Fast-mode clamps (64 samples, 12 oracle calls max)
+--axiom-gpu               Use CUDA for Phase 3/5 matrix operations
 --axiom-report <path>     JSON report path (default: axiom_beta_report.json)
---axiom-samples <n>       Embedding samples (default: 2048)
+--axiom-samples <n>       Embedding samples (default: 256)
+--axiom-probe <n>         Phase 5 vocab probe size (default: 1024)
 --axiom-seed <n>          Deterministic RNG seed
 --axiom-skip-geodesic     Skip Phase 5 geodesic pilot
 -v                        Verbose per-phase logging
@@ -170,40 +178,43 @@ Custom Riemannian geometry for neural manifold analysis:
 ## 7. Example Run
 
 ```powershell
-.\build_host\geodessical.exe model.gguf --axiom-beta-only --axiom-samples 256 -v
+.\build_host\geodessical.exe model.gguf --axiom-beta-only --axiom-fast --axiom-gpu -v
 ```
 
-Output:
+Output (Gemma 4 E2B, fast mode, April 2026):
 ```
-[AXIOM-BETA-2] Phase 1: ID=41, PCA=221 components (95.1% var), 1146 ms
-[AXIOM-BETA-2] Phase 2: score=0.8149, generators=64, 1 ms
-[AXIOM-BETA-2] Phase 3: mean_R=..., max_R=..., high-curv=7, 1817 ms
-[AXIOM-BETA-2] Phase 4: 49 axioms, consistency=0.8530, oracle_calls=64, 0.5 ms
-[AXIOM-BETA-2] Phase 5: cos_sim=-0.04, L2_err=13.4, speedup=8187x, 1308 ms
-[AXIOM-BETA-2] Complete: 4274 ms total
+[AXIOM-BETA-3] Phase 1: ID=14, PCA=... components, 128 ms
+[AXIOM-BETA-3] Phase 2: score=0.8149, generators=64, 1 ms
+[AXIOM-BETA-3] Phase 3: mean_R=..., high-curv=7, 43 ms (warm cache)
+[AXIOM-BETA-3] Phase 4: 49 axioms, consistency=0.8530, oracle_calls=8, 669 ms
+[AXIOM-BETA-3] Phase 5: cos_sim=..., L2_err=..., top1=0.000, mrr=0.067, 43 ms
+[AXIOM-BETA-3] Complete: 977 ms total
 ```
 
-## 8. Known Limitations (Beta-2)
+## 8. Known Limitations (Beta-3)
 
 1. **Curvature magnitudes**: Scalar curvature values can be very large due to sparse metric field sampling. Need denser sampling or regularized Christoffel computation.
-2. **Geodesic reconstruction**: cosine similarity is low (near zero) — expected, since the geodesic in embedding PCA subspace does not model the full transformer computation. Future work: layer-wise hidden-state trajectory analysis.
-3. **Symmetry probing**: Currently uses quantized block statistics rather than full attention weight dequantization. Accurate for Q4_0 but approximate for other quantization types.
-4. **Memory**: Phase 1 PCA with N>1024 samples at dim=1536 requires ~20MB. Phase 3 Christoffel with d=64 requires ~2MB. All allocations bounded.
-5. **No forward-pass instrumentation**: Beta-2 works entirely with embedding weights and model structure. Hidden-state trajectory analysis is planned for Beta-3.
+2. **Geodesic reconstruction**: cosine similarity remains low (MRR ≈ 0.067 fast mode) — geodesic in embedding PCA subspace does not yet model the full transformer computation. Layer-wise hidden-state trajectory matching is the next quality gate.
+3. **Symmetry probing**: Beta-3 upgraded to real dequantized Q-weight rows. Accurate for all supported quantization types (Q4_0, Q8_0, Q6_K, F16, BF16, F32).
+4. **Memory**: Phase 1 PCA with N>1024 samples at dim=1536 requires ~20 MB. Phase 3 Christoffel with d=64 requires ~2 MB. All allocations bounded.
+5. **Knowledge injection**: Warp plumbing complete, but training-time policy and expanded manifold recomputation coupling still needed for production use.
+6. **Geodesic forward pass**: Phase 5 is a pilot evaluator, not the default generation engine. Geodesic proposals are not yet the runtime decode path.
 
 ## 9. Roadmap
 
-### Beta-3: Hidden-State Trajectories
-- Wire tensor_bridge into forward pass for per-layer hidden state capture
-- Compute Fisher Information Matrix from actual output Jacobians
-- Layer-wise metric field construction
-
-### Beta-4: Axiom Compiler
-- Formal axiom grammar and consistency checker
-- Automated axiom simplification (Gröbner basis or equivalent)
-- Axiom → C code generation for specialized inference kernels
-
-### Beta-5: Geodesic Production Pilot
+### Beta-4: Geodesic Inference Prototype
+- First working geodesic forward pass replacing transformer for candidate token generation
 - Layer-wise geodesic paths through layer-specific metric fields
+- Accuracy parity gates against standard forward pass (cosine sim + top-1 match)
+- Promote Phase 5 from evaluator to candidate token proposer in decode loop
+
+### Beta-5: Production Pilot
 - Accuracy parity gates against standard forward pass
 - Hybrid mode: standard inference with geodesic verification
+- O(n·k²) complexity profiling vs transformer O(n²·d·L)
+- LRU hidden-state cache (items 21–26 in GEODESSICAL_PLAN.md)
+
+### v1.0: Geodesic Default
+- Geodesic inference as the primary Geodessical decode path
+- Knowledge injection production API
+- Formal diffeomorphism for softmax/LayerNorm/GeLU → curvature absorption

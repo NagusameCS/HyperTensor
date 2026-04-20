@@ -21,11 +21,110 @@
 
 #include "runtime/nn/flash_attn.h"
 #include "kernel/core/perf.h"
+#include "kernel/core/smp.h"
 #include "kernel/mm/tensor_mm.h"
+
+#include <emmintrin.h>  /* SSE2 */
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 /* Default tile sizes chosen to fit in L1 cache (~32KB) */
 #define DEFAULT_BR  32   /* Q tile rows */
 #define DEFAULT_BC  32   /* KV tile rows */
+
+/* Forward declaration for SSE2 dot product used throughout this file */
+static inline float dot_sse2(const float *a, const float *b, int n);
+static inline void  vec_scale_add_sse2(float *dst, const float *src, float scale, int n);
+static inline void  vec_scale_sse2(float *dst, float scale, int n);
+static inline float fast_exp(float x);
+
+/* Per-worker work items for parallel head dispatch.
+ * Each worker gets its own S/P scratch to avoid sharing the global buffers. */
+typedef struct {
+    float       *output;
+    const float *q;
+    const float *k_base;
+    const float *v_base;
+    int          cache_len;
+    int          kv_pos_stride;
+    int          head_dim;
+    int          kv_rep;
+    float        scale;
+    int          h_start;
+    int          h_end;
+    float        local_S[DEFAULT_BC];
+    float        local_P[DEFAULT_BC];
+} flash_attn_smp_work_t;
+
+static flash_attn_smp_work_t fa_work[MAX_CPUS];
+
+static void flash_attn_smp_head_worker(void *arg)
+{
+    flash_attn_smp_work_t *w = (flash_attn_smp_work_t *)arg;
+    int hd           = w->head_dim;
+    int kv_rep       = w->kv_rep;
+    float scale      = w->scale;
+    int cache_len    = w->cache_len;
+    int kv_stride    = w->kv_pos_stride;
+    const float *q   = w->q;
+    float *output    = w->output;
+    const float *kb  = w->k_base;
+    const float *vb  = w->v_base;
+
+    for (int h = w->h_start; h < w->h_end; h++) {
+        int kv_h = h / kv_rep;
+        const float *qh = q + h * hd;
+        float *oh = output + h * hd;
+
+        float m_max = -1e30f;
+        float l_sum = 0.0f;
+        for (int d = 0; d < hd; d++) oh[d] = 0.0f;
+
+        for (int ki = 0; ki < cache_len; ki += DEFAULT_BC) {
+            int ke   = ki + DEFAULT_BC;
+            if (ke > cache_len) ke = cache_len;
+            int klen = ke - ki;
+
+            float tile_max = -1e30f;
+            for (int c = 0; c < klen; c++) {
+                const float *kt = kb + (ki + c) * kv_stride + kv_h * hd;
+                float s = dot_sse2(qh, kt, hd) * scale;
+                w->local_S[c] = s;
+                if (s > tile_max) tile_max = s;
+            }
+
+            float m_old = m_max;
+            if (tile_max > m_max) m_max = tile_max;
+
+            float alpha  = fast_exp(m_old - m_max);
+            float l_old  = l_sum;
+            l_sum        = alpha * l_old;
+
+            float tile_sum = 0.0f;
+            for (int c = 0; c < klen; c++) {
+                float p = fast_exp(w->local_S[c] - m_max);
+                w->local_P[c] = p;
+                tile_sum += p;
+            }
+            l_sum += tile_sum;
+
+            if (l_old > 0.0f) {
+                float rescale = alpha * l_old / l_sum;
+                vec_scale_sse2(oh, rescale, hd);
+            }
+
+            float inv_l = 1.0f / l_sum;
+            for (int c = 0; c < klen; c++) {
+                float wt = w->local_P[c] * inv_l;
+                if (wt > 1e-8f) {
+                    const float *vt = vb + (ki + c) * kv_stride + kv_h * hd;
+                    vec_scale_add_sse2(oh, vt, wt, hd);
+                }
+            }
+        }
+    }
+}
 
 /* Scratch buffers (allocated once at init) */
 static float *scratch_S;    /* Br × Bc tile of attention scores */
@@ -76,7 +175,57 @@ int flash_attn_init(void)
 #ifndef __aarch64__
 #include <xmmintrin.h>
 #include <emmintrin.h>
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
 
+#ifdef __AVX2__
+/* Dot product — AVX2+FMA, processes 8 floats/cycle */
+static inline float dot_sse2(const float *a, const float *b, int n)
+{
+    __m256 acc = _mm256_setzero_ps();
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 va = _mm256_loadu_ps(a + i);
+        __m256 vb = _mm256_loadu_ps(b + i);
+        acc = _mm256_fmadd_ps(va, vb, acc);
+    }
+    /* Horizontal sum of 8-wide accumulator */
+    __m128 lo = _mm256_castps256_ps128(acc);
+    __m128 hi = _mm256_extractf128_ps(acc, 1);
+    lo = _mm_add_ps(lo, hi);
+    lo = _mm_hadd_ps(lo, lo);
+    lo = _mm_hadd_ps(lo, lo);
+    float s = _mm_cvtss_f32(lo);
+    for (; i < n; i++) s += a[i] * b[i];
+    return s;
+}
+
+static inline void vec_scale_add_sse2(float *dst, const float *src, float scale, int n)
+{
+    __m256 vs = _mm256_set1_ps(scale);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 vd = _mm256_loadu_ps(dst + i);
+        __m256 va = _mm256_loadu_ps(src + i);
+        vd = _mm256_fmadd_ps(va, vs, vd);
+        _mm256_storeu_ps(dst + i, vd);
+    }
+    for (; i < n; i++) dst[i] += scale * src[i];
+}
+
+static inline void vec_scale_sse2(float *dst, float scale, int n)
+{
+    __m256 vs = _mm256_set1_ps(scale);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 vd = _mm256_loadu_ps(dst + i);
+        vd = _mm256_mul_ps(vd, vs);
+        _mm256_storeu_ps(dst + i, vd);
+    }
+    for (; i < n; i++) dst[i] *= scale;
+}
+#else
 /* Dot product of two float vectors, SSE2 */
 static inline float dot_sse2(const float *a, const float *b, int n)
 {
@@ -123,6 +272,7 @@ static inline void vec_scale_sse2(float *dst, float scale, int n)
     for (; i < n; i++)
         dst[i] *= scale;
 }
+#endif  /* __AVX2__ */
 
 #else
 /* ARM64 NEON fallback */
@@ -363,6 +513,143 @@ int flash_attn_decode_step(
                 float w = scratch_P[c] * inv_l;
                 if (w > 1e-8f)
                     vec_scale_add_sse2(oh, Vh + (ki + c) * hd, w, hd);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/* =============================================================================
+ * Strided single-step decode — matches llm.c KV cache layout:
+ *   [pos * kv_pos_stride + kv_head * head_dim]
+ * =============================================================================*/
+
+int flash_attn_decode_strided(
+    float *output,
+    const float *q,
+    const float *k_base,
+    const float *v_base,
+    int cache_len,
+    int kv_pos_stride,
+    const flash_attn_config_t *cfg)
+{
+    if (!output || !q || !k_base || !v_base || !cfg || cache_len <= 0) return -1;
+
+    int hd     = cfg->head_dim;
+    int nh     = cfg->n_heads;
+    int nkv    = cfg->n_kv_heads;
+    kprintf("[DBG-FA] decode_strided: nh=%d nkv=%d hd=%d cache_len=%d\n", nh, nkv, hd, cache_len);
+    if (nkv <= 0) { kprintf("[DBG-FA] CRASH GUARD nkv=%d!\n", nkv); return -1; }
+    int kv_rep = nh / nkv;
+    float scale = cfg->scale;
+
+    /* Parallel path: split Q-heads across available CPUs.
+     * Each head is independent — no shared mutable state between workers.
+     * Fall back to sequential when only BSP is available or nh == 1. */
+    uint32_t ncpu = smp.ap_started + 1;
+    kprintf("[DBG-FA] ncpu=%u kv_rep=%d\n", ncpu, kv_rep);
+    if (ncpu > 1 && nh > 1) {
+        int heads_per_cpu = (int)ncpu > 0 ? nh / (int)ncpu : nh;
+        kprintf("[DBG-FA] SMP path heads_per_cpu=%d\n", heads_per_cpu);
+        int remainder     = nh % (int)ncpu;
+        int h = 0;
+
+        /* Set up and dispatch to APs first */
+        for (uint32_t c = 1; c < ncpu; c++) {
+            int chunk = heads_per_cpu + ((int)c < remainder ? 1 : 0);
+            fa_work[c].output        = output;
+            fa_work[c].q             = q;
+            fa_work[c].k_base        = k_base;
+            fa_work[c].v_base        = v_base;
+            fa_work[c].cache_len     = cache_len;
+            fa_work[c].kv_pos_stride = kv_pos_stride;
+            fa_work[c].head_dim      = hd;
+            fa_work[c].kv_rep        = kv_rep;
+            fa_work[c].scale         = scale;
+            fa_work[c].h_start       = h;
+            fa_work[c].h_end         = h + chunk;
+            smp_dispatch(c, flash_attn_smp_head_worker, &fa_work[c]);
+            h += chunk;
+        }
+
+        /* BSP handles the first slice */
+        int bsp_end = heads_per_cpu + (remainder > 0 ? 1 : 0);
+        fa_work[0].output        = output;
+        fa_work[0].q             = q;
+        fa_work[0].k_base        = k_base;
+        fa_work[0].v_base        = v_base;
+        fa_work[0].cache_len     = cache_len;
+        fa_work[0].kv_pos_stride = kv_pos_stride;
+        fa_work[0].head_dim      = hd;
+        fa_work[0].kv_rep        = kv_rep;
+        fa_work[0].scale         = scale;
+        fa_work[0].h_start       = 0;
+        fa_work[0].h_end         = bsp_end;
+        flash_attn_smp_head_worker(&fa_work[0]);
+        kprintf("[DBG-FA] BSP worker done, waiting for APs...\n");
+        smp_wait_all();
+        kprintf("[DBG-FA] all workers done\n");
+        return 0;
+    }
+
+    /* Sequential fallback (single CPU or single head) */
+    int Bc = scratch_bc;
+
+    for (int h = 0; h < nh; h++) {
+        int kv_h = h / kv_rep;
+        const float *qh = q + h * hd;
+        float *oh = output + h * hd;
+
+        float m_max = -1e30f;
+        float l_sum = 0.0f;
+        for (int d = 0; d < hd; d++) oh[d] = 0.0f;
+
+        for (int ki = 0; ki < cache_len; ki += Bc) {
+            int ke = ki + Bc;
+            if (ke > cache_len) ke = cache_len;
+            int klen = ke - ki;
+
+            /* Compute scores for this tile */
+            float tile_max = -1e30f;
+            for (int c = 0; c < klen; c++) {
+                const float *kt = k_base + (ki + c) * kv_pos_stride + kv_h * hd;
+                float s = dot_sse2(qh, kt, hd) * scale;
+                scratch_S[c] = s;
+                if (s > tile_max) tile_max = s;
+            }
+
+            /* Update running max */
+            float m_old = m_max;
+            if (tile_max > m_max) m_max = tile_max;
+
+            /* Compute probabilities and accumulate */
+            float alpha = fast_exp(m_old - m_max);
+            float l_old = l_sum;
+            l_sum = alpha * l_old;
+
+            float tile_sum = 0.0f;
+            for (int c = 0; c < klen; c++) {
+                float p = fast_exp(scratch_S[c] - m_max);
+                scratch_P[c] = p;
+                tile_sum += p;
+            }
+            l_sum += tile_sum;
+
+            /* Rescale existing output */
+            if (l_old > 0.0f) {
+                float rescale = alpha * l_old / l_sum;
+                vec_scale_sse2(oh, rescale, hd);
+            }
+
+            /* Accumulate V contribution */
+            float inv_l = 1.0f / l_sum;
+            for (int c = 0; c < klen; c++) {
+                float w = scratch_P[c] * inv_l;
+                if (w > 1e-8f) {
+                    const float *vt = v_base + (ki + c) * kv_pos_stride + kv_h * hd;
+                    vec_scale_add_sse2(oh, vt, w, hd);
+                }
             }
         }
     }

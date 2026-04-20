@@ -1,19 +1,12 @@
 /* =============================================================================
- * TensorOS - Neural Network Training Engine (Backpropagation)
+ * Neural Network Training Engine (Backpropagation)
  *
- * The most revolutionary feature in any OS: full gradient-based training
- * running in the kernel. No Python, no frameworks, no userspace — just
- * raw SSE2-accelerated backpropagation computing gradients and updating
- * weights during boot.
- *
- * This implements:
- *   - Forward pass with activation caching (for backward)
- *   - Cross-entropy and MSE loss functions
- *   - Full backward pass with chain rule gradient propagation
- *   - SGD with momentum optimizer
- *   - Mini-batch training loop
- *
- * The OS literally learns from data. During boot. On bare metal.
+ * SSE2-accelerated backpropagation with:
+ *   - Forward pass with activation caching
+ *   - Cross-entropy and MSE loss
+ *   - Chain-rule gradient propagation
+ *   - SGD with momentum
+ *   - Mini-batch training
  * =============================================================================*/
 
 #ifndef TENSOROS_NN_TRAIN_H

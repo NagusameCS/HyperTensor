@@ -638,6 +638,36 @@ const llm_model_t *llm_get_model(void);
  */
 int llm_get_embedding_vec(int token_id, float *out, int dim);
 
+/**
+ * Get a pointer to a K vector in the live CPU KV cache.
+ * layer: transformer layer index (0-based)
+ * head:  KV head index (0-based, < n_kv_heads)
+ * pos:   sequence position (0-based, < cache_len)
+ * Returns pointer to head_dim floats, or NULL if invalid / not available.
+ * The pointer is valid until the next forward pass.
+ */
+const float *llm_get_kv_k(int layer, int head, int pos);
+
+/**
+ * Layer-granular GPU weight management for curvature-guided offload.
+ *
+ * llm_gpu_layer_ensure: upload layer l's weights to GPU if not already there.
+ *   Returns 0 on success, -1 if GPU not available or layer out of range.
+ *
+ * llm_gpu_layer_release: free GPU copy of layer l (keeps CPU copy).
+ *   Returns 0 on success, -1 on error.
+ *
+ * llm_gpu_vram_available: return free VRAM in bytes (0 if no GPU).
+ */
+int      llm_gpu_layer_ensure(int layer);
+int      llm_gpu_layer_release(int layer);
+uint64_t llm_gpu_vram_available(void);
+void     llm_gpu_upload_compressed_weights(void);
+void     llm_gpu_set_compress_mode(int enable);
+void     llm_gpu_set_attn_compress_mode(int enable);
+void     llm_gpu_upload_ffn_fallback(void);
+void     llm_set_temperature(float t);
+
 /* ── Tensor Bridge API (hidden-state injection / daisy-chaining) ─── */
 #include "runtime/nn/tensor_bridge.h"
 tensor_bridge_t *llm_get_bridge(void);
@@ -646,5 +676,47 @@ tensor_bridge_t *llm_get_bridge(void);
  *  Returns 0 if logits are now primed for n_ctx-1, -1 if the fast path could
  *  not be used (caller should fall back to llm_kv_restore_and_prime). */
 int llm_prime_logits_fast(const int *ctx, int n_ctx);
+
+/**
+ * Geodesic Speculative Decode — the HyperTensor turbo path.
+ *
+ * Generates up to max_gen tokens into output_tokens using geodesic rollout
+ * as a speculative draft, verified by the transformer at batch cost:
+ *
+ *   loop:
+ *     1. axiom_beta_geodesic_rollout(ctx, n_ctx, n_draft) → draft[0..k-1]
+ *     2. llm_speculative_verify_with_correction → accept n_accepted tokens
+ *     3. axiom_beta_grc_feedback on first rejection (manifold learning)
+ *     4. Append accepted tokens + correction, advance context
+ *
+ * Expected speedup: 2.5–4× over autoregressive when GRC library is warm.
+ * Falls back to standard autoregressive if geodesic cache is not ready.
+ *
+ * Returns the number of tokens written to output_tokens, or -1 on error.
+ */
+int llm_generate_geodesic_speculative(const int *prompt_tokens, int n_prompt,
+                                      int *output_tokens, int max_output_tokens,
+                                      int max_gen, float temperature,
+                                      int n_draft);
+
+/* ── Session API — per-session inference for parallel serving ─────────────
+ *
+ * Each session is an independent context backed by a KV snapshot.
+ * The parallel api_server worker steps N sessions round-robin.
+ *
+ *   sid = llm_session_create(prompt_tokens, n_prompt, max_gen, temp);
+ *   while ((tok = llm_session_step(sid)) >= 0) { emit(tok); }
+ *   llm_session_destroy(sid);
+ */
+#define LLM_SESSION_DONE  (-10)
+#define LLM_SESSION_ERR   (-11)
+#define LLM_SESSION_MAX     8
+
+int  llm_session_create(const int *prompt_tokens, int n_prompt,
+                        int max_gen, float temperature);
+int  llm_session_step(int sid);
+void llm_session_destroy(int sid);
+int  llm_session_is_done(int sid);
+int  llm_session_get_output(int sid, int *token_buf, int max_tokens);
 
 #endif /* TENSOROS_LLM_H */

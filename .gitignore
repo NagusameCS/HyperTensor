@@ -48,6 +48,13 @@ iq2xxs_grid_correct.txt
 
 # Internal dev utility scripts (one-off patches/fixes)
 patch_*.py
+
+# Credentials and secrets
+*.pem
+*.key
+.env
+credentials
+.aws/
 patch_template*.ps1
 fix_*.py
 fix_*.ps1

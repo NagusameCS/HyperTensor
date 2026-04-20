@@ -23,6 +23,7 @@
 #define GEODESSICAL_AXIOM_BETA_H
 
 #include <stdint.h>
+#include "runtime/nn/axiom_linalg.h"
 
 /* ─── Status codes ─── */
 typedef enum {
@@ -206,6 +207,25 @@ void axiom_beta_default_config(axiom_beta_config_t *cfg);
 
 axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
                                    axiom_beta_report_t *report);
+
+/**
+ * Return a read-only pointer to the Phase-1 PCA computed by the last
+ * axiom_beta_run() call.  Returns NULL if Phase 1 has not completed.
+ * Used by axiom_exploit for KV-cache compression projection.
+ */
+const axpca_t *axiom_beta_get_pca(void);
+
+/**
+ * Probe the hidden state of `token_id` at transformer layer `layer`
+ * (0 = after embedding, n_layers-1 = last layer output; -1 = sink layer).
+ * Writes `dim` floats to `out`.  Returns 0 on success, non-zero on error.
+ * Used by axex_compress_model_manifold_layerwise for per-layer PCA.
+ */
+int axiom_beta_probe_layer_state(int token_id, int layer, float *out, int dim);
+/* Probe all layers in a single forward pass. out_per_layer = float[n_layers*dim],
+ * out_valid = int[n_layers]. Returns 0 on success, -1 on error. */
+int axiom_beta_probe_all_layer_states(int token_id, float *out_per_layer,
+                                      int *out_valid, int n_layers, int dim);
 
 axiom_beta_status_t axiom_beta_write_json(const char *path,
                                           const axiom_beta_report_t *report,

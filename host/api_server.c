@@ -3,6 +3,14 @@
  *
  * Native Geodessical REST API for LLM inference.
  * Uses raw Winsock2 — no external dependencies.
+ *
+ * Continuous-batching model:
+ *   - A dedicated inference worker thread drains a bounded request queue.
+ *   - The TCP accept loop spawns a lightweight handler thread per connection
+ *     that parses the request, enqueues it, and streams the response back
+ *     once the worker has produced output.
+ *   - This serialises model execution (one inference at a time) while letting
+ *     multiple clients connect and receive responses without TCP timeout.
  */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -19,22 +27,324 @@
 #ifdef _WIN32
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
+#  include <process.h>   /* _beginthreadex */
 #  pragma comment(lib, "ws2_32")
 typedef SOCKET socket_t;
 #define SOCKET_INVALID INVALID_SOCKET
 #define sock_close closesocket
+typedef HANDLE thread_t;
+typedef CRITICAL_SECTION mutex_t;
+typedef CONDITION_VARIABLE condvar_t;
+#define mutex_init(m)   InitializeCriticalSection(m)
+#define mutex_lock(m)   EnterCriticalSection(m)
+#define mutex_unlock(m) LeaveCriticalSection(m)
+#define mutex_destroy(m) DeleteCriticalSection(m)
+#define condvar_init(c)   InitializeConditionVariable(c)
+#define condvar_wait(c,m) SleepConditionVariableCS(c, m, INFINITE)
+#define condvar_signal(c) WakeConditionVariable(c)
+#define condvar_broadcast(c) WakeAllConditionVariable(c)
 #else
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <unistd.h>
+#  include <pthread.h>
 typedef int socket_t;
 #define SOCKET_INVALID (-1)
 #define sock_close close
+typedef pthread_t thread_t;
+typedef pthread_mutex_t mutex_t;
+typedef pthread_cond_t condvar_t;
+#define mutex_init(m)   pthread_mutex_init(m, NULL)
+#define mutex_lock(m)   pthread_mutex_lock(m)
+#define mutex_unlock(m) pthread_mutex_unlock(m)
+#define mutex_destroy(m) pthread_mutex_destroy(m)
+#define condvar_init(c)   pthread_cond_init(c, NULL)
+#define condvar_wait(c,m) pthread_cond_wait(c, m)
+#define condvar_signal(c) pthread_cond_signal(c)
+#define condvar_broadcast(c) pthread_cond_broadcast(c)
 #endif
 
 /* ─── State ─── */
 static volatile int g_running = 1;
 static socket_t g_listen_sock = SOCKET_INVALID;
+
+/* ─── Inference serialisation mutex ─────────────────────────────────────────
+ * All inference calls (llm_prompt_n, llm_chat_turn) must hold this lock.
+ * Accepted connections queue their parsed requests, then block on a per-
+ * request condition variable until the worker thread signals completion.  */
+static mutex_t  g_infer_lock;
+static condvar_t g_queue_ready;   /* signalled when a new item is enqueued */
+static condvar_t g_result_ready;  /* signalled when current item is done */
+
+#define CBATCH_QUEUE_MAX 32
+
+typedef struct {
+    char   prompt[8192];
+    char   output[131072];
+    int    max_tokens;
+    float  temperature;
+    int    is_chat;          /* 0 = /v1/generate, 1 = /v1/chat */
+    int    use_geodesic;     /* 1 = geodesic speculative decode path */
+    int    n_draft;          /* geodesic lookahead depth (0 = auto) */
+    int    done;             /* set to 1 by worker when complete */
+    int    n_generated;      /* token count */
+    int    error;            /* 1 on error */
+    int    stream;           /* 1 = SSE streaming: worker sends tokens to stream_sock */
+    socket_t stream_sock;    /* valid when stream=1; worker writes SSE events here */
+    float  decode_tok_per_s; /* filled by worker: decode throughput */
+    float  prefill_ms;       /* filled by worker: prefill latency */
+    float  total_ms;         /* filled by worker: end-to-end latency */
+} cbatch_request_t;
+
+static cbatch_request_t  g_queue_slots[CBATCH_QUEUE_MAX];
+static int               g_queue_head = 0;   /* next slot to dequeue */
+static int               g_queue_tail = 0;   /* next slot to enqueue */
+static int               g_queue_count = 0;
+
+/* Enqueue a new request.  Returns pointer to the slot (held under lock),
+ * or NULL if the queue is full. */
+static cbatch_request_t *cbatch_enqueue(void)
+{
+    if (g_queue_count >= CBATCH_QUEUE_MAX) return NULL;
+    cbatch_request_t *slot = &g_queue_slots[g_queue_tail];
+    memset(slot, 0, sizeof(*slot));
+    g_queue_tail = (g_queue_tail + 1) % CBATCH_QUEUE_MAX;
+    g_queue_count++;
+    return slot;
+}
+
+/* Dequeue the head item.  Called by worker under lock. */
+static cbatch_request_t *cbatch_dequeue(void)
+{
+    if (g_queue_count == 0) return NULL;
+    cbatch_request_t *slot = &g_queue_slots[g_queue_head];
+    g_queue_head = (g_queue_head + 1) % CBATCH_QUEUE_MAX;
+    g_queue_count--;
+    return slot;
+}
+
+/* Forward declarations for SSE helpers (defined after send_json below) */
+static void sse_send_token(socket_t sock, const char *text, int n);
+static void sse_send_done(socket_t sock, int n_generated);
+
+/* ─── Inference worker thread ────────────────────────────────────────────── *
+ *
+ * Parallel continuous batching:
+ *   - Accepts up to PDEC_MAX_ACTIVE requests simultaneously.
+ *   - Each active slot gets a session (llm_session_create/step).
+ *   - Worker iterates all active sessions, stepping each one token per
+ *     iteration, then loops.  When a session completes, the request is
+ *     finished and the slot is freed for the next queued request.
+ *   - Requests that can't use the session path (chat, geodesic) fall
+ *     back to the serial path and block until complete.
+ *
+ * ─────────────────────────────────────────────────────────────────────────── */
+#define PDEC_MAX_ACTIVE 4
+
+typedef struct {
+    cbatch_request_t *req;         /* pointer into g_queue_slots */
+    int               session_id;  /* llm session slot (-1 = not created) */
+    int               tok_buf[4096];
+    int               n_tokens;    /* generated token ids so far */
+    uint64_t          t_start_us;  /* wall-clock at first token step */
+    uint64_t          t_first_us;  /* wall-clock after first token (TTFT) */
+    float             prefill_ms;  /* prefill latency captured at creation */
+} pdec_active_t;
+
+static pdec_active_t g_pdec[PDEC_MAX_ACTIVE];
+static int           g_pdec_n = 0;  /* number of active slots */
+
+#ifdef _WIN32
+static unsigned __stdcall infer_worker(void *arg)
+#else
+static void *infer_worker(void *arg)
+#endif
+{
+    (void)arg;
+
+    /* Initialise parallel decode slots */
+    for (int i = 0; i < PDEC_MAX_ACTIVE; i++) {
+        g_pdec[i].req        = NULL;
+        g_pdec[i].session_id = -1;
+        g_pdec[i].n_tokens   = 0;
+        g_pdec[i].t_start_us = 0;
+        g_pdec[i].t_first_us = 0;
+        g_pdec[i].prefill_ms = 0.0f;
+    }
+    g_pdec_n = 0;
+
+    mutex_lock(&g_infer_lock);
+    while (g_running) {
+
+        /* ── Admit new requests into free parallel-decode slots ─────────── */
+        while (g_queue_count > 0 && g_pdec_n < PDEC_MAX_ACTIVE) {
+            cbatch_request_t *req = cbatch_dequeue();
+            if (!req) break;
+
+            /* Chat and geodesic requests must run serially (they manage their
+             * own context; can't be interleaved at token granularity). */
+            if (req->is_chat || req->use_geodesic) {
+                /* Release lock, run, re-acquire. */
+                mutex_unlock(&g_infer_lock);
+
+                if (req->use_geodesic) {
+                    static int geo_tok_buf[4096];
+                    static int geo_out_buf[4096];
+                    int n_ptok = llm_tokenize_text(req->prompt, geo_tok_buf, 4095);
+                    int nd = req->n_draft > 0 ? req->n_draft : 4;
+                    if (n_ptok > 0) {
+                        int n = llm_generate_geodesic_speculative(
+                                    geo_tok_buf, n_ptok,
+                                    geo_out_buf, 4095,
+                                    req->max_tokens, req->temperature, nd);
+                        if (n > 0)
+                            req->n_generated = llm_decode_tokens(geo_out_buf, n,
+                                                   req->output, (int)sizeof(req->output));
+                        else req->error = 1;
+                    } else req->error = 1;
+                } else {
+                    /* Chat: optionally stream tokens via llm_set_stream_cb */
+                    if (req->stream) {
+                        llm_set_stream_cb(
+                            (llm_token_cb_t)(void(*)(const char*,int,void*))sse_send_token,
+                            (void *)(intptr_t)req->stream_sock);
+                    }
+                    req->n_generated = llm_chat_turn(req->prompt, req->output,
+                                                     (int)sizeof(req->output),
+                                                     req->max_tokens,
+                                                     req->temperature);
+                    if (req->stream) {
+                        llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
+                        sse_send_done(req->stream_sock, req->n_generated);
+                    }
+                }
+
+                mutex_lock(&g_infer_lock);
+                req->done = 1;
+                condvar_broadcast(&g_result_ready);
+                continue;
+            }
+
+            /* Create a session for this request */
+            mutex_unlock(&g_infer_lock);
+
+            int tok_buf[4096];
+            int n_ptok = llm_tokenize_text(req->prompt, tok_buf, 4095);
+            int sid = -1;
+            if (n_ptok > 0)
+                sid = llm_session_create(tok_buf, n_ptok,
+                                         req->max_tokens, req->temperature);
+
+            mutex_lock(&g_infer_lock);
+
+            if (sid < 0) {
+                /* Failed to create session (model not loaded, all slots busy) */
+                req->error = 1;
+                req->done  = 1;
+                condvar_broadcast(&g_result_ready);
+                continue;
+            }
+
+            /* Find a free pdec slot */
+            for (int i = 0; i < PDEC_MAX_ACTIVE; i++) {
+                if (!g_pdec[i].req) {
+                    g_pdec[i].req        = req;
+                    g_pdec[i].session_id = sid;
+                    g_pdec[i].n_tokens   = 0;
+                    g_pdec[i].t_start_us = hal_timer_us();
+                    g_pdec[i].t_first_us = 0;
+                    g_pdec[i].prefill_ms = llm_last_prefill_ms();
+                    g_pdec_n++;
+                    break;
+                }
+            }
+        }
+
+        /* If no active sessions and no queued requests, wait */
+        if (g_pdec_n == 0) {
+            while (g_queue_count == 0 && g_running)
+                condvar_wait(&g_queue_ready, &g_infer_lock);
+            continue;
+        }
+
+        /* ── Step each active session one token ─────────────────────────── */
+        mutex_unlock(&g_infer_lock);
+
+        for (int i = 0; i < PDEC_MAX_ACTIVE; i++) {
+            if (!g_pdec[i].req) continue;
+
+            int tok = llm_session_step(g_pdec[i].session_id);
+
+            if (tok == LLM_SESSION_DONE || tok == LLM_SESSION_ERR) {
+                /* Session complete: detokenise and finish request */
+                cbatch_request_t *req = g_pdec[i].req;
+                uint64_t t_done_us = hal_timer_us();
+                if (req->stream) {
+                    /* SSE: send final done event; output was already streamed */
+                    sse_send_done(req->stream_sock, g_pdec[i].n_tokens);
+                    req->n_generated = g_pdec[i].n_tokens;
+                } else if (g_pdec[i].n_tokens > 0) {
+                    req->n_generated = llm_decode_tokens(
+                        g_pdec[i].tok_buf, g_pdec[i].n_tokens,
+                        req->output, (int)sizeof(req->output));
+                }
+                if (tok == LLM_SESSION_ERR) req->error = 1;
+                /* Compute timing stats */
+                {
+                    uint64_t gen_us = t_done_us - g_pdec[i].t_start_us;
+                    int n = g_pdec[i].n_tokens;
+                    req->decode_tok_per_s = (gen_us > 0 && n > 0)
+                        ? (float)n * 1000000.0f / (float)gen_us : 0.0f;
+                    req->prefill_ms  = g_pdec[i].prefill_ms;
+                    req->total_ms    = (float)(t_done_us - g_pdec[i].t_start_us) / 1000.0f
+                                       + g_pdec[i].prefill_ms;
+                }
+                llm_session_destroy(g_pdec[i].session_id);
+
+                mutex_lock(&g_infer_lock);
+                req->done = 1;
+                condvar_broadcast(&g_result_ready);
+                g_pdec[i].req        = NULL;
+                g_pdec[i].session_id = -1;
+                g_pdec[i].n_tokens   = 0;
+                g_pdec[i].t_start_us = 0;
+                g_pdec[i].t_first_us = 0;
+                g_pdec[i].prefill_ms = 0.0f;
+                g_pdec_n--;
+                mutex_unlock(&g_infer_lock);
+            } else if (tok >= 0) {
+                /* Accumulate generated token */
+                if (g_pdec[i].n_tokens < 4095)
+                    g_pdec[i].tok_buf[g_pdec[i].n_tokens++] = tok;
+                /* SSE: push token text to client immediately */
+                if (g_pdec[i].req->stream) {
+                    char tok_text[256];
+                    int tlen = llm_decode_tokens(&tok, 1, tok_text, (int)sizeof(tok_text));
+                    if (tlen > 0)
+                        sse_send_token(g_pdec[i].req->stream_sock, tok_text, tlen);
+                }
+            }
+        }
+
+        mutex_lock(&g_infer_lock);
+    }
+
+    /* Cleanup any in-flight sessions on shutdown */
+    for (int i = 0; i < PDEC_MAX_ACTIVE; i++) {
+        if (g_pdec[i].req) {
+            g_pdec[i].req->error = 1;
+            g_pdec[i].req->done  = 1;
+            llm_session_destroy(g_pdec[i].session_id);
+        }
+    }
+    condvar_broadcast(&g_result_ready);
+    mutex_unlock(&g_infer_lock);
+#ifdef _WIN32
+    return 0;
+#else
+    return NULL;
+#endif
+}
 
 /* ─── Request parsing ─── */
 #define MAX_REQ_SIZE  (256 * 1024)  /* 256 KB max request body */
@@ -168,6 +478,42 @@ static void send_json(socket_t sock, int status, const char *json) {
     send_response(sock, status, "application/json", json, (int)strlen(json));
 }
 
+/* ─── SSE helpers ─── */
+static void sse_send_headers(socket_t sock) {
+    const char *hdr =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/event-stream\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+    send(sock, hdr, (int)strlen(hdr), 0);
+}
+
+static void sse_send_token(socket_t sock, const char *text, int n) {
+    char buf[640];
+    int p = 0;
+    p += snprintf(buf + p, (int)sizeof(buf) - p, "data: {\"response\":\"");
+    for (int i = 0; i < n && p < (int)sizeof(buf) - 24; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if (c == '"')       { buf[p++] = '\\'; buf[p++] = '"';  }
+        else if (c == '\\') { buf[p++] = '\\'; buf[p++] = '\\'; }
+        else if (c == '\n') { buf[p++] = '\\'; buf[p++] = 'n';  }
+        else if (c == '\r') { buf[p++] = '\\'; buf[p++] = 'r';  }
+        else                  buf[p++] = (char)c;
+    }
+    p += snprintf(buf + p, (int)sizeof(buf) - p, "\",\"done\":false}\n\n");
+    send(sock, buf, p, 0);
+}
+
+static void sse_send_done(socket_t sock, int n_generated) {
+    char buf[128];
+    int p = snprintf(buf, (int)sizeof(buf),
+        "data: {\"response\":\"\",\"done\":true,\"eval_count\":%d}\n\n",
+        n_generated);
+    send(sock, buf, p, 0);
+}
+
 /* ─── Parse HTTP request ─── */
 static int parse_request(socket_t sock, http_request_t *req) {
     static char buf[MAX_REQ_SIZE];
@@ -274,7 +620,6 @@ static void handle_generate(socket_t sock, http_request_t *req) {
         return;
     }
 
-    /* Parse request JSON */
     char prompt[8192];
     if (json_find_str(req->body, "prompt", prompt, sizeof(prompt)) < 0) {
         send_json(sock, 400, "{\"error\":\"missing 'prompt' field\"}");
@@ -284,12 +629,56 @@ static void handle_generate(socket_t sock, http_request_t *req) {
     int max_tokens = json_find_int(req->body, "num_predict", 128);
     if (max_tokens > 4096) max_tokens = 4096;
     float temp = json_find_float(req->body, "temperature", 0.7f);
-    (void)temp; /* TODO: pass to inference */
 
-    /* Generate response */
-    static char output[131072];
-    output[0] = '\0';
-    int n = llm_prompt_n(prompt, output, (int)sizeof(output), max_tokens);
+    /* Optional geodesic mode: "mode": "geodesic" and "n_draft": N */
+    char mode_buf[32] = {0};
+    int use_geodesic = 0;
+    int n_draft = 4;
+    if (json_find_str(req->body, "mode", mode_buf, sizeof(mode_buf)) >= 0 &&
+        strncmp(mode_buf, "geodesic", 8) == 0) {
+        use_geodesic = 1;
+        n_draft = json_find_int(req->body, "n_draft", 4);
+        if (n_draft < 1) n_draft = 1;
+        if (n_draft > 8) n_draft = 8;
+    }
+
+    int do_stream = json_find_int(req->body, "stream", 0);
+    if (do_stream) sse_send_headers(sock);
+
+    /* Enqueue the request and wait for the inference worker */
+    mutex_lock(&g_infer_lock);
+    cbatch_request_t *slot = cbatch_enqueue();
+    if (!slot) {
+        mutex_unlock(&g_infer_lock);
+        if (do_stream)
+            sse_send_done(sock, 0);
+        else
+            send_json(sock, 503, "{\"error\":\"server busy, request queue full\"}");
+        return;
+    }
+    strncpy(slot->prompt, prompt, sizeof(slot->prompt) - 1);
+    slot->max_tokens    = max_tokens;
+    slot->temperature   = temp;
+    slot->is_chat       = 0;
+    slot->use_geodesic  = use_geodesic;
+    slot->n_draft       = n_draft;
+    slot->stream        = do_stream;
+    slot->stream_sock   = do_stream ? sock : SOCKET_INVALID;
+    slot->done          = 0;
+    condvar_signal(&g_queue_ready);
+
+    /* Block until worker signals completion */
+    while (!slot->done)
+        condvar_wait(&g_result_ready, &g_infer_lock);
+    int n = slot->n_generated;
+    float dec_tps  = slot->decode_tok_per_s;
+    float pf_ms    = slot->prefill_ms;
+    float tot_ms   = slot->total_ms;
+    char output[131072];
+    memcpy(output, slot->output, sizeof(output));
+    mutex_unlock(&g_infer_lock);
+
+    if (do_stream) return; /* SSE: all data already sent by worker */
 
     /* Build response JSON */
     char resp[MAX_RESP_SIZE];
@@ -302,17 +691,11 @@ static void handle_generate(socket_t sock, http_request_t *req) {
     p = json_append_bool(resp, p, sizeof(resp), "done", 1);
     p = json_append(resp, p, sizeof(resp), ",");
     p = json_append_int(resp, p, sizeof(resp), "eval_count", n > 0 ? n : 0);
-    /* Timing fields for daemon client */
     {
-        float dec_tps  = llm_last_tok_per_sec();
-        float pf_ms    = llm_last_prefill_ms();
-        float total_ms = (dec_tps > 0.0f && n > 0)
-                         ? pf_ms + (float)n * 1000.0f / dec_tps
-                         : pf_ms;
         char tbuf[192];
         snprintf(tbuf, sizeof(tbuf),
                  ",\"decode_tok_per_s\":%.1f,\"prefill_ms\":%.0f,\"total_ms\":%.0f",
-                 (double)dec_tps, (double)pf_ms, (double)total_ms);
+                 (double)dec_tps, (double)pf_ms, (double)tot_ms);
         if (p + (int)strlen(tbuf) < (int)sizeof(resp) - 2)
             p += snprintf(resp + p, sizeof(resp) - (size_t)p, "%s", tbuf);
     }
@@ -375,26 +758,40 @@ static void handle_chat(socket_t sock, http_request_t *req) {
     if (max_tokens > 4096) max_tokens = 4096;
     float temp = json_find_float(req->body, "temperature", 0.7f);
 
-    /* Use chat turn for multi-turn context */
-    static char output[131072];
-    output[0] = '\0';
+    int do_stream = json_find_int(req->body, "stream", 0);
+    if (do_stream) sse_send_headers(sock);
 
-#ifdef _WIN32
-    LARGE_INTEGER freq, t0, t1;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&t0);
-#endif
+    /* Enqueue the request and wait for the inference worker */
+    mutex_lock(&g_infer_lock);
+    cbatch_request_t *slot = cbatch_enqueue();
+    if (!slot) {
+        mutex_unlock(&g_infer_lock);
+        if (do_stream)
+            sse_send_done(sock, 0);
+        else
+            send_json(sock, 503, "{\"error\":\"server busy, request queue full\"}");
+        return;
+    }
+    strncpy(slot->prompt, content, sizeof(slot->prompt) - 1);
+    slot->max_tokens  = max_tokens;
+    slot->temperature = temp;
+    slot->is_chat     = 1;
+    slot->stream      = do_stream;
+    slot->stream_sock = do_stream ? sock : SOCKET_INVALID;
+    slot->done        = 0;
+    condvar_signal(&g_queue_ready);
 
-    int n = llm_chat_turn(content, output, (int)sizeof(output), max_tokens, temp);
+    while (!slot->done)
+        condvar_wait(&g_result_ready, &g_infer_lock);
+    int n = slot->n_generated;
+    char output[131072];
+    memcpy(output, slot->output, sizeof(output));
+    mutex_unlock(&g_infer_lock);
 
-#ifdef _WIN32
-    QueryPerformanceCounter(&t1);
-    double elapsed_ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)freq.QuadPart;
-    float tps = elapsed_ms > 0 ? (float)n * 1000.0f / (float)elapsed_ms : 0;
-#else
-    double elapsed_ms = 0;
-    float tps = 0;
-#endif
+    if (do_stream) return; /* SSE: all data already sent by worker */
+
+    float tps = llm_last_tok_per_sec();
+    float elapsed_ms = (tps > 0.0f && n > 0) ? (float)n * 1000.0f / tps : 0;
 
     /* Build response JSON — compatible with both our UI and Ollama format */
     char resp[MAX_RESP_SIZE];
@@ -475,7 +872,8 @@ static void handle_request(socket_t client) {
         } else {
             handle_generate(client, &req);
         }
-    } else if (strcmp(req.path, "/v1/chat") == 0) {
+    } else if (strcmp(req.path, "/v1/chat") == 0 ||
+               strcmp(req.path, "/v1/chat/completions") == 0) {
         if (strcmp(req.method, "DELETE") == 0) {
             llm_reset_cache();
             send_json(client, 200, "{\"status\":\"chat reset\"}");
@@ -499,6 +897,24 @@ int GD_api_serve(int port) {
         kprintf("[API] WSAStartup failed\n");
         return -1;
     }
+#endif
+
+    /* Initialise continuous-batching infrastructure */
+    mutex_init(&g_infer_lock);
+    condvar_init(&g_queue_ready);
+    condvar_init(&g_result_ready);
+    g_queue_head = g_queue_tail = g_queue_count = 0;
+
+    /* Launch inference worker thread */
+#ifdef _WIN32
+    HANDLE worker = (HANDLE)_beginthreadex(NULL, 0, infer_worker, NULL, 0, NULL);
+    if (!worker) {
+        kprintf("[API] Failed to create inference worker thread\n");
+        return -1;
+    }
+#else
+    pthread_t worker;
+    pthread_create(&worker, NULL, infer_worker, NULL);
 #endif
 
     g_listen_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -531,6 +947,7 @@ int GD_api_serve(int port) {
 
     kprintf("[API] Geodessical serving on http://0.0.0.0:%d\n", port);
     kprintf("[API] Endpoints: /v1/generate, /v1/chat, /v1/models, /v1/version, /mcp\n");
+    kprintf("[API] Continuous batching: enabled (queue depth %d)\n", CBATCH_QUEUE_MAX);
     kprintf("[API] Ready for inference\n\n");
 
     g_running = 1;
@@ -544,11 +961,17 @@ int GD_api_serve(int port) {
             continue;
         }
 
-        /* Handle request synchronously (single-threaded for safety with
-         * static inference buffers — matches Ollama's behavior) */
+        /* Handle request: parse + enqueue + wait (inline, no extra thread needed
+         * because the queue+condvar already decouples TCP I/O from inference) */
         handle_request(client);
         sock_close(client);
     }
+
+    /* Signal worker to stop */
+    mutex_lock(&g_infer_lock);
+    g_running = 0;
+    condvar_signal(&g_queue_ready);
+    mutex_unlock(&g_infer_lock);
 
     sock_close(g_listen_sock);
     g_listen_sock = SOCKET_INVALID;

@@ -25,6 +25,7 @@ typedef enum {
     BRIDGE_MODE_INJECT     = 2, /* Inject hidden state at specified layer */
     BRIDGE_MODE_BOTH       = 3, /* Capture + inject at different layers */
     BRIDGE_MODE_CAP_ONCE   = 4, /* Modifier: capture only once (prefill), ignore decode overwrites */
+    BRIDGE_MODE_CAP_ALL    = 8, /* Capture hidden state at EVERY layer in one pass (for per-layer PCA) */
 } bridge_mode_t;
 
 /* ─── Projection type for dimension mismatch ─── */
@@ -63,6 +64,12 @@ typedef struct {
     int           proj_src_dim;
     int           proj_dst_dim;
 
+    /* Multi-layer capture (BRIDGE_MODE_CAP_ALL) */
+    float        *multi_cap_bufs;   /* flat [n_layers × dim] F32, caller-allocated */
+    int           multi_cap_n;      /* number of layers to capture (0 = off) */
+    int           multi_cap_dim;    /* hidden dim per layer */
+    int          *multi_cap_valid;  /* per-layer valid flags (caller-allocated int[n]) */
+
     /* Statistics */
     uint64_t      captures;
     uint64_t      injections;
@@ -96,6 +103,13 @@ void tensor_bridge_capture(tensor_bridge_t *bridge,
  * Returns 1 if injection occurred, 0 otherwise. */
 int tensor_bridge_inject(tensor_bridge_t *bridge,
                          float *hidden, int dim, int pos);
+
+/* Set up multi-layer capture for BRIDGE_MODE_CAP_ALL.
+ * bufs must be caller-allocated float[n_layers × dim].
+ * valid must be caller-allocated int[n_layers], zero-initialised. */
+void tensor_bridge_set_multi_capture(tensor_bridge_t *bridge,
+                                      float *bufs, int *valid,
+                                      int n_layers, int dim);
 
 /* Check if capture buffer has valid data. */
 int tensor_bridge_has_capture(const tensor_bridge_t *bridge);

@@ -1,47 +1,9 @@
 /* =============================================================================
- * TensorOS - Speculative & Adaptive Neural Inference Engine
+ * Speculative Neural Execution (SNE) — public interface
  *
- * FIVE REVOLUTIONARY TECHNIQUES never implemented in any OS or ML framework:
- *
- * 1. ADAPTIVE PRECISION CASCADE (APC)
- *    Start every inference at INT16 (2x throughput). Compute output confidence
- *    via Shannon entropy. If entropy > threshold (ambiguous input), re-run
- *    at FP32 automatically. 90%+ of "easy" inputs run 2x faster.
- *    Novel CS principle: "Precision is a runtime resource, not a compile-time
- *    decision." Inspired by CPU branch prediction confidence counters.
- *
- * 2. SPECULATIVE LAYER FUSION (SLF)
- *    Cache the statistical distribution of each layer's output as a compact
- *    "activation signature." On subsequent inference, predict whether a layer's
- *    output will change significantly. If predicted unchanged (below threshold),
- *    REUSE the cached output — skip the entire matmul. Like CPU speculative
- *    execution, but for tensor operations. Misprediction cost: one extra layer
- *    compute. Hit rate: 60-90% on streaming temporal data (IoT, video, etc.)
- *
- * 3. ENTROPY-AWARE NEURON PRUNING (EANP)
- *    Maintain a running histogram of each neuron's activation values. Neurons
- *    whose entropy falls below a threshold (always-on or always-off) are
- *    pruned from computation IN REAL-TIME. No retraining needed. The OS
- *    learns which neurons are "dead" and skips them. Novel principle:
- *    "The scheduler should understand information theory."
- *
- * 4. KERNEL-LEVEL COMPUTE DAG REORDERING
- *    Build a directed acyclic graph (DAG) of tensor operations. Analyze
- *    data dependencies and reorder operations to maximize cache locality.
- *    Apply monotonic resource ordering (Coffman-Graham) to guarantee
- *    deadlock-free execution. This is Tomasulo's algorithm applied to
- *    tensor operations instead of CPU instructions.
- *
- * 5. CONFIDENCE-GATED EARLY EXIT
- *    After each hidden layer, compute a lightweight confidence score.
- *    If confidence exceeds a threshold, SHORT-CIRCUIT the remaining layers
- *    and return early. This means "easy" inputs use 1-2 layers while
- *    "hard" inputs use all layers. Novel: the OS decides execution depth
- *    per-input at runtime. No other system does this at the kernel level.
- *
- * Together these form SPECULATIVE NEURAL EXECUTION (SNE) — the first
- * application of computer architecture speculation principles to neural
- * network inference at the operating system level.
+ * Five inference optimizations: adaptive precision cascade, speculative layer
+ * fusion, entropy-aware neuron pruning, DAG scheduling, confidence-gated early
+ * exit.  See speculative.c for implementation details.
  * =============================================================================*/
 
 #ifndef TENSOROS_NN_SPECULATIVE_H

@@ -46,9 +46,11 @@ $SOURCES = @(
     "runtime/nn/mod_package.c",
     "runtime/nn/token_comm.c",
     "runtime/nn/hf_download.c",
+    "runtime/nn/flash_attn.c",
     "runtime/nn/axiom_linalg.c",
     "runtime/nn/axiom_geo.c",
     "runtime/nn/axiom_beta.c",
+    "runtime/nn/axiom_exploit.c",
     "runtime/nn/axiom_vis.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
@@ -71,6 +73,17 @@ if ($EnableCuda) {
     Write-Host '  CUDA backend disabled via -NoCuda' -ForegroundColor Yellow
 }
 
+
+# OpenBLAS (bundled for Windows CBLAS support in axiom_exploit.c SVD)
+$OpenBLASInc = "host/shims/openblas/include"
+$OpenBLASLib = "host/shims/openblas/lib/libopenblas.lib"
+if (Test-Path $OpenBLASLib) {
+    $CFLAGS += "-I$OpenBLASInc"
+    $LDFLAGS += $OpenBLASLib
+    Write-Host '  OpenBLAS CBLAS enabled (fast SVD compression)' -ForegroundColor Yellow
+} else {
+    Write-Host '  OpenBLAS not found — SVD compression will be slow' -ForegroundColor DarkYellow
+}
 
 # Clean
 if ($Clean) {

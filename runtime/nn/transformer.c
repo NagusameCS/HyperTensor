@@ -1,18 +1,14 @@
 /* =============================================================================
- * TensorOS - Transformer Inference Engine with KV-Cache
+ * Transformer Inference Engine with KV-Cache
  *
- * The first bare-metal OS-level transformer inference engine with KV-cache.
- * This brings GPT-class autoregressive decoding to kernel-level execution.
+ * Autoregressive decoding with incremental KV-cache.
  *
- * Key innovations:
- *   1. KV-Cache: O(1) per-token attention instead of O(n) recompute
- *   2. RMSNorm: More efficient than LayerNorm (no mean subtraction)
- *   3. SwiGLU: Modern gated FFN from LLaMA/PaLM architecture
- *   4. Causal masking: Autoregressive generation
- *   5. All running in ring-0 with SSE2 SIMD, zero syscall overhead
- *
- * This is the architecture behind GPT-4, LLaMA, Gemini, Claude —
- * now running bare-metal in a kernel.
+ * Components:
+ *   - KV-cache: O(1) per-token attention
+ *   - RMSNorm
+ *   - SwiGLU feed-forward network
+ *   - Causal masking
+ *   - SSE2-vectorized operations
  * =============================================================================*/
 
 #include "runtime/nn/transformer.h"
@@ -36,31 +32,32 @@ static inline float tf_sqrtf(float x)
 /*  KV-Cache Management                                                       */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* Static KV-cache storage.
- * Layout: [num_layers][num_heads][max_seq][head_dim]
- * For demo: 4 layers, 4 heads, 128 seq, 16 head_dim = 128 KB total */
-static float kv_k_store[TF_MAX_LAYERS * TF_MAX_HEADS * TF_MAX_SEQ * TF_MAX_DIM];
-static float kv_v_store[TF_MAX_LAYERS * TF_MAX_HEADS * TF_MAX_SEQ * TF_MAX_DIM];
-
 void kv_cache_init(kv_cache_t *cache, int max_seq, int head_dim,
                    int num_heads, int num_layers)
 {
-    cache->k_cache = kv_k_store;
-    cache->v_cache = kv_v_store;
     cache->len = 0;
-    cache->max_seq = (max_seq > TF_MAX_SEQ) ? TF_MAX_SEQ : max_seq;
+    cache->max_seq  = max_seq;
     cache->head_dim = head_dim;
-    cache->num_heads = num_heads;
+    cache->num_heads  = num_heads;
     cache->num_layers = num_layers;
 
-    /* Zero the cache */
-    int total = num_layers * num_heads * cache->max_seq * head_dim;
-    if (total > (int)(sizeof(kv_k_store) / sizeof(float)))
-        total = (int)(sizeof(kv_k_store) / sizeof(float));
-    for (int i = 0; i < total; i++) {
-        kv_k_store[i] = 0.0f;
-        kv_v_store[i] = 0.0f;
+    uint64_t total = (uint64_t)num_layers * num_heads * max_seq * head_dim;
+    cache->k_cache = (float *)tensor_alloc(total * sizeof(float));
+    cache->v_cache = (float *)tensor_alloc(total * sizeof(float));
+    if (cache->k_cache) {
+        for (uint64_t i = 0; i < total; i++) cache->k_cache[i] = 0.0f;
     }
+    if (cache->v_cache) {
+        for (uint64_t i = 0; i < total; i++) cache->v_cache[i] = 0.0f;
+    }
+}
+
+void kv_cache_destroy(kv_cache_t *cache)
+{
+    if (!cache) return;
+    if (cache->k_cache) { tensor_free(cache->k_cache); cache->k_cache = (float *)0; }
+    if (cache->v_cache) { tensor_free(cache->v_cache); cache->v_cache = (float *)0; }
+    cache->len = 0;
 }
 
 void kv_cache_reset(kv_cache_t *cache)
@@ -432,7 +429,7 @@ void tf_run_demos(void)
 {
     kprintf("\n============================================================\n");
     kprintf("  TRANSFORMER ENGINE WITH KV-CACHE\n");
-    kprintf("  First Bare-Metal OS-Level LLM Inference Engine\n");
+    kprintf("  Transformer Engine with KV-Cache\n");
     kprintf("============================================================\n");
 
     init_demo_weights();

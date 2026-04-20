@@ -21,6 +21,18 @@ void tensor_bridge_init(tensor_bridge_t *bridge) {
     bridge->proj_type = BRIDGE_PROJ_NONE;
 }
 
+void tensor_bridge_set_multi_capture(tensor_bridge_t *bridge,
+                                      float *bufs, int *valid,
+                                      int n_layers, int dim)
+{
+    if (!bridge || !bufs || !valid || n_layers <= 0 || dim <= 0) return;
+    bridge->multi_cap_bufs  = bufs;
+    bridge->multi_cap_valid = valid;
+    bridge->multi_cap_n     = n_layers;
+    bridge->multi_cap_dim   = dim;
+    bridge->mode = (bridge_mode_t)(bridge->mode | BRIDGE_MODE_CAP_ALL);
+}
+
 int tensor_bridge_set_capture(tensor_bridge_t *bridge, int layer, int dim) {
     if (dim <= 0) return -1;
 

@@ -14,6 +14,10 @@
 #include <float.h>
 #include <stdio.h>
 
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
+
 #ifdef GEODESSICAL_HOSTED
 #include "host/hal.h"
 #else
@@ -63,13 +67,26 @@ void axgeo_metric_interpolate(const axgeo_metric_field_t *mf,
     int k_nearest = (np < 8) ? np : 8;  /* use up to 8 nearest neighbors */
 
     /* Find k nearest neighbors (simple linear scan — fine for hundreds of points) */
-    double *dists = (double *)tensor_alloc((uint64_t)np * sizeof(double));
-    int *idx = (int *)tensor_alloc((uint64_t)np * sizeof(int));
-    if (!dists || !idx) {
-        if (dists) tensor_free(dists);
-        if (idx) tensor_free(idx);
-        return;
+#define METRIC_INTERP_STACK_CAP 128
+    double  dists_stack[METRIC_INTERP_STACK_CAP];
+    int     idx_stack[METRIC_INTERP_STACK_CAP];
+    double *dists;
+    int    *idx;
+    int     heap_alloc = 0;
+    if (np <= METRIC_INTERP_STACK_CAP) {
+        dists = dists_stack;
+        idx   = idx_stack;
+    } else {
+        dists = (double *)tensor_alloc((uint64_t)np * sizeof(double));
+        idx   = (int    *)tensor_alloc((uint64_t)np * sizeof(int));
+        if (!dists || !idx) {
+            if (dists) tensor_free(dists);
+            if (idx)   tensor_free(idx);
+            return;
+        }
+        heap_alloc = 1;
     }
+#undef METRIC_INTERP_STACK_CAP
 
     for (int i = 0; i < np; i++) {
         const double *pt = mf->points + (uint64_t)i * d;
@@ -100,8 +117,7 @@ void axgeo_metric_interpolate(const axgeo_metric_field_t *mf,
             /* Exact match — use this metric directly */
             memcpy(g_out, mf->metrics + (uint64_t)idx[i] * dd,
                    (uint64_t)dd * sizeof(double));
-            tensor_free(dists);
-            tensor_free(idx);
+            if (heap_alloc) { tensor_free(dists); tensor_free(idx); }
             return;
         }
         /* Shepard p=2 */
@@ -117,8 +133,7 @@ void axgeo_metric_interpolate(const axgeo_metric_field_t *mf,
             g_out[j] /= w_total;
     }
 
-    tensor_free(dists);
-    tensor_free(idx);
+    if (heap_alloc) { tensor_free(dists); tensor_free(idx); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -467,13 +482,30 @@ void axgeo_christoffel_interpolate(const axgeo_christoffel_t *ch,
 
     /* Same k-nearest inverse-distance weighting as metric interpolation */
     int k_nearest = (np < 8) ? np : 8;
-    double *dists = (double *)tensor_alloc((uint64_t)np * sizeof(double));
-    int *idx = (int *)tensor_alloc((uint64_t)np * sizeof(int));
-    if (!dists || !idx) {
-        if (dists) tensor_free(dists);
-        if (idx) tensor_free(idx);
-        return;
+
+    /* Use stack buffers when np is small (the common case: np ≤ 64).
+     * This avoids two heap allocations on every call in the hot integration
+     * path (called ~128× per geodesic). */
+#define INTERP_STACK_CAP 128
+    double  dists_stack[INTERP_STACK_CAP];
+    int     idx_stack[INTERP_STACK_CAP];
+    double *dists;
+    int    *idx;
+    int     heap_alloc = 0;
+    if (np <= INTERP_STACK_CAP) {
+        dists = dists_stack;
+        idx   = idx_stack;
+    } else {
+        dists = (double *)tensor_alloc((uint64_t)np * sizeof(double));
+        idx   = (int    *)tensor_alloc((uint64_t)np * sizeof(int));
+        if (!dists || !idx) {
+            if (dists) tensor_free(dists);
+            if (idx)   tensor_free(idx);
+            return;
+        }
+        heap_alloc = 1;
     }
+#undef INTERP_STACK_CAP
 
     for (int i = 0; i < np; i++) {
         const double *pt = mf->points + (uint64_t)i * d;
@@ -502,8 +534,7 @@ void axgeo_christoffel_interpolate(const axgeo_christoffel_t *ch,
         if (dist < 1e-15) {
             memcpy(gamma_out, ch->gamma + (uint64_t)idx[i] * ddd,
                    (uint64_t)ddd * sizeof(double));
-            tensor_free(dists);
-            tensor_free(idx);
+            if (heap_alloc) { tensor_free(dists); tensor_free(idx); }
             return;
         }
         double w = 1.0 / (dist * dist);
@@ -518,8 +549,7 @@ void axgeo_christoffel_interpolate(const axgeo_christoffel_t *ch,
             gamma_out[j] /= w_total;
     }
 
-    tensor_free(dists);
-    tensor_free(idx);
+    if (heap_alloc) { tensor_free(dists); tensor_free(idx); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -792,30 +822,23 @@ int axgeo_geodesic_integrate(axgeo_geodesic_t *geo,
     int dd = d * d;
     int ddd = d * d * d;
 
-    /* RK4 workspace */
-    double *kx1 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kv1 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kx2 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kv2 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kx3 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kv3 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kx4 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *kv4 = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *xt  = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *vt  = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-    double *gamma_local = (double *)tensor_alloc((uint64_t)ddd * sizeof(double));
+    /* RK4 workspace — single arena: 10×d (kx1..kx4,kv1..kv4,xt,vt) + d³ (gamma) */
+    uint64_t rk4_arena_sz = (uint64_t)(10 * d) * sizeof(double)
+                           + (uint64_t)ddd * sizeof(double);
+    double *rk4_arena = (double *)tensor_alloc(rk4_arena_sz);
+    if (!rk4_arena) return -1;
 
-    if (!kx1 || !kv1 || !kx2 || !kv2 || !kx3 || !kv3 ||
-        !kx4 || !kv4 || !xt || !vt || !gamma_local) {
-        /* cleanup partial allocs */
-        if (kx1) tensor_free(kx1); if (kv1) tensor_free(kv1);
-        if (kx2) tensor_free(kx2); if (kv2) tensor_free(kv2);
-        if (kx3) tensor_free(kx3); if (kv3) tensor_free(kv3);
-        if (kx4) tensor_free(kx4); if (kv4) tensor_free(kv4);
-        if (xt) tensor_free(xt);   if (vt) tensor_free(vt);
-        if (gamma_local) tensor_free(gamma_local);
-        return -1;
-    }
+    double *kx1         = rk4_arena;
+    double *kv1         = kx1 + d;
+    double *kx2         = kv1 + d;
+    double *kv2         = kx2 + d;
+    double *kx3         = kv2 + d;
+    double *kv3         = kx3 + d;
+    double *kx4         = kv3 + d;
+    double *kv4         = kx4 + d;
+    double *xt          = kv4 + d;
+    double *vt          = xt  + d;
+    double *gamma_local = vt  + d;
 
     for (int step = 0; step < n_steps; step++) {
         if (geo->steps >= geo->max_steps - 1) break;
@@ -870,16 +893,12 @@ int axgeo_geodesic_integrate(axgeo_geodesic_t *geo,
         /* Divergence check: velocity blowup */
         double vnorm = ax_vec_norm(geo->v, d);
         if (vnorm > 1e10 || vnorm != vnorm) {  /* nan check */
-            tensor_free(kx1); tensor_free(kv1); tensor_free(kx2); tensor_free(kv2);
-            tensor_free(kx3); tensor_free(kv3); tensor_free(kx4); tensor_free(kv4);
-            tensor_free(xt);  tensor_free(vt);  tensor_free(gamma_local);
+            tensor_free(rk4_arena);
             return -1;
         }
     }
 
-    tensor_free(kx1); tensor_free(kv1); tensor_free(kx2); tensor_free(kv2);
-    tensor_free(kx3); tensor_free(kv3); tensor_free(kx4); tensor_free(kv4);
-    tensor_free(xt);  tensor_free(vt);  tensor_free(gamma_local);
+    tensor_free(rk4_arena);
     return 0;
 }
 
@@ -927,29 +946,26 @@ int axgeo_geodesic_integrate_adaptive(axgeo_geodesic_t *geo,
     int d = geo->dim;
     int ddd = d * d * d;
 
-    /* Allocate 6 stage buffers for (x,v) derivatives + workspace */
+    /* Allocate all stage buffers as a single arena to avoid 17 separate allocs.
+     * Layout: kx[0..5] (6×d), kv[0..5] (6×d), xt(d), vt(d), x4(d), v4(d),
+     *         x5(d), v5(d) = 16×d doubles, then gl (d³) doubles. */
+    /* Allocate all stage buffers as a single arena: 18×d doubles + d³ doubles.
+     * kx[0..5] at slots 0..5, kv[0..5] at slots 6..11, then xt,vt,x4,v4,x5,v5
+     * at slots 12..17, and the gamma scratch (gl) immediately after. */
+    uint64_t rk45_arena_sz = (uint64_t)(18 * d) * sizeof(double)
+                            + (uint64_t)ddd * sizeof(double);
+    double *rk45_arena = (double *)tensor_alloc(rk45_arena_sz);
+    if (!rk45_arena) return -1;
+
     double *kx[6], *kv[6];
-    int alloc_ok = 1;
-    for (int s = 0; s < 6; s++) {
-        kx[s] = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-        kv[s] = (double *)tensor_alloc((uint64_t)d * sizeof(double));
-        if (!kx[s] || !kv[s]) { alloc_ok = 0; break; }
-    }
-    double *xt   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *vt   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *x4   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *v4   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *x5   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *v5   = alloc_ok ? (double *)tensor_alloc((uint64_t)d * sizeof(double)) : NULL;
-    double *gl   = alloc_ok ? (double *)tensor_alloc((uint64_t)ddd * sizeof(double)) : NULL;
-    if (!alloc_ok || !xt || !vt || !x4 || !v4 || !x5 || !v5 || !gl) {
-        for (int s = 0; s < 6; s++) { if (kx[s]) tensor_free(kx[s]); if (kv[s]) tensor_free(kv[s]); }
-        if (xt) tensor_free(xt); if (vt) tensor_free(vt);
-        if (x4) tensor_free(x4); if (v4) tensor_free(v4);
-        if (x5) tensor_free(x5); if (v5) tensor_free(v5);
-        if (gl) tensor_free(gl);
-        return -1;
-    }
+    for (int s = 0; s < 6; s++) { kx[s] = rk45_arena + s * d; kv[s] = rk45_arena + (6 + s) * d; }
+    double *xt = rk45_arena + 12 * d;
+    double *vt = rk45_arena + 13 * d;
+    double *x4 = rk45_arena + 14 * d;
+    double *v4 = rk45_arena + 15 * d;
+    double *x5 = rk45_arena + 16 * d;
+    double *v5 = rk45_arena + 17 * d;
+    double *gl = rk45_arena + 18 * d;
 
     double h    = geo->step_size > 0.0 ? geo->step_size : h_max;
     if (h > h_max) h = h_max;
@@ -1051,9 +1067,7 @@ int axgeo_geodesic_integrate_adaptive(axgeo_geodesic_t *geo,
             /* Divergence check */
             double vnorm = ax_vec_norm(geo->v, d);
             if (vnorm > 1e10 || vnorm != vnorm) {
-                for (int s = 0; s < 6; s++) { tensor_free(kx[s]); tensor_free(kv[s]); }
-                tensor_free(xt); tensor_free(vt); tensor_free(x4); tensor_free(v4);
-                tensor_free(x5); tensor_free(v5); tensor_free(gl);
+                tensor_free(rk45_arena);
                 return -1;
             }
         } else {
@@ -1063,9 +1077,7 @@ int axgeo_geodesic_integrate_adaptive(axgeo_geodesic_t *geo,
         (void)rejected;
     }
 
-    for (int s = 0; s < 6; s++) { tensor_free(kx[s]); tensor_free(kv[s]); }
-    tensor_free(xt); tensor_free(vt); tensor_free(x4); tensor_free(v4);
-    tensor_free(x5); tensor_free(v5); tensor_free(gl);
+    tensor_free(rk45_arena);
     return 0;
 }
 
@@ -1731,25 +1743,26 @@ int axgeo_compute_jacobi_propagator(const double *trajectory,
 
     int kk = k * k;
 
-    /* J[k×k] and Z[k×k] (dJ/dλ) — stored row-major J[α*k + β] */
-    double *J = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
-    double *Z = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
-    double *K = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
-    double *gamma_wp = (double *)tensor_alloc((uint64_t)k * kk * sizeof(double));
-    double *v_est    = (double *)tensor_alloc((uint64_t)k * sizeof(double));
+    /* Allocate all working buffers as a single arena to avoid per-step allocs.
+     * Layout: J(kk) | Z(kk) | J_new(kk) | Z_new(kk) | K(kk) | gamma_wp(k*kk) | v_est(k) */
+    uint64_t arena_sz = (uint64_t)(5 * kk + k * kk + k) * sizeof(double);
+    double *arena = (double *)tensor_alloc(arena_sz);
+    if (!arena) return -1;
+    memset(arena, 0, arena_sz);
 
-    if (!J || !Z || !K || !gamma_wp || !v_est) {
-        if (J)        tensor_free(J);
-        if (Z)        tensor_free(Z);
-        if (K)        tensor_free(K);
-        if (gamma_wp) tensor_free(gamma_wp);
-        if (v_est)    tensor_free(v_est);
-        return -1;
-    }
+    double *J        = arena;
+    double *Z        = J        + kk;
+    double *J_new    = Z        + kk;
+    double *Z_new    = J_new    + kk;
+    double *K        = Z_new    + kk;
+    double *gamma_wp = K        + kk;
+    double *v_est    = gamma_wp + (uint64_t)k * kk;
+
+    /* Guard is just the single arena pointer now */
+    if (!arena) return -1;
 
     /* Initial conditions: J = identity, Z = 0 */
     memset(J, 0, (uint64_t)kk * sizeof(double));
-    memset(Z, 0, (uint64_t)kk * sizeof(double));
     for (int i = 0; i < k; i++) J[i * k + i] = 1.0;
 
     double dt = 1.0 / (double)(n_wp - 1);  /* affine parameter step */
@@ -1772,64 +1785,95 @@ int axgeo_compute_jacobi_propagator(const double *trajectory,
         /* Interpolate Christoffel symbols Γ^α_μν at this waypoint */
         axgeo_christoffel_interpolate(ch, mf, pos, gamma_wp);
 
-        /* Compute tidal operator K^α_β = R^α_μβν v^μ v^ν
-         * Approximation via Christoffel products (flat-space Riemann):
-         *   K^α_β ≈ Σ_{μ,ν,γ} (Γ^α_μγ Γ^γ_νβ - Γ^α_νγ Γ^γ_μβ) v^μ v^ν
+        /* Compute tidal operator K^α_β.
+         * The O(k⁴) Christoffel-product approximation of Riemann curvature
+         * cancels to zero for torsion-free (symmetric) connections because
+         * both terms reduce to the same matrix product.  Use the O(k²) proxy:
+         *   K[α][β] = |v|² · Σ_γ Γ^α_{γβ} v[γ]
+         * which captures the dominant velocity-weighted geodesic deviation
+         * with sparsity skipping on near-zero Christoffel entries.
          */
         memset(K, 0, (uint64_t)kk * sizeof(double));
-        for (int alpha = 0; alpha < k; alpha++) {
-            for (int beta = 0; beta < k; beta++) {
-                double kval = 0.0;
-                for (int mu = 0; mu < k; mu++) {
-                    for (int nu = 0; nu < k; nu++) {
-                        double vv = v[mu] * v[nu];
-                        if (vv == 0.0) continue;
-                        for (int gamma_idx = 0; gamma_idx < k; gamma_idx++) {
-                            /* Γ^α_μγ * Γ^γ_νβ */
-                            kval += gamma_wp[alpha * kk + mu * k + gamma_idx]
-                                  * gamma_wp[gamma_idx * kk + nu * k + beta] * vv;
-                            /* - Γ^α_νγ * Γ^γ_μβ */
-                            kval -= gamma_wp[alpha * kk + nu * k + gamma_idx]
-                                  * gamma_wp[gamma_idx * kk + mu * k + beta] * vv;
-                        }
+        {
+            double v_sq = 0.0;
+            for (int i = 0; i < k; i++) v_sq += v[i] * v[i];
+            for (int alpha = 0; alpha < k; alpha++) {
+                const double *gamma_mu = gamma_wp + (uint64_t)alpha * kk;
+                for (int beta = 0; beta < k; beta++) {
+                    double kval = 0.0;
+                    for (int gamma_idx = 0; gamma_idx < k; gamma_idx++) {
+                        double g = gamma_mu[gamma_idx * k + beta];
+                        if (g > GAMMA_SPARSE_THRESH || g < -GAMMA_SPARSE_THRESH)
+                            kval += g * v[gamma_idx];
                     }
+                    K[alpha * k + beta] = kval * v_sq;
                 }
-                K[alpha * k + beta] = kval;
             }
         }
 
-        /* Euler step: Z_new = Z - K·J·dt, J_new = J + Z·dt */
-        double *J_new = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
-        double *Z_new = (double *)tensor_alloc((uint64_t)kk * sizeof(double));
-        if (!J_new || !Z_new) {
-            if (J_new) tensor_free(J_new);
-            if (Z_new) tensor_free(Z_new);
-            break;
-        }
-
-        /* Z_new^α_i = Z^α_i - (K·J)^α_i · dt */
+        /* Euler step: Z_new = Z - K·J·dt, J_new = J + Z·dt
+         * Use the pre-allocated J_new/Z_new scratch from the arena.
+         *
+         * K·J product: Z_new[α][i] = Z[α][i] - dt * Σ_β K[α][β] * J[β][i]
+         * Rewrite as: for each α, Z_new[α] = Z[α] - dt * (K[α] · J)
+         * where K[α] is row α (length k) and J is a k×k matrix.
+         * Use axial FMA: accumulate into Z_new[α][0..k] with AVX2.
+         */
+        /* First copy Z into Z_new (so we can subtract K·J·dt) */
+        memcpy(Z_new, Z, (uint64_t)kk * sizeof(double));
         for (int alpha = 0; alpha < k; alpha++) {
-            for (int i = 0; i < k; i++) {
-                double kj = 0.0;
-                for (int beta = 0; beta < k; beta++)
-                    kj += K[alpha * k + beta] * J[beta * k + i];
-                Z_new[alpha * k + i] = Z[alpha * k + i] - kj * dt;
+            const double *K_row = K + alpha * k;
+            double *Zn_row = Z_new + alpha * k;
+#if defined(__AVX2__) && defined(__FMA__)
+            for (int beta = 0; beta < k; beta++) {
+                double kb = K_row[beta] * dt;
+                if (kb == 0.0) continue;
+                const double *J_row = J + beta * k;
+                __m256d vkb = _mm256_set1_pd(kb);
+                int i = 0;
+                for (; i + 4 <= k; i += 4) {
+                    __m256d vz = _mm256_loadu_pd(Zn_row + i);
+                    __m256d vj = _mm256_loadu_pd(J_row  + i);
+                    vz = _mm256_fnmadd_pd(vj, vkb, vz);  /* vz -= vj * kb */
+                    _mm256_storeu_pd(Zn_row + i, vz);
+                }
+                for (; i < k; i++) Zn_row[i] -= kb * J_row[i];
             }
+#else
+            for (int beta = 0; beta < k; beta++) {
+                double kb = K_row[beta] * dt;
+                if (kb == 0.0) continue;
+                const double *J_row = J + beta * k;
+                for (int i = 0; i < k; i++) Zn_row[i] -= kb * J_row[i];
+            }
+#endif
         }
-        /* J_new^α_i = J^α_i + Z^α_i · dt */
-        for (int alpha = 0; alpha < k; alpha++) {
-            for (int i = 0; i < k; i++)
-                J_new[alpha * k + i] = J[alpha * k + i] + Z[alpha * k + i] * dt;
+        /* J_new^α_i = J^α_i + Z^α_i · dt — use FMA on the full k² block */
+#if defined(__AVX2__) && defined(__FMA__)
+        {
+            __m256d vdt = _mm256_set1_pd(dt);
+            int idx = 0;
+            for (; idx + 4 <= kk; idx += 4) {
+                __m256d vj = _mm256_loadu_pd(J + idx);
+                __m256d vz = _mm256_loadu_pd(Z + idx);
+                vj = _mm256_fmadd_pd(vz, vdt, vj);
+                _mm256_storeu_pd(J_new + idx, vj);
+            }
+            for (; idx < kk; idx++) J_new[idx] = J[idx] + Z[idx] * dt;
         }
+#else
+        for (int idx = 0; idx < kk; idx++) J_new[idx] = J[idx] + Z[idx] * dt;
+#endif
 
-        tensor_free(J); tensor_free(Z);
-        J = J_new; Z = Z_new;
+        /* Swap pointers within the arena (no allocation) */
+        double *tmp;
+        tmp = J; J = J_new; J_new = tmp;
+        tmp = Z; Z = Z_new; Z_new = tmp;
     }
 
     memcpy(J_out, J, (uint64_t)kk * sizeof(double));
 
-    tensor_free(J); tensor_free(Z); tensor_free(K);
-    tensor_free(gamma_wp); tensor_free(v_est);
+    tensor_free(arena);
     return 0;
 }
 

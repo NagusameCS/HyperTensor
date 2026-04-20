@@ -21,6 +21,7 @@ extern "C" {
 void *kmalloc(uint64_t size);
 void  kfree(void *ptr);
 void *kmemcpy(void *dest, const void *src, size_t n);
+void *kmemmove(void *dest, const void *src, size_t n);
 void *kmemset(void *s, int c, size_t n);
 int   kmemcmp(const void *s1, const void *s2, size_t n);
 
@@ -98,7 +99,7 @@ typedef struct {
 
 extern smp_state_t smp;
 
-int   smp_init_hosted(void);
+int   smp_init_hosted(int max_workers);  /* 0 = auto (all CPUs) */
 int   smp_dispatch(uint32_t cpu_id, smp_work_fn_t fn, void *arg);
 void  smp_wait_all(void);
 void  smp_shutdown(void);

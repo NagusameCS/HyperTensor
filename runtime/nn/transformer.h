@@ -1,9 +1,8 @@
 /* =============================================================================
- * TensorOS - Transformer Inference Engine with KV-Cache
+ * Transformer Inference Engine with KV-Cache
  *
- * First bare-metal OS-level transformer with incremental decoding.
- * KV-cache eliminates redundant attention computation during autoregressive
- * generation — the same optimization that makes GPT-class inference practical.
+ * Incremental decoding with KV-cache.
+ * Eliminates redundant attention recompute during autoregressive generation.
  *
  * Architecture:
  *   - Multi-head self-attention with RoPE-ready positions
@@ -80,8 +79,11 @@ typedef struct {
 void kv_cache_init(kv_cache_t *cache, int max_seq, int head_dim,
                    int num_heads, int num_layers);
 
-/* Reset KV-cache (start new sequence) */
+/* Reset KV-cache (start new sequence without freeing memory) */
 void kv_cache_reset(kv_cache_t *cache);
+
+/* Free KV-cache heap buffers */
+void kv_cache_destroy(kv_cache_t *cache);
 
 /* RMSNorm: out[i] = x[i] * w[i] / rms(x), where rms = sqrt(mean(x^2) + eps) */
 void tf_rmsnorm(float *out, const float *x, const float *w, int dim);

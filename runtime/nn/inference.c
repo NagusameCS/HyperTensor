@@ -1,17 +1,12 @@
 /* =============================================================================
- * TensorOS - Neural Network Inference Engine Implementation
+ * Neural Network Inference Engine
  *
- * This is the crown jewel: an OS that JIT-compiles entire neural networks
- * into single native x86_64 functions, executing on bare metal with zero
- * overhead. No interpreter, no VM, no framework — just the CPU and the math.
- *
- * The graph JIT compiler walks the model layer by layer and emits:
- *   - Inline SSE2-vectorized dot products (no function calls)
- *   - Fused bias addition + activation (in-register, no memory roundtrip)
- *   - Stack-allocated intermediate buffers (no heap allocation)
- *   - Horizontal SIMD reductions for dot product accumulation
- *
- * This is what TVM, XLA, and Triton do — but at the OS kernel level.
+ * JIT-compiles neural network graphs into native x86_64 code.
+ * The compiler walks the model layer by layer and emits:
+ *   - SSE2-vectorized dot products
+ *   - Fused bias addition and activation
+ *   - Stack-allocated intermediate buffers
+ *   - Horizontal SIMD reductions
  * =============================================================================*/
 
 #include "runtime/nn/inference.h"
