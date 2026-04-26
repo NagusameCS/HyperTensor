@@ -49,12 +49,34 @@ function Parse-Run([string]$stdoutPath) {
         if ($null -eq $prefill) { $prefill = [double]$mCompact.Groups[3].Value }
     }
 
+    if ($null -eq $decode -or $null -eq $prefill) {
+        throw "Unable to parse decode/prefill metrics from $stdoutPath"
+    }
+
     return [pscustomobject]@{
         decode_tps = $decode
         overall_tps = $overall
         prefill_ms = $prefill
         generated_tokens = $genTok
     }
+}
+
+function Get-RunFailureDetail {
+    param(
+        [string]$StdoutPath,
+        [string]$StderrPath
+    )
+
+    $stdoutTail = ""
+    $stderrTail = ""
+    if (Test-Path $StdoutPath) {
+        $stdoutTail = (Get-Content -Path $StdoutPath -Tail 30) -join "`n"
+    }
+    if (Test-Path $StderrPath) {
+        $stderrTail = (Get-Content -Path $StderrPath -Tail 30) -join "`n"
+    }
+
+    return "stderr tail:`n$stderrTail`nstdout tail:`n$stdoutTail"
 }
 
 function Parse-PPL([string]$stdoutPath) {
@@ -74,7 +96,7 @@ function Invoke-RunCase {
         [int]$Tokens,
         [string[]]$ExtraArgs,
         [int]$Rep = 1,
-        [int]$Retries = 2
+        [int]$Retries = 3
     )
 
     $safe = ($Label -replace '[^a-zA-Z0-9_\-]', '_')
@@ -92,7 +114,8 @@ function Invoke-RunCase {
             Start-Sleep -Seconds 1
         }
         if (-not $ok) {
-            throw "Failed case '$Label' rep $Rep after $Retries attempts"
+            $detail = Get-RunFailureDetail -StdoutPath $out -StderrPath $err
+            throw "Failed case '$Label' rep $Rep after $Retries attempts`n$detail"
         }
     }
 
@@ -109,6 +132,36 @@ function Invoke-RunCase {
         stdout = $out
         stderr = $err
     }
+}
+
+function Invoke-PPLCase {
+    param(
+        [string]$OutPath,
+        [string]$ErrPath,
+        [string[]]$Args,
+        [int]$Retries = 3
+    )
+
+    if (-not (Test-Path $OutPath)) {
+        $ok = $false
+        for ($attempt = 1; $attempt -le $Retries; $attempt++) {
+            & $Exe $Model @Args 1> $OutPath 2> $ErrPath
+            if ($LASTEXITCODE -eq 0) {
+                $ok = $true
+                break
+            }
+        }
+        if (-not $ok) {
+            $detail = Get-RunFailureDetail -StdoutPath $OutPath -StderrPath $ErrPath
+            throw "Failed PPL run after $Retries attempts`n$detail"
+        }
+    }
+
+    $ppl = Parse-PPL $OutPath
+    if ($null -eq $ppl) {
+        throw "Unable to parse PPL from $OutPath"
+    }
+    return $ppl
 }
 
 $existingPack = Get-ChildItem .\benchmarks -Directory |
@@ -272,20 +325,12 @@ $pplRows = @()
 for ($i = 1; $i -le 5; $i++) {
     $bo = Join-Path $outDir ("ci_ppl_baseline_rep${i}.txt")
     $be = Join-Path $outDir ("ci_ppl_baseline_rep${i}_err.txt")
-    if (-not (Test-Path $bo)) {
-        & $Exe $Model --ppl-eval 1> $bo 2> $be
-        if ($LASTEXITCODE -ne 0) { throw "PPL baseline rep $i failed" }
-    }
-    $bp = Parse-PPL $bo
+    $bp = Invoke-PPLCase -OutPath $bo -ErrPath $be -Args @('--ppl-eval')
     $pplRows += [pscustomobject]@{ rep = $i; mode = 'baseline'; ppl = $bp; stdout = $bo; stderr = $be }
 
     $go = Join-Path $outDir ("ci_ppl_grc2048_rep${i}.txt")
     $ge = Join-Path $outDir ("ci_ppl_grc2048_rep${i}_err.txt")
-    if (-not (Test-Path $go)) {
-        & $Exe $Model --axex-compress --axex-attn-only --axex-skip-o --axex-weight-pca --axex-compress-rank 2048 --ppl-eval 1> $go 2> $ge
-        if ($LASTEXITCODE -ne 0) { throw "PPL GRC rep $i failed" }
-    }
-    $gp = Parse-PPL $go
+    $gp = Invoke-PPLCase -OutPath $go -ErrPath $ge -Args @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--ppl-eval')
     $pplRows += [pscustomobject]@{ rep = $i; mode = 'grc_k2048'; ppl = $gp; stdout = $go; stderr = $ge }
 }
 $pplCsv = Join-Path $outDir "ci_ppl_5run.csv"

@@ -4,7 +4,8 @@ param(
     [string]$Chunk,
     [string]$Model = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
     [string]$Exe = "C:\Users\legom\HyperTensor\build_host\geodessical.exe",
-    [string]$OutDir = ""
+    [string]$OutDir = "",
+    [int]$Retries = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +22,24 @@ $prompts = @(
 )
 $tokensList = @(128, 256)
 
+function Get-RunFailureDetail {
+    param(
+        [string]$StdoutPath,
+        [string]$StderrPath
+    )
+
+    $stdoutTail = ""
+    $stderrTail = ""
+    if (Test-Path $StdoutPath) {
+        $stdoutTail = (Get-Content -Path $StdoutPath -Tail 30) -join "`n"
+    }
+    if (Test-Path $StderrPath) {
+        $stderrTail = (Get-Content -Path $StderrPath -Tail 30) -join "`n"
+    }
+
+    return "stderr tail:`n$stderrTail`nstdout tail:`n$stdoutTail"
+}
+
 foreach ($prompt in $prompts) {
     foreach ($tokens in $tokensList) {
         if ($Chunk -eq 'baseline') {
@@ -35,9 +54,18 @@ foreach ($prompt in $prompts) {
         $stderrPath = Join-Path $OutDir ($label + '_err.txt')
         if (Test-Path $stdoutPath) { continue }
 
-        & $Exe $Model @args 1> $stdoutPath 2> $stderrPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed chunk case: $label"
+        $ok = $false
+        for ($attempt = 1; $attempt -le $Retries; $attempt++) {
+            & $Exe $Model @args 1> $stdoutPath 2> $stderrPath
+            if ($LASTEXITCODE -eq 0) {
+                $ok = $true
+                break
+            }
+        }
+
+        if (-not $ok) {
+            $detail = Get-RunFailureDetail -StdoutPath $stdoutPath -StderrPath $stderrPath
+            throw "Failed chunk case: $label after $Retries attempts`n$detail"
         }
     }
 }
