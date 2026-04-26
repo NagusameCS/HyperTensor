@@ -25,6 +25,7 @@
 #include "runtime/nn/flash_attn.h"
 #include "runtime/nn/axiom_beta.h"
 #include "runtime/nn/axiom_exploit.h"
+#include "runtime/nn/online_basis.h"
 #include "kernel/core/kernel.h"
 #include "kernel/mm/tensor_mm.h"
 #include "kernel/core/perf.h"
@@ -34,16 +35,20 @@
 #ifdef GEODESSICAL_HOSTED
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #endif
 #ifndef __aarch64__
 #include "kernel/drivers/blk/virtio_blk.h"
 #include "kernel/core/smp.h"
+#else
+#include <arm_neon.h>
 #endif
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  SSE2 SIMD type                                                             */
 /* ─────────────────────────────────────────────────────────────────────────── */
 typedef float v4f __attribute__((vector_size(16)));
+
 
 #ifndef __aarch64__
 /* AVX2 8-wide float vector */
@@ -156,6 +161,17 @@ int gpu_skip_logits_download = 0; /* 1 = caller will use GPU argmax, skip D2H */
 #define LOG_TRC(tag, fmt, ...)  do {} while (0)  /* Trace: compiled out */
 #endif
 
+static int llm_emit_benchmark_debug(void) {
+    static int initialized = 0;
+    static int enabled = 0;
+    if (!initialized) {
+        const char *env = getenv("GD_BENCH_DEBUG");
+        enabled = (env && env[0] && env[0] != '0') ? 1 : 0;
+        initialized = 1;
+    }
+    return enabled;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Static Allocations                                                         */
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -169,6 +185,15 @@ static llm_model_t llm_model;
 /* Inference serialization: prevent concurrent use of static buffers */
 static volatile int llm_inference_active = 0;
 
+/* Online basis update context (NULL = disabled).
+ * Set via llm_set_online_basis_ctx() from main after model load. */
+static onb_ctx_t *g_onb_ctx = (onb_ctx_t *)0;
+
+void llm_set_online_basis_ctx(void *ctx)
+{
+    g_onb_ctx = (onb_ctx_t *)ctx;
+}
+
 /* Streaming callback: called per-token during generation (NULL = disabled) */
 typedef void (*llm_token_cb_t)(const char *text, int len, void *userdata);
 static llm_token_cb_t llm_stream_cb   = (llm_token_cb_t)0;
@@ -177,6 +202,9 @@ static llm_backend_t  llm_backend        = LLM_BACKEND_CPU;
 static int            llm_last_vram_mb   = 0;
 static float          llm_last_prefill_ms_val = 0.0f;
 static float          llm_last_tok_per_sec_val = 0.0f;
+static uint64_t       g_kv_snap_lookups = 0;  /* total restore attempts */
+static uint64_t       g_kv_snap_hits    = 0;  /* successful restore hits */
+static float          g_last_logit_entropy = 0.0f; /* Shannon entropy of last softmax */
 
 /* Tensor bridge for hidden-state injection / daisy-chaining */
 static tensor_bridge_t llm_bridge;
@@ -275,7 +303,7 @@ static int llm_alloc_ff;
 static int llm_alloc_seq;
 static int llm_alloc_vocab;
 static int llm_alloc_tokens;
-static int llm_alloc_kv_floats;
+static int64_t llm_alloc_kv_floats; /* int64_t: layers×seq×kv_heads×hd can exceed 2^31 on 70B+ models */
 
 /* Prefix-keyed KV snapshots (token-native boundary for cache reuse). */
 #define LLM_KV_SNAPSHOT_SLOTS 16
@@ -513,9 +541,10 @@ static int llm_gpu_register_weight(const void *host, uint64_t size, ggml_type_t 
 }
 
 /* Helper: actual bytes we will store in VRAM for a weight of the given type.
- * IQ2_XS and Q2_K are dequantized to F32 on upload, so cost is n * sizeof(float). */
+ * Q2_K is dequantized to F32 on upload, so cost is n * sizeof(float).
+ * IQ2_XS now has a native kernel — stored at its packed size (74B/256 elements). */
 static uint64_t llm_gpu_actual_bytes(int rows, int cols, ggml_type_t type) {
-    if (type == GGML_TYPE_IQ2_XS || type == GGML_TYPE_Q2_K)
+    if (type == GGML_TYPE_Q2_K)
         return (uint64_t)rows * cols * sizeof(float);
     return llm_row_bytes(cols, type) * (uint64_t)rows;
 }
@@ -569,7 +598,29 @@ static uint64_t llm_layer_vram_bytes_attn_only(const llm_model_t *m, int L)
     return b;
 }
 
-/* VRAM estimate for FFN-only upload (attn-only compress mode: Q/K/V/O not uploaded raw).
+/* VRAM estimate for FFN + K/V upload (attn-SVD mode: Q/O replaced by SVD factors,
+ * but K and V are still uploaded raw for the KV cache). */
+static uint64_t llm_layer_vram_bytes_kv_and_ffn(const llm_model_t *m, int L)
+{
+    const llm_layer_t *layer = &m->layers[L];
+    int lhd     = layer->head_dim_layer ? layer->head_dim_layer : m->head_dim;
+    int lkv_dim = m->n_kv_heads * lhd;
+    int lff     = layer->ff_dim_layer ? layer->ff_dim_layer : m->ff_dim;
+    int has_kv  = (layer->kv_reuse_layer < 0);
+    uint64_t b = 0;
+    if (has_kv) {
+        b += llm_row_bytes(m->dim, layer->k_type) * (uint64_t)lkv_dim;
+        b += llm_row_bytes(m->dim, layer->v_type) * (uint64_t)lkv_dim;
+    }
+    if (layer->ffn_gate)
+        b += llm_row_bytes(m->dim, layer->gate_type) * (uint64_t)lff;
+    b += llm_row_bytes(m->dim, layer->up_type)   * (uint64_t)lff;
+    b += llm_row_bytes(lff,    layer->down_type) * (uint64_t)m->dim;
+    b += (uint64_t)m->dim * sizeof(float) * 4; /* 4 norm vectors */
+    return b;
+}
+
+/* VRAM estimate for FFN-only upload (full GP manifold path: Q/K/V/O all CPU-side).
  * Used when attention is GP-compressed to CPU manifold path; FFN stays on GPU. */
 static uint64_t llm_layer_vram_bytes_ffn_only(const llm_model_t *m, int L)
 {
@@ -597,9 +648,10 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
                                      ggml_type_t type) {
     if (!weight) return 0;
 
-    /* IQ2_XS and Q2_K: not directly supported by CUDA GEMV kernels.
-     * Dequantize to F32 on host and upload as F32 so the GPU can handle them. */
-    if (type == GGML_TYPE_IQ2_XS || type == GGML_TYPE_Q2_K) {
+    /* Q2_K: not directly supported by CUDA GEMV kernels.
+     * Dequantize to F32 on host and upload as F32 so the GPU can handle them.
+     * NOTE: IQ2_XS now has a native CUDA kernel — handled below. */
+    if (type == GGML_TYPE_Q2_K) {
 #ifdef ENABLE_CUDA
         uint64_t n_floats = (uint64_t)out_dim * in_dim;
         float *f32_buf = (float *)malloc(n_floats * sizeof(float));
@@ -634,7 +686,7 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
      * llm_gemv falls back to CPU (which handles all types correctly). */
     if (type != GGML_TYPE_Q4_0 && type != GGML_TYPE_Q4_1 && type != GGML_TYPE_Q8_0 &&
         type != GGML_TYPE_F32  && type != GGML_TYPE_F16  && type != GGML_TYPE_Q4_K &&
-        type != GGML_TYPE_Q6_K && type != GGML_TYPE_BF16)
+        type != GGML_TYPE_Q6_K && type != GGML_TYPE_BF16 && type != GGML_TYPE_IQ2_XS)
         return 0;
 
 #ifdef ENABLE_CUDA
@@ -731,10 +783,6 @@ void llm_gpu_set_attn_compress_mode(int enable) { gpu_attn_skip_for_compress = e
 void llm_gpu_upload_ffn_fallback(void) {
     llm_model_t *m = llm_get_model();
     if (!m || !gpu_ctx.active) return;
-    /* NOTE: do NOT reset gpu_ffn_skip_for_compress here — resetting it enables the
-     * batch-prefill path which calls BGEMV4 with NULL device pointers when FFN
-     * uploads fail (OOM).  Keep it set so prefill runs token-by-token via
-     * llm_forward_token, which has PCIe D2H/H2D fallbacks for null GPU weights. */
     int uploaded = 0;
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
@@ -756,6 +804,23 @@ void llm_gpu_upload_ffn_fallback(void) {
         }
     }
     kprintf("[GPU] FFN fallback: uploaded %d raw FFN tensors to GPU\n", uploaded);
+    /* Verify all on_gpu layers now have FFN weights resident.  If so, clear
+     * gpu_ffn_skip_for_compress so the fast batch-prefill path runs — safe
+     * because we just confirmed no null weight pointers exist. */
+    int all_ok = 1;
+    for (int L = 0; L < m->n_layers && all_ok; L++) {
+        llm_layer_t *layer = &m->layers[L];
+        gpu_layer_t *gl    = &gpu_ctx.layers[L];
+        if (!gl->on_gpu) continue;
+        if ((layer->ffn_gate && !llm_gpu_lookup(layer->ffn_gate)) ||
+            (layer->ffn_up   && !llm_gpu_lookup(layer->ffn_up))   ||
+            (layer->ffn_down && !llm_gpu_lookup(layer->ffn_down)))
+            all_ok = 0;
+    }
+    if (all_ok) {
+        gpu_ffn_skip_for_compress = 0;
+        kprintf("[GPU] FFN fallback: all weights verified — compress-skip cleared, batch-prefill enabled\n");
+    }
 }
 
 /* Upload all model weights to GPU. Called after model load if CUDA available. */
@@ -820,7 +885,7 @@ static int llm_gpu_init(llm_model_t *m) {
             if (gpu_attn_skip_for_compress && gpu_ffn_skip_for_compress)
                 layer_need = llm_layer_vram_bytes_norms_only(m, L);
             else if (gpu_attn_skip_for_compress)
-                layer_need = llm_layer_vram_bytes_ffn_only(m, L);
+                layer_need = llm_layer_vram_bytes_kv_and_ffn(m, L);
             else if (gpu_ffn_skip_for_compress)
                 layer_need = llm_layer_vram_bytes_attn_only(m, L);
             else
@@ -839,13 +904,14 @@ static int llm_gpu_init(llm_model_t *m) {
         if (!gl->on_gpu) continue;  /* skip weight upload for CPU layers */
 
         if (!gpu_attn_skip_for_compress) {
-            /* Only upload raw Q/K/V/O when not using GP manifold path for attention */
+            /* Only upload raw Q/O when not using SVD/GP compressed attention */
             llm_gpu_upload_weight_mat(layer->q_weight, lq_dim, dim, layer->q_type);
-            if (layer->kv_reuse_layer < 0) {
-                llm_gpu_upload_weight_mat(layer->k_weight, lkv_dim, dim, layer->k_type);
-                llm_gpu_upload_weight_mat(layer->v_weight, lkv_dim, dim, layer->v_type);
-            }
             llm_gpu_upload_weight_mat(layer->o_weight, dim, lq_dim, layer->o_type);
+        }
+        /* K and V are always uploaded: needed for KV cache even in attn-SVD mode */
+        if (layer->kv_reuse_layer < 0) {
+            llm_gpu_upload_weight_mat(layer->k_weight, lkv_dim, dim, layer->k_type);
+            llm_gpu_upload_weight_mat(layer->v_weight, lkv_dim, dim, layer->v_type);
         }
         if (!gpu_ffn_skip_for_compress) {
             /* Only upload raw FFN when not going to compress → saves PCIe BW */
@@ -868,11 +934,15 @@ static int llm_gpu_init(llm_model_t *m) {
          * GPU forward pass doesn't invoke CUDA with null weight pointers. */
         if (!gpu_attn_skip_for_compress) {
             if ((layer->q_weight   && !llm_gpu_lookup(layer->q_weight)) ||
-                (layer->k_weight   && !llm_gpu_lookup(layer->k_weight)) ||
-                (layer->v_weight   && !llm_gpu_lookup(layer->v_weight)) ||
                 (layer->o_weight   && !llm_gpu_lookup(layer->o_weight))) {
                 gl->on_gpu = 0;
             }
+        }
+        /* K and V verification always runs (uploaded regardless of compress mode) */
+        if (gl->on_gpu && layer->kv_reuse_layer < 0) {
+            if ((layer->k_weight && !llm_gpu_lookup(layer->k_weight)) ||
+                (layer->v_weight && !llm_gpu_lookup(layer->v_weight)))
+                gl->on_gpu = 0;
         }
         if (!gpu_ffn_skip_for_compress && gl->on_gpu) {
             if ((layer->ffn_gate && !llm_gpu_lookup(layer->ffn_gate)) ||
@@ -1076,17 +1146,20 @@ static int llm_gpu_init(llm_model_t *m) {
         llm_last_vram_mb = (int)(used / (1024 * 1024));
         kprintf("[GPU] GPU-resident forward pass ready (total VRAM: %d MB)\n", llm_last_vram_mb);
     } else {
-        if (0) {
-            kprintf("[GPU] GPU-resident forward pass disabled for Gemma4 (quality guard), using CUDA GEMV offload\n");
-        } else {
-            kprintf("[GPU] GPU-resident forward pass not available, using upload/download per GEMV\n");
-        }
+        kprintf("[GPU] GPU-resident forward pass not available, using upload/download per GEMV\n");
     }
 
     return 0;
 }
 
 #endif /* ENABLE_CUDA */
+
+#ifndef ENABLE_CUDA
+/* CPU-only build stubs — no GPU hardware present, all GPU calls are no-ops */
+void llm_gpu_set_compress_mode(int enable)      { (void)enable; }
+void llm_gpu_set_attn_compress_mode(int enable) { (void)enable; }
+void llm_gpu_upload_ffn_fallback(void)          { }
+#endif /* !ENABLE_CUDA */
 
 /* Allocate all inference scratch buffers from the tensor heap.
  * Called once after the model's dimensions are known. */
@@ -1103,14 +1176,14 @@ static int llm_alloc_scratch(const llm_model_t *m)
     int hd       = m->head_dim;
     int q_dim    = m->n_heads * hd;     /* Q/attn output dimension (may differ from dim) */
     int kv_dim   = m->n_kv_heads * hd;  /* K/V dimension per token */
-    int kv_total = m->n_layers * seq * m->n_kv_heads * hd;
+    int64_t kv_total = (int64_t)m->n_layers * seq * m->n_kv_heads * hd; /* int64_t: overflows int for 70B+ models */
     int max_tok  = seq * 2;  /* generous token buffer */
 
     /* Compute total bytes needed (64-byte aligned per buffer) */
     #define ALIGN64(x) (((x) + 63) & ~63ULL)
     uint64_t total = 0;
     total += ALIGN64((uint64_t)kv_total * sizeof(float)) * 2; /* k+v cache */
-    total += ALIGN64((uint64_t)dim * sizeof(float)) * 3;      /* x, xn, ffn_d */
+    total += ALIGN64((uint64_t)dim * sizeof(float)) * 4;      /* x, xn, last_hs, ffn_d */
     total += ALIGN64((uint64_t)q_dim * sizeof(float)) * 2;    /* q, attn_out */
     total += ALIGN64((uint64_t)kv_dim * sizeof(float)) * 2;   /* k_buf, v_buf */
     total += ALIGN64((uint64_t)hd * sizeof(float));            /* head_buf */
@@ -1368,14 +1441,38 @@ static float q4_0_dot32(const ggml_q4_0_t *block, const float *x)
     union { v4f v; float f[4]; } u = { .v = acc };
     return (u.f[0] + u.f[1] + u.f[2] + u.f[3]) * d;
 #else
-    float sum = 0.0f;
-    for (int j = 0; j < 16; j++) {
-        uint8_t packed = qs[j];
-        int lo = (int)(packed & 0x0F) - 8;
-        int hi = (int)(packed >> 4)   - 8;
-        sum += (float)lo * x[j] + (float)hi * x[j + 16];
+    /* NEON: process 8 packed bytes per iteration = 16 lo + 16 hi Q4 values */
+    uint8x8_t mask4  = vdup_n_u8(0x0F);
+    int8x8_t  off8   = vdup_n_s8(8);
+    float32x4_t acc0 = vdupq_n_f32(0.0f);
+    float32x4_t acc1 = vdupq_n_f32(0.0f);
+    float32x4_t acc2 = vdupq_n_f32(0.0f);
+    float32x4_t acc3 = vdupq_n_f32(0.0f);
+
+    for (int j = 0; j < 16; j += 8) {
+        uint8x8_t packed = vld1_u8(qs + j);
+        int8x8_t  qlo8   = vsub_s8(vreinterpret_s8_u8(vand_u8(packed, mask4)), off8);
+        int8x8_t  qhi8   = vsub_s8(vreinterpret_s8_u8(vshr_n_u8(packed, 4)), off8);
+        int16x8_t qlo16  = vmovl_s8(qlo8);
+        int16x8_t qhi16  = vmovl_s8(qhi8);
+
+        float32x4_t qlo_f0 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(qlo16)));
+        float32x4_t qlo_f1 = vcvtq_f32_s32(vmovl_high_s16(qlo16));
+        float32x4_t qhi_f0 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(qhi16)));
+        float32x4_t qhi_f1 = vcvtq_f32_s32(vmovl_high_s16(qhi16));
+
+        float32x4_t xlo_0 = vld1q_f32(x + j);
+        float32x4_t xlo_1 = vld1q_f32(x + j + 4);
+        float32x4_t xhi_0 = vld1q_f32(x + j + 16);
+        float32x4_t xhi_1 = vld1q_f32(x + j + 20);
+
+        acc0 = vmlaq_f32(acc0, qlo_f0, xlo_0);
+        acc1 = vmlaq_f32(acc1, qlo_f1, xlo_1);
+        acc2 = vmlaq_f32(acc2, qhi_f0, xhi_0);
+        acc3 = vmlaq_f32(acc3, qhi_f1, xhi_1);
     }
-    return sum * d;
+    float32x4_t acc = vaddq_f32(vaddq_f32(acc0, acc1), vaddq_f32(acc2, acc3));
+    return vaddvq_f32(acc) * d;
 #endif
 }
 
@@ -1452,10 +1549,24 @@ static float q8_0_dot32(const ggml_q8_0_t *block, const float *x)
     union { v4f v; float f[4]; } u = { .v = acc };
     return (u.f[0] + u.f[1] + u.f[2] + u.f[3]) * d;
 #else
-    float sum = 0.0f;
-    for (int j = 0; j < 32; j++)
-        sum += (float)qs[j] * x[j];
-    return sum * d;
+    /* NEON: process 8 int8 weights at a time → sign-extend → fmla */
+    float32x4_t acc0 = vdupq_n_f32(0.0f);
+    float32x4_t acc1 = vdupq_n_f32(0.0f);
+    float32x4_t acc2 = vdupq_n_f32(0.0f);
+    float32x4_t acc3 = vdupq_n_f32(0.0f);
+
+    for (int j = 0; j < 32; j += 8) {
+        int8x8_t  q8  = vld1_s8(qs + j);
+        int16x8_t q16 = vmovl_s8(q8);
+        float32x4_t qf0 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(q16)));
+        float32x4_t qf1 = vcvtq_f32_s32(vmovl_high_s16(q16));
+        float32x4_t x0  = vld1q_f32(x + j);
+        float32x4_t x1  = vld1q_f32(x + j + 4);
+        acc0 = vmlaq_f32(acc0, qf0, x0);
+        acc1 = vmlaq_f32(acc1, qf1, x1);
+    }
+    float32x4_t acc = vaddq_f32(acc0, acc1);
+    return vaddvq_f32(acc) * d;
 #endif
 }
 
@@ -1547,7 +1658,17 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
         for (; i < n; i++)
             sum += fp16_to_fp32(f16[i]) * x[i];
 #else
-        for (int i = 0; i < n; i++)
+        /* NEON F16: convert pairs via vcvt_f32_f16 (requires float16x4_t) */
+        float32x4_t vacc = vdupq_n_f32(0.0f);
+        int i = 0;
+        for (; i + 4 <= n; i += 4) {
+            float16x4_t h = vld1_f16((const __fp16 *)(f16 + i));
+            float32x4_t wv = vcvt_f32_f16(h);
+            float32x4_t xv = vld1q_f32(x + i);
+            vacc = vmlaq_f32(vacc, wv, xv);
+        }
+        sum += vaddvq_f32(vacc);
+        for (; i < n; i++)
             sum += fp16_to_fp32(f16[i]) * x[i];
 #endif
         break;
@@ -1572,7 +1693,20 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
         for (; i < n; i++)
             sum += f32[i] * x[i];
 #else
-        for (int i = 0; i < n; i++)
+        /* NEON F32: dual accumulators, 8 elements per iteration */
+        float32x4_t vacc0 = vdupq_n_f32(0.0f);
+        float32x4_t vacc1 = vdupq_n_f32(0.0f);
+        int i = 0;
+        for (; i + 8 <= n; i += 8) {
+            float32x4_t w0 = vld1q_f32(f32 + i);
+            float32x4_t w1 = vld1q_f32(f32 + i + 4);
+            float32x4_t x0 = vld1q_f32(x + i);
+            float32x4_t x1 = vld1q_f32(x + i + 4);
+            vacc0 = vmlaq_f32(vacc0, w0, x0);
+            vacc1 = vmlaq_f32(vacc1, w1, x1);
+        }
+        sum += vaddvq_f32(vaddq_f32(vacc0, vacc1));
+        for (; i < n; i++)
             sum += f32[i] * x[i];
 #endif
         break;
@@ -1896,6 +2030,1005 @@ static float llm_vec_dot(const void *weight, const float *x, int n, ggml_type_t 
                         sum += xs[k] * dl * gk;
                     }
                 }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ2_XXS: {
+        /* IQ2_XXS: 256 elements/super-block, 66 bytes.
+         * Layout: d(fp16) + uint16_t qs[32] (=64 bytes).
+         * Each 32-element sub-block (ib32=0..7): 8 bytes read as 2 uint32:
+         *   aux32[0]: bytes 0-3 = 4 grid indices (8-bit each, one per 8-elem group)
+         *   aux32[1]: bits[27:0]=four 7-bit sign groups; bits[31:28]=scale nibble.
+         * Scale: db = d * (0.5 + nibble) * 0.25.
+         * Grid: kgrid_iq2xxs[idx] = uint16_t, bits[2k..2k+1]=l -> val=2l+1 ∈ {1,3,5,7}.
+         * 8th sign via even parity: s8 = s7 | (popcount(s7)&1)<<7. */
+        static const uint16_t kgrid_iq2xxs[256] = {
+                0,     2,     5,     8,    10,    17,    20,    32,    34,    40,    42,    65,    68,    80,    88,    97,
+              100,   128,   130,   138,   162,   257,   260,   272,   277,   320,   388,   408,   512,   514,   546,   642,
+             1025,  1028,  1040,  1057,  1060,  1088,  1090,  1096,  1120,  1153,  1156,  1168,  1188,  1280,  1282,  1288,
+             1312,  1350,  1385,  1408,  1425,  1545,  1552,  1600,  1668,  1700,  2048,  2053,  2056,  2068,  2088,  2113,
+             2116,  2128,  2130,  2184,  2308,  2368,  2562,  2580,  4097,  4100,  4112,  4129,  4160,  4192,  4228,  4240,
+             4245,  4352,  4360,  4384,  4432,  4442,  4480,  4644,  4677,  5120,  5128,  5152,  5157,  5193,  5248,  5400,
+             5474,  5632,  5654,  6145,  6148,  6160,  6208,  6273,  6400,  6405,  6560,  6737,  8192,  8194,  8202,  8260,
+             8289,  8320,  8322,  8489,  8520,  8704,  8706,  9217,  9220,  9232,  9280,  9302,  9472,  9537,  9572,  9872,
+            10248, 10272, 10388, 10820, 16385, 16388, 16400, 16408, 16417, 16420, 16448, 16456, 16470, 16480, 16513, 16516,
+            16528, 16640, 16672, 16737, 16768, 16773, 16897, 16912, 16968, 16982, 17000, 17408, 17416, 17440, 17536, 17561,
+            17682, 17700, 17920, 18433, 18436, 18448, 18496, 18501, 18688, 18776, 18785, 18818, 19013, 19088, 20480, 20488,
+            20497, 20505, 20512, 20608, 20616, 20740, 20802, 20900, 21137, 21648, 21650, 21770, 22017, 22100, 22528, 22545,
+            22553, 22628, 22848, 23048, 24580, 24592, 24640, 24680, 24832, 24917, 25112, 25184, 25600, 25605, 25872, 25874,
+            25988, 26690, 32768, 32770, 32778, 32833, 32898, 33028, 33048, 33088, 33297, 33793, 33796, 33808, 33813, 33856,
+            33888, 34048, 34118, 34196, 34313, 34368, 34400, 34818, 35076, 35345, 36868, 36880, 36900, 36928, 37025, 37142,
+            37248, 37445, 37888, 37922, 37956, 38225, 39041, 39200, 40962, 41040, 41093, 41225, 41472, 42008, 43088, 43268,
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *qs = p + 2;
+            p += 66;
+            const float *xb = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                uint32_t aux32[2];
+                kmemcpy(aux32, qs + 8 * ib32, 8);
+                const uint8_t *a8 = (const uint8_t *)aux32;
+                float db = d * (0.5f + (float)(aux32[1] >> 28)) * 0.25f;
+                for (int l = 0; l < 4; l++) {
+                    uint16_t gv = kgrid_iq2xxs[a8[l]];
+                    uint8_t  s7 = (uint8_t)((aux32[1] >> (7 * l)) & 127);
+                    uint8_t  s8 = s7 | (uint8_t)((__builtin_popcount(s7) & 1) << 7);
+                    const float *xs = xb + ib32 * 32 + l * 8;
+                    for (int k = 0; k < 8; k++) {
+                        float w = (float)(2 * ((gv >> (2 * k)) & 3) + 1);
+                        if (s8 & (1u << k)) w = -w;
+                        sum += xs[k] * db * w;
+                    }
+                }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ3_XXS: {
+        /* IQ3_XXS: 256 elements/super-block, 98 bytes.
+         * Layout: d(fp16) + qs[96](uint8_t).
+         * qs[0..63]: 8 grid indices per 32-element sub-block (×8 sub-blocks).
+         * qs[64..95]: 4-byte scale+sign per sub-block (scales_and_signs[8]):
+         *   bits[27:0] = four 7-bit sign groups; bits[31:28] = scale nibble.
+         * Scale: db = d * (0.5 + nibble) * 0.5.
+         * Grid: kgrid_iq3xxs[idx], bits[3k..3k+2]=l -> val=2l+1 ∈ {1..15}. */
+        static const uint16_t kgrid_iq3xxs[256] = {
+               0,    2,    4,    9,   11,   15,   16,   18,   25,   34,   59,   61,   65,   67,   72,   74,
+              81,   85,   88,   90,   97,  108,  120,  128,  130,  132,  137,  144,  146,  153,  155,  159,
+             169,  175,  189,  193,  199,  200,  202,  213,  248,  267,  287,  292,  303,  315,  317,  321,
+             327,  346,  362,  413,  436,  456,  460,  462,  483,  497,  513,  515,  520,  522,  529,  531,
+             536,  538,  540,  551,  552,  576,  578,  585,  592,  594,  641,  643,  648,  650,  657,  664,
+             698,  704,  706,  720,  729,  742,  758,  769,  773,  808,  848,  852,  870,  889,  901,  978,
+             992, 1024, 1026, 1033, 1035, 1040, 1042, 1046, 1049, 1058, 1089, 1091, 1093, 1096, 1098, 1105,
+            1112, 1139, 1143, 1144, 1152, 1154, 1161, 1167, 1168, 1170, 1183, 1184, 1197, 1217, 1224, 1228,
+            1272, 1276, 1309, 1323, 1347, 1367, 1377, 1404, 1473, 1475, 1486, 1509, 1537, 1544, 1546, 1553,
+            1555, 1576, 1589, 1594, 1600, 1602, 1616, 1625, 1636, 1638, 1665, 1667, 1672, 1685, 1706, 1722,
+            1737, 1755, 1816, 1831, 1850, 1856, 1862, 1874, 1901, 1932, 1950, 1971, 2011, 2032, 2052, 2063,
+            2077, 2079, 2091, 2095, 2172, 2192, 2207, 2208, 2224, 2230, 2247, 2277, 2308, 2345, 2356, 2389,
+            2403, 2424, 2501, 2504, 2506, 2520, 2570, 2593, 2616, 2624, 2630, 2646, 2669, 2700, 2714, 2746,
+            2754, 2795, 2824, 2835, 2839, 2874, 2882, 2905, 2984, 3028, 3042, 3092, 3108, 3110, 3124, 3153,
+            3185, 3215, 3252, 3288, 3294, 3364, 3397, 3434, 3483, 3523, 3537, 3587, 3589, 3591, 3592, 3610,
+            3626, 3670, 3680, 3722, 3749, 3754, 3776, 3789, 3803, 3824, 3857, 3873, 3904, 3906, 3924, 3992,
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *qs  = p + 2;        /* grid indices [64] */
+            const uint8_t *sas = p + 2 + 64;   /* scales_and_signs [32] */
+            p += 98;
+            const float *xb = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                uint32_t aux32;
+                kmemcpy(&aux32, sas + 4 * ib32, 4);
+                float db = d * (0.5f + (float)(aux32 >> 28)) * 0.5f;
+                for (int l = 0; l < 4; l++) {
+                    uint8_t  s7  = (uint8_t)((aux32 >> (7 * l)) & 127);
+                    uint8_t  s8  = s7 | (uint8_t)((__builtin_popcount(s7) & 1) << 7);
+                    uint16_t gv1 = kgrid_iq3xxs[qs[2 * l + 0]];
+                    uint16_t gv2 = kgrid_iq3xxs[qs[2 * l + 1]];
+                    const float *xs = xb + ib32 * 32 + l * 8;
+                    for (int k = 0; k < 4; k++) {
+                        float w1 = (float)(2 * ((gv1 >> (3 * k)) & 7) + 1);
+                        float w2 = (float)(2 * ((gv2 >> (3 * k)) & 7) + 1);
+                        if (s8 & (1u <<  k))    w1 = -w1;
+                        if (s8 & (1u << (k+4))) w2 = -w2;
+                        sum += xs[k]   * db * w1;
+                        sum += xs[k+4] * db * w2;
+                    }
+                }
+                qs += 8;
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ3_S: {
+        /* IQ3_S: 256 elements/super-block, 110 bytes.
+         * Layout: d(fp16) + qs[64] + qh[8] + signs[32] + scales[4].
+         * 9-bit grid index: qs[k] | (high-bit-from-qh << 8).
+         * kgrid_iq3s[idx]: bits[3k..3k+2]=l -> val=2l+1 ∈ {1..15}.
+         * Scale: db = d * (1 + 2*nibble). Processed in pairs of sub-blocks. */
+        static const uint16_t kgrid_iq3s[512] = {
+               0,    1,    2,    5,    7,    8,    9,   10,   12,   14,   16,   17,   21,   27,   32,   34,
+              37,   39,   41,   43,   48,   50,   57,   60,   63,   64,   65,   66,   68,   72,   73,   77,
+              80,   83,   87,   89,   93,  100,  113,  117,  122,  128,  129,  133,  135,  136,  139,  142,
+             145,  149,  152,  156,  162,  165,  167,  169,  171,  184,  187,  195,  201,  205,  208,  210,
+             217,  219,  222,  228,  232,  234,  247,  249,  253,  256,  267,  271,  273,  276,  282,  288,
+             291,  297,  312,  322,  324,  336,  338,  342,  347,  353,  357,  359,  374,  379,  390,  393,
+             395,  409,  426,  441,  448,  450,  452,  464,  466,  470,  475,  488,  492,  512,  513,  514,
+             516,  520,  521,  523,  525,  527,  528,  530,  537,  540,  542,  556,  558,  561,  570,  576,
+             577,  579,  582,  584,  588,  593,  600,  603,  609,  616,  618,  632,  638,  640,  650,  653,
+             655,  656,  660,  666,  672,  675,  685,  688,  698,  705,  708,  711,  712,  715,  721,  727,
+             728,  732,  737,  754,  760,  771,  773,  778,  780,  793,  795,  802,  806,  808,  812,  833,
+             840,  843,  849,  856,  858,  873,  912,  916,  919,  932,  934,  961,  963,  968,  970,  977,
+             989,  993, 1010, 1016, 1024, 1025, 1027, 1029, 1031, 1032, 1034, 1036, 1038, 1041, 1043, 1047,
+            1048, 1050, 1057, 1059, 1061, 1064, 1066, 1079, 1080, 1083, 1085, 1088, 1090, 1096, 1099, 1103,
+            1106, 1109, 1113, 1116, 1122, 1129, 1153, 1156, 1159, 1169, 1171, 1176, 1183, 1185, 1195, 1199,
+            1209, 1212, 1216, 1218, 1221, 1225, 1234, 1236, 1241, 1243, 1250, 1256, 1270, 1281, 1287, 1296,
+            1299, 1306, 1309, 1313, 1338, 1341, 1348, 1353, 1362, 1375, 1376, 1387, 1400, 1408, 1410, 1415,
+            1425, 1453, 1457, 1477, 1481, 1494, 1496, 1507, 1512, 1538, 1545, 1547, 1549, 1551, 1554, 1561,
+            1563, 1565, 1570, 1572, 1575, 1577, 1587, 1593, 1601, 1603, 1605, 1612, 1617, 1619, 1632, 1648,
+            1658, 1662, 1664, 1674, 1680, 1690, 1692, 1704, 1729, 1736, 1740, 1745, 1747, 1751, 1752, 1761,
+            1763, 1767, 1773, 1787, 1795, 1801, 1806, 1810, 1817, 1834, 1840, 1844, 1857, 1864, 1866, 1877,
+            1882, 1892, 1902, 1915, 1934, 1953, 1985, 1987, 2000, 2002, 2013, 2048, 2052, 2058, 2064, 2068,
+            2071, 2074, 2081, 2088, 2104, 2114, 2119, 2121, 2123, 2130, 2136, 2141, 2147, 2153, 2157, 2177,
+            2179, 2184, 2189, 2193, 2203, 2208, 2223, 2226, 2232, 2244, 2249, 2251, 2256, 2258, 2265, 2269,
+            2304, 2306, 2324, 2335, 2336, 2361, 2373, 2375, 2385, 2418, 2443, 2460, 2480, 2504, 2509, 2520,
+            2531, 2537, 2562, 2568, 2572, 2578, 2592, 2596, 2599, 2602, 2614, 2620, 2625, 2627, 2629, 2634,
+            2641, 2650, 2682, 2688, 2697, 2707, 2712, 2718, 2731, 2754, 2759, 2760, 2775, 2788, 2793, 2805,
+            2811, 2817, 2820, 2832, 2842, 2854, 2890, 2902, 2921, 2923, 2978, 3010, 3012, 3026, 3081, 3083,
+            3085, 3097, 3099, 3120, 3136, 3152, 3159, 3188, 3210, 3228, 3234, 3245, 3250, 3256, 3264, 3276,
+            3281, 3296, 3349, 3363, 3378, 3392, 3395, 3420, 3440, 3461, 3488, 3529, 3531, 3584, 3588, 3591,
+            3600, 3602, 3614, 3616, 3628, 3634, 3650, 3657, 3668, 3683, 3685, 3713, 3716, 3720, 3726, 3729,
+            3736, 3753, 3778, 3802, 3805, 3819, 3841, 3845, 3851, 3856, 3880, 3922, 3938, 3970, 3993, 4032,
+        };
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh;
+            kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *qs    = p + 2;    /* grid low bytes [64]  */
+            const uint8_t *qh    = p + 66;   /* grid high bits [8]   */
+            const uint8_t *signs = p + 74;   /* sign bytes     [32]  */
+            const uint8_t *sc    = p + 106;  /* scale nibbles  [4]   */
+            p += 110;
+            const float *xb = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32 += 2) {
+                float db1 = d * (float)(1 + 2 * (sc[ib32 / 2] & 0xf));
+                float db2 = d * (float)(1 + 2 * (sc[ib32 / 2] >>  4));
+                /* First 32-element sub-block (uses qh[0]) */
+                for (int l = 0; l < 4; l++) {
+                    uint16_t idx1 = (uint16_t)qs[2*l+0] | (uint16_t)(((unsigned)qh[0] << (8 - 2*l)) & 256u);
+                    uint16_t idx2 = (uint16_t)qs[2*l+1] | (uint16_t)(((unsigned)qh[0] << (7 - 2*l)) & 256u);
+                    uint16_t gv1  = kgrid_iq3s[idx1];
+                    uint16_t gv2  = kgrid_iq3s[idx2];
+                    uint8_t  sn   = signs[l];
+                    const float *xs = xb + ib32 * 32 + l * 8;
+                    for (int k = 0; k < 4; k++) {
+                        float w1 = (float)(2 * ((gv1 >> (3 * k)) & 7) + 1);
+                        float w2 = (float)(2 * ((gv2 >> (3 * k)) & 7) + 1);
+                        if (sn & (1u <<  k))    w1 = -w1;
+                        if (sn & (1u << (k+4))) w2 = -w2;
+                        sum += xs[k]   * db1 * w1;
+                        sum += xs[k+4] * db1 * w2;
+                    }
+                }
+                qs += 8; signs += 4;
+                /* Second 32-element sub-block (uses qh[1]) */
+                for (int l = 0; l < 4; l++) {
+                    uint16_t idx1 = (uint16_t)qs[2*l+0] | (uint16_t)(((unsigned)qh[1] << (8 - 2*l)) & 256u);
+                    uint16_t idx2 = (uint16_t)qs[2*l+1] | (uint16_t)(((unsigned)qh[1] << (7 - 2*l)) & 256u);
+                    uint16_t gv1  = kgrid_iq3s[idx1];
+                    uint16_t gv2  = kgrid_iq3s[idx2];
+                    uint8_t  sn   = signs[l];
+                    const float *xs = xb + (ib32 + 1) * 32 + l * 8;
+                    for (int k = 0; k < 4; k++) {
+                        float w1 = (float)(2 * ((gv1 >> (3 * k)) & 7) + 1);
+                        float w2 = (float)(2 * ((gv2 >> (3 * k)) & 7) + 1);
+                        if (sn & (1u <<  k))    w1 = -w1;
+                        if (sn & (1u << (k+4))) w2 = -w2;
+                        sum += xs[k]   * db2 * w1;
+                        sum += xs[k+4] * db2 * w2;
+                    }
+                }
+                qh += 2; qs += 8; signs += 4;
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_IQ1_S: case GGML_TYPE_IQ1_M: {
+        /* IQ1_S: 256 elements/super-block, 50 bytes.
+         * Layout: fp16 d (2) + qs[32] + qh_u16[8] (16).
+         * 8 mini-blocks of 32 elements each.
+         * dl = d * (2*((qh[ib]>>12)&7) + 1)
+         * delta = (qh[ib]&0x8000) ? -0.125f : +0.125f
+         * 4 groups of 8 (l=0..3):
+         *   grid_idx = qs[4*ib+l] | (((qh[ib]>>(3*(3-l)))&7)<<8)
+         *   int8_t grid[8] = kgrid_iq1s[grid_idx] bytes (-1/0/+1 encoded as 0xff/0x00/0x01)
+         *   y[j] = dl * ((float)grid[j] + delta)
+         * IQ1_M: 256 elements/super-block, 56 bytes.
+         * Layout: qs[32] + qh[16] + scales[8]. No explicit fp16 d.
+         * d packed in top 4 bits of each scales uint16_t pair.
+         * Uses same kgrid_iq1s[2048] lookup table. */
+        static const uint64_t kgrid_iq1s[2048] = {
+        0xffffffffffffffff, 0xffffffffffffff01, 0xffffffffffff0000, 0xffffffffffff01ff,
+        0xffffffffffff0101, 0xffffffffff00ff00, 0xffffffffff000000, 0xffffffffff01ffff,
+        0xffffffffff01ff01, 0xffffffffff0101ff, 0xffffffffff010101, 0xffffffff00ff0000,
+        0xffffffff0000ff00, 0xffffffff000000ff, 0xffffffff00000001, 0xffffffff00010000,
+        0xffffffff01ffffff, 0xffffffff01ffff01, 0xffffffff01ff01ff, 0xffffffff01ff0101,
+        0xffffffff01000000, 0xffffffff0101ffff, 0xffffffff0101ff01, 0xffffffff010101ff,
+        0xffffffff01010101, 0xffffff00ffff00ff, 0xffffff00ffff0000, 0xffffff00ff00ff00,
+        0xffffff00ff0000ff, 0xffffff00ff000001, 0xffffff00ff000100, 0xffffff00ff000101,
+        0xffffff00ff010000, 0xffffff0000ffff00, 0xffffff0000ff0001, 0xffffff0000ff0100,
+        0xffffff000000ff01, 0xffffff0000000000, 0xffffff0000000101, 0xffffff000001ff00,
+        0xffffff00000100ff, 0xffffff0000010001, 0xffffff00000101ff, 0xffffff0001ff0000,
+        0xffffff000100ff00, 0xffffff00010000ff, 0xffffff0001000001, 0xffffff0001010000,
+        0xffffff01ffffffff, 0xffffff01ffffff01, 0xffffff01ffff01ff, 0xffffff01ffff0101,
+        0xffffff01ff000000, 0xffffff01ff01ffff, 0xffffff01ff01ff01, 0xffffff01ff0101ff,
+        0xffffff01ff010101, 0xffffff0100ff0000, 0xffffff010000ff00, 0xffffff0100000100,
+        0xffffff01000100ff, 0xffffff0100010100, 0xffffff0101ffffff, 0xffffff0101ffff01,
+        0xffffff0101ff01ff, 0xffffff0101ff0101, 0xffffff010100ff00, 0xffffff0101000000,
+        0xffffff0101000100, 0xffffff010101ffff, 0xffffff010101ff01, 0xffffff01010101ff,
+        0xffffff0101010101, 0xffff00ffff00ff00, 0xffff00ffff0000ff, 0xffff00ffff000001,
+        0xffff00ffff010000, 0xffff00ff00ffff00, 0xffff00ff00ff0100, 0xffff00ff00000000,
+        0xffff00ff00000101, 0xffff00ff000100ff, 0xffff00ff00010000, 0xffff00ff0100ff00,
+        0xffff00ff01000100, 0xffff00ff01010000, 0xffff0000ffffff00, 0xffff0000ffff00ff,
+        0xffff0000ffff0000, 0xffff0000ffff0001, 0xffff0000ff000000, 0xffff0000ff0001ff,
+        0xffff0000ff000101, 0xffff0000ff010100, 0xffff000000ffffff, 0xffff000000ff0000,
+        0xffff000000ff0101, 0xffff00000000ffff, 0xffff00000000ff00, 0xffff0000000000ff,
+        0xffff000000000000, 0xffff000000000001, 0xffff000000000100, 0xffff00000001ffff,
+        0xffff00000001ff01, 0xffff000000010000, 0xffff0000000101ff, 0xffff000000010101,
+        0xffff000001ffff00, 0xffff00000100ff00, 0xffff000001000000, 0xffff0000010001ff,
+        0xffff000001000101, 0xffff00000101ff00, 0xffff0000010100ff, 0xffff000001010000,
+        0xffff000001010001, 0xffff000001010100, 0xffff0001ff0000ff, 0xffff0001ff000100,
+        0xffff000100ffff00, 0xffff000100ff00ff, 0xffff00010000ffff, 0xffff00010000ff01,
+        0xffff000100000000, 0xffff0001000001ff, 0xffff00010001ffff, 0xffff00010001ff00,
+        0xffff000100010001, 0xffff000100010100, 0xffff000101ff0000, 0xffff00010100ff00,
+        0xffff0001010000ff, 0xffff000101000100, 0xffff01ffffffffff, 0xffff01ffffffff01,
+        0xffff01ffffff01ff, 0xffff01ffffff0101, 0xffff01ffff000000, 0xffff01ffff01ffff,
+        0xffff01ffff01ff01, 0xffff01ffff0101ff, 0xffff01ffff010101, 0xffff01ff00ff0000,
+        0xffff01ff0000ff00, 0xffff01ff00000001, 0xffff01ff00010000, 0xffff01ff01ffffff,
+        0xffff01ff01ffff01, 0xffff01ff01ff01ff, 0xffff01ff01ff0101, 0xffff01ff01000000,
+        0xffff01ff0101ffff, 0xffff01ff0101ff01, 0xffff01ff010101ff, 0xffff01ff01010101,
+        0xffff0100ffff0000, 0xffff0100ff00ff00, 0xffff0100ff0000ff, 0xffff0100ff000100,
+        0xffff0100ff0100ff, 0xffff0100ff010000, 0xffff010000ffff00, 0xffff01000000ffff,
+        0xffff01000000ff00, 0xffff010000000000, 0xffff01000001ff00, 0xffff0100000100ff,
+        0xffff010000010100, 0xffff01000100ff00, 0xffff0100010000ff, 0xffff010001000001,
+        0xffff010001000100, 0xffff010001010000, 0xffff0101ffffffff, 0xffff0101ffffff01,
+        0xffff0101ffff01ff, 0xffff0101ffff0101, 0xffff0101ff000000, 0xffff0101ff01ffff,
+        0xffff0101ff01ff01, 0xffff0101ff0101ff, 0xffff0101ff010101, 0xffff010100ff0000,
+        0xffff01010000ff00, 0xffff010100000100, 0xffff01010001ff00, 0xffff010100010000,
+        0xffff010101ffffff, 0xffff010101ffff01, 0xffff010101ff0000, 0xffff010101ff01ff,
+        0xffff010101ff0101, 0xffff010101000000, 0xffff01010101ffff, 0xffff01010101ff01,
+        0xffff0101010101ff, 0xffff010101010101, 0xff00ffffff00ffff, 0xff00ffffff00ff00,
+        0xff00ffffff0000ff, 0xff00ffffff000100, 0xff00ffffff0100ff, 0xff00ffffff010000,
+        0xff00ffff00ffff00, 0xff00ffff00ff00ff, 0xff00ffff0000ffff, 0xff00ffff00000000,
+        0xff00ffff000001ff, 0xff00ffff0001ff00, 0xff00ffff000100ff, 0xff00ffff00010000,
+        0xff00ffff00010100, 0xff00ffff0100ff00, 0xff00ffff010000ff, 0xff00ffff01000001,
+        0xff00ffff0101ff00, 0xff00ffff01010000, 0xff00ff00ffffff00, 0xff00ff00ffff00ff,
+        0xff00ff00ffff0001, 0xff00ff00ffff0100, 0xff00ff00ff00ffff, 0xff00ff00ff00ff01,
+        0xff00ff00ff000000, 0xff00ff00ff0001ff, 0xff00ff00ff01ff00, 0xff00ff00ff0100ff,
+        0xff00ff00ff010100, 0xff00ff0000ff0000, 0xff00ff0000ff0101, 0xff00ff000000ffff,
+        0xff00ff000000ff00, 0xff00ff000000ff01, 0xff00ff00000000ff, 0xff00ff0000000000,
+        0xff00ff0000000001, 0xff00ff0000000100, 0xff00ff000001ffff, 0xff00ff0000010000,
+        0xff00ff0001ff00ff, 0xff00ff000100ff01, 0xff00ff0001000000, 0xff00ff000101ff00,
+        0xff00ff00010100ff, 0xff00ff01ff00ff00, 0xff00ff01ff0000ff, 0xff00ff01ff000001,
+        0xff00ff01ff010000, 0xff00ff0100ffffff, 0xff00ff0100ff0001, 0xff00ff0100ff0100,
+        0xff00ff010000ff01, 0xff00ff0100000000, 0xff00ff01000001ff, 0xff00ff0100000101,
+        0xff00ff01000100ff, 0xff00ff0100010001, 0xff00ff0101ff0000, 0xff00ff010100ff00,
+        0xff00ff01010000ff, 0xff00ff0101000001, 0xff00ff0101010000, 0xff0000ffffffff00,
+        0xff0000ffffff0001, 0xff0000ffffff0100, 0xff0000ffff0000ff, 0xff0000ffff000000,
+        0xff0000ffff0001ff, 0xff0000ffff000100, 0xff0000ffff01ff00, 0xff0000ffff010001,
+        0xff0000ff00ffff00, 0xff0000ff00ff0000, 0xff0000ff00ff0001, 0xff0000ff00ff01ff,
+        0xff0000ff00ff0101, 0xff0000ff0000ff00, 0xff0000ff000000ff, 0xff0000ff00000000,
+        0xff0000ff00000001, 0xff0000ff00000100, 0xff0000ff0001ff01, 0xff0000ff00010000,
+        0xff0000ff000101ff, 0xff0000ff01ff00ff, 0xff0000ff01ff0100, 0xff0000ff0100ffff,
+        0xff0000ff010000ff, 0xff0000ff01000000, 0xff0000ff010001ff, 0xff0000ff01000100,
+        0xff0000ff01000101, 0xff0000ff0101ff00, 0xff0000ff010100ff, 0xff0000ff01010000,
+        0xff0000ff01010100, 0xff000000ffffff01, 0xff000000ffff0000, 0xff000000ffff0101,
+        0xff000000ff00ff00, 0xff000000ff0000ff, 0xff000000ff000000, 0xff000000ff000001,
+        0xff000000ff000100, 0xff000000ff01ffff, 0xff000000ff01ff01, 0xff000000ff010000,
+        0xff000000ff0101ff, 0xff000000ff010101, 0xff00000000ffff00, 0xff00000000ff00ff,
+        0xff00000000ff0000, 0xff00000000ff0001, 0xff0000000000ff00, 0xff0000000000ff01,
+        0xff000000000000ff, 0xff00000000000000, 0xff00000000000001, 0xff00000000000100,
+        0xff00000000000101, 0xff0000000001ff00, 0xff000000000100ff, 0xff00000000010000,
+        0xff00000000010001, 0xff00000000010100, 0xff00000001ffffff, 0xff00000001ffff01,
+        0xff00000001ff00ff, 0xff00000001ff0000, 0xff00000001ff01ff, 0xff00000001ff0101,
+        0xff0000000100ffff, 0xff0000000100ff00, 0xff000000010000ff, 0xff00000001000000,
+        0xff00000001000001, 0xff00000001000100, 0xff00000001000101, 0xff0000000101ffff,
+        0xff0000000101ff01, 0xff00000001010000, 0xff000001ffffff00, 0xff000001ffff00ff,
+        0xff000001ffff0000, 0xff000001ffff0001, 0xff000001ff000000, 0xff000001ff000001,
+        0xff000001ff0001ff, 0xff000001ff000101, 0xff000001ff01ff00, 0xff000001ff010001,
+        0xff00000100ffffff, 0xff00000100ffff01, 0xff00000100ff00ff, 0xff00000100ff0000,
+        0xff00000100ff01ff, 0xff00000100ff0101, 0xff0000010000ff00, 0xff00000100000000,
+        0xff00000100000001, 0xff000001000001ff, 0xff00000100000100, 0xff0000010001ff00,
+        0xff000001000100ff, 0xff00000100010000, 0xff000001000101ff, 0xff00000100010100,
+        0xff00000100010101, 0xff00000101ff0001, 0xff00000101ff0101, 0xff0000010100ff01,
+        0xff00000101000000, 0xff000001010100ff, 0xff00000101010100, 0xff0001ffff00ff00,
+        0xff0001ffff000001, 0xff0001ffff010000, 0xff0001ff00ffff00, 0xff0001ff00ff00ff,
+        0xff0001ff00ff0001, 0xff0001ff00ff0100, 0xff0001ff0000ffff, 0xff0001ff00000000,
+        0xff0001ff000001ff, 0xff0001ff00000101, 0xff0001ff0001ffff, 0xff0001ff0001ff00,
+        0xff0001ff000100ff, 0xff0001ff00010001, 0xff0001ff00010100, 0xff0001ff01ff0000,
+        0xff0001ff0100ff00, 0xff0001ff010000ff, 0xff0001ff01010000, 0xff000100ff00ffff,
+        0xff000100ff00ff01, 0xff000100ff000000, 0xff000100ff000101, 0xff000100ff01ff00,
+        0xff000100ff010000, 0xff00010000ffff01, 0xff00010000ff00ff, 0xff00010000ff0000,
+        0xff00010000ff01ff, 0xff0001000000ff00, 0xff000100000000ff, 0xff00010000000000,
+        0xff00010000000001, 0xff00010000000100, 0xff00010000000101, 0xff0001000001ffff,
+        0xff00010000010000, 0xff00010000010101, 0xff00010001ff0100, 0xff0001000100ff00,
+        0xff0001000100ff01, 0xff00010001000000, 0xff000100010001ff, 0xff0001000101ff00,
+        0xff00010001010001, 0xff00010001010100, 0xff000101ffff0100, 0xff000101ff000001,
+        0xff000101ff0100ff, 0xff000101ff010001, 0xff00010100ff00ff, 0xff00010100ff0001,
+        0xff00010100ff0100, 0xff0001010000ffff, 0xff0001010000ff01, 0xff00010100000000,
+        0xff000101000001ff, 0xff0001010001ff00, 0xff00010100010001, 0xff00010100010100,
+        0xff00010101ff0000, 0xff0001010100ff00, 0xff00010101000001, 0xff00010101000101,
+        0xff01ffffffffffff, 0xff01ffffffffff01, 0xff01ffffffff01ff, 0xff01ffffffff0101,
+        0xff01ffffff000000, 0xff01ffffff01ffff, 0xff01ffffff01ff01, 0xff01ffffff010000,
+        0xff01ffffff0101ff, 0xff01ffffff010101, 0xff01ffff00ff0000, 0xff01ffff0000ff00,
+        0xff01ffff00000100, 0xff01ffff0001ff00, 0xff01ffff00010000, 0xff01ffff01ffffff,
+        0xff01ffff01ffff01, 0xff01ffff01ff01ff, 0xff01ffff01ff0101, 0xff01ffff01000000,
+        0xff01ffff0101ffff, 0xff01ffff0101ff01, 0xff01ffff01010000, 0xff01ffff010101ff,
+        0xff01ffff01010101, 0xff01ff00ffff0000, 0xff01ff00ff00ff00, 0xff01ff00ff0000ff,
+        0xff01ff00ff000100, 0xff01ff00ff010000, 0xff01ff0000ffff01, 0xff01ff0000ff00ff,
+        0xff01ff0000ff0100, 0xff01ff0000000000, 0xff01ff00000001ff, 0xff01ff0000000101,
+        0xff01ff000001ff00, 0xff01ff00000100ff, 0xff01ff0000010000, 0xff01ff0000010001,
+        0xff01ff0001ff0000, 0xff01ff000100ffff, 0xff01ff0001000001, 0xff01ff0001000100,
+        0xff01ff0001010000, 0xff01ff01ffffff00, 0xff01ff01ffff01ff, 0xff01ff01ffff0101,
+        0xff01ff01ff00ff00, 0xff01ff01ff000000, 0xff01ff01ff01ffff, 0xff01ff01ff01ff01,
+        0xff01ff01ff0101ff, 0xff01ff01ff010101, 0xff01ff0100ff0000, 0xff01ff010000ff00,
+        0xff01ff0100000001, 0xff01ff0100000100, 0xff01ff0100010000, 0xff01ff0101ffff00,
+        0xff01ff0101ff01ff, 0xff01ff0101ff0101, 0xff01ff010100ff00, 0xff01ff0101000000,
+        0xff01ff010101ffff, 0xff01ff010101ff01, 0xff01ff01010101ff, 0xff01ff0101010101,
+        0xff0100ffffff0000, 0xff0100ffff0000ff, 0xff0100ffff000001, 0xff0100ffff000100,
+        0xff0100ffff010000, 0xff0100ff00ff00ff, 0xff0100ff00ff0000, 0xff0100ff00ff0001,
+        0xff0100ff00ff0100, 0xff0100ff0000ff01, 0xff0100ff00000000, 0xff0100ff000001ff,
+        0xff0100ff00000101, 0xff0100ff00010001, 0xff0100ff01ff0000, 0xff0100ff0100ff00,
+        0xff0100ff010000ff, 0xff0100ff01000100, 0xff0100ff0101ff00, 0xff0100ff01010000,
+        0xff010000ffff0100, 0xff010000ff000000, 0xff010000ff01ff00, 0xff010000ff010100,
+        0xff01000000ffffff, 0xff01000000ff0000, 0xff01000000ff01ff, 0xff0100000000ff00,
+        0xff010000000000ff, 0xff01000000000000, 0xff01000000000100, 0xff0100000001ff01,
+        0xff01000000010000, 0xff010000000101ff, 0xff01000001ff0100, 0xff0100000100ffff,
+        0xff010000010000ff, 0xff01000001000000, 0xff010000010001ff, 0xff01000001000101,
+        0xff0100000101ff00, 0xff010000010100ff, 0xff01000001010001, 0xff01000001010100,
+        0xff010001ffff0000, 0xff010001ff00ffff, 0xff010001ff00ff01, 0xff010001ff000100,
+        0xff010001ff010000, 0xff01000100ffff00, 0xff01000100ff0100, 0xff01000100000000,
+        0xff0100010001ffff, 0xff0100010001ff00, 0xff01000100010100, 0xff01000101ff00ff,
+        0xff01000101ff0001, 0xff0100010100ffff, 0xff01000101000101, 0xff0101ffffffffff,
+        0xff0101ffffffff01, 0xff0101ffffff01ff, 0xff0101ffffff0101, 0xff0101ffff000000,
+        0xff0101ffff01ffff, 0xff0101ffff01ff01, 0xff0101ffff0101ff, 0xff0101ffff010101,
+        0xff0101ff00ff0000, 0xff0101ff0000ff00, 0xff0101ff000000ff, 0xff0101ff00010000,
+        0xff0101ff01ffffff, 0xff0101ff01ffff01, 0xff0101ff01ff01ff, 0xff0101ff01ff0101,
+        0xff0101ff0101ffff, 0xff0101ff0101ff01, 0xff0101ff010101ff, 0xff0101ff01010101,
+        0xff010100ffff0100, 0xff010100ff00ff00, 0xff010100ff0000ff, 0xff010100ff000100,
+        0xff010100ff010000, 0xff01010000ff0001, 0xff01010000ff0100, 0xff0101000000ff01,
+        0xff01010000000000, 0xff0101000001ff00, 0xff010100000100ff, 0xff01010000010001,
+        0xff01010000010100, 0xff01010001ff0000, 0xff0101000100ffff, 0xff01010001000001,
+        0xff01010001000100, 0xff010100010100ff, 0xff01010001010000, 0xff010101ffffffff,
+        0xff010101ffffff01, 0xff010101ffff01ff, 0xff010101ffff0101, 0xff010101ff01ffff,
+        0xff010101ff01ff01, 0xff010101ff0101ff, 0xff010101ff010101, 0xff01010100ff0000,
+        0xff0101010000ff00, 0xff01010100000001, 0xff01010100000100, 0xff01010100010000,
+        0xff01010101ffffff, 0xff01010101ffff01, 0xff01010101ff01ff, 0xff01010101ff0101,
+        0xff01010101000000, 0xff0101010101ffff, 0xff0101010101ff01, 0xff010101010101ff,
+        0xff01010101010101, 0x00ffffffffff0000, 0x00ffffffff00ff00, 0x00ffffffff000001,
+        0x00ffffffff010000, 0x00ffffff00ff0100, 0x00ffffff0000ff01, 0x00ffffff00000000,
+        0x00ffffff000001ff, 0x00ffffff00000101, 0x00ffffff0001ff00, 0x00ffffff000100ff,
+        0x00ffffff00010001, 0x00ffffff010000ff, 0x00ffffff01000100, 0x00ffffff0101ff00,
+        0x00ffffff01010001, 0x00ffff00ffffffff, 0x00ffff00ffffff00, 0x00ffff00ffff00ff,
+        0x00ffff00ffff0001, 0x00ffff00ffff0100, 0x00ffff00ff00ff01, 0x00ffff00ff000000,
+        0x00ffff00ff000001, 0x00ffff00ff0001ff, 0x00ffff00ff000101, 0x00ffff00ff01ff00,
+        0x00ffff00ff010001, 0x00ffff00ff010100, 0x00ffff0000ff0000, 0x00ffff0000ff01ff,
+        0x00ffff0000ff0101, 0x00ffff000000ff00, 0x00ffff00000000ff, 0x00ffff0000000000,
+        0x00ffff0000000001, 0x00ffff0000000100, 0x00ffff0000000101, 0x00ffff0000010000,
+        0x00ffff00000101ff, 0x00ffff0000010101, 0x00ffff0001ffff00, 0x00ffff0001ff00ff,
+        0x00ffff0001ff0001, 0x00ffff000100ffff, 0x00ffff000100ff01, 0x00ffff0001000000,
+        0x00ffff000101ffff, 0x00ffff000101ff00, 0x00ffff000101ff01, 0x00ffff01ffff0000,
+        0x00ffff01ff00ff00, 0x00ffff01ff0000ff, 0x00ffff01ff000001, 0x00ffff01ff010000,
+        0x00ffff0100ffff00, 0x00ffff010000ff01, 0x00ffff0100000000, 0x00ffff0100000101,
+        0x00ffff01000100ff, 0x00ffff0100010100, 0x00ffff0101ff0100, 0x00ffff01010000ff,
+        0x00ffff0101010000, 0x00ff00ffffffff00, 0x00ff00ffff000000, 0x00ff00ffff000100,
+        0x00ff00ffff010100, 0x00ff00ff00ff0000, 0x00ff00ff00ff01ff, 0x00ff00ff00ff0101,
+        0x00ff00ff0000ff00, 0x00ff00ff000000ff, 0x00ff00ff00000000, 0x00ff00ff00000001,
+        0x00ff00ff0001ff00, 0x00ff00ff0001ff01, 0x00ff00ff00010000, 0x00ff00ff000101ff,
+        0x00ff00ff00010101, 0x00ff00ff01ffff00, 0x00ff00ff01ff0001, 0x00ff00ff01ff0100,
+        0x00ff00ff0100ffff, 0x00ff00ff0100ff01, 0x00ff00ff01000000, 0x00ff00ff0101ffff,
+        0x00ff00ff0101ff00, 0x00ff00ff01010100, 0x00ff0000ffffff00, 0x00ff0000ffffff01,
+        0x00ff0000ffff0000, 0x00ff0000ffff0101, 0x00ff0000ff00ff00, 0x00ff0000ff0000ff,
+        0x00ff0000ff000000, 0x00ff0000ff000001, 0x00ff0000ff000100, 0x00ff0000ff01ffff,
+        0x00ff0000ff010000, 0x00ff0000ff010101, 0x00ff000000ffff00, 0x00ff000000ff00ff,
+        0x00ff000000ff0000, 0x00ff000000ff0001, 0x00ff000000ff0100, 0x00ff00000000ffff,
+        0x00ff00000000ff00, 0x00ff0000000000ff, 0x00ff000000000000, 0x00ff000000000001,
+        0x00ff0000000001ff, 0x00ff000000000100, 0x00ff00000001ff00, 0x00ff0000000100ff,
+        0x00ff000000010000, 0x00ff000000010001, 0x00ff000000010100, 0x00ff000001ffff01,
+        0x00ff000001ff00ff, 0x00ff000001ff0000, 0x00ff000001ff01ff, 0x00ff00000100ff00,
+        0x00ff0000010000ff, 0x00ff000001000000, 0x00ff000001000001, 0x00ff000001000100,
+        0x00ff000001000101, 0x00ff000001010000, 0x00ff0000010101ff, 0x00ff000001010101,
+        0x00ff0001ffffff00, 0x00ff0001ffff0000, 0x00ff0001ffff0100, 0x00ff0001ff0000ff,
+        0x00ff0001ff000000, 0x00ff0001ff0001ff, 0x00ff0001ff000101, 0x00ff0001ff01ff00,
+        0x00ff0001ff0100ff, 0x00ff0001ff010100, 0x00ff000100ffffff, 0x00ff000100ffff01,
+        0x00ff000100ff0000, 0x00ff000100ff01ff, 0x00ff00010000ffff, 0x00ff00010000ff00,
+        0x00ff00010000ff01, 0x00ff000100000000, 0x00ff000100000001, 0x00ff000100000100,
+        0x00ff00010001ff01, 0x00ff000100010000, 0x00ff0001000101ff, 0x00ff000101ffff00,
+        0x00ff000101ff0000, 0x00ff000101ff0101, 0x00ff0001010000ff, 0x00ff000101000000,
+        0x00ff00010101ff00, 0x00ff0001010100ff, 0x00ff000101010001, 0x00ff01ffffff0000,
+        0x00ff01ffff00ff00, 0x00ff01ffff000000, 0x00ff01ffff000101, 0x00ff01ffff010000,
+        0x00ff01ff00ffff01, 0x00ff01ff00ff0100, 0x00ff01ff0000ffff, 0x00ff01ff00000000,
+        0x00ff01ff000001ff, 0x00ff01ff0001ff00, 0x00ff01ff000100ff, 0x00ff01ff00010001,
+        0x00ff01ff00010100, 0x00ff01ff01ff0000, 0x00ff01ff0100ff00, 0x00ff01ff010000ff,
+        0x00ff01ff01000001, 0x00ff01ff01000100, 0x00ff01ff01010000, 0x00ff0100ffffff00,
+        0x00ff0100ffff0000, 0x00ff0100ffff0001, 0x00ff0100ffff0101, 0x00ff0100ff00ffff,
+        0x00ff0100ff0000ff, 0x00ff0100ff000000, 0x00ff0100ff0001ff, 0x00ff0100ff01ff00,
+        0x00ff0100ff0100ff, 0x00ff0100ff010001, 0x00ff010000ffffff, 0x00ff010000ff0000,
+        0x00ff010000ff0101, 0x00ff01000000ff00, 0x00ff01000000ff01, 0x00ff0100000000ff,
+        0x00ff010000000000, 0x00ff010000000001, 0x00ff010000000100, 0x00ff01000001ffff,
+        0x00ff01000001ff01, 0x00ff010000010000, 0x00ff010000010001, 0x00ff010000010101,
+        0x00ff010001ff0001, 0x00ff010001ff0100, 0x00ff01000100ff01, 0x00ff010001000000,
+        0x00ff010001000001, 0x00ff0100010001ff, 0x00ff01000101ff00, 0x00ff0100010100ff,
+        0x00ff010001010001, 0x00ff010001010100, 0x00ff0101ff000001, 0x00ff010100ff00ff,
+        0x00ff010100ff0001, 0x00ff010100ff0100, 0x00ff010100000000, 0x00ff0101000001ff,
+        0x00ff010100000101, 0x00ff0101000100ff, 0x00ff010100010100, 0x00ff0101010000ff,
+        0x00ff010101010000, 0x0000ffffffffff00, 0x0000ffffffff00ff, 0x0000ffffffff0000,
+        0x0000ffffffff0001, 0x0000ffffffff0100, 0x0000ffffff00ff01, 0x0000ffffff000000,
+        0x0000ffffff000101, 0x0000ffffff01ff00, 0x0000ffffff0100ff, 0x0000ffffff010100,
+        0x0000ffff00ffffff, 0x0000ffff00ff0000, 0x0000ffff00ff01ff, 0x0000ffff0000ff00,
+        0x0000ffff000000ff, 0x0000ffff00000000, 0x0000ffff00000001, 0x0000ffff00000100,
+        0x0000ffff00010000, 0x0000ffff000101ff, 0x0000ffff01ff0001, 0x0000ffff01ff0100,
+        0x0000ffff01000000, 0x0000ffff010001ff, 0x0000ffff0101ffff, 0x0000ffff0101ff00,
+        0x0000ffff01010001, 0x0000ffff01010100, 0x0000ff00ffff0000, 0x0000ff00ffff01ff,
+        0x0000ff00ffff0100, 0x0000ff00ffff0101, 0x0000ff00ff00ff00, 0x0000ff00ff0000ff,
+        0x0000ff00ff000000, 0x0000ff00ff000001, 0x0000ff00ff0001ff, 0x0000ff00ff000100,
+        0x0000ff00ff01ffff, 0x0000ff00ff010000, 0x0000ff00ff010001, 0x0000ff00ff0101ff,
+        0x0000ff00ff010101, 0x0000ff0000ffff00, 0x0000ff0000ff00ff, 0x0000ff0000ff0000,
+        0x0000ff0000ff0001, 0x0000ff0000ff0100, 0x0000ff000000ffff, 0x0000ff000000ff00,
+        0x0000ff000000ff01, 0x0000ff00000000ff, 0x0000ff0000000000, 0x0000ff0000000001,
+        0x0000ff00000001ff, 0x0000ff0000000100, 0x0000ff0000000101, 0x0000ff000001ff00,
+        0x0000ff00000100ff, 0x0000ff0000010000, 0x0000ff0000010001, 0x0000ff0000010100,
+        0x0000ff0001ffff01, 0x0000ff0001ff0000, 0x0000ff000100ff00, 0x0000ff00010000ff,
+        0x0000ff0001000000, 0x0000ff0001000001, 0x0000ff0001000100, 0x0000ff000101ffff,
+        0x0000ff0001010000, 0x0000ff0001010101, 0x0000ff01ffffff00, 0x0000ff01ffff0001,
+        0x0000ff01ff00ff01, 0x0000ff01ff000000, 0x0000ff01ff000101, 0x0000ff01ff01ff00,
+        0x0000ff01ff0100ff, 0x0000ff0100ffff01, 0x0000ff0100ff0000, 0x0000ff0100ff0101,
+        0x0000ff010000ff00, 0x0000ff01000000ff, 0x0000ff0100000000, 0x0000ff0100000001,
+        0x0000ff0100000100, 0x0000ff010001ff01, 0x0000ff0100010000, 0x0000ff0101ff0000,
+        0x0000ff010100ffff, 0x0000ff010100ff01, 0x0000ff0101000000, 0x0000ff0101000100,
+        0x0000ff0101000101, 0x0000ff01010100ff, 0x000000ffffff00ff, 0x000000ffffff0000,
+        0x000000ffff00ff00, 0x000000ffff0000ff, 0x000000ffff000000, 0x000000ffff000001,
+        0x000000ffff0001ff, 0x000000ffff000100, 0x000000ffff01ff00, 0x000000ffff010000,
+        0x000000ffff0101ff, 0x000000ffff010101, 0x000000ff00ffff00, 0x000000ff00ff00ff,
+        0x000000ff00ff0000, 0x000000ff00ff0001, 0x000000ff00ff0100, 0x000000ff00ff0101,
+        0x000000ff0000ffff, 0x000000ff0000ff00, 0x000000ff000000ff, 0x000000ff00000000,
+        0x000000ff00000001, 0x000000ff000001ff, 0x000000ff00000100, 0x000000ff00000101,
+        0x000000ff0001ff00, 0x000000ff0001ff01, 0x000000ff000100ff, 0x000000ff00010000,
+        0x000000ff00010001, 0x000000ff00010100, 0x000000ff01ffffff, 0x000000ff01ff01ff,
+        0x000000ff01ff0101, 0x000000ff0100ff00, 0x000000ff010000ff, 0x000000ff01000000,
+        0x000000ff01000001, 0x000000ff01000100, 0x000000ff0101ff00, 0x000000ff010100ff,
+        0x000000ff01010000, 0x000000ff01010101, 0x00000000ffffff00, 0x00000000ffffff01,
+        0x00000000ffff00ff, 0x00000000ffff0000, 0x00000000ffff0001, 0x00000000ffff0100,
+        0x00000000ff00ffff, 0x00000000ff00ff00, 0x00000000ff00ff01, 0x00000000ff0000ff,
+        0x00000000ff000000, 0x00000000ff000001, 0x00000000ff000100, 0x00000000ff000101,
+        0x00000000ff01ff00, 0x00000000ff0100ff, 0x00000000ff010000, 0x00000000ff010001,
+        0x00000000ff010100, 0x0000000000ffffff, 0x0000000000ffff00, 0x0000000000ffff01,
+        0x0000000000ff00ff, 0x0000000000ff0000, 0x0000000000ff0001, 0x0000000000ff01ff,
+        0x0000000000ff0100, 0x000000000000ffff, 0x000000000000ff00, 0x000000000000ff01,
+        0x00000000000000ff, 0x0000000000000000, 0x0000000000000001, 0x00000000000001ff,
+        0x0000000000000100, 0x0000000000000101, 0x000000000001ffff, 0x000000000001ff00,
+        0x00000000000100ff, 0x0000000000010000, 0x0000000000010001, 0x00000000000101ff,
+        0x0000000000010100, 0x0000000000010101, 0x0000000001ffff00, 0x0000000001ff00ff,
+        0x0000000001ff0000, 0x0000000001ff0100, 0x0000000001ff0101, 0x000000000100ffff,
+        0x000000000100ff00, 0x00000000010000ff, 0x0000000001000000, 0x0000000001000001,
+        0x00000000010001ff, 0x0000000001000100, 0x000000000101ff00, 0x00000000010100ff,
+        0x0000000001010000, 0x0000000001010001, 0x0000000001010100, 0x00000001ffffffff,
+        0x00000001ffffff00, 0x00000001ffffff01, 0x00000001ffff00ff, 0x00000001ffff0001,
+        0x00000001ffff01ff, 0x00000001ffff0100, 0x00000001ff00ff00, 0x00000001ff0000ff,
+        0x00000001ff000000, 0x00000001ff0001ff, 0x00000001ff000100, 0x00000001ff01ffff,
+        0x00000001ff01ff00, 0x00000001ff01ff01, 0x00000001ff0100ff, 0x00000001ff010000,
+        0x00000001ff010001, 0x00000001ff0101ff, 0x00000001ff010100, 0x0000000100ffff00,
+        0x0000000100ff0000, 0x0000000100ff0001, 0x0000000100ff01ff, 0x0000000100ff0100,
+        0x0000000100ff0101, 0x000000010000ffff, 0x000000010000ff00, 0x000000010000ff01,
+        0x00000001000000ff, 0x0000000100000000, 0x0000000100000001, 0x00000001000001ff,
+        0x0000000100000100, 0x0000000100000101, 0x000000010001ff00, 0x00000001000100ff,
+        0x0000000100010000, 0x0000000100010100, 0x0000000101ffff01, 0x0000000101ff0000,
+        0x0000000101ff0001, 0x0000000101ff01ff, 0x0000000101ff0100, 0x0000000101ff0101,
+        0x000000010100ff00, 0x0000000101000000, 0x0000000101000101, 0x000000010101ff01,
+        0x0000000101010000, 0x0000000101010001, 0x00000001010101ff, 0x0000000101010100,
+        0x000001ffffff00ff, 0x000001ffffff0000, 0x000001ffffff0001, 0x000001ffffff0100,
+        0x000001ffff00ffff, 0x000001ffff000000, 0x000001ffff0001ff, 0x000001ffff01ff00,
+        0x000001ffff010101, 0x000001ff00ff0000, 0x000001ff00ff01ff, 0x000001ff00ff0101,
+        0x000001ff0000ff00, 0x000001ff000000ff, 0x000001ff00000000, 0x000001ff00000001,
+        0x000001ff000001ff, 0x000001ff00000100, 0x000001ff0001ffff, 0x000001ff0001ff01,
+        0x000001ff000100ff, 0x000001ff00010000, 0x000001ff01ffff01, 0x000001ff01ff0100,
+        0x000001ff0100ffff, 0x000001ff0100ff01, 0x000001ff01000000, 0x000001ff010001ff,
+        0x000001ff0101ff00, 0x000001ff01010100, 0x00000100ffffff00, 0x00000100ffffff01,
+        0x00000100ffff0000, 0x00000100ffff0101, 0x00000100ff00ff00, 0x00000100ff0000ff,
+        0x00000100ff000000, 0x00000100ff000001, 0x00000100ff000100, 0x00000100ff010000,
+        0x0000010000ffff00, 0x0000010000ff00ff, 0x0000010000ff0000, 0x0000010000ff0001,
+        0x0000010000ff0100, 0x000001000000ffff, 0x000001000000ff00, 0x000001000000ff01,
+        0x00000100000000ff, 0x0000010000000000, 0x0000010000000001, 0x00000100000001ff,
+        0x0000010000000100, 0x0000010000000101, 0x000001000001ff00, 0x00000100000100ff,
+        0x0000010000010000, 0x0000010000010001, 0x0000010000010100, 0x0000010001ffff00,
+        0x0000010001ff0000, 0x0000010001ff0100, 0x000001000100ff00, 0x00000100010000ff,
+        0x0000010001000000, 0x0000010001000001, 0x00000100010001ff, 0x0000010001000100,
+        0x0000010001010000, 0x00000101ffff00ff, 0x00000101ffff01ff, 0x00000101ff000000,
+        0x00000101ff000101, 0x00000101ff01ffff, 0x00000101ff010000, 0x00000101ff010001,
+        0x00000101ff010100, 0x0000010100ff0000, 0x0000010100ff01ff, 0x0000010100ff0100,
+        0x000001010000ff00, 0x0000010100000000, 0x0000010100000001, 0x00000101000001ff,
+        0x0000010100000100, 0x000001010001ff01, 0x0000010100010000, 0x00000101000101ff,
+        0x0000010100010101, 0x0000010101ffff00, 0x0000010101ff0101, 0x000001010100ff01,
+        0x0000010101000000, 0x0000010101000001, 0x00000101010001ff, 0x0000010101000101,
+        0x000001010101ff00, 0x0001ffffffff0000, 0x0001ffffff0000ff, 0x0001ffffff000001,
+        0x0001ffffff000100, 0x0001ffffff010000, 0x0001ffff00ff00ff, 0x0001ffff0000ffff,
+        0x0001ffff00000000, 0x0001ffff00000001, 0x0001ffff000001ff, 0x0001ffff00000101,
+        0x0001ffff0001ff00, 0x0001ffff000100ff, 0x0001ffff00010001, 0x0001ffff00010100,
+        0x0001ffff01ffff00, 0x0001ffff01000001, 0x0001ffff01010000, 0x0001ff00ffffff00,
+        0x0001ff00ffff00ff, 0x0001ff00ffff0001, 0x0001ff00ffff0100, 0x0001ff00ff00ff01,
+        0x0001ff00ff000000, 0x0001ff00ff01ff00, 0x0001ff00ff01ff01, 0x0001ff00ff010001,
+        0x0001ff00ff010100, 0x0001ff0000ff0000, 0x0001ff0000ff0100, 0x0001ff000000ff00,
+        0x0001ff0000000000, 0x0001ff0000000001, 0x0001ff0000000100, 0x0001ff0000010000,
+        0x0001ff0000010001, 0x0001ff0000010101, 0x0001ff0001ff00ff, 0x0001ff0001ff0101,
+        0x0001ff000100ff01, 0x0001ff0001000000, 0x0001ff000101ff00, 0x0001ff0001010001,
+        0x0001ff0001010100, 0x0001ff01ff00ff00, 0x0001ff01ff000001, 0x0001ff01ff000100,
+        0x0001ff0100ffffff, 0x0001ff0100ffff00, 0x0001ff0100ff0001, 0x0001ff0100000000,
+        0x0001ff0100000001, 0x0001ff01000001ff, 0x0001ff010001ffff, 0x0001ff0101ff0000,
+        0x0001ff010100ff00, 0x0001ff0101000001, 0x0001ff0101010000, 0x000100ffff00ff00,
+        0x000100ffff00ff01, 0x000100ffff000000, 0x000100ffff000001, 0x000100ffff000101,
+        0x000100ffff01ff00, 0x000100ffff010001, 0x000100ffff010100, 0x000100ff00ffffff,
+        0x000100ff00ffff01, 0x000100ff00ff0000, 0x000100ff00ff01ff, 0x000100ff00ff0101,
+        0x000100ff0000ff00, 0x000100ff000000ff, 0x000100ff00000000, 0x000100ff00000001,
+        0x000100ff00000100, 0x000100ff00000101, 0x000100ff0001ffff, 0x000100ff0001ff01,
+        0x000100ff00010000, 0x000100ff01ff00ff, 0x000100ff01ff0000, 0x000100ff01ff0100,
+        0x000100ff0100ffff, 0x000100ff0100ff01, 0x000100ff010000ff, 0x000100ff01000000,
+        0x000100ff01000001, 0x000100ff010001ff, 0x000100ff01000101, 0x000100ff0101ff00,
+        0x000100ff010100ff, 0x000100ff01010100, 0x00010000ffff0000, 0x00010000ffff01ff,
+        0x00010000ffff0101, 0x00010000ff00ff00, 0x00010000ff000000, 0x00010000ff000001,
+        0x00010000ff000100, 0x0001000000ff00ff, 0x0001000000ff0000, 0x0001000000ff0001,
+        0x0001000000ff0100, 0x000100000000ffff, 0x000100000000ff00, 0x00010000000000ff,
+        0x0001000000000000, 0x0001000000000001, 0x0001000000000100, 0x000100000001ff00,
+        0x00010000000100ff, 0x0001000000010000, 0x0001000000010001, 0x0001000000010100,
+        0x0001000001ff0001, 0x0001000001ff0100, 0x0001000001ff0101, 0x000100000100ff00,
+        0x0001000001000000, 0x0001000001000001, 0x0001000001000100, 0x0001000001000101,
+        0x000100000101ff01, 0x0001000001010000, 0x0001000001010001, 0x00010000010101ff,
+        0x00010001ffffff01, 0x00010001ffff0100, 0x00010001ff000000, 0x00010001ff01ffff,
+        0x00010001ff010001, 0x00010001ff0101ff, 0x00010001ff010100, 0x0001000100ffffff,
+        0x0001000100ff0000, 0x0001000100ff01ff, 0x0001000100ff0101, 0x000100010000ff00,
+        0x00010001000000ff, 0x0001000100000000, 0x0001000100000001, 0x00010001000001ff,
+        0x0001000100000101, 0x000100010001ffff, 0x0001000100010000, 0x00010001000101ff,
+        0x0001000101ffffff, 0x0001000101ffff01, 0x0001000101ff0000, 0x0001000101ff0101,
+        0x00010001010000ff, 0x0001000101000001, 0x00010001010001ff, 0x0001000101000100,
+        0x000100010101ffff, 0x00010001010100ff, 0x0001000101010001, 0x0001000101010101,
+        0x000101ffff000001, 0x000101ffff000100, 0x000101ffff010000, 0x000101ff00ffff00,
+        0x000101ff0000ff01, 0x000101ff00000000, 0x000101ff00000101, 0x000101ff0001ff00,
+        0x000101ff00010100, 0x000101ff01ff0000, 0x000101ff0100ff00, 0x000101ff010001ff,
+        0x000101ff01010001, 0x00010100ffffff00, 0x00010100ffff00ff, 0x00010100ff00ffff,
+        0x00010100ff000000, 0x00010100ff01ff00, 0x00010100ff0100ff, 0x00010100ff010001,
+        0x00010100ff010100, 0x0001010000ffffff, 0x0001010000ffff00, 0x0001010000ff0000,
+        0x0001010000ff0001, 0x0001010000ff01ff, 0x000101000000ff00, 0x00010100000000ff,
+        0x0001010000000000, 0x0001010000000001, 0x0001010000000100, 0x000101000001ffff,
+        0x0001010000010000, 0x0001010000010101, 0x0001010001ffff01, 0x0001010001ff00ff,
+        0x0001010001ff0101, 0x0001010001000000, 0x000101000101ff00, 0x00010100010100ff,
+        0x0001010001010000, 0x0001010001010100, 0x00010101ff00ff00, 0x00010101ff000001,
+        0x00010101ff0001ff, 0x0001010100ffff00, 0x0001010100ff00ff, 0x0001010100ff0100,
+        0x000101010000ffff, 0x0001010100000000, 0x00010101000001ff, 0x0001010100000101,
+        0x00010101000100ff, 0x0001010100010000, 0x0001010100010100, 0x0001010101ff0001,
+        0x00010101010000ff, 0x00010101010001ff, 0x0001010101000101, 0x0001010101010001,
+        0x01ffffffffffffff, 0x01ffffffffffff01, 0x01ffffffffff01ff, 0x01ffffffffff0101,
+        0x01ffffffff01ffff, 0x01ffffffff01ff01, 0x01ffffffff0101ff, 0x01ffffffff010101,
+        0x01ffffff00ff0000, 0x01ffffff0000ffff, 0x01ffffff0000ff00, 0x01ffffff000000ff,
+        0x01ffffff00000001, 0x01ffffff00000100, 0x01ffffff00010000, 0x01ffffff01ffffff,
+        0x01ffffff01ffff01, 0x01ffffff01ff01ff, 0x01ffffff01ff0101, 0x01ffffff01000000,
+        0x01ffffff0101ffff, 0x01ffffff0101ff01, 0x01ffffff010101ff, 0x01ffffff01010101,
+        0x01ffff00ffff0000, 0x01ffff00ff00ff00, 0x01ffff00ff0000ff, 0x01ffff00ff000001,
+        0x01ffff00ff000100, 0x01ffff00ff010000, 0x01ffff0000ffff00, 0x01ffff0000ff00ff,
+        0x01ffff0000ff0100, 0x01ffff000000ffff, 0x01ffff000000ff01, 0x01ffff0000000000,
+        0x01ffff0000000001, 0x01ffff00000001ff, 0x01ffff0000000100, 0x01ffff00000100ff,
+        0x01ffff0000010001, 0x01ffff0000010100, 0x01ffff0001ff0000, 0x01ffff0001ff0100,
+        0x01ffff00010000ff, 0x01ffff0001000001, 0x01ffff0001000100, 0x01ffff0001010000,
+        0x01ffff01ffffffff, 0x01ffff01ffffff01, 0x01ffff01ffff01ff, 0x01ffff01ffff0101,
+        0x01ffff01ff000000, 0x01ffff01ff01ffff, 0x01ffff01ff01ff01, 0x01ffff01ff0101ff,
+        0x01ffff01ff010101, 0x01ffff010000ff00, 0x01ffff01000000ff, 0x01ffff0100000100,
+        0x01ffff0100010000, 0x01ffff0101ffffff, 0x01ffff0101ffff01, 0x01ffff0101ff01ff,
+        0x01ffff0101ff0101, 0x01ffff0101000000, 0x01ffff010101ffff, 0x01ffff010101ff01,
+        0x01ffff01010101ff, 0x01ffff0101010101, 0x01ff00ffff0000ff, 0x01ff00ffff000100,
+        0x01ff00ff00ffff00, 0x01ff00ff00ff00ff, 0x01ff00ff0000ff00, 0x01ff00ff00000000,
+        0x01ff00ff00000101, 0x01ff00ff0001ff00, 0x01ff00ff000100ff, 0x01ff00ff00010100,
+        0x01ff00ff010000ff, 0x01ff00ff01000100, 0x01ff0000ffffff00, 0x01ff0000ffff0100,
+        0x01ff0000ff00ff01, 0x01ff0000ff000000, 0x01ff0000ff000101, 0x01ff0000ff010001,
+        0x01ff0000ff010100, 0x01ff000000ffffff, 0x01ff000000ffff00, 0x01ff000000ff0000,
+        0x01ff000000ff01ff, 0x01ff00000000ff00, 0x01ff0000000000ff, 0x01ff000000000000,
+        0x01ff000000000001, 0x01ff000000000100, 0x01ff000000000101, 0x01ff000000010000,
+        0x01ff000000010001, 0x01ff0000000101ff, 0x01ff000000010101, 0x01ff000001ffff00,
+        0x01ff000001ff00ff, 0x01ff000001ff0001, 0x01ff000001ff0100, 0x01ff00000100ffff,
+        0x01ff00000100ff01, 0x01ff000001000000, 0x01ff0000010001ff, 0x01ff000001010001,
+        0x01ff0001ff00ff00, 0x01ff0001ff000001, 0x01ff0001ff000100, 0x01ff0001ff010000,
+        0x01ff000100ffff00, 0x01ff000100ff00ff, 0x01ff000100ff0100, 0x01ff000100ff0101,
+        0x01ff00010000ffff, 0x01ff000100000000, 0x01ff000100000100, 0x01ff000100000101,
+        0x01ff00010001ff00, 0x01ff000100010001, 0x01ff000100010101, 0x01ff000101ff0000,
+        0x01ff00010100ff00, 0x01ff000101000101, 0x01ff0001010100ff, 0x01ff01ffffffffff,
+        0x01ff01ffffffff01, 0x01ff01ffffff01ff, 0x01ff01ffffff0101, 0x01ff01ffff000000,
+        0x01ff01ffff01ffff, 0x01ff01ffff01ff01, 0x01ff01ffff0101ff, 0x01ff01ffff010101,
+        0x01ff01ff00ffff00, 0x01ff01ff00ff0000, 0x01ff01ff0000ff00, 0x01ff01ff000000ff,
+        0x01ff01ff00000100, 0x01ff01ff00010000, 0x01ff01ff00010100, 0x01ff01ff01ffffff,
+        0x01ff01ff01ffff01, 0x01ff01ff01ff01ff, 0x01ff01ff01ff0101, 0x01ff01ff01000000,
+        0x01ff01ff0101ffff, 0x01ff01ff0101ff01, 0x01ff01ff010101ff, 0x01ff01ff01010101,
+        0x01ff0100ffff0000, 0x01ff0100ffff0001, 0x01ff0100ff00ff00, 0x01ff0100ff0000ff,
+        0x01ff0100ff000001, 0x01ff0100ff010000, 0x01ff010000ffff00, 0x01ff010000ff00ff,
+        0x01ff010000ff0001, 0x01ff010000ff0100, 0x01ff01000000ffff, 0x01ff01000000ff01,
+        0x01ff010000000000, 0x01ff010000000101, 0x01ff01000001ff00, 0x01ff0100000100ff,
+        0x01ff010001ff0000, 0x01ff010001000001, 0x01ff010001000100, 0x01ff010001010000,
+        0x01ff0101ffffffff, 0x01ff0101ffffff01, 0x01ff0101ffff01ff, 0x01ff0101ffff0101,
+        0x01ff0101ff000000, 0x01ff0101ff01ffff, 0x01ff0101ff01ff01, 0x01ff0101ff0101ff,
+        0x01ff0101ff010101, 0x01ff010100ff0000, 0x01ff01010000ff00, 0x01ff0101000000ff,
+        0x01ff010100000001, 0x01ff010101ffffff, 0x01ff010101ffff01, 0x01ff010101ff01ff,
+        0x01ff010101ff0101, 0x01ff010101000000, 0x01ff01010101ffff, 0x01ff01010101ff01,
+        0x01ff0101010101ff, 0x01ff010101010101, 0x0100ffffffff0000, 0x0100ffffff00ff00,
+        0x0100ffffff000001, 0x0100ffffff0001ff, 0x0100ffffff000100, 0x0100ffffff010000,
+        0x0100ffff00ffff00, 0x0100ffff00ff0001, 0x0100ffff00ff0100, 0x0100ffff00000000,
+        0x0100ffff000001ff, 0x0100ffff00000101, 0x0100ffff00010100, 0x0100ffff00010101,
+        0x0100ffff01ff0000, 0x0100ffff0100ff00, 0x0100ffff010000ff, 0x0100ffff01000001,
+        0x0100ffff01000100, 0x0100ffff01010000, 0x0100ff00ffffff00, 0x0100ff00ffff00ff,
+        0x0100ff00ffff0001, 0x0100ff00ffff0100, 0x0100ff00ff00ffff, 0x0100ff00ff000000,
+        0x0100ff00ff0001ff, 0x0100ff00ff000101, 0x0100ff00ff01ff00, 0x0100ff00ff0100ff,
+        0x0100ff00ff010001, 0x0100ff00ff010100, 0x0100ff0000ffffff, 0x0100ff0000ff0000,
+        0x0100ff000000ffff, 0x0100ff000000ff00, 0x0100ff00000000ff, 0x0100ff0000000000,
+        0x0100ff0000000001, 0x0100ff0000000100, 0x0100ff000001ff01, 0x0100ff0000010000,
+        0x0100ff0001ff00ff, 0x0100ff0001ff0001, 0x0100ff000100ff01, 0x0100ff0001000000,
+        0x0100ff00010001ff, 0x0100ff000101ff00, 0x0100ff00010100ff, 0x0100ff0001010001,
+        0x0100ff0001010100, 0x0100ff01ffff0000, 0x0100ff01ff00ff00, 0x0100ff01ff0000ff,
+        0x0100ff01ff000100, 0x0100ff01ff010000, 0x0100ff0100ff00ff, 0x0100ff0100ff0001,
+        0x0100ff0100ff0100, 0x0100ff010000ffff, 0x0100ff010000ff01, 0x0100ff0100000000,
+        0x0100ff01000001ff, 0x0100ff0100010001, 0x0100ff0100010100, 0x0100ff0101ff0000,
+        0x0100ff01010000ff, 0x0100ff0101000001, 0x0100ff0101010100, 0x010000ffffffff00,
+        0x010000ffffff00ff, 0x010000ffffff0001, 0x010000ffff00ffff, 0x010000ffff000000,
+        0x010000ffff0001ff, 0x010000ffff010001, 0x010000ff00ffffff, 0x010000ff00ff0101,
+        0x010000ff0000ff00, 0x010000ff000000ff, 0x010000ff00000000, 0x010000ff00000001,
+        0x010000ff000001ff, 0x010000ff00000100, 0x010000ff0001ffff, 0x010000ff0001ff00,
+        0x010000ff0001ff01, 0x010000ff00010000, 0x010000ff01ff00ff, 0x010000ff01ff0001,
+        0x010000ff0100ff01, 0x010000ff010000ff, 0x010000ff01000000, 0x010000ff010001ff,
+        0x010000ff0101ff00, 0x010000ff01010100, 0x01000000ffffffff, 0x01000000ffff0000,
+        0x01000000ffff01ff, 0x01000000ffff0101, 0x01000000ff00ffff, 0x01000000ff00ff00,
+        0x01000000ff0000ff, 0x01000000ff000000, 0x01000000ff000001, 0x01000000ff000100,
+        0x01000000ff01ff00, 0x01000000ff010000, 0x01000000ff010100, 0x01000000ff010101,
+        0x0100000000ffff00, 0x0100000000ff00ff, 0x0100000000ff0000, 0x0100000000ff0001,
+        0x0100000000ff0100, 0x010000000000ffff, 0x010000000000ff00, 0x010000000000ff01,
+        0x01000000000000ff, 0x0100000000000000, 0x0100000000000001, 0x01000000000001ff,
+        0x0100000000000100, 0x0100000000000101, 0x010000000001ff00, 0x01000000000100ff,
+        0x0100000000010000, 0x0100000000010001, 0x0100000000010100, 0x0100000001ffff00,
+        0x0100000001ff0000, 0x0100000001ff01ff, 0x010000000100ff00, 0x010000000100ff01,
+        0x01000000010000ff, 0x0100000001000000, 0x0100000001000001, 0x0100000001000100,
+        0x0100000001000101, 0x010000000101ffff, 0x010000000101ff01, 0x0100000001010000,
+        0x01000000010101ff, 0x0100000001010101, 0x01000001ffffff00, 0x01000001ffff00ff,
+        0x01000001ff00ffff, 0x01000001ff000000, 0x01000001ff000100, 0x01000001ff01ffff,
+        0x01000001ff010001, 0x01000001ff010100, 0x0100000100ff0000, 0x0100000100ff01ff,
+        0x0100000100ff0100, 0x010000010000ff00, 0x010000010000ff01, 0x0100000100000000,
+        0x0100000100000001, 0x0100000100000100, 0x0100000100010000, 0x01000001000101ff,
+        0x0100000101ffff01, 0x0100000101ff00ff, 0x0100000101ff0100, 0x0100000101ff0101,
+        0x010000010100ff01, 0x01000001010000ff, 0x0100000101000000, 0x01000001010100ff,
+        0x0100000101010001, 0x0100000101010100, 0x010001ffffff0000, 0x010001ffff000001,
+        0x010001ffff000100, 0x010001ffff010000, 0x010001ff00ffff00, 0x010001ff00ff0001,
+        0x010001ff0000ffff, 0x010001ff0000ff01, 0x010001ff00000000, 0x010001ff00000001,
+        0x010001ff00000101, 0x010001ff000100ff, 0x010001ff00010000, 0x010001ff01ff0000,
+        0x010001ff0100ff00, 0x010001ff01000001, 0x010001ff01000100, 0x010001ff01010000,
+        0x01000100ffff00ff, 0x01000100ffff0001, 0x01000100ffff0100, 0x01000100ff00ffff,
+        0x01000100ff00ff01, 0x01000100ff000000, 0x01000100ff0001ff, 0x01000100ff000101,
+        0x01000100ff01ffff, 0x01000100ff01ff00, 0x01000100ff0100ff, 0x01000100ff010001,
+        0x0100010000ffffff, 0x0100010000ffff01, 0x0100010000ff0000, 0x0100010000ff01ff,
+        0x0100010000ff0101, 0x010001000000ff00, 0x01000100000000ff, 0x0100010000000000,
+        0x0100010000000001, 0x0100010000000100, 0x010001000001ff01, 0x0100010000010000,
+        0x0100010000010001, 0x0100010000010101, 0x0100010001ffff00, 0x0100010001ff00ff,
+        0x010001000100ffff, 0x010001000100ff01, 0x0100010001000000, 0x0100010001000101,
+        0x010001000101ff00, 0x0100010001010001, 0x01000101ffff0000, 0x01000101ff000000,
+        0x01000101ff010000, 0x0100010100ff00ff, 0x0100010100ff0001, 0x0100010100ff0100,
+        0x010001010000ffff, 0x0100010100000000, 0x01000101000001ff, 0x010001010001ff00,
+        0x0100010101ff0000, 0x010001010100ff00, 0x01000101010000ff, 0x0100010101000000,
+        0x0100010101000001, 0x0101ffffffffffff, 0x0101ffffffffff01, 0x0101ffffffff01ff,
+        0x0101ffffffff0101, 0x0101ffffff000000, 0x0101ffffff01ffff, 0x0101ffffff01ff01,
+        0x0101ffffff0101ff, 0x0101ffffff010101, 0x0101ffff00ff0000, 0x0101ffff0000ff00,
+        0x0101ffff000000ff, 0x0101ffff00000001, 0x0101ffff00000100, 0x0101ffff01ffffff,
+        0x0101ffff01ffff01, 0x0101ffff01ff01ff, 0x0101ffff01ff0101, 0x0101ffff01000000,
+        0x0101ffff0101ffff, 0x0101ffff0101ff01, 0x0101ffff010101ff, 0x0101ffff01010101,
+        0x0101ff00ffff0000, 0x0101ff00ffff0100, 0x0101ff00ff00ff00, 0x0101ff00ff0000ff,
+        0x0101ff00ff000001, 0x0101ff00ff000100, 0x0101ff00ff000101, 0x0101ff0000ff0001,
+        0x0101ff0000ff0100, 0x0101ff000000ff00, 0x0101ff0000000000, 0x0101ff00000001ff,
+        0x0101ff0000000101, 0x0101ff000001ff00, 0x0101ff00000100ff, 0x0101ff0001ff0000,
+        0x0101ff000100ffff, 0x0101ff000100ff01, 0x0101ff0001000001, 0x0101ff0001000100,
+        0x0101ff01ffffff01, 0x0101ff01ffff01ff, 0x0101ff01ffff0101, 0x0101ff01ff00ffff,
+        0x0101ff01ff000100, 0x0101ff01ff01ff01, 0x0101ff01ff0101ff, 0x0101ff01ff010101,
+        0x0101ff0100ff0000, 0x0101ff010000ff00, 0x0101ff0100000001, 0x0101ff0100000100,
+        0x0101ff0100010000, 0x0101ff0101ffffff, 0x0101ff0101ffff01, 0x0101ff0101ff01ff,
+        0x0101ff0101ff0101, 0x0101ff0101000000, 0x0101ff010101ffff, 0x0101ff010101ff01,
+        0x0101ff01010101ff, 0x0101ff0101010101, 0x010100ffff000100, 0x010100ffff010000,
+        0x010100ff00ffff00, 0x010100ff00ff00ff, 0x010100ff0000ffff, 0x010100ff000000ff,
+        0x010100ff00000000, 0x010100ff000001ff, 0x010100ff00000101, 0x010100ff0001ff00,
+        0x010100ff00010000, 0x010100ff00010001, 0x010100ff000101ff, 0x010100ff00010100,
+        0x010100ff01ff0000, 0x01010000ffff0001, 0x01010000ffff0100, 0x01010000ff00ffff,
+        0x01010000ff00ff01, 0x01010000ff000000, 0x01010000ff0001ff, 0x01010000ff010001,
+        0x01010000ff010100, 0x0101000000ffff01, 0x0101000000ff0000, 0x010100000000ff00,
+        0x01010000000000ff, 0x0101000000000000, 0x0101000000000001, 0x0101000000000100,
+        0x0101000000010000, 0x0101000000010101, 0x0101000001ffff00, 0x0101000001ff00ff,
+        0x0101000001ff0000, 0x0101000001ff0001, 0x0101000001ff0100, 0x010100000100ff01,
+        0x0101000001000000, 0x01010000010001ff, 0x01010001ffff0000, 0x01010001ff00ff00,
+        0x01010001ff000001, 0x01010001ff000101, 0x01010001ff01ff00, 0x01010001ff010000,
+        0x0101000100ff00ff, 0x0101000100ff0001, 0x0101000100ff0101, 0x010100010000ff01,
+        0x0101000100000000, 0x0101000100000001, 0x01010001000001ff, 0x010100010001ffff,
+        0x010100010001ff01, 0x0101000101ff0001, 0x010100010100ffff, 0x0101000101000000,
+        0x0101000101000001, 0x0101000101000100, 0x010100010101ff00, 0x01010001010100ff,
+        0x0101000101010001, 0x010101ffffffffff, 0x010101ffffffff01, 0x010101ffffff01ff,
+        0x010101ffffff0101, 0x010101ffff01ffff, 0x010101ffff01ff01, 0x010101ffff0101ff,
+        0x010101ffff010101, 0x010101ff0000ff00, 0x010101ff000000ff, 0x010101ff00000001,
+        0x010101ff00000100, 0x010101ff01ffffff, 0x010101ff01ffff01, 0x010101ff01ff01ff,
+        0x010101ff01ff0101, 0x010101ff01000000, 0x010101ff0101ffff, 0x010101ff0101ff01,
+        0x010101ff010101ff, 0x010101ff01010101, 0x01010100ffff0000, 0x01010100ff0000ff,
+        0x01010100ff000100, 0x01010100ff01ff00, 0x01010100ff010000, 0x0101010000ffff00,
+        0x010101000000ffff, 0x0101010000000000, 0x0101010000000101, 0x010101000001ff00,
+        0x0101010000010001, 0x0101010000010100, 0x010101000100ffff, 0x0101010001000001,
+        0x01010101ffffffff, 0x01010101ffffff01, 0x01010101ffff01ff, 0x01010101ffff0101,
+        0x01010101ff01ffff, 0x01010101ff01ff01, 0x01010101ff0101ff, 0x01010101ff010101,
+        0x010101010000ff00, 0x01010101000000ff, 0x0101010100000001, 0x0101010101ffffff,
+        0x0101010101ffff01, 0x0101010101ff01ff, 0x0101010101ff0101, 0x0101010101000000,
+        0x010101010101ffff, 0x010101010101ff01, 0x01010101010101ff, 0x0101010101010101,
+        };
+        if (type == GGML_TYPE_IQ1_S) {
+        const uint8_t *p = (const uint8_t *)weight;
+        int nsb = n / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh; kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t  *qs     = p + 2;
+            const uint8_t  *qh_raw = p + 34;
+            p += 50;
+            const float *xb = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                uint16_t qh_val; kmemcpy(&qh_val, qh_raw + ib32 * 2, 2);
+                float dl    = d * (float)(2 * ((qh_val >> 12) & 7) + 1);
+                float delta = (qh_val & 0x8000) ? -0.125f : 0.125f;
+                for (int l = 0; l < 4; l++) {
+                    unsigned grid_idx = (unsigned)qs[4*ib32 + l]
+                                      | ((unsigned)((qh_val >> (3*(3-l))) & 7) << 8);
+                    const int8_t *gv = (const int8_t *)(kgrid_iq1s + grid_idx);
+                    const float  *xs = xb + ib32 * 32 + l * 8;
+                    for (int j = 0; j < 8; j++)
+                        sum += xs[j] * dl * ((float)gv[j] + delta);
+                }
+            }
+        }
+        } else {
+        /* IQ1_M: 256 elements/super-block, 56 bytes. No explicit fp16 d.
+         * Layout: qs[32] + qh[16] + scales[8].
+         * d packed into top 4 bits of each scales uint16_t (viewed as uint16_t[4]).
+         * dl1/dl2 use 3-bit scale nibbles; uses same kgrid_iq1s[2048] lookup. */
+        const uint8_t *p_m = (const uint8_t *)weight;
+        int nsb_m = n / 256;
+        for (int b = 0; b < nsb_m; b++) {
+            const uint8_t  *qs_m = p_m;
+            const uint8_t  *qh_m = p_m + 32;
+            const uint16_t *sc_m = (const uint16_t *)(p_m + 48);
+            p_m += 56;
+            uint16_t scale_u16 = (uint16_t)((sc_m[0] >> 12)
+                               | ((sc_m[1] >> 8) & 0x00f0u)
+                               | ((sc_m[2] >> 4) & 0x0f00u)
+                               | (sc_m[3] & 0xf000u));
+            float d_m = fp16_to_fp32(scale_u16);
+            const float *xb_m = x + b * 256;
+            for (int ib = 0; ib < 8; ib++) {
+                float dl1 = d_m * (float)(2 * ((sc_m[ib/2] >> (6*(ib%2)+0)) & 7u) + 1);
+                float dl2 = d_m * (float)(2 * ((sc_m[ib/2] >> (6*(ib%2)+3)) & 7u) + 1);
+                uint16_t idx0 = (uint16_t)qs_m[0] | (uint16_t)(((uint16_t)qh_m[0] << 8) & 0x700u);
+                uint16_t idx1 = (uint16_t)qs_m[1] | (uint16_t)(((uint16_t)qh_m[0] << 4) & 0x700u);
+                uint16_t idx2 = (uint16_t)qs_m[2] | (uint16_t)(((uint16_t)qh_m[1] << 8) & 0x700u);
+                uint16_t idx3 = (uint16_t)qs_m[3] | (uint16_t)(((uint16_t)qh_m[1] << 4) & 0x700u);
+                float delta0 = (qh_m[0] & 0x08) ? -0.125f : 0.125f;
+                float delta1 = (qh_m[0] & 0x80) ? -0.125f : 0.125f;
+                float delta2 = (qh_m[1] & 0x08) ? -0.125f : 0.125f;
+                float delta3 = (qh_m[1] & 0x80) ? -0.125f : 0.125f;
+                const uint16_t idxs[4] = {idx0, idx1, idx2, idx3};
+                const float    dlts[4] = {delta0, delta1, delta2, delta3};
+                for (int l = 0; l < 2; l++) {
+                    const int8_t *gv_m = (const int8_t *)(kgrid_iq1s + idxs[l]);
+                    const float  *xs_m = xb_m + ib * 32 + l * 8;
+                    for (int j = 0; j < 8; j++)
+                        sum += xs_m[j] * dl1 * ((float)gv_m[j] + dlts[l]);
+                }
+                for (int l = 2; l < 4; l++) {
+                    const int8_t *gv_m = (const int8_t *)(kgrid_iq1s + idxs[l]);
+                    const float  *xs_m = xb_m + ib * 32 + l * 8;
+                    for (int j = 0; j < 8; j++)
+                        sum += xs_m[j] * dl2 * ((float)gv_m[j] + dlts[l]);
+                }
+                qs_m += 4;
+                qh_m += 2;
+            }
+        }
+        }
+        break;
+    }
+    case GGML_TYPE_Q5_0: {
+        /* Q5_0: 32 elements/block, 22 bytes.
+         * Layout: fp16 d (2) + qh uint32 (4) + qs[16].
+         * qh bit j = high bit of element j (j=0..15), bit j+16 = high bit of element j+16.
+         * Element j:   q = ((qs[j]&0xF) | (((qh>>j)&1)<<4)) - 16
+         * Element j+16:q = ((qs[j]>>4) | (((qh>>(j+16))&1)<<4)) - 16 */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nb32 = n / 32;
+        for (int b = 0; b < nb32; b++) {
+            uint16_t dh; kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            uint32_t qh; kmemcpy(&qh, p + 2, 4);
+            const uint8_t *qs = p + 6;
+            p += 22;
+            const float *xb = x + b * 32;
+            float bs = 0.0f;
+            for (int j = 0; j < 16; j++) {
+                int q_lo = (int)((qs[j] & 0xF) | (((qh >> j) & 1u) << 4)) - 16;
+                int q_hi = (int)((qs[j] >> 4)  | (((qh >> (j + 16)) & 1u) << 4)) - 16;
+                bs += xb[j] * (float)q_lo + xb[j + 16] * (float)q_hi;
+            }
+            sum += d * bs;
+        }
+        break;
+    }
+    case GGML_TYPE_Q5_1: {
+        /* Q5_1: 32 elements/block, 24 bytes.
+         * Layout: fp16 d (2) + fp16 m (2) + qh uint32 (4) + qs[16].
+         * Values are unsigned 5-bit + min offset m.
+         * Element j:   q = (qs[j]&0xF) | (((qh>>j)&1)<<4)
+         * Element j+16:q = (qs[j]>>4)  | (((qh>>(j+16))&1)<<4)
+         * y = d*q + m */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nb32 = n / 32;
+        for (int b = 0; b < nb32; b++) {
+            uint16_t dh, mh; kmemcpy(&dh, p, 2); kmemcpy(&mh, p + 2, 2);
+            float d = fp16_to_fp32(dh), m = fp16_to_fp32(mh);
+            uint32_t qh; kmemcpy(&qh, p + 4, 4);
+            const uint8_t *qs = p + 8;
+            p += 24;
+            const float *xb = x + b * 32;
+            float bs = 0.0f, xs = 0.0f;
+            for (int j = 0; j < 16; j++) {
+                int q_lo = (int)((qs[j] & 0xF) | (((qh >> j) & 1u) << 4));
+                int q_hi = (int)((qs[j] >> 4)  | (((qh >> (j + 16)) & 1u) << 4));
+                bs += xb[j] * (float)q_lo + xb[j + 16] * (float)q_hi;
+                xs += xb[j] + xb[j + 16];
+            }
+            sum += d * bs + m * xs;
+        }
+        break;
+    }
+    case GGML_TYPE_Q8_1: {
+        /* Q8_1: 32 elements/block, 36 bytes.
+         * Layout: fp16 d (2) + fp16 s (2) + int8_t qs[32].
+         * s = d * sum(qs) is a cached sum, not needed for dequant.
+         * y = d * qs[j] */
+        const uint8_t *p = (const uint8_t *)weight;
+        int nb32 = n / 32;
+        for (int b = 0; b < nb32; b++) {
+            uint16_t dh; kmemcpy(&dh, p, 2);
+            float d = fp16_to_fp32(dh);
+            const int8_t *qs = (const int8_t *)(p + 4); /* skip d(2) + s(2) */
+            p += 36;
+            const float *xb = x + b * 32;
+            float bs = 0.0f;
+            for (int j = 0; j < 32; j++) bs += xb[j] * (float)qs[j];
+            sum += d * bs;
+        }
+        break;
+    }
+    case GGML_TYPE_IQ2_S: {
+        /* IQ2_S: 256 elements/super-block, 82 bytes.
+         * Layout: fp16 d(2) + qs[64] + qh[8] + scales[8].
+         * qs[0..31]=grid-idx low bytes (4 per ib32), qs[32..63]=sign bytes.
+         * qh[ib32] has 4x2 high-bit pairs; scales[ib32] = 4-bit scale pair.
+         * grid_idx = qs[l] | ((qh[ib32]<<(8-2*l))&0x300).
+         * Grid values via kgrid_iq2s (kgrid_2bit_1024), decoded as {1,3,5,7}. */
+        static const uint8_t  iq2s_vals[4] = {1, 3, 5, 7};
+        static const uint16_t kgrid_iq2s[1024] = {
+            0,   2,   5,   8,  10,  17,  20,  22,  25,  32,  34,  37,  40,  65,  68,  70,
+           73,  80,  82,  85,  88,  97, 100, 102, 105, 128, 130, 133, 136, 145, 148, 160,
+          165, 170, 257, 260, 262, 265, 272, 274, 277, 280, 289, 292, 320, 322, 325, 328,
+          337, 340, 342, 345, 352, 357, 360, 385, 388, 400, 402, 405, 417, 420, 512, 514,
+          517, 520, 529, 532, 544, 554, 577, 580, 582, 585, 592, 597, 640, 645, 650, 660,
+          674,1025,1028,1030,1033,1040,1042,1045,1048,1057,1060,1062,1065,1088,1090,1093,
+         1096,1098,1105,1108,1110,1113,1120,1122,1125,1153,1156,1158,1161,1168,1173,1176,
+         1185,1188,1280,1282,1285,1288,1290,1297,1300,1302,1305,1312,1317,1320,1345,1348,
+         1350,1353,1360,1362,1365,1368,1377,1380,1408,1410,1413,1416,1425,1428,1440,1537,
+         1540,1542,1545,1552,1557,1600,1605,1608,1617,1620,1632,1665,1668,1680,2048,2050,
+         2053,2056,2065,2068,2070,2073,2080,2085,2090,2113,2116,2118,2121,2128,2130,2133,
+         2136,2145,2148,2176,2181,2196,2218,2305,2308,2320,2322,2325,2328,2337,2368,2373,
+         2376,2385,2388,2400,2433,2448,2560,2577,2580,2594,2600,2602,2640,2713,4097,4100,
+         4102,4105,4112,4114,4117,4120,4129,4132,4134,4160,4162,4165,4168,4177,4180,4182,
+         4185,4192,4194,4197,4200,4225,4228,4230,4240,4245,4248,4257,4260,4352,4354,4357,
+         4360,4362,4369,4372,4374,4377,4384,4386,4389,4392,4417,4420,4422,4425,4432,4434,
+         4437,4440,4449,4452,4480,4482,4485,4488,4497,4500,4609,4612,4617,4624,4629,4641,
+         4644,4672,4677,4689,4692,4737,4740,4752,5120,5122,5125,5128,5137,5140,5142,5145,
+         5152,5157,5160,5185,5188,5190,5193,5200,5202,5205,5208,5217,5220,5248,5250,5253,
+         5256,5265,5268,5280,5377,5380,5382,5385,5392,5394,5397,5400,5409,5412,5440,5442,
+         5445,5448,5457,5460,5472,5505,5508,5520,5632,5637,5640,5649,5652,5664,5697,5700,
+         5712,5760,5802,6145,6148,6150,6153,6160,6165,6168,6177,6208,6210,6213,6216,6225,
+         6228,6240,6273,6276,6400,6402,6405,6408,6417,6420,6432,6465,6468,6480,6505,6562,
+         6660,6672,6720,6742,8192,8194,8197,8200,8209,8212,8214,8217,8224,8229,8234,8257,
+         8260,8272,8274,8277,8292,8320,8330,8340,8362,8449,8452,8464,8466,8469,8481,8512,
+         8514,8517,8529,8532,8544,8577,8580,8592,8704,8714,8738,8744,8746,8772,8784,8840,
+         8842,8872,9217,9220,9222,9225,9232,9237,9240,9249,9252,9280,9282,9285,9288,9297,
+         9300,9312,9345,9348,9360,9472,9477,9480,9489,9492,9504,9537,9540,9552,9574,9600,
+         9729,9732,9744,9792,9817,10240,10245,10257,10260,10305,10308,10320,10378,10410,10497,10500,
+        10512,10645,10762,10786,10852,10888,10890,
+        16385,16388,16390,16393,16400,16402,16405,16408,16410,16417,16420,16422,16448,16450,16453,16456,
+        16458,16465,16468,16470,16473,16480,16482,16485,16513,16516,16528,16533,16536,16545,16548,16640,
+        16642,16645,16648,16657,16660,16662,16665,16672,16674,16677,16705,16708,16710,16713,16720,16722,
+        16725,16728,16737,16740,16768,16770,16773,16776,16785,16788,16800,16897,16900,16912,16914,16917,
+        16920,16932,16960,16965,16968,16977,16980,16992,17025,17028,
+        17408,17410,17413,17416,17418,17425,17428,17430,17433,17440,17442,17445,17448,17473,17476,17478,
+        17481,17488,17490,17493,17496,17505,17508,17536,17538,17541,17544,17553,17556,17568,17665,17668,
+        17670,17673,17680,17682,17685,17688,17697,17700,17728,17730,17733,17736,17745,17748,17760,17770,
+        17793,17796,17808,17920,17922,17925,17928,17937,17940,17952,17985,17988,18000,18048,18085,
+        18433,18436,18441,18448,18450,18453,18456,18465,18468,18496,18498,18501,18504,18513,18516,18528,
+        18564,18576,18688,18690,18693,18696,18705,18708,18720,18753,18756,18768,18816,18838,18945,18948,
+        18960,19008,
+        20480,20482,20485,20488,20497,20500,20502,20505,20512,20514,20517,20520,20545,20548,20550,20553,
+        20560,20562,20565,20568,20577,20580,20608,20610,20613,20616,20625,20628,20737,20740,20742,20745,
+        20752,20754,20757,20760,20769,20772,20800,20802,20805,20808,20817,20820,20832,20865,20868,20880,
+        20992,20997,21000,21009,21012,21024,21057,21060,21072,21097,21120,
+        21505,21508,21510,21513,21520,21522,21525,21528,21537,21540,21568,21570,21573,21576,21585,21588,
+        21600,21633,21636,21648,21760,21762,21765,21768,21777,21780,21792,21825,21828,21840,21888,22017,
+        22020,22032,22054,22080,
+        22528,22530,22533,22536,22545,22548,22560,22593,22596,22608,22618,22656,22785,22788,22800,22848,
+        23040,23065,23173,23208,
+        24577,24580,24582,24592,24594,24597,24600,24609,24612,24640,24645,24648,24657,24660,24672,24708,
+        24720,24832,24834,24837,24840,24849,24852,24864,24897,24900,24912,24960,24985,25092,25104,25152,
+        25174,25249,
+        25600,25605,25608,25617,25620,25632,25665,25668,25680,25728,25857,25860,25872,25920,25930,25960,
+        26002,26112,26260,
+        26625,26628,26640,26725,26776,26880,26922,27202,27297,
+        32768,32770,32773,32776,32785,32788,32793,32800,32805,32833,32836,32848,32850,32853,32856,32865,
+        32896,32901,32913,32916,33025,33028,33033,33040,33042,33045,33048,33057,33060,33088,33090,33093,
+        33096,33105,33108,33153,33156,33168,33193,33280,33285,33290,33297,33300,33345,33348,33360,
+        33793,33796,33798,33801,33808,33810,33813,33816,33825,33856,33858,33861,33864,33873,33876,33888,
+        33921,33924,33936,34048,34050,34053,34056,34065,34068,34080,34113,34116,34128,34176,34186,
+        34305,34308,34320,34345,34368,34816,34821,34833,34836,34881,34884,34896,34978,35073,35076,35136,
+        35173,35362,35416,35418,35458,35490,
+        36865,36868,36873,36880,36882,36885,36888,36900,36928,36930,36933,36936,36945,36948,36960,36993,
+        36996,37008,37120,37125,37137,37140,37185,37188,37200,37210,37377,37380,37392,37440,37542,
+        37888,37890,37893,37896,37905,37908,37920,37953,37956,37968,38016,38038,38145,38148,38160,38208,
+        38296,38305,38400,38470,38500,
+        38913,38916,38928,38950,38976,39081,39168,39241,39250,39568,
+        40960,40965,40970,40980,40994,41002,41025,41028,41040,41122,41130,41280,41317,41474,41482,41506,
+        41512,41514,41602,41608,41610,41640,41985,41988,42000,42048,42121,42148,42240,42265,42577,43018,
+        43048,43170,43348,43398,43528,43530,43552,43554,43560,43656,43690,
+        };
+        const uint8_t *p_s = (const uint8_t *)weight;
+        int nsb_s = n / 256;
+        for (int b = 0; b < nsb_s; b++) {
+            uint16_t dh; kmemcpy(&dh, p_s, 2);
+            float d = fp16_to_fp32(dh);
+            const uint8_t *qs_s  = p_s + 2;   /* grid low bytes [0..31] */
+            const uint8_t *sn_s  = p_s + 34;  /* sign bytes [32..63] = qs+32 */
+            const uint8_t *qh_s  = p_s + 66;  /* high 2 bits per group */
+            const uint8_t *sc_s  = p_s + 74;  /* 4-bit scale pairs */
+            p_s += 82;
+            const float *xb_s = x + b * 256;
+            for (int ib32 = 0; ib32 < 8; ib32++) {
+                float db0 = d * (0.5f + (float)(sc_s[ib32] & 0xf)) * 0.25f;
+                float db1 = d * (0.5f + (float)(sc_s[ib32] >> 4))  * 0.25f;
+                for (int l = 0; l < 4; l++) {
+                    float dl = (l < 2) ? db0 : db1;
+                    unsigned gi = (unsigned)qs_s[l]
+                                | ((unsigned)(qh_s[ib32] << (8 - 2*l)) & 0x300u);
+                    uint16_t gv = kgrid_iq2s[gi];
+                    uint8_t  sn = sn_s[l];
+                    const float *xs_s = xb_s + ib32 * 32 + l * 8;
+                    for (int j = 0; j < 8; j++) {
+                        float w = (float)iq2s_vals[(gv >> (2*j)) & 3];
+                        if (sn & (1u << j)) w = -w;
+                        sum += xs_s[j] * dl * w;
+                    }
+                }
+                qs_s += 4;
+                sn_s += 4;
             }
         }
         break;
@@ -3040,6 +4173,12 @@ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
     case GGML_TYPE_IQ2_XS:  return (uint64_t)(in_dim / 256) * 74;  /* fp16+qs[32]+scales[8] */
     case GGML_TYPE_IQ3_XXS: return (uint64_t)(in_dim / 256) * 98;  /* fp16+qs[32]+scales[16] */
     case GGML_TYPE_IQ3_S:   return (uint64_t)(in_dim / 256) * 110; /* same byte count as Q3_K */
+    case GGML_TYPE_Q5_0:  return (uint64_t)(in_dim / 32) * 22;   /* fp16 d + qh[4] + qs[16] */
+    case GGML_TYPE_Q5_1:  return (uint64_t)(in_dim / 32) * 24;   /* fp16 d + fp16 m + qh[4] + qs[16] */
+    case GGML_TYPE_Q8_1:  return (uint64_t)(in_dim / 32) * 36;   /* fp16 d + fp16 s + qs[32] */
+    case GGML_TYPE_IQ1_S: return (uint64_t)(in_dim / 256) * 50;  /* fp16 d + qs[32] + qh[16] */
+    case GGML_TYPE_IQ2_S: return (uint64_t)(in_dim / 256) * 82;  /* fp16 d + qs[64] + qh[8] + scales[8] */
+    case GGML_TYPE_IQ1_M: return (uint64_t)(in_dim / 256) * 56;  /* qs[32] + qh[16] + scales[8], no d field */
     case GGML_TYPE_F16:  return (uint64_t)in_dim * 2;
     case GGML_TYPE_BF16: return (uint64_t)in_dim * 2;
     case GGML_TYPE_F32:  return (uint64_t)in_dim * 4;
@@ -3050,70 +4189,118 @@ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type)
 /* GEMV: out[out_dim] = weight[out_dim x in_dim] . x[in_dim]
  * weight is in quantized GGML format (row-major)
  * Tries JIT-compiled Q8_0 kernel first, falls back to vec_dot loop. */
-static jit_gemv_q8_fn llm_jit_gemv_cache[8] = {0};
-static int llm_jit_gemv_rows[8] = {0};
-static int llm_jit_gemv_cols[8] = {0};
-static int llm_jit_gemv_n = 0;
 
-/* AVX2 JIT GEMV cache (preferred when AVX2+FMA available) */
-static jit_gemv_q8_fn llm_jit_gemv_avx2_cache[8] = {0};
-static int llm_jit_gemv_avx2_rows[8] = {0};
-static int llm_jit_gemv_avx2_cols[8] = {0};
-static int llm_jit_gemv_avx2_n = 0;
+/* =============================================================================
+ * LRU GEMV Kernel Cache
+ *
+ * Unified cache for all GEMV kernel types with LRU eviction.
+ * Replaces the previous fixed 8-slot caches with a larger 64-slot adaptive cache.
+ * =============================================================================*/
+#define LRU_GEMV_CACHE_SIZE 64
 
+typedef enum {
+    LRU_GEMV_SSE2_Q8 = 0,
+    LRU_GEMV_AVX2_Q8,
+    LRU_GEMV_AVX2_Q4Q8,
+    LRU_GEMV_AVX512_Q8,
+    LRU_GEMV_TYPE_COUNT
+} lru_gemv_type_t;
+
+typedef struct {
+    int rows;
+    int cols;
+    lru_gemv_type_t type;
+    jit_gemv_q8_fn fn;
+    uint32_t last_used;  /* Monotonic counter for LRU eviction */
+} lru_gemv_entry_t;
+
+static lru_gemv_entry_t lru_gemv_cache[LRU_GEMV_CACHE_SIZE];
+static int lru_gemv_cache_n = 0;
+static uint32_t lru_gemv_clock = 0;
+
+/* Find an entry in the LRU cache, update last_used if found */
+static jit_gemv_q8_fn lru_gemv_lookup(int rows, int cols, lru_gemv_type_t type)
+{
+    for (int i = 0; i < lru_gemv_cache_n; i++) {
+        if (lru_gemv_cache[i].rows == rows &&
+            lru_gemv_cache[i].cols == cols &&
+            lru_gemv_cache[i].type == type) {
+            lru_gemv_cache[i].last_used = ++lru_gemv_clock;
+            return lru_gemv_cache[i].fn;
+        }
+    }
+    return NULL;
+}
+
+/* Store an entry in the LRU cache, evicting oldest if full */
+static void lru_gemv_store(int rows, int cols, lru_gemv_type_t type, jit_gemv_q8_fn fn)
+{
+    if (!fn) return;
+
+    /* Find slot: empty or evict LRU */
+    int slot;
+    if (lru_gemv_cache_n < LRU_GEMV_CACHE_SIZE) {
+        slot = lru_gemv_cache_n++;
+    } else {
+        /* Find least recently used entry */
+        slot = 0;
+        uint32_t oldest = lru_gemv_cache[0].last_used;
+        for (int i = 1; i < LRU_GEMV_CACHE_SIZE; i++) {
+            if (lru_gemv_cache[i].last_used < oldest) {
+                oldest = lru_gemv_cache[i].last_used;
+                slot = i;
+            }
+        }
+        /* Note: we don't free the old JIT buffer since it's in the JIT pool */
+    }
+
+    lru_gemv_cache[slot].rows = rows;
+    lru_gemv_cache[slot].cols = cols;
+    lru_gemv_cache[slot].type = type;
+    lru_gemv_cache[slot].fn = fn;
+    lru_gemv_cache[slot].last_used = ++lru_gemv_clock;
+}
+
+/* Legacy API wrappers using LRU cache */
 static jit_gemv_q8_fn llm_get_jit_gemv_avx2(int rows, int cols)
 {
-    for (int i = 0; i < llm_jit_gemv_avx2_n; i++) {
-        if (llm_jit_gemv_avx2_rows[i] == rows && llm_jit_gemv_avx2_cols[i] == cols)
-            return llm_jit_gemv_avx2_cache[i];
-    }
-    jit_gemv_q8_fn fn = jit_compile_q8_gemv_avx2(rows, cols);
-    if (fn && llm_jit_gemv_avx2_n < 8) {
-        llm_jit_gemv_avx2_rows[llm_jit_gemv_avx2_n] = rows;
-        llm_jit_gemv_avx2_cols[llm_jit_gemv_avx2_n] = cols;
-        llm_jit_gemv_avx2_cache[llm_jit_gemv_avx2_n] = fn;
-        llm_jit_gemv_avx2_n++;
-    }
+    jit_gemv_q8_fn fn = lru_gemv_lookup(rows, cols, LRU_GEMV_AVX2_Q8);
+    if (fn) return fn;
+
+    fn = jit_compile_q8_gemv_avx2(rows, cols);
+    lru_gemv_store(rows, cols, LRU_GEMV_AVX2_Q8, fn);
     return fn;
 }
 
 static jit_gemv_q8_fn llm_get_jit_gemv(int rows, int cols)
 {
-    /* Check local cache first (fast path) */
-    for (int i = 0; i < llm_jit_gemv_n; i++) {
-        if (llm_jit_gemv_rows[i] == rows && llm_jit_gemv_cols[i] == cols)
-            return llm_jit_gemv_cache[i];
-    }
-    /* Try to compile */
-    jit_gemv_q8_fn fn = jit_compile_q8_gemv(rows, cols);
-    if (fn && llm_jit_gemv_n < 8) {
-        llm_jit_gemv_rows[llm_jit_gemv_n] = rows;
-        llm_jit_gemv_cols[llm_jit_gemv_n] = cols;
-        llm_jit_gemv_cache[llm_jit_gemv_n] = fn;
-        llm_jit_gemv_n++;
-    }
+    jit_gemv_q8_fn fn = lru_gemv_lookup(rows, cols, LRU_GEMV_SSE2_Q8);
+    if (fn) return fn;
+
+    fn = jit_compile_q8_gemv(rows, cols);
+    lru_gemv_store(rows, cols, LRU_GEMV_SSE2_Q8, fn);
     return fn;
 }
 
-/* AVX2 JIT cache for Q4_0×Q8_0 integer GEMV */
-static jit_gemv_q8_fn llm_jit_gemv_q4q8_cache[8] = {0};
-static int llm_jit_gemv_q4q8_rows[8] = {0};
-static int llm_jit_gemv_q4q8_cols[8] = {0};
-static int llm_jit_gemv_q4q8_n = 0;
 
 static jit_gemv_q8_fn llm_get_jit_gemv_q4q8(int rows, int cols)
 {
-    for (int i = 0; i < llm_jit_gemv_q4q8_n; i++) {
-        if (llm_jit_gemv_q4q8_rows[i] == rows && llm_jit_gemv_q4q8_cols[i] == cols)
-            return llm_jit_gemv_q4q8_cache[i];
-    }
-    jit_gemv_q8_fn fn = jit_compile_q4_q8_gemv_avx2(rows, cols);
-    if (fn && llm_jit_gemv_q4q8_n < 8) {
-        llm_jit_gemv_q4q8_rows[llm_jit_gemv_q4q8_n] = rows;
-        llm_jit_gemv_q4q8_cols[llm_jit_gemv_q4q8_n] = cols;
-        llm_jit_gemv_q4q8_cache[llm_jit_gemv_q4q8_n] = fn;
-        llm_jit_gemv_q4q8_n++;
-    }
+    jit_gemv_q8_fn fn = lru_gemv_lookup(rows, cols, LRU_GEMV_AVX2_Q4Q8);
+    if (fn) return fn;
+
+    fn = jit_compile_q4_q8_gemv_avx2(rows, cols);
+    lru_gemv_store(rows, cols, LRU_GEMV_AVX2_Q4Q8, fn);
+    return fn;
+}
+
+/* AVX-512 Q8_0 GEMV via LRU JIT cache — EVEX P0 byte (0x62 opcode prefix) verified. */
+static jit_gemv_q8_fn llm_get_jit_gemv_avx512(int rows, int cols)
+{
+    jit_gemv_q8_fn fn = lru_gemv_lookup(rows, cols, LRU_GEMV_AVX512_Q8);
+    if (fn) return fn;
+
+    fn = jit_compile_q8_gemv_avx512(rows, cols);
+    lru_gemv_store(rows, cols, LRU_GEMV_AVX512_Q8, fn);
     return fn;
 }
 
@@ -3185,7 +4372,8 @@ static void llm_gemv(float *out, const void *weight, const float *x,
              gpu_type == GGML_TYPE_Q8_0 ||
              gpu_type == GGML_TYPE_F32  || gpu_type == GGML_TYPE_F16  ||
              gpu_type == GGML_TYPE_BF16 ||
-             gpu_type == GGML_TYPE_Q6_K || gpu_type == GGML_TYPE_Q4_K)) {
+             gpu_type == GGML_TYPE_Q6_K || gpu_type == GGML_TYPE_Q4_K ||
+             gpu_type == GGML_TYPE_IQ2_XS)) {
             const backend_t *be = backend_get_by_id(BACKEND_CUDA);
             /* Upload input vector to GPU scratch */
             be->mem.upload(gpu_ctx.d_x, x, (uint64_t)in_dim * sizeof(float));
@@ -3200,6 +4388,16 @@ static void llm_gemv(float *out, const void *weight, const float *x,
 #endif
 
 #ifndef __aarch64__
+    /* JIT AVX-512 GEMV: 16-wide ZMM GEMV; EVEX encoding verified (P0 fix applied).
+     * Processes 64 weights/block vs 32 for AVX2, 4-row batched — ~1.4× vs AVX2 on Zen4. */
+    if (cpu_features.has_avx512f && type == GGML_TYPE_Q8_0 && in_dim >= 64) {
+        jit_gemv_q8_fn jfn = llm_get_jit_gemv_avx512(out_dim, in_dim);
+        if (jfn) {
+            jfn(out, weight, x, out_dim, in_dim);
+            return;
+        }
+    }
+
     /* JIT AVX2+FMA GEMV: best single-core Q8_0 performance */
     if (cpu_features.avx2_usable && type == GGML_TYPE_Q8_0) {
         jit_gemv_q8_fn jfn = llm_get_jit_gemv_avx2(out_dim, in_dim);
@@ -3257,8 +4455,14 @@ static void llm_gemv(float *out, const void *weight, const float *x,
     /* Use AVX2+FMA GEMV when available */
     if (cpu_features.avx2_usable) {
         uint32_t ncpu = smp.ap_started + 1; /* Only use actually-running CPUs */
-        /* Parallel GEMV: split rows across all CPUs when worth it */
-        if (ncpu > 1 && out_dim >= 64) {
+        /* Parallel GEMV: split rows across all CPUs when worth it.
+         * Q8_0 and Q4_0 use optimised fused paths; IQ2_XS uses the generic
+         * llm_vec_dot_avx2 fallback in gemv_worker_avx2, which is thread-safe
+         * (no mutable shared state — only const-static kgrid and local vars).
+         * All other types fall through to single-threaded llm_gemv_avx2. */
+        if (ncpu > 1 && out_dim >= 64 &&
+            (type == GGML_TYPE_Q8_0 || type == GGML_TYPE_Q4_0 ||
+             type == GGML_TYPE_IQ2_XS)) {
             int rows_per_cpu = out_dim / ncpu;
             int remainder    = out_dim % ncpu;
             int row = 0;
@@ -3326,6 +4530,39 @@ static void llm_gemv(float *out, const void *weight, const float *x,
     for (int i = 0; i < out_dim; i++) {
         const void *row = (const uint8_t *)weight + (uint64_t)i * rb;
         out[i] = llm_vec_dot(row, x, in_dim, type);
+    }
+}
+
+/* Batched GEMV — processes batch_size input vectors against the
+ * same weight matrix in a single kernel invocation.  Used by speculative
+ * decode verification when multiple draft tokens share the same weight layers.
+ *
+ * out  [batch_size][out_dim]   x [batch_size][in_dim]   weight [out_dim][in_dim/Q8]
+ *
+ * Falls back to repeated llm_gemv calls when the JIT kernel is unavailable. */
+static void llm_gemv_batch(float *out, const void *weight, const float *x,
+                           int out_dim, int in_dim, ggml_type_t type, int batch_size)
+{
+    if (batch_size <= 1) {
+        llm_gemv(out, weight, x, out_dim, in_dim, type);
+        return;
+    }
+
+#ifndef __aarch64__
+    if (cpu_features.avx2_usable && type == GGML_TYPE_Q8_0 && in_dim % 32 == 0) {
+        jit_batched_gemv_fn jfn = jit_compile_batched_q8_gemv(out_dim, in_dim, batch_size);
+        if (jfn) {
+            jfn(out, weight, x, out_dim, in_dim, batch_size);
+            return;
+        }
+    }
+#endif
+
+    /* Scalar fallback: loop over batch */
+    for (int b = 0; b < batch_size; b++) {
+        llm_gemv(out + (uint64_t)b * out_dim, weight,
+                 x   + (uint64_t)b * in_dim,
+                 out_dim, in_dim, type);
     }
 }
 
@@ -3412,6 +4649,55 @@ static void llm_embed(float *out, const llm_model_t *m, int token_id)
                     o[half*128 + l + 64] = d * (float)sc_h[4 + si] * (float)(q2 - 32);
                     o[half*128 + l + 96] = d * (float)sc_h[6 + si] * (float)(q3 - 32);
                 }
+            }
+        }
+        break;
+    }
+    case GGML_TYPE_Q4_K: {
+        /* Q4_K: 256 elements per super-block, 144 bytes each.
+         * Layout: d(fp16) + dmin(fp16) + scales[12] + qs[128]. */
+        const uint8_t *p = row;
+        int nsb = dim / 256;
+        for (int b = 0; b < nsb; b++) {
+            uint16_t dh, dmh;
+            kmemcpy(&dh,  p,     2);
+            kmemcpy(&dmh, p + 2, 2);
+            float d    = fp16_to_fp32(dh);
+            float dmin = fp16_to_fp32(dmh);
+            const uint8_t *scales = p + 4;
+            const uint8_t *qs     = p + 16;
+            p += 144;
+
+            float *o = out + b * 256;
+            int is = 0;
+            for (int j = 0; j < 256; j += 64) {
+                uint8_t sc0, mn0, sc1, mn1;
+                if (is < 4) {
+                    sc0 = scales[is] & 63;
+                    mn0 = scales[is + 4] & 63;
+                } else {
+                    sc0 = (scales[is + 4] & 0xF) | ((scales[is - 4] >> 6) << 4);
+                    mn0 = (scales[is + 4] >> 4)  | ((scales[is + 0] >> 6) << 4);
+                }
+                int is1 = is + 1;
+                if (is1 < 4) {
+                    sc1 = scales[is1] & 63;
+                    mn1 = scales[is1 + 4] & 63;
+                } else {
+                    sc1 = (scales[is1 + 4] & 0xF) | ((scales[is1 - 4] >> 6) << 4);
+                    mn1 = (scales[is1 + 4] >> 4)  | ((scales[is1 + 0] >> 6) << 4);
+                }
+                float d1 = d * (float)sc0;
+                float m1f = dmin * (float)mn0;
+                float d2 = d * (float)sc1;
+                float m2f = dmin * (float)mn1;
+
+                const uint8_t *qj = qs + (j / 2);
+                for (int l = 0; l < 32; l++)
+                    o[j + l] = d1 * (float)(qj[l] & 0xF) - m1f;
+                for (int l = 0; l < 32; l++)
+                    o[j + 32 + l] = d2 * (float)(qj[l] >> 4) - m2f;
+                is += 2;
             }
         }
         break;
@@ -3598,12 +4884,24 @@ static void llm_rmsnorm(float *out, const float *x, const void *w,
     for (; i < dim; i++)
         out[i] = x[i] * ss * llm_get_f(w, i, wtype);
 #else
-    float ss = 0.0f;
-    for (int i = 0; i < dim; i++)
-        ss += x[i] * x[i];
+    /* NEON: vectorized sum-of-squares */
+    float32x4_t vss = vdupq_n_f32(0.0f);
+    int i = 0;
+    for (; i + 4 <= dim; i += 4) {
+        float32x4_t v = vld1q_f32(x + i);
+        vss = vmlaq_f32(vss, v, v);
+    }
+    float ss = vaddvq_f32(vss);
+    for (; i < dim; i++) ss += x[i] * x[i];
     ss = 1.0f / llm_sqrtf(ss / (float)dim + eps);
 
-    for (int i = 0; i < dim; i++)
+    float32x4_t vscale = vdupq_n_f32(ss);
+    for (i = 0; i + 4 <= dim && wtype == GGML_TYPE_F32; i += 4) {
+        float32x4_t xv = vld1q_f32(x + i);
+        float32x4_t wv = vld1q_f32((const float *)w + i);
+        vst1q_f32(out + i, vmulq_f32(vmulq_f32(xv, vscale), wv));
+    }
+    for (; i < dim; i++)
         out[i] = x[i] * ss * llm_get_f(w, i, wtype);
 #endif
 }
@@ -3769,6 +5067,13 @@ static int   llm_rope_freqs_ready = 0;
 static float llm_rope_base_cached = 0.0f;
 static int   llm_rope_hdim_cached = 0;
 
+/* Per-dimension RoPE JIT kernel pointer (set at model load) and dim cache.
+ * Declared early because llm_rope() and llm_rope_precompute() reference them. */
+static jit_rope_fn jit_fwd_rope_hd = NULL;
+#define JIT_ROPE_CACHE_SIZE 8
+static struct { int dim; jit_rope_fn fn; } jit_rope_dim_cache[JIT_ROPE_CACHE_SIZE];
+static int jit_rope_dim_cache_n = 0;
+
 static float llm_log_approx(float x)
 {
     /* log(x) via IEEE754: extract exponent + polynomial on mantissa.
@@ -3808,6 +5113,27 @@ static void llm_rope(float *vec, int pos, int head_dim, float base,
                      const float *factors)
 {
     llm_rope_precompute(base, head_dim, factors);
+
+#ifndef __aarch64__
+    /* JIT RoPE: processes 2 pairs (4 floats) per SIMD iteration using
+     * polynomial sin/cos — ~2× faster than the scalar pair-by-pair path.
+     * Only valid when: no custom scaling (factors==NULL) and head_dim
+     * matches the compiled kernel dim. Gemma4 partial RoPE handled by
+     * jit_rope_dim_cache which has per-rope_dim compiled kernels. */
+    if (factors == NULL && jit_fwd_rope_hd && head_dim == llm_rope_hdim_cached) {
+        jit_fwd_rope_hd(vec, pos, head_dim, llm_rope_freqs_buf);
+        return;
+    }
+    /* Partial RoPE cache (Gemma4: rope_dim != head_dim) */
+    if (factors == NULL && head_dim == llm_rope_hdim_cached) {
+        for (int ci = 0; ci < jit_rope_dim_cache_n; ci++) {
+            if (jit_rope_dim_cache[ci].dim == head_dim && jit_rope_dim_cache[ci].fn) {
+                jit_rope_dim_cache[ci].fn(vec, pos, head_dim, llm_rope_freqs_buf);
+                return;
+            }
+        }
+    }
+#endif
 
     for (int i = 0; i < head_dim; i += 2) {
         float theta = (float)pos * llm_rope_freqs_buf[i / 2];
@@ -3878,6 +5204,13 @@ static void llm_softmax(float *x, int n)
     if (cpu_features.avx2_usable) {
         llm_softmax_avx2(x, n);
         return;
+    }
+    /* SSE2-only path: use JIT variable-length softmax dispatcher.
+     * Dispatches to the smallest bucket >= n, compiled at init time.
+     * Falls back to scalar if n > 8192 or no bucket found. */
+    {
+        jit_softmax_var_fn sfn = jit_get_softmax_var_kernel();
+        if (sfn) { sfn(x, n); return; }
     }
 #endif
 
@@ -4126,12 +5459,32 @@ static void llm_vmul_f32(float *dst, const float *src, int n)
 static jit_fused_silu_mul_fn jit_fwd_fused_silu = NULL;
 static jit_ewise_fn          jit_fwd_vadd_dim   = NULL;
 static jit_ewise_fn          jit_fwd_vmul_ff    = NULL;
+static jit_silu_fn           jit_fwd_gelu       = NULL;
 static jit_dot_fn            jit_fwd_dot_hd     = NULL;
 static jit_axpy_fn           jit_fwd_axpy_hd    = NULL;
-static jit_rope_fn           jit_fwd_rope_hd    = NULL;
 static jit_rmsnorm_fn        jit_fwd_rmsnorm    = NULL;
+static jit_rmsnorm_fn        jit_fwd_rmsnorm_lhd = NULL;  /* compiled for head_dim */
+static jit_rmsnorm_scale_fn  jit_fwd_rmsnorm_sc = NULL;  /* fused RMSNorm+scale, baked at model dim */
 static jit_softmax_fn        jit_fwd_softmax    = NULL;
 static int                   jit_fwd_ready      = 0;
+
+static jit_rope_fn jit_get_rope_for_dim(int dim)
+{
+    /* Check cache */
+    for (int i = 0; i < jit_rope_dim_cache_n; i++) {
+        if (jit_rope_dim_cache[i].dim == dim)
+            return jit_rope_dim_cache[i].fn;
+    }
+    /* Compile new kernel */
+    jit_rope_fn fn = jit_compile_rope_kernel(dim);
+    if (fn && jit_rope_dim_cache_n < JIT_ROPE_CACHE_SIZE) {
+        jit_rope_dim_cache[jit_rope_dim_cache_n].dim = dim;
+        jit_rope_dim_cache[jit_rope_dim_cache_n].fn = fn;
+        jit_rope_dim_cache_n++;
+    }
+    return fn;
+}
+
 /* Forward declarations: configured later with defaults and setters. */
 static int                   llm_attnres_enabled;
 static float                 llm_attnres_strength;
@@ -4370,9 +5723,16 @@ static void llm_forward_prefill_batch_gpu(
         /* Pre-attn batched RMSNorm (out-of-place) */
         cuda_batched_rmsnorm_out(d_pfxn, d_pfx, gl->d_attn_norm, n, dim, gpu_ctx.rms_eps);
 
-        /* QKV projections */
-        void *d_qw = llm_gpu_lookup(layer->q_weight);
-        BGEMV4(d_pfq, d_qw, lq_dim, dim, layer->q_type);
+        /* QKV projections — SVD-compressed fallback for Q if raw weight freed */
+        {
+            void *d_qw = llm_gpu_lookup(layer->q_weight);
+            const axex_compressed_weight_t *_pf_cq = axex_get_compressed_layer(L, 1);
+            if (!d_qw && _pf_cq && _pf_cq->d_Vt) {
+                PF_CMPR_GEMV_N(d_pfq, d_pfxn, n, lq_dim, dim, _pf_cq);
+            } else {
+                BGEMV4(d_pfq, d_qw, lq_dim, dim, layer->q_type);
+            }
+        }
         if (has_own_kv) {
             void *d_kw = llm_gpu_lookup(layer->k_weight);
             void *d_vw = llm_gpu_lookup(layer->v_weight);
@@ -4468,16 +5828,21 @@ static void llm_forward_prefill_batch_gpu(
                 }
             }
         }
-        /* O projection */
-        void *d_ow = llm_gpu_lookup(layer->o_weight);
-        if (layer->o_type == GGML_TYPE_Q4_0) {
-            cuda_prefill_batch_quant(d_pfattn, n, lq_dim);
-            cuda_prefill_batch_gemv_q4(d_pffd, d_ow, dim, lq_dim, n);
-        } else {
-            for (int i = 0; i < n; i++)
-                be->compute.gemv(d_pffd + (int64_t)i * dim, d_ow,
-                                 d_pfattn + (int64_t)i * lq_dim,
-                                 dim, lq_dim, layer->o_type);
+        /* O projection — SVD-compressed fallback if raw weight freed */
+        {
+            void *d_ow = llm_gpu_lookup(layer->o_weight);
+            const axex_compressed_weight_t *_pf_co = axex_get_compressed_layer(L, 4);
+            if (!d_ow && _pf_co && _pf_co->d_Vt) {
+                PF_CMPR_GEMV_N(d_pffd, d_pfattn, n, dim, lq_dim, _pf_co);
+            } else if (layer->o_type == GGML_TYPE_Q4_0) {
+                cuda_prefill_batch_quant(d_pfattn, n, lq_dim);
+                cuda_prefill_batch_gemv_q4(d_pffd, d_ow, dim, lq_dim, n);
+            } else {
+                for (int i = 0; i < n; i++)
+                    be->compute.gemv(d_pffd + (int64_t)i * dim, d_ow,
+                                     d_pfattn + (int64_t)i * lq_dim,
+                                     dim, lq_dim, layer->o_type);
+            }
         }
 
         /* Post-attn residual */
@@ -4694,10 +6059,10 @@ static void llm_cpu_layer(llm_model_t *m, int L, int pos)
                 llm_rope(llm_k_buf + h * lhd, pos, rdim, rope_base, NULL);
     }
 
-    int kv_stride = m->max_seq * kv_dim;
+    int64_t kv_stride = (int64_t)m->max_seq * kv_dim; /* int64_t: overflows int for large seq*kv_dim products */
     if (has_own_kv) {
-        float *kc = m->k_cache + (uint64_t)L * kv_stride + pos * kv_dim;
-        float *vc = m->v_cache + (uint64_t)L * kv_stride + pos * kv_dim;
+        float *kc = m->k_cache + (int64_t)L * kv_stride + pos * kv_dim;
+        float *vc = m->v_cache + (int64_t)L * kv_stride + pos * kv_dim;
         if (lkv_dim < kv_dim) {
             kmemset(kc, 0, kv_dim * sizeof(float));
             kmemset(vc, 0, kv_dim * sizeof(float));
@@ -4776,7 +6141,8 @@ static void llm_cpu_layer(llm_model_t *m, int L, int pos)
     if (m->use_gelu || !layer->ffn_gate) {
         llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, lff, dim, layer->up_type);
         llm_add_bias(llm_ffn_u, layer->ffn_up_bias, lff);
-        llm_gelu(llm_ffn_u, lff);
+        if (jit_fwd_gelu && lff == ff) jit_fwd_gelu(llm_ffn_u, lff);
+        else llm_gelu(llm_ffn_u, lff);
         const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
         if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_u, llm_ffn_d);
         else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_u, dim, lff, layer->down_type);
@@ -4784,8 +6150,12 @@ static void llm_cpu_layer(llm_model_t *m, int L, int pos)
     } else if (m->use_geglu) {
         llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
         llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
-        llm_gelu(llm_ffn_g, lff);
-        llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+        if (jit_fwd_gelu && lff == ff) jit_fwd_gelu(llm_ffn_g, lff);
+        else llm_gelu(llm_ffn_g, lff);
+        if (jit_fwd_vmul_ff && lff == ff)
+            jit_fwd_vmul_ff(llm_ffn_g, llm_ffn_u, lff);
+        else
+            llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
         const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
         if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
         else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
@@ -4805,15 +6175,25 @@ static void llm_cpu_layer(llm_model_t *m, int L, int pos)
             else if (_cw_u)                axex_compressed_weight_gemv(_cw_u, llm_xn, llm_ffn_u);
             else                           llm_gemv(llm_ffn_u, layer->ffn_up,  llm_xn, lff, dim, layer->up_type);
         }
-        llm_silu(llm_ffn_g, lff);
-        llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+        if (jit_fwd_fused_silu && lff == ff) {
+            jit_fwd_fused_silu(llm_ffn_g, llm_ffn_u, lff);
+        } else {
+            llm_silu(llm_ffn_g, lff);
+            if (jit_fwd_vmul_ff && lff == ff)
+                jit_fwd_vmul_ff(llm_ffn_g, llm_ffn_u, lff);
+            else
+                llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+        }
         {
             const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
             if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
             else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
         }
     }
-    llm_vadd_f32(llm_x, llm_ffn_d, dim);
+    if (jit_fwd_vadd_dim)
+        jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
+    else
+        llm_vadd_f32(llm_x, llm_ffn_d, dim);
 }
 
 static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int pos)
@@ -4832,11 +6212,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         /* Compile ALL JIT kernels — baked dimensions eliminate loop overhead.
          * SSE2 JIT with constants often beats generic AVX2 C for small ops. */
         jit_fwd_vadd_dim   = jit_compile_vadd_kernel(dim);
-        jit_fwd_dot_hd     = jit_compile_dot_kernel(hd);
-        jit_fwd_axpy_hd    = jit_compile_axpy_kernel(hd);
+        jit_fwd_vmul_ff    = jit_compile_vmul_kernel(ff);
         jit_fwd_fused_silu  = jit_compile_fused_silu_mul_kernel(ff);
+        jit_fwd_gelu       = jit_compile_gelu_kernel(ff);
         jit_fwd_rope_hd    = jit_compile_rope_kernel(hd);
         jit_fwd_rmsnorm    = jit_compile_rmsnorm_kernel(dim);
+        jit_fwd_rmsnorm_lhd = jit_compile_rmsnorm_kernel(hd);  /* per-head Q/K norm */
         jit_fwd_softmax    = NULL; /* softmax has variable length (seq_len) — skip */
         jit_fwd_ready = 1;
     }
@@ -4855,8 +6236,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     if (gpu_ctx.gpu_fwd &&
         /* Bridge capture requires CPU layer loop (no bridge support in GPU path).
          * Fall through to CPU path when capture mode is active so hidden-state
-         * captures (OTT axiom probes) get real transformer activations. */
-        !(llm_bridge.mode & BRIDGE_MODE_CAPTURE)) {
+         * captures (OTT axiom probes) get real transformer activations.
+         * BRIDGE_MODE_CAP_ALL (multi-layer calibration capture) and
+         * BRIDGE_MODE_CAP_FFN (FFN activation capture for FFN-down GP compression)
+         * also require CPU so the capture blocks at the end of the CPU layer loop
+         * fire correctly. */
+        !(llm_bridge.mode & (BRIDGE_MODE_CAPTURE | BRIDGE_MODE_CAP_ALL | BRIDGE_MODE_CAP_FFN))) {
         const backend_t *be = backend_get_by_id(BACKEND_CUDA);
         int max_seq = gpu_ctx.max_seq;
         int seq_len = pos + 1;
@@ -4885,10 +6270,6 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         } else {
             /* Fallback: embed on CPU (handles all types + embed_scale), upload */
             llm_embed(llm_x, m, token_id);
-            if (pos >= 4 && pos <= 7) {
-                kprintf("[DBG] embed pos=%d tok=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                    pos, token_id, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
-            }
             be->mem.upload(gpu_ctx.d_x, llm_x, (uint64_t)dim * sizeof(float));
         }
         uint64_t _emb1 = hal_timer_us();
@@ -5004,8 +6385,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         ggml_type_t d_lm_gpu_type = lm_type;  /* may be promoted to F32 if dequant-on-upload */
         void *d_lm = llm_gpu_lookup_with_type(lm_head, &d_lm_gpu_type);
 
-        /* Graph REPLAY fast-path: skip entire compute */
-        if (want_logits && cuda_graph_captured && cuda_graph_decode_ready && d_lm) {
+        /* Graph REPLAY fast-path: skip entire compute.
+         * Disabled when bridge capture is active (CAP_ALL): calibration needs
+         * the per-layer hidden state downloads in the layerwise path. */
+        if (want_logits && cuda_graph_captured && cuda_graph_decode_ready && d_lm &&
+            !(llm_bridge.mode & BRIDGE_MODE_CAP_ALL)) {
             cuda_set_decode_pos(pos, pos + 1);
             cuda_graph_launch();
             if (!gpu_skip_logits_download) {
@@ -5023,27 +6407,38 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* Graph CAPTURE: first decode token */
         int capturing = 0;
-        /* GP compression uses host-side axex_get_manifold_layer() inside the
-         * layer loop — incompatible with CUDA graph capture (no CPU calls
-         * allowed during stream capture).  Skip graph when GP is active. */
-        int gp_active = (axex_manifold_k() > 0);
-        if (want_logits && cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled && !gp_active) {
-            /* Pre-verify: ALL layer weights must be GPU-resident to avoid
-             * CPU fallback (which would break stream capture).
-             * Types like IQ2_XS are now dequantized to F32 on upload,
-             * so all weights should be on GPU. Verify ISWA if applicable. */
+        /* GP manifold host calls (axex_get_manifold_layer, axex_manifold_select_layer)
+         * are pure CPU pointer lookups — they do not issue CUDA API calls and are
+         * therefore compatible with stream capture.  The device pointers they return
+         * (d_W_proj, d_Pt) are static GPU allocations that never move, so the captured
+         * kernel arguments remain valid on every replay. */
+        int gp_active = (axex_manifold_compressed_count() > 0);
+        if (want_logits && cuda_graph_decode_ready && !cuda_graph_tried && d_lm && !prof_enabled) {
+            /* Pre-verify: ALL layer weights must be GPU-resident (raw tensor, GP manifold
+             * d_W_proj, or SVD d_Vt) to avoid CPU fallback inside stream capture.
+             * Types like IQ2_XS are dequantized to F32 on upload — all on GPU. */
             int iswa_ok = 1;
             for (int L2 = 0; L2 < m->n_layers && iswa_ok; L2++) {
                 llm_layer_t *lyr = &m->layers[L2];
-                /* Core attention/ffn weights — must all be on GPU */
-                if ((lyr->q_weight   && !llm_gpu_lookup(lyr->q_weight))   ||
-                    (lyr->k_weight   && !llm_gpu_lookup(lyr->k_weight))   ||
-                    (lyr->v_weight   && !llm_gpu_lookup(lyr->v_weight))   ||
-                    (lyr->o_weight   && !llm_gpu_lookup(lyr->o_weight))   ||
-                    (lyr->ffn_gate   && !llm_gpu_lookup(lyr->ffn_gate))   ||
-                    (lyr->ffn_up     && !llm_gpu_lookup(lyr->ffn_up))     ||
-                    (lyr->ffn_down   && !llm_gpu_lookup(lyr->ffn_down)))
+                /* GP manifold: Q/K/V/O/gate/up raw GPU tensors are freed after W_proj
+                 * upload — accept GP d_W_proj as a valid GPU-resident path. */
+                const axex_manifold_weight_t *_gm1 = axex_get_manifold_layer(L2, 1);
+                const axex_manifold_weight_t *_gm2 = axex_get_manifold_layer(L2, 2);
+                const axex_manifold_weight_t *_gm3 = axex_get_manifold_layer(L2, 3);
+                const axex_manifold_weight_t *_gm4 = axex_get_manifold_layer(L2, 4);
+                const axex_manifold_weight_t *_gm5 = axex_get_manifold_layer(L2, 5);
+                const axex_manifold_weight_t *_gm6 = axex_get_manifold_layer(L2, 6);
+                #define GP_COVERS(ptr_, gmw_) \
+                    (!(ptr_) || llm_gpu_lookup(ptr_) || ((gmw_) && (gmw_)->d_W_proj))
+                if (!GP_COVERS(lyr->q_weight, _gm1) ||
+                    !GP_COVERS(lyr->k_weight, _gm2) ||
+                    !GP_COVERS(lyr->v_weight, _gm3) ||
+                    !GP_COVERS(lyr->o_weight, _gm4) ||
+                    !GP_COVERS(lyr->ffn_gate, _gm6) ||
+                    !GP_COVERS(lyr->ffn_up,   _gm5) ||
+                    (lyr->ffn_down && !llm_gpu_lookup(lyr->ffn_down)))
                     iswa_ok = 0;
+                #undef GP_COVERS
                 if (m->is_gemma4 && lyr->iswa_inp_gate) {
                     if (!llm_gpu_lookup(lyr->iswa_inp_gate) ||
                         !llm_gpu_lookup(lyr->iswa_proj))
@@ -5051,41 +6446,94 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 }
             }
             cuda_graph_tried = 1;
-            /* In compressed-FFN mode (gpu_ffn_skip_for_compress), raw FFN tensors
-             * were never uploaded to GPU — compressed factor matrices replaced them.
-             * The iswa_ok raw-tensor lookup above will fail for those slots, so
-             * override here: if all compressed weights are on GPU, it IS fully resident. */
-            if (!iswa_ok && gpu_ffn_skip_for_compress) {
+            /* In compressed-FFN mode (gpu_ffn_skip_for_compress) or attn-SVD mode
+             * (gpu_attn_skip_for_compress), raw tensors were never uploaded / were
+             * freed after SVD upload.  Override iswa_ok if all SVD factors are on GPU. */
+            if (!iswa_ok && (gpu_ffn_skip_for_compress || gpu_attn_skip_for_compress)) {
                 iswa_ok = 1;
                 for (int L2 = 0; L2 < m->n_layers && iswa_ok; L2++) {
-                    const axex_compressed_weight_t *_cd = axex_get_compressed_layer(L2, 0);
-                    const axex_compressed_weight_t *_cg = axex_get_compressed_layer(L2, 6);
-                    const axex_compressed_weight_t *_cu = axex_get_compressed_layer(L2, 5);
-                    if (!(_cd && _cd->d_Vt) || !(_cu && _cu->d_Vt) ||
-                        (m->layers[L2].ffn_gate && !(_cg && _cg->d_Vt)))
+                    /* FFN: accept SVD factors or skip check if FFN wasn't compressed */
+                    if (gpu_ffn_skip_for_compress) {
+                        const axex_compressed_weight_t *_cd = axex_get_compressed_layer(L2, 0);
+                        const axex_compressed_weight_t *_cg = axex_get_compressed_layer(L2, 6);
+                        const axex_compressed_weight_t *_cu = axex_get_compressed_layer(L2, 5);
+                        /* Guard all FFN checks: only require compressed slot when the raw
+                         * weight pointer is non-NULL.  Also accept raw GPU as fallback (Phase 2d
+                         * may have uploaded the raw weight for degenerate SVD layers). */
+                        if (m->layers[L2].ffn_down &&
+                            !(_cd && _cd->d_Vt) &&
+                            !llm_gpu_lookup(m->layers[L2].ffn_down)) {
+                            kprintf("[GRAPH-DBG] layer %d: ffn_down not compressed/GPU\n", L2);
+                            iswa_ok = 0;
+                        }
+                        if (iswa_ok && m->layers[L2].ffn_up &&
+                            !(_cu && _cu->d_Vt) &&
+                            !llm_gpu_lookup(m->layers[L2].ffn_up)) {
+                            kprintf("[GRAPH-DBG] layer %d: ffn_up not compressed/GPU\n", L2);
+                            iswa_ok = 0;
+                        }
+                        if (iswa_ok && m->layers[L2].ffn_gate &&
+                            !(_cg && _cg->d_Vt) &&
+                            !llm_gpu_lookup(m->layers[L2].ffn_gate)) {
+                            kprintf("[GRAPH-DBG] layer %d: ffn_gate not compressed/GPU\n", L2);
+                            iswa_ok = 0;
+                        }
+                    }
+                    /* Attention Q/O: accept either raw GPU or SVD-compressed */
+                    const axex_compressed_weight_t *_cq2 = axex_get_compressed_layer(L2, 1);
+                    const axex_compressed_weight_t *_co2 = axex_get_compressed_layer(L2, 4);
+                    if (!(_cq2 && _cq2->d_Vt) && !llm_gpu_lookup(m->layers[L2].q_weight)) {
+                        kprintf("[GRAPH-DBG] layer %d: q_weight not compressed/GPU\n", L2);
                         iswa_ok = 0;
-                    /* Also verify attention weights are still on GPU */
-                    if ((!llm_gpu_lookup(m->layers[L2].q_weight)) ||
-                        (!llm_gpu_lookup(m->layers[L2].k_weight)) ||
-                        (!llm_gpu_lookup(m->layers[L2].v_weight)) ||
-                        (!llm_gpu_lookup(m->layers[L2].o_weight)))
+                    }
+                    if (iswa_ok && !(_co2 && _co2->d_Vt) && !llm_gpu_lookup(m->layers[L2].o_weight)) {
+                        kprintf("[GRAPH-DBG] layer %d: o_weight not compressed/GPU\n", L2);
                         iswa_ok = 0;
+                    }
+                    /* K/V: always uploaded if kv_reuse_layer < 0; guard the check
+                     * so layers with NULL k/v pointers don't fail it. */
+                    if (iswa_ok && m->layers[L2].k_weight &&
+                        !llm_gpu_lookup(m->layers[L2].k_weight)) {
+                        kprintf("[GRAPH-DBG] layer %d: k_weight not on GPU\n", L2);
+                        iswa_ok = 0;
+                    }
+                    if (iswa_ok && m->layers[L2].v_weight &&
+                        !llm_gpu_lookup(m->layers[L2].v_weight)) {
+                        kprintf("[GRAPH-DBG] layer %d: v_weight not on GPU\n", L2);
+                        iswa_ok = 0;
+                    }
                 }
             }
             if (iswa_ok) {
                 cuda_set_decode_pos(pos, pos + 1);
                 if (cuda_graph_begin_capture() == 0) {
                     capturing = 1;
-                    LOG_DBG("GRAPH", "capture started at pos=%d", pos);
+                    if (llm_emit_benchmark_debug())
+                        LOG_DBG("GRAPH", "capture started at pos=%d", pos);
                 } else {
-                    kprintf("[GRAPH] begin_capture failed at pos=%d\n", pos);
+                    if (llm_emit_benchmark_debug())
+                        kprintf("[GRAPH] begin_capture failed at pos=%d\n", pos);
                 }
             } else {
-                kprintf("[GRAPH] Layer weights not fully GPU-resident — graph capture skipped (pos=%d)\n", pos);
+                if (llm_emit_benchmark_debug())
+                    kprintf("[GRAPH] Layer weights not fully GPU-resident - graph capture skipped (pos=%d)\n", pos);
             }
         } else if (want_logits && !cuda_graph_decode_ready) {
             /* graph not ready — will run layerwise */
         }
+
+/* GPU two-GEMV using compressed weight matrices (SVD: U, S baked into Vt).
+ * d_Vt has S baked in, so: tmp[rank] = d_Vt * src, then dst[m] = d_U * tmp.
+ * Defined here (before the per-layer loop) so it is visible to Q/O dispatch
+ * as well as the later FFN dispatch macros. */
+#ifndef GPU_COMPRESSED_GEMV
+#define GPU_COMPRESSED_GEMV(_dst, _src, _cw_) do { \
+    be->compute.gemv(gpu_ctx.d_compress_tmp, (_cw_)->d_Vt, (_src), \
+                     (_cw_)->rank, (_cw_)->n, GGML_TYPE_F32); \
+    be->compute.gemv((_dst), (_cw_)->d_U, gpu_ctx.d_compress_tmp, \
+                     (_cw_)->m, (_cw_)->rank, GGML_TYPE_F32); \
+} while (0)
+#endif
 
         for (int L = 0; L < m->n_layers; L++) {
             llm_layer_t *layer = &m->layers[L];
@@ -5100,15 +6548,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             if (!gl->on_gpu) {
                 be->mem.sync();
                 be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
-                if ((pos == 0 || pos == 5) && L == 1) {
-                    kprintf("[DBG] L0→L1 download pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
-                }
                 llm_cpu_layer(m, L, pos);
-                if ((pos == 0 || pos == 5) && L == 1) {
-                    kprintf("[DBG] after L1 cpu pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
-                }
                 be->mem.upload(gpu_ctx.d_x, llm_x, (uint64_t)dim * sizeof(float));
                 continue;
             }
@@ -5134,19 +6574,35 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             if (layer->ffn_up)     llm_gpu_lookup_with_type(layer->ffn_up,     &up_gpu_type);
             if (layer->ffn_down)   llm_gpu_lookup_with_type(layer->ffn_down,   &down_gpu_type);
 
-            /* If core attention weights aren't GPU-resident, skip (should not happen after dequant-on-upload) */
+            /* If core attention weights aren't GPU-resident, skip — BUT allow the
+             * SVD-compressed path (slot 1) since it replaces the raw q_weight. */
             if (layer->q_weight && !d_qw) {
-                /* Unexpected: weight not on GPU. This layer will produce zeros. */
-                kprintf("[GPU] WARNING: q_weight not on GPU for layer %d, skipping\n", L);
-                continue;
+                const axex_compressed_weight_t *_cq_chk = axex_get_compressed_layer(L, 1);
+                const axex_manifold_weight_t   *_gp_chk = axex_get_manifold_layer(L, 1);
+                const float *_gp_dPt_chk = axex_manifold_d_Pt();
+                if (!(_cq_chk && _cq_chk->d_Vt) &&
+                    !(_gp_chk && _gp_chk->d_W_proj && _gp_dPt_chk)) {
+                    /* No raw, no SVD Q, and no GP manifold Q — layer is broken */
+                    kprintf("[GPU] WARNING: q_weight not on GPU for layer %d, skipping\n", L);
+                    continue;
+                }
+                /* SVD-compressed Q or GP manifold Q present — raw freed intentionally */
             }
 
             /* Geodesic Projection (GP) state for this layer */
             const axex_manifold_weight_t *_gp_q  = axex_get_manifold_layer(L, 1);
-            const float *_gp_dPt = axex_manifold_d_Pt();
+            const float    *_gp_dPt     = axex_manifold_d_Pt();
+            const uint16_t *_gp_dPt_f16 = axex_manifold_d_Pt_f16();
+            /* Use F16 Pt if available (half bandwidth); fall back to F32 */
+            const void *_gp_Pt_ptr  = _gp_dPt_f16 ? (const void *)_gp_dPt_f16
+                                                   : (const void *)_gp_dPt;
+            ggml_type_t _gp_Pt_type = _gp_dPt_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
             int  _gp_k  = axex_manifold_k();
             int  _gp_n  = axex_manifold_n();
             int gpu_x_sub_qkv_ready = 0;
+            /* SVD-compressed Q and O (slots 1, 4) — takes priority over GP path */
+            const axex_compressed_weight_t *_cq_ = axex_get_compressed_layer(L, 1);
+            const axex_compressed_weight_t *_co_ = axex_get_compressed_layer(L, 4);
 
             if (has_own_kv) {
                 ggml_type_t k_gpu_type = layer->k_type;
@@ -5156,24 +6612,37 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 /* GP fast path: d_xn = rmsnorm(d_x), then x_sub = Pt@d_xn once */
                 const axex_manifold_weight_t *_gp_k2 = axex_get_manifold_layer(L, 2);
                 const axex_manifold_weight_t *_gp_v2 = axex_get_manifold_layer(L, 3);
-                if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
+                if (_cq_ && _cq_->d_Vt) {
+                    /* SVD two-step: tmp=SVt@xn, Q=U@tmp — no PCA projection needed */
                     be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
                                         dim, gpu_ctx.rms_eps);
-                    /* Project: d_x_sub[k] = Pt[k×n] @ d_xn[n] */
-                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt, gpu_ctx.d_xn,
-                                     _gp_k, _gp_n, GGML_TYPE_F32);
+                    GPU_COMPRESSED_GEMV(gpu_ctx.d_q, gpu_ctx.d_xn, _cq_);
+                    be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
+                    be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                } else if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
+                    be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
+                                        dim, gpu_ctx.rms_eps);
+                    /* Project: d_x_sub[k] = Pt[k×n] @ d_xn[n] (F16 Pt → 2× less bandwidth) */
+                    be->compute.gemv(gpu_ctx.d_x_sub, _gp_Pt_ptr, gpu_ctx.d_xn,
+                                     _gp_k, _gp_n, _gp_Pt_type);
                     gpu_x_sub_qkv_ready = 1;
                     be->compute.gemv(gpu_ctx.d_q, (void *)_gp_q->d_W_proj, gpu_ctx.d_x_sub,
-                                     lq_dim, _gp_k, GGML_TYPE_F32);
-                    if (_gp_k2 && _gp_k2->d_W_proj)
+                                     lq_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                    if (_gp_q->d_bias)
+                        be->compute.add(gpu_ctx.d_q, gpu_ctx.d_q, _gp_q->d_bias, lq_dim);
+                    if (_gp_k2 && _gp_k2->d_W_proj) {
                         be->compute.gemv(gpu_ctx.d_k, (void *)_gp_k2->d_W_proj, gpu_ctx.d_x_sub,
-                                         lkv_dim, _gp_k, GGML_TYPE_F32);
-                    else
+                                         lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                        if (_gp_k2->d_bias)
+                            be->compute.add(gpu_ctx.d_k, gpu_ctx.d_k, _gp_k2->d_bias, lkv_dim);
+                    } else
                         be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
-                    if (_gp_v2 && _gp_v2->d_W_proj)
+                    if (_gp_v2 && _gp_v2->d_W_proj) {
                         be->compute.gemv(gpu_ctx.d_v, (void *)_gp_v2->d_W_proj, gpu_ctx.d_x_sub,
-                                         lkv_dim, _gp_k, GGML_TYPE_F32);
-                    else
+                                         lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                        if (_gp_v2->d_bias)
+                            be->compute.add(gpu_ctx.d_v, gpu_ctx.d_v, _gp_v2->d_bias, lkv_dim);
+                    } else
                         be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
                 } else {
                     /* Fast path: fused RMSNorm + triple GEMV eliminates d_xn write */
@@ -5211,12 +6680,16 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             } else {
                 be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
                                     dim, gpu_ctx.rms_eps);
-                if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
-                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt, gpu_ctx.d_xn,
-                                     _gp_k, _gp_n, GGML_TYPE_F32);
+                if (_cq_ && _cq_->d_Vt) {
+                    GPU_COMPRESSED_GEMV(gpu_ctx.d_q, gpu_ctx.d_xn, _cq_);
+                } else if (_gp_q && _gp_q->d_W_proj && _gp_dPt && _gp_k > 0) {
+                    be->compute.gemv(gpu_ctx.d_x_sub, _gp_Pt_ptr, gpu_ctx.d_xn,
+                                     _gp_k, _gp_n, _gp_Pt_type);
                     gpu_x_sub_qkv_ready = 1;
                     be->compute.gemv(gpu_ctx.d_q, (void *)_gp_q->d_W_proj, gpu_ctx.d_x_sub,
-                                     lq_dim, _gp_k, GGML_TYPE_F32);
+                                     lq_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                    if (_gp_q->d_bias)
+                        be->compute.add(gpu_ctx.d_q, gpu_ctx.d_q, _gp_q->d_bias, lq_dim);
                 } else {
                     be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, q_gpu_type);
                 }
@@ -5284,20 +6757,28 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_attn += (_lp1 - _lp0); _lp0 = _lp1; }
             /* 2f. O projection + post-attn norm + residual (GPU) */
-            /* GP path: if slot 4 is manifold-compressed and lq_dim == gp_n, project
-             * attention output into manifold subspace and use W_proj GEMV. */
+            /* Priority: SVD compressed O (slot 4) > GP manifold > raw GPU weight */
             {
                 const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
-                const float *_gp_dPt_o = axex_manifold_d_Pt();
+                const uint16_t *_gp_dPt_o_f16 = axex_manifold_d_Pt_f16();
+                const float    *_gp_dPt_o     = axex_manifold_d_Pt();
+                const void     *_gp_o_Pt_ptr  = _gp_dPt_o_f16 ? (const void *)_gp_dPt_o_f16
+                                                                : (const void *)_gp_dPt_o;
+                ggml_type_t _gp_o_Pt_type = _gp_dPt_o_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
                 int _gp_k_o = axex_manifold_k();
                 int _gp_n_o = axex_manifold_n();
-                if (_gp_o && _gp_o->d_W_proj && _gp_dPt_o && _gp_k_o > 0 &&
+                if (_co_ && _co_->d_Vt) {
+                    /* SVD two-step O projection: tmp=SVt@attn, out=U@tmp */
+                    GPU_COMPRESSED_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_attn, _co_);
+                } else if (_gp_o && _gp_o->d_W_proj && _gp_dPt_o && _gp_k_o > 0 &&
                     lq_dim == _gp_n_o) {
-                    /* x_sub_o[k] = Pt[k×n] @ d_attn[n] */
-                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt_o,
-                                     gpu_ctx.d_attn, _gp_k_o, lq_dim, GGML_TYPE_F32);
+                    /* x_sub_o[k] = Pt[k×n] @ d_attn[n] (F16 Pt → 2× less bandwidth) */
+                    be->compute.gemv(gpu_ctx.d_x_sub, _gp_o_Pt_ptr,
+                                     gpu_ctx.d_attn, _gp_k_o, lq_dim, _gp_o_Pt_type);
                     be->compute.gemv(gpu_ctx.d_ffn_d, (void *)_gp_o->d_W_proj,
-                                     gpu_ctx.d_x_sub, dim, _gp_k_o, GGML_TYPE_F32);
+                                     gpu_ctx.d_x_sub, dim, _gp_k_o, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                    if (_gp_o->d_bias)
+                        be->compute.add(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_d, _gp_o->d_bias, dim);
                 } else {
                     void *d_ow = llm_gpu_lookup(layer->o_weight);
                     be->compute.gemv(gpu_ctx.d_ffn_d, d_ow, gpu_ctx.d_attn, dim, lq_dim, o_gpu_type);
@@ -5333,16 +6814,19 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
              * result back.  The compressed matrices are ~34% the size of the
              * original quantized weight, so they were never uploaded to GPU —
              * this saves VRAM at the cost of one PCIe round-trip per token. */
-/* GPU two-GEMV using compressed weight matrices.
- * d_Vt has S baked in, so: tmp[rank] = d_Vt * src, then dst[m] = d_U * tmp */
-#define GPU_COMPRESSED_GEMV(_dst, _src, _cw_) do { \
-    be->compute.gemv(gpu_ctx.d_compress_tmp, (_cw_)->d_Vt, (_src), \
-                     (_cw_)->rank, (_cw_)->n, GGML_TYPE_F32); \
-    be->compute.gemv((_dst), (_cw_)->d_U, gpu_ctx.d_compress_tmp, \
-                     (_cw_)->m, (_cw_)->rank, GGML_TYPE_F32); \
-} while (0)
+/* GPU_COMPRESSED_GEMV defined earlier (before per-layer loop). */
 
 #define GPU_FFN_DOWN_GEMV(_dst, _src, _dim, _lff) do { \
+    const axex_manifold_weight_t *_md7_ = axex_get_manifold_layer(L, 7); \
+    const float *_d_Qff_ = axex_manifold_d_Qff(L); \
+    int _k_ff_dn_ = axex_manifold_qff_k(L); \
+    if (_md7_ && _md7_->d_W_proj && _d_Qff_ && _k_ff_dn_ > 0) { \
+        /* FFN down GP: x_sub[k_ff] = Qff[k_ff×lff] @ ffn_g[lff], then \
+         * ffn_d[dim] = W_proj_down[dim×k_ff] @ x_sub[k_ff]. \
+         * d_x_sub is safe to reuse here: gate/up are already computed. */ \
+        be->compute.gemv(gpu_ctx.d_x_sub, (void *)_d_Qff_, (_src), _k_ff_dn_, (_lff), GGML_TYPE_F32); \
+        be->compute.gemv((_dst), (void *)_md7_->d_W_proj, gpu_ctx.d_x_sub, (_dim), _k_ff_dn_, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32); \
+    } else { \
     const axex_compressed_weight_t *_cw_ = axex_get_compressed_layer(L, 0); \
     if (_cw_ && _cw_->d_Vt) { \
         /* True GPU two-GEMV — no PCIe round-trip */ \
@@ -5363,6 +6847,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             be->mem.upload((_dst), llm_ffn_d, (uint64_t)(_dim) * sizeof(float)); \
         } \
     } \
+    } \
 } while (0)
 /* Macros for compressed gate and up GEMVs (slots 6 and 5).
  * Priority: GP manifold (d_W_proj) > SVD compressed (d_Vt) > regular GPU GEMV.
@@ -5370,7 +6855,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 #define GPU_FFN_GATE_GEMV(_dst, _src, _lff, _dim) do { \
     const axex_manifold_weight_t *_mg_ = axex_get_manifold_layer(L, 6); \
     if (_mg_ && _mg_->d_W_proj && _gpu_x_sub_ffn_ready) { \
-        be->compute.gemv((_dst), (void *)_mg_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, GGML_TYPE_F32); \
+        be->compute.gemv((_dst), (void *)_mg_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32); \
     } else { \
         const axex_compressed_weight_t *_cw_g_ = axex_get_compressed_layer(L, 6); \
         if (_cw_g_ && _cw_g_->d_Vt) { \
@@ -5392,7 +6877,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 #define GPU_FFN_UP_GEMV(_dst, _src, _lff, _dim) do { \
     const axex_manifold_weight_t *_mu_ = axex_get_manifold_layer(L, 5); \
     if (_mu_ && _mu_->d_W_proj && _gpu_x_sub_ffn_ready) { \
-        be->compute.gemv((_dst), (void *)_mu_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, GGML_TYPE_F32); \
+        be->compute.gemv((_dst), (void *)_mu_->d_W_proj, gpu_ctx.d_x_sub, (_lff), _gp_k_ffn, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32); \
     } else { \
         const axex_compressed_weight_t *_cw_u_ = axex_get_compressed_layer(L, 5); \
         if (_cw_u_ && _cw_u_->d_Vt) { \
@@ -5411,46 +6896,21 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     } \
 } while (0)
 
-            /* Diagnostic: print d_xn (ffn input) and d_x (pre-ffn residual) for L=0, pos=0 */
-            if (pos == 0 && L == 0) {
-                be->mem.sync();
-                float _dbg0[8];
-                be->mem.download(_dbg0, gpu_ctx.d_xn, 8*sizeof(float));
-                kprintf("[DBG-FFN] L0 ffn_in(d_xn)[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                    _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
-                /* Check compressed weight data on GPU */
-                const axex_compressed_weight_t *_cw_dbg = axex_get_compressed_layer(0, 6);
-                if (_cw_dbg && _cw_dbg->d_Vt) {
-                    be->mem.download(_dbg0, _cw_dbg->d_Vt, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 d_Vt[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
-                    be->mem.download(_dbg0, _cw_dbg->d_U, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 d_U[0..7]=    %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg0[0],_dbg0[1],_dbg0[2],_dbg0[3],_dbg0[4],_dbg0[5],_dbg0[6],_dbg0[7]);
-                    /* Also check host-side U for comparison */
-                    if (_cw_dbg->U) {
-                        kprintf("[DBG-FFN] L0 host U[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                            _cw_dbg->U[0],_cw_dbg->U[1],_cw_dbg->U[2],_cw_dbg->U[3],
-                            _cw_dbg->U[4],_cw_dbg->U[5],_cw_dbg->U[6],_cw_dbg->U[7]);
-                    }
-                    kprintf("[DBG-FFN] L0 rank=%d n=%d m=%d\n",
-                        _cw_dbg->rank, _cw_dbg->n, _cw_dbg->m);
-                } else {
-                    kprintf("[DBG-FFN] L0 slot6 cw=%p d_Vt=%s\n",
-                        (void*)_cw_dbg, _cw_dbg ? (_cw_dbg->d_Vt ? "set" : "NULL") : "N/A");
-                }
-            }
             /* GP: project FFN-normed d_xn → d_x_sub once, shared by gate and up */
             int _gpu_x_sub_ffn_ready = 0;
             int _gp_k_ffn = axex_manifold_k();
             {
                 const axex_manifold_weight_t *_mg_gate = axex_get_manifold_layer(L, 6);
-                const float *_gp_dPt_ffn = axex_manifold_d_Pt();
+                const uint16_t *_gp_dPt_ffn_f16 = axex_manifold_d_Pt_f16();
+                const float    *_gp_dPt_ffn     = axex_manifold_d_Pt();
+                const void     *_gp_ffn_Pt_ptr  = _gp_dPt_ffn_f16 ? (const void *)_gp_dPt_ffn_f16
+                                                                    : (const void *)_gp_dPt_ffn;
+                ggml_type_t _gp_ffn_Pt_type = _gp_dPt_ffn_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
                 if (_mg_gate && _mg_gate->d_W_proj && _gp_dPt_ffn && _gp_k_ffn > 0 &&
                     layer->ffn_gate) {
                     /* d_xn is already set (FFN RMSNorm was applied just above) */
-                    be->compute.gemv(gpu_ctx.d_x_sub, (void *)_gp_dPt_ffn, gpu_ctx.d_xn,
-                                     _gp_k_ffn, axex_manifold_n(), GGML_TYPE_F32);
+                    be->compute.gemv(gpu_ctx.d_x_sub, _gp_ffn_Pt_ptr, gpu_ctx.d_xn,
+                                     _gp_k_ffn, axex_manifold_n(), _gp_ffn_Pt_type);
                     _gpu_x_sub_ffn_ready = 1;
                 }
             }
@@ -5503,32 +6963,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
                     GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
                 }
-                if (pos == 0 && L == 0) {
-                    be->mem.sync();
-                    float _dbg1[8];
-                    be->mem.download(_dbg1, gpu_ctx.d_ffn_g, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 gate[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg1[0],_dbg1[1],_dbg1[2],_dbg1[3],_dbg1[4],_dbg1[5],_dbg1[6],_dbg1[7]);
-                    be->mem.download(_dbg1, gpu_ctx.d_ffn_u, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 up[0..7]=     %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg1[0],_dbg1[1],_dbg1[2],_dbg1[3],_dbg1[4],_dbg1[5],_dbg1[6],_dbg1[7]);
-                }
                 cuda_fused_swiglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
-                if (pos == 0 && L == 0) {
-                    be->mem.sync();
-                    float _dbg2[8];
-                    be->mem.download(_dbg2, gpu_ctx.d_ffn_g, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 swiglu[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg2[0],_dbg2[1],_dbg2[2],_dbg2[3],_dbg2[4],_dbg2[5],_dbg2[6],_dbg2[7]);
-                }
                 GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_g, dim, lff);
-                if (pos == 0 && L == 0) {
-                    be->mem.sync();
-                    float _dbg3[8];
-                    be->mem.download(_dbg3, gpu_ctx.d_ffn_d, 8*sizeof(float));
-                    kprintf("[DBG-FFN] L0 down[0..7]=   %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                        _dbg3[0],_dbg3[1],_dbg3[2],_dbg3[3],_dbg3[4],_dbg3[5],_dbg3[6],_dbg3[7]);
-                }
             }
 #undef GPU_FFN_GATE_GEMV
 #undef GPU_FFN_UP_GEMV
@@ -5629,9 +7065,13 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                       llm_gemv(llm_ffn_d, layer->iswa_proj, llm_iswa_tmp, dim, iswa_d,
                                layer->iswa_proj_type);
                       gpu_ctx.active = sa; }
-                    if (layer->iswa_post_norm)
-                        llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->iswa_post_norm, dim,
-                                    GGML_TYPE_F32, m->rms_eps);
+                    if (layer->iswa_post_norm) {
+                        if (jit_fwd_rmsnorm)
+                            jit_fwd_rmsnorm(llm_ffn_d, llm_ffn_d, (const float *)layer->iswa_post_norm, dim);
+                        else
+                            llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->iswa_post_norm, dim,
+                                        GGML_TYPE_F32, m->rms_eps);
+                    }
                     be->mem.upload(gpu_ctx.d_ffn_d, llm_ffn_d, (uint64_t)dim * sizeof(float));
                     be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
                 }
@@ -5644,25 +7084,29 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             }
             if (detail_layer) { be->mem.sync(); _lp1 = hal_timer_us(); t_l_iswa += (_lp1 - _lp0); }
 
+            /* GPU multi-layer capture: download hidden state for per-layer PCA calibration.
+             * Only fires when BRIDGE_MODE_CAP_ALL is active (not during normal inference).
+             * CAP_ONCE guard prevents decode-step from overwriting prefill captures. */
+            if ((llm_bridge.mode & BRIDGE_MODE_CAP_ALL) &&
+                llm_bridge.multi_cap_bufs && llm_bridge.multi_cap_valid &&
+                L >= 0 && L < llm_bridge.multi_cap_n &&
+                llm_bridge.multi_cap_dim == dim) {
+                int _already = (llm_bridge.mode & BRIDGE_MODE_CAP_ONCE)
+                               && llm_bridge.multi_cap_valid[L];
+                if (!_already) {
+                    be->mem.sync();
+                    float *_gpu_cap_dst = llm_bridge.multi_cap_bufs + (size_t)L * dim;
+                    be->mem.download(_gpu_cap_dst, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
+                    llm_bridge.multi_cap_valid[L] = 1;
+                }
+            }
+
         }
 
         /* 3. Final output RMSNorm on GPU (all models) */
         if (prof_enabled) { be->mem.sync(); _pt1 = hal_timer_us(); t_layers = (_pt1 - _pt0) / 1000.0; _pt0 = _pt1; }
-        if (pos >= 4 && pos <= 7) {
-            be->mem.sync();
-            be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
-            kprintf("[DBG] pre-outnorm pos=%d x[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                pos, llm_x[0],llm_x[1],llm_x[2],llm_x[3],llm_x[4],llm_x[5],llm_x[6],llm_x[7]);
-        }
         be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gpu_ctx.d_output_norm,
                             dim, gpu_ctx.rms_eps);
-        if (pos >= 4 && pos <= 5) {
-            be->mem.sync();
-            be->mem.download(llm_xn, gpu_ctx.d_xn, (uint64_t)8 * sizeof(float));
-            kprintf("[DBG] post-rmsnorm pos=%d xn[0..7]= %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n",
-                pos, llm_xn[0],llm_xn[1],llm_xn[2],llm_xn[3],llm_xn[4],llm_xn[5],llm_xn[6],llm_xn[7]);
-            kprintf("[DBG] d_lm=%p d_lm_gpu_type=%d (0=F32,10=Q2K)\n", d_lm, (int)d_lm_gpu_type);
-        }
 
         /* 4. LM head projection on GPU → logits */
         if (!want_logits) {
@@ -5682,11 +7126,13 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 if (_cap_rc == 0) {
                     cuda_graph_captured = 1;
                     cuda_graph_ctx_len  = pos; /* record position for validity check */
-                    kprintf("[GRAPH] captured at pos=%d in %llums\n", pos, (unsigned long long)(_cap_t1-_cap_t0)/1000);
+                    if (llm_emit_benchmark_debug())
+                        kprintf("[GRAPH] captured at pos=%d in %llums\n", pos, (unsigned long long)(_cap_t1-_cap_t0)/1000);
                     cuda_graph_launch();
                 } else {
                     /* Capture failed — re-execute without capture */
-                    kprintf("[CUDA Graph] end_capture failed at pos=%d\n", pos);
+                    if (llm_emit_benchmark_debug())
+                        kprintf("[CUDA Graph] end_capture failed at pos=%d\n", pos);
                     capturing = 0;
                     llm_forward_token(m, logits, token_id, pos);
                     return;
@@ -5696,16 +7142,6 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             /* Download logits (waits for graph/kernels to finish on stream 0) */
             be->mem.download(logits, gpu_ctx.d_out, (uint64_t)m->vocab_size * sizeof(float));
             be->mem.sync();
-            if (pos >= 4 && pos <= 5) {
-                int _best=0,_best2=1,_best3=2;
-                for (int _i=0;_i<m->vocab_size;_i++) {
-                    if (logits[_i]>logits[_best]) {_best3=_best2;_best2=_best;_best=_i;}
-                    else if (logits[_i]>logits[_best2]) {_best3=_best2;_best2=_i;}
-                    else if (logits[_i]>logits[_best3]) _best3=_i;
-                }
-                kprintf("[DBG] GPU lmhead logits pos=%d: [%d]=%.4f [%d]=%.4f [%d]=%.4f tok0=%.4f\n",
-                    pos, _best,logits[_best],_best2,logits[_best2],_best3,logits[_best3],logits[0]);
-            }
             /* Capture hidden state for context-conditioned manifold lookup */
             if (llm_last_hs)
                 be->mem.download(llm_last_hs, gpu_ctx.d_xn,
@@ -5765,11 +7201,7 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     }
 #endif /* ENABLE_CUDA GPU-resident forward */
 
-    static int cpu_fwd_count = 0;
-    if (++cpu_fwd_count <= 2) kprintf("[DBG-CPU] CPU forward pass #%d tok=%d pos=%d dim=%d n_kv=%d n_heads=%d\n",
-                                       cpu_fwd_count, token_id, pos, dim, n_kv, n_heads);
     llm_embed(llm_x, m, token_id);
-    if (cpu_fwd_count <= 2) kprintf("[DBG-CPU] embed done #%d\n", cpu_fwd_count);
 
     /* 2. Process each transformer layer */
     int rope_dim = m->rope_dim > 0 ? m->rope_dim : hd; /* partial RoPE for Phi-2 */
@@ -5850,11 +7282,14 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             llm_iswa_per_layer[i] = (llm_iswa_per_layer[i] + proj_buf[i]) * inv_sqrt_2;
     }
 
-    if (cpu_fwd_count <= 2) kprintf("[DBG-CPU] entering layer loop #%d pos=%d\n", cpu_fwd_count, pos);
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
-        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 start #%d lhd=%d n_kv=%d n_heads=%d\n",
-            cpu_fwd_count, (layer->head_dim_layer ? layer->head_dim_layer : hd), n_kv, n_heads);
+
+        /* Crash-hunt: log every layer when bridge-capture is active (first token only) */
+        if ((llm_bridge.mode & BRIDGE_MODE_CAPTURE) && pos == 0)
+            kprintf("[CPU-L] L=%d attn_norm=%p q=%p k=%p v=%p o=%p\n",
+                    L, layer->attn_norm, layer->q_weight, layer->k_weight,
+                    layer->v_weight, layer->o_weight);
 
         /* Bridge: inject hidden state before this layer */
         if (llm_bridge.mode & BRIDGE_MODE_INJECT) {
@@ -5869,6 +7304,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         if (m->use_layernorm)
             llm_layernorm(llm_xn, llm_x, layer->attn_norm,
                           layer->attn_norm_bias, dim, layer->attn_norm_type);
+        else if (jit_fwd_rmsnorm && layer->attn_norm_type == GGML_TYPE_F32)
+            jit_fwd_rmsnorm(llm_xn, llm_x, (const float *)layer->attn_norm, dim);
         else
             llm_rmsnorm(llm_xn, llm_x, layer->attn_norm, dim, layer->attn_norm_type, m->rms_eps);
 
@@ -5944,23 +7381,32 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         /* Gemma4: per-head Q/K normalization */
         if (layer->q_norm) {
             const float *qnw = (const float *)layer->q_norm;
-            for (int h = 0; h < n_heads; h++) {
-                float *qh = llm_q + h * lhd;
-                /* RMSNorm per-head: norm then scale by weights */
-                float ss = 0.0f;
-                for (int i = 0; i < lhd; i++) ss += qh[i] * qh[i];
-                float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
-                for (int i = 0; i < lhd; i++) qh[i] = qh[i] * rms * qnw[i];
+            if (jit_fwd_rmsnorm_lhd) {
+                for (int h = 0; h < n_heads; h++)
+                    jit_fwd_rmsnorm_lhd(llm_q + h * lhd, llm_q + h * lhd, qnw, lhd);
+            } else {
+                for (int h = 0; h < n_heads; h++) {
+                    float *qh = llm_q + h * lhd;
+                    float ss = 0.0f;
+                    for (int i = 0; i < lhd; i++) ss += qh[i] * qh[i];
+                    float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
+                    for (int i = 0; i < lhd; i++) qh[i] = qh[i] * rms * qnw[i];
+                }
             }
         }
         if (layer->k_norm && has_own_kv) {
             const float *knw = (const float *)layer->k_norm;
-            for (int h = 0; h < n_kv; h++) {
-                float *kh = llm_k_buf + h * lhd;
-                float ss = 0.0f;
-                for (int i = 0; i < lhd; i++) ss += kh[i] * kh[i];
-                float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
-                for (int i = 0; i < lhd; i++) kh[i] = kh[i] * rms * knw[i];
+            if (jit_fwd_rmsnorm_lhd) {
+                for (int h = 0; h < n_kv; h++)
+                    jit_fwd_rmsnorm_lhd(llm_k_buf + h * lhd, llm_k_buf + h * lhd, knw, lhd);
+            } else {
+                for (int h = 0; h < n_kv; h++) {
+                    float *kh = llm_k_buf + h * lhd;
+                    float ss = 0.0f;
+                    for (int i = 0; i < lhd; i++) ss += kh[i] * kh[i];
+                    float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
+                    for (int i = 0; i < lhd; i++) kh[i] = kh[i] * rms * knw[i];
+                }
             }
             /* V bare RMSNorm: normalize per-head without learned weights */
             for (int h = 0; h < n_kv; h++) {
@@ -5988,16 +7434,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         if (m->is_gemma4 && m->rope_freqs && lhd != m->head_dim_swa) {
             rope_f = m->rope_freqs;
         }
-        /* Use JIT only when head_dim matches compiled kernel */
-        if (jit_fwd_rope_hd && lhd == hd && layer_rope_dim == hd && !m->is_gemma4) {
-            llm_rope_precompute(layer_rope_base, lhd, rope_f);
+
+        /* Use JIT RoPE with per-dimension cache (supports Gemma4 variable head dims) */
+        int rdim = m->rope_dim > 0 ? m->rope_dim : layer_rope_dim;
+        jit_rope_fn rope_jit = jit_get_rope_for_dim(rdim);
+        if (rope_jit) {
+            llm_rope_precompute(layer_rope_base, rdim, rope_f);
             for (int h = 0; h < n_heads; h++)
-                jit_fwd_rope_hd(llm_q + h * lhd, pos, lhd, llm_rope_freqs_buf);
+                rope_jit(llm_q + h * lhd, pos, rdim, llm_rope_freqs_buf);
             if (has_own_kv)
                 for (int h = 0; h < n_kv; h++)
-                    jit_fwd_rope_hd(llm_k_buf + h * lhd, pos, lhd, llm_rope_freqs_buf);
+                    rope_jit(llm_k_buf + h * lhd, pos, rdim, llm_rope_freqs_buf);
         } else {
-            int rdim = m->rope_dim > 0 ? m->rope_dim : layer_rope_dim;
             for (int h = 0; h < n_heads; h++)
                 llm_rope(llm_q + h * lhd, pos, rdim, layer_rope_base, rope_f);
             if (has_own_kv)
@@ -6005,15 +7453,14 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     llm_rope(llm_k_buf + h * lhd, pos, rdim, layer_rope_base, rope_f);
         }
 
-        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 after QKV+RoPE #%d lq=%d lkv=%d lhd=%d\n", cpu_fwd_count, lq_dim, lkv_dim, lhd);
         /* 2d. Store K,V in cache */
-        int kv_stride = m->max_seq * kv_dim;
+        int64_t kv_stride = (int64_t)m->max_seq * kv_dim; /* int64_t: overflows int for large seq*kv_dim products */
         int kv_src_layer = has_own_kv ? L : layer->kv_reuse_layer;
         if (has_own_kv) {
             /* Write K/V to this layer's cache slot.
              * If lhd < hd, we write lkv_dim floats into a kv_dim slot — pad rest with 0. */
-            float *kc = m->k_cache + L * kv_stride + pos * kv_dim;
-            float *vc = m->v_cache + L * kv_stride + pos * kv_dim;
+            float *kc = m->k_cache + (int64_t)L * kv_stride + pos * kv_dim;
+            float *vc = m->v_cache + (int64_t)L * kv_stride + pos * kv_dim;
 
             /* Geodesic KV compression: check each head independently.
              * When axex_kv_should_store() returns 0, the new K is geodesically
@@ -6047,11 +7494,9 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             }
         }
 
-        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 before flash_attn #%d kv_stride=%d pos=%d\n", cpu_fwd_count, (int)(m->max_seq * kv_dim), pos);
         /* 2e. Multi-head attention with GQA */
         kmemset(llm_attn_out, 0, lq_dim * sizeof(float));
 
-        if (n_kv <= 0) kprintf("[DBG-FWD] CRASH GUARD: n_kv=%d n_heads=%d at L=%d pos=%d\n", n_kv, n_heads, L, pos);
         int heads_per_kv = n_heads / n_kv;
 
         /* Gemma4: attention scaling = 1.0 (pre-normalized by Q/K norms) */
@@ -6083,7 +7528,6 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 &fa_cfg);
         }
 
-        if (cpu_fwd_count <= 2 && L == 0) kprintf("[DBG-CPU] L0 after flash_attn #%d\n", cpu_fwd_count);
         /* 2f. Output projection + residual */
         {
             const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
@@ -6098,8 +7542,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
         /* Gemma4: post-attention RMSNorm */
         if (layer->post_attn_norm) {
-            llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_attn_norm, dim,
-                        GGML_TYPE_F32, m->rms_eps);
+            if (jit_fwd_rmsnorm)
+                jit_fwd_rmsnorm(llm_ffn_d, llm_ffn_d, (const float *)layer->post_attn_norm, dim);
+            else
+                llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_attn_norm, dim,
+                            GGML_TYPE_F32, m->rms_eps);
         }
 
         if (jit_fwd_vadd_dim)
@@ -6122,6 +7569,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         if (m->use_layernorm)
             llm_layernorm(llm_xn, llm_x, layer->ffn_norm,
                           layer->ffn_norm_bias, dim, layer->ffn_norm_type);
+        else if (jit_fwd_rmsnorm && layer->ffn_norm_type == GGML_TYPE_F32)
+            jit_fwd_rmsnorm(llm_xn, llm_x, (const float *)layer->ffn_norm, dim);
         else
             llm_rmsnorm(llm_xn, llm_x, layer->ffn_norm, dim, layer->ffn_norm_type, m->rms_eps);
 
@@ -6129,7 +7578,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             /* 2h-alt. GELU FFN (Phi-2): hidden = GELU(W_up · x); out = W_down · hidden */
             llm_gemv(llm_ffn_u, layer->ffn_up, llm_xn, lff, dim, layer->up_type);
             llm_add_bias(llm_ffn_u, layer->ffn_up_bias, lff);
-            llm_gelu(llm_ffn_u, lff);
+            if (jit_fwd_gelu && lff == ff) jit_fwd_gelu(llm_ffn_u, lff);
+            else llm_gelu(llm_ffn_u, lff);
             {
                 const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
                 if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_u, llm_ffn_d);
@@ -6141,14 +7591,38 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             llm_gemv(llm_ffn_g, layer->ffn_gate, llm_xn, lff, dim, layer->gate_type);
             llm_gemv(llm_ffn_u, layer->ffn_up,   llm_xn, lff, dim, layer->up_type);
 
-            llm_gelu(llm_ffn_g, lff);
+            if (jit_fwd_gelu && lff == ff) jit_fwd_gelu(llm_ffn_g, lff);
+            else llm_gelu(llm_ffn_g, lff);
 
-            llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+            if (jit_fwd_vmul_ff && lff == ff)
+                jit_fwd_vmul_ff(llm_ffn_g, llm_ffn_u, lff);
+            else
+                llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
+
+            /* FFN capture for GeGLU branch */
+            if ((llm_bridge.mode & BRIDGE_MODE_CAP_FFN) &&
+                llm_bridge.ffn_cap_bufs && llm_bridge.ffn_cap_valid &&
+                L >= 0 && L < llm_bridge.ffn_cap_n &&
+                lff <= llm_bridge.ffn_cap_dim) {
+                float *fdst = llm_bridge.ffn_cap_bufs + (size_t)L * llm_bridge.ffn_cap_dim;
+                kmemcpy(fdst, llm_ffn_g, (size_t)lff * sizeof(float));
+                if (lff < llm_bridge.ffn_cap_dim)
+                    kmemset(fdst + lff, 0, (size_t)(llm_bridge.ffn_cap_dim - lff) * sizeof(float));
+                llm_bridge.ffn_cap_valid[L] = 1;
+            }
 
             {
                 const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
-                if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
-                else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+                const axex_manifold_weight_t   *_md = axex_get_manifold_layer(L, 7);
+                if (_md) {
+                    float x_sub_ffn_q[AXEX_MANIFOLD_K_MAX];
+                    axex_manifold_project_ffn(L, llm_ffn_g, x_sub_ffn_q);
+                    axex_manifold_weight_gemv(_md, x_sub_ffn_q, llm_ffn_d);
+                } else if (_cw) {
+                    axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+                } else {
+                    llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+                }
             }
         } else {
             /* 2h. SwiGLU: hidden = SiLU(W_gate · x) ⊙ (W_up · x)
@@ -6195,17 +7669,45 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 llm_silu(llm_ffn_g, lff);
                 llm_vmul_f32(llm_ffn_g, llm_ffn_u, lff);
             }
+
+            /* FFN intermediate capture (BRIDGE_MODE_CAP_FFN):
+             * llm_ffn_g now holds SiLU(gate)⊙up — the ff_dim vector that feeds
+             * into W_down.  Capture it here for per-layer FFN PCA calibration. */
+            if ((llm_bridge.mode & BRIDGE_MODE_CAP_FFN) &&
+                llm_bridge.ffn_cap_bufs && llm_bridge.ffn_cap_valid &&
+                L >= 0 && L < llm_bridge.ffn_cap_n &&
+                lff <= llm_bridge.ffn_cap_dim) {
+                float *fdst = llm_bridge.ffn_cap_bufs + (size_t)L * llm_bridge.ffn_cap_dim;
+                kmemcpy(fdst, llm_ffn_g, (size_t)lff * sizeof(float));
+                /* zero-pad if lff < ffn_cap_dim (shouldn't happen but be safe) */
+                if (lff < llm_bridge.ffn_cap_dim)
+                    kmemset(fdst + lff, 0, (size_t)(llm_bridge.ffn_cap_dim - lff) * sizeof(float));
+                llm_bridge.ffn_cap_valid[L] = 1;
+            }
+
             {
                 const axex_compressed_weight_t *_cw = axex_get_compressed_layer(L, 0);
-                if (_cw) axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
-                else     llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+                const axex_manifold_weight_t   *_md = axex_get_manifold_layer(L, 7);
+                if (_md) {
+                    /* GP down path: project ffn_hidden → sub-space then GEMV */
+                    float x_sub_ffn_q[AXEX_MANIFOLD_K_MAX];
+                    axex_manifold_project_ffn(L, llm_ffn_g, x_sub_ffn_q);
+                    axex_manifold_weight_gemv(_md, x_sub_ffn_q, llm_ffn_d);
+                } else if (_cw) {
+                    axex_compressed_weight_gemv(_cw, llm_ffn_g, llm_ffn_d);
+                } else {
+                    llm_gemv(llm_ffn_d, layer->ffn_down, llm_ffn_g, dim, lff, layer->down_type);
+                }
             }
         }
 
         /* Gemma4: post-FFW RMSNorm */
         if (layer->post_ffw_norm) {
-            llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_ffw_norm, dim,
-                        GGML_TYPE_F32, m->rms_eps);
+            if (jit_fwd_rmsnorm)
+                jit_fwd_rmsnorm(llm_ffn_d, llm_ffn_d, (const float *)layer->post_ffw_norm, dim);
+            else
+                llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_ffw_norm, dim,
+                            GGML_TYPE_F32, m->rms_eps);
         }
 
         /* Residual: x = x + ffn_output */
@@ -6276,12 +7778,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
 
             /* 2j-d. Post-norm on projected output */
             if (layer->iswa_post_norm) {
-                llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->iswa_post_norm, dim,
-                            GGML_TYPE_F32, m->rms_eps);
+                if (jit_fwd_rmsnorm)
+                    jit_fwd_rmsnorm(llm_ffn_d, llm_ffn_d, (const float *)layer->iswa_post_norm, dim);
+                else
+                    llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->iswa_post_norm, dim,
+                                GGML_TYPE_F32, m->rms_eps);
             }
 
             /* 2j-e. Residual: x = x + iswa_output */
-            llm_vadd_f32(llm_x, llm_ffn_d, dim);
+            if (jit_fwd_vadd_dim)
+                jit_fwd_vadd_dim(llm_x, llm_ffn_d, dim);
+            else
+                llm_vadd_f32(llm_x, llm_ffn_d, dim);
         }
 
         /* === Gemma4: Per-layer output scaling === */
@@ -6298,14 +7806,20 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 tensor_bridge_capture(&llm_bridge, llm_x, dim, pos);
         }
         /* Multi-layer capture: grab hidden state at every layer in one pass.
-         * Used by the per-layer PCA calibration (32x fewer forward passes). */
+         * Used by the per-layer PCA calibration (32x fewer forward passes).
+         * CAP_ONCE guard: don't overwrite with decode-step states (greedy decode
+         * would overwrite all 512 prefill captures with the same token → rank-1). */
         if ((llm_bridge.mode & BRIDGE_MODE_CAP_ALL) &&
             llm_bridge.multi_cap_bufs && llm_bridge.multi_cap_valid &&
             L >= 0 && L < llm_bridge.multi_cap_n &&
             llm_bridge.multi_cap_dim == dim) {
-            float *dst = llm_bridge.multi_cap_bufs + (size_t)L * dim;
-            kmemcpy(dst, llm_x, (size_t)dim * sizeof(float));
-            llm_bridge.multi_cap_valid[L] = 1;
+            int _already = (llm_bridge.mode & BRIDGE_MODE_CAP_ONCE)
+                           && llm_bridge.multi_cap_valid[L];
+            if (!_already) {
+                float *dst = llm_bridge.multi_cap_bufs + (size_t)L * dim;
+                kmemcpy(dst, llm_x, (size_t)dim * sizeof(float));
+                llm_bridge.multi_cap_valid[L] = 1;
+            }
         }
     }
 
@@ -6313,6 +7827,8 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     if (m->use_layernorm)
         llm_layernorm(llm_xn, llm_x, m->output_norm,
                       m->output_norm_bias, dim, m->output_norm_type);
+    else if (jit_fwd_rmsnorm && m->output_norm_type == GGML_TYPE_F32)
+        jit_fwd_rmsnorm(llm_xn, llm_x, (const float *)m->output_norm, dim);
     else
         llm_rmsnorm(llm_xn, llm_x, m->output_norm, dim, m->output_norm_type, m->rms_eps);
 
@@ -7119,8 +8635,8 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
         !llm_attnres_enabled && !llm_depth_attn_enabled &&
         !gpu_ffn_skip_for_compress &&
-        !gpu_attn_skip_for_compress &&
-        all_layers_on_gpu) {  /* skip batch-prefill when any layer is CPU offloaded */
+        all_layers_on_gpu &&
+        axex_manifold_compressed_count() == 0) {  /* skip when GP active (raw weights freed) */
         /* Batch fills KV for tokens 0..n_prefill-2; caller runs last token
          * sequentially for numerically-exact logits (avoids Q8-quant accumulation). */
         if (gpu_ctx.prefill_max_n < n_prefill - 1)
@@ -7173,6 +8689,22 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     int pos = start_pos + n_prompt;
 
     /* Get next token from the last forward pass */
+    {
+        int dbg_k = (m->vocab_size < 5) ? m->vocab_size : 5;
+        int dbg_idx[5] = {0, 0, 0, 0, 0};
+        float eos_logit = 0.0f;
+        if (dbg_k > 0)
+            llm_partial_sort_desc(dbg_idx, llm_logits, m->vocab_size, dbg_k);
+        if (m->eos_id >= 0 && m->eos_id < m->vocab_size)
+            eos_logit = llm_logits[m->eos_id];
+        if (dbg_k >= 3 && llm_emit_benchmark_debug()) {
+            kprintf("[GEN-DBG] first-step eos=%d logit=%f top=%d(%f) %d(%f) %d(%f)\n",
+                    m->eos_id, (double)eos_logit,
+                    dbg_idx[0], (double)llm_logits[dbg_idx[0]],
+                    dbg_idx[1], (double)llm_logits[dbg_idx[1]],
+                    dbg_idx[2], (double)llm_logits[dbg_idx[2]]);
+        }
+    }
     int next = llm_sample(llm_logits, m->vocab_size, temperature);
     LOG_DBG("GEN", "first sampled token: %d (eos=%d)", next, m->eos_id);
 
@@ -7188,8 +8720,14 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
     int g4_mode = 0;
 
     for (int g = 0; g < max_gen && pos < m->max_seq; g++) {
+        if (g < 6 && llm_emit_benchmark_debug())
+            kprintf("[GEN-DBG] step=%d next=%d eos=%d\n", g, next, m->eos_id);
         /* Check for EOS BEFORE decoding its text */
-        if (next == m->eos_id) break;
+        if (next == m->eos_id) {
+            if (llm_emit_benchmark_debug())
+                kprintf("[GEN-DBG] stop=eos step=%d tok=%d\n", g, next);
+            break;
+        }
 
         /* Gemma4 state machine */
         if (m->is_gemma4) {
@@ -7247,11 +8785,9 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
                 /* direct response (no thinking) — fall through to normal emit */
             }
         } else {
-            /* Non-Gemma4: tok=106 or 107 ends response */
-            if (next == 106 || next == 107) {
-                llm_forward_token(m, llm_logits, next, pos++);
-                break;
-            }
+            /* Non-Gemma models should only stop on EOS/stop-sequence checks.
+             * Token IDs 106/107 are Gemma-specific control IDs and can be
+             * ordinary tokens in other vocabularies. */
         }
 
         /* ── Thinking mode: detect <|think|> toggle (token 98) ────────── */
@@ -7474,7 +9010,11 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
                 if (tok_buf[i] == '\n') has_nl = 1;
             if (has_nl) consec_nl++;
             else consec_nl = 0;
-            if (consec_nl >= 3) break;
+            if (consec_nl >= 3) {
+                if (llm_emit_benchmark_debug())
+                    kprintf("[GEN-DBG] stop=consecutive_newlines step=%d\n", g);
+                break;
+            }
         }
 
         /* Forward the new token */
@@ -7596,8 +9136,8 @@ static int llm_generate_token_ids(llm_model_t *m, const int *prompt_tokens, int 
         if (gpu_ctx.gpu_fwd && n_prefill >= 2 &&
             !llm_attnres_enabled && !llm_depth_attn_enabled &&
             !gpu_ffn_skip_for_compress &&
-            !gpu_attn_skip_for_compress &&
-            all_layers_on_gpu_2) {  /* skip batch-prefill when any layer is CPU offloaded */
+            all_layers_on_gpu_2 &&
+            axex_manifold_compressed_count() == 0) {  /* skip when GP active (raw weights freed) */
             if (gpu_ctx.prefill_max_n < n_prefill - 1)
                 llm_ensure_prefill_scratch(m, n_prefill - 1);
             if (gpu_ctx.prefill_max_n >= n_prefill - 1 && gpu_ctx.d_pfx && n_prefill >= 3) {
@@ -8682,8 +10222,8 @@ static void llm_run_benchmark(llm_model_t *m)
     }
 
     /* Memory usage */
-    int kv_kbytes = (m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim * 4 * 2) / 1024;
-    kprintf("  KV cache: %d KB (for %d seq len)\n", kv_kbytes, m->max_seq);
+    int64_t kv_kbytes = ((int64_t)m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim * 4 * 2) / 1024;
+    kprintf("  KV cache: %lld KB (for %d seq len)\n", (long long)kv_kbytes, m->max_seq);
     kprintf("  Model data: %lu MB\n", m->data_size / (1024 * 1024));
 
     /* Compute total parameters */
@@ -8911,6 +10451,17 @@ int llm_last_vram_usage_mb(void)
     return llm_last_vram_mb;
 }
 
+float llm_kv_cache_hit_rate(void)
+{
+    if (g_kv_snap_lookups == 0) return 0.0f;
+    return (float)g_kv_snap_hits / (float)g_kv_snap_lookups;
+}
+
+float llm_last_logit_entropy(void)
+{
+    return g_last_logit_entropy;
+}
+
 float llm_last_prefill_ms(void)
 {
     return llm_last_prefill_ms_val;
@@ -9083,6 +10634,29 @@ void llm_gpu_upload_compressed_weights(void)
                     }
                 }
             }
+
+            /* Also free raw Q and O GPU buffers if both SVD-compressed slots are ready.
+             * For 70B this recovers ~38 MB per layer (Q+O @ IQ2_XS 8192×8192 × 2). */
+            const axex_compressed_weight_t *cq_s = axex_get_compressed_layer(L, 1);
+            const axex_compressed_weight_t *co_s = axex_get_compressed_layer(L, 4);
+            int has_compressed_qo = (cq_s && cq_s->d_Vt) && (co_s && co_s->d_Vt);
+            if (has_compressed_qo) {
+                const void *qo_ptrs[2] = { ly->q_weight, ly->o_weight };
+                for (int fp = 0; fp < 2; fp++) {
+                    if (!qo_ptrs[fp]) continue;
+                    for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
+                        if (gpu_ctx.map[wi].host_ptr != qo_ptrs[fp]) continue;
+                        if (!gpu_ctx.map[wi].dev_ptr) continue;
+                        phase1_freed_bytes += gpu_ctx.map[wi].size;
+                        be->mem.free(gpu_ctx.map[wi].dev_ptr);
+                        for (int wj = wi; wj < gpu_ctx.map_count - 1; wj++)
+                            gpu_ctx.map[wj] = gpu_ctx.map[wj + 1];
+                        gpu_ctx.map_count--;
+                        phase1_freed_entries++;
+                        break;
+                    }
+                }
+            }
         }
     }
     if (uploaded)
@@ -9129,6 +10703,11 @@ void llm_gpu_upload_compressed_weights(void)
         }
         if (gp_uploaded)
             kprintf("[GPU] Manifold GP: Pt + %d W_proj matrices uploaded to GPU\n", gp_uploaded);
+        /* Pin Pt F16 in GPU L2 persistent cache — after first token every Pt
+         * access serves from L2 (~1800 GB/s) instead of HBM (~340 GB/s). */
+#ifdef ENABLE_CUDA
+        axex_manifold_l2_persist_pt_gpu(cuda_l2_persist);
+#endif
     }
 
     if (!uploaded && !axex_manifold_k()) return; /* nothing new to do */
@@ -9185,15 +10764,27 @@ void llm_gpu_upload_compressed_weights(void)
             if (!gpu_ctx.layers[L].on_gpu) continue;
             const llm_layer_t *ly = &m->layers[L];
 
-            /* Q/K/V/O: free raw GPU tensor when GP manifold weight is uploaded */
+            /* Q/K/V/O: free raw GPU tensor when GP manifold weight is uploaded.
+             * IMPORTANT: the inference path enters the GP branch only when Q (slot 1)
+             * is GP-compressed.  If Q is raw but K or V are compressed, we must NOT
+             * free the raw K/V — the fallback else-branch needs them.
+             * So: only free K (slot 2) and V (slot 3) if Q (slot 1) is also compressed
+             * for this layer.  Q and O can always be freed independently. */
+            const axex_manifold_weight_t *mw_q_check =
+                axex_get_manifold_layer(L, 1);
+            int q_gp_ready = (mw_q_check && mw_q_check->d_W_proj);
+
             struct { const void *host; int slot; } attn_map[] = {
                 { ly->q_weight, 1 }, { ly->k_weight, 2 },
                 { ly->v_weight, 3 }, { ly->o_weight, 4 }
             };
             for (int ap = 0; ap < 4; ap++) {
                 if (!attn_map[ap].host) continue;
+                int slot = attn_map[ap].slot;
+                /* K (slot 2) and V (slot 3): only free if Q is also GP-compressed */
+                if ((slot == 2 || slot == 3) && !q_gp_ready) continue;
                 const axex_manifold_weight_t *mw =
-                    axex_get_manifold_layer(L, attn_map[ap].slot);
+                    axex_get_manifold_layer(L, slot);
                 if (!mw || !mw->d_W_proj) continue; /* not GP-compressed on GPU */
                 for (int wi = 0; wi < gpu_ctx.map_count; wi++) {
                     if (gpu_ctx.map[wi].host_ptr != attn_map[ap].host) continue;
@@ -9236,6 +10827,103 @@ void llm_gpu_upload_compressed_weights(void)
                     (unsigned long long)(gp_freed_bytes >> 20), gp_freed_entries, gp_k);
         freed_bytes += gp_freed_bytes;
         freed_entries += gp_freed_entries;
+    }
+
+    /* ── Phase 2c: fallback raw Q/O upload for attn-SVD layers where compression
+     * did not cover every layer.  When --axex-attn-svd is set, raw Q/O were not
+     * uploaded during llm_gpu_init.  If SVD or GP compression is NOT present for
+     * a layer (max_err rejection, rank budget, etc.) the layer has no Q on GPU at
+     * all, causing a "q_weight not on GPU" warning that silently skips the layer.
+     * We fix that here: upload the raw Q/O for any layer that lacks a compressed
+     * replacement, so every on-GPU layer always has a valid Q weight path. */
+    if (gpu_attn_skip_for_compress) {
+        int dim_fb  = gpu_ctx.dim;
+        int hd_fb   = gpu_ctx.head_dim;
+        int fb_uploaded = 0;
+        for (int L = 0; L < m->n_layers; L++) {
+            if (!gpu_ctx.layers[L].on_gpu) continue;
+            const llm_layer_t *ly = &m->layers[L];
+            int lhd_fb    = ly->head_dim_layer ? ly->head_dim_layer : hd_fb;
+            int lq_dim_fb = m->n_heads * lhd_fb;
+
+            /* Q: check if raw or compressed version is already on GPU */
+            const axex_compressed_weight_t *cq_fb = axex_get_compressed_layer(L, 1);
+            const axex_manifold_weight_t   *gq_fb = axex_get_manifold_layer(L, 1);
+            int q_covered = (cq_fb && cq_fb->d_Vt) ||
+                            (gq_fb && gq_fb->d_W_proj) ||
+                            llm_gpu_lookup(ly->q_weight) != NULL;
+            if (!q_covered && ly->q_weight) {
+                llm_gpu_upload_weight_mat(ly->q_weight, lq_dim_fb, dim_fb, ly->q_type);
+                fb_uploaded++;
+            }
+
+            /* O: same fallback */
+            const axex_compressed_weight_t *co_fb = axex_get_compressed_layer(L, 4);
+            const axex_manifold_weight_t   *go_fb = axex_get_manifold_layer(L, 4);
+            int o_covered = (co_fb && co_fb->d_Vt) ||
+                            (go_fb && go_fb->d_W_proj) ||
+                            llm_gpu_lookup(ly->o_weight) != NULL;
+            if (!o_covered && ly->o_weight) {
+                llm_gpu_upload_weight_mat(ly->o_weight, dim_fb, lq_dim_fb, ly->o_type);
+                fb_uploaded++;
+            }
+        }
+        if (fb_uploaded)
+            kprintf("[GPU] Fallback: uploaded %d raw Q/O matrices for layers "
+                    "where attn-SVD compression was not applied\n", fb_uploaded);
+    }
+
+    /* ── Phase 2d: fallback raw FFN upload for ffn-compress layers where SVD
+     * compression was not applied (degenerate matrix, OOM during compression,
+     * or intentional rank-0 skip).  When --axex-ffn-compress is set, raw FFN
+     * was never uploaded during llm_gpu_init.  Upload raw for any weight that
+     * lacks a compressed replacement so the decode forward pass always has a
+     * valid path and CUDA graph capture can succeed. */
+    if (gpu_ffn_skip_for_compress) {
+        int dim_2d   = gpu_ctx.dim;
+        int fb2_uploaded = 0;
+        for (int L = 0; L < m->n_layers; L++) {
+            if (!gpu_ctx.layers[L].on_gpu) continue;
+            const llm_layer_t *ly = &m->layers[L];
+            /* Compute ff dim from layer (may differ per-layer in MoE models) */
+            int lff = ly->ff_dim_layer > 0 ? ly->ff_dim_layer : gpu_ctx.max_ff;
+
+            /* gate */
+            if (ly->ffn_gate) {
+                const axex_compressed_weight_t *cg2 = axex_get_compressed_layer(L, 6);
+                if (!cg2 || !cg2->d_Vt) {
+                    const axex_manifold_weight_t *mg2 = axex_get_manifold_layer(L, 6);
+                    if (!(mg2 && mg2->d_W_proj) && !llm_gpu_lookup(ly->ffn_gate)) {
+                        llm_gpu_upload_weight_mat(ly->ffn_gate, lff, dim_2d, ly->gate_type);
+                        fb2_uploaded++;
+                    }
+                }
+            }
+            /* up */
+            if (ly->ffn_up) {
+                const axex_compressed_weight_t *cu2 = axex_get_compressed_layer(L, 5);
+                if (!cu2 || !cu2->d_Vt) {
+                    const axex_manifold_weight_t *mu2 = axex_get_manifold_layer(L, 5);
+                    if (!(mu2 && mu2->d_W_proj) && !llm_gpu_lookup(ly->ffn_up)) {
+                        llm_gpu_upload_weight_mat(ly->ffn_up, lff, dim_2d, ly->up_type);
+                        fb2_uploaded++;
+                    }
+                }
+            }
+            /* down */
+            if (ly->ffn_down) {
+                const axex_compressed_weight_t *cd2b = axex_get_compressed_layer(L, 0);
+                if (!cd2b || !cd2b->d_Vt) {
+                    if (!llm_gpu_lookup(ly->ffn_down)) {
+                        llm_gpu_upload_weight_mat(ly->ffn_down, dim_2d, lff, ly->down_type);
+                        fb2_uploaded++;
+                    }
+                }
+            }
+        }
+        if (fb2_uploaded)
+            kprintf("[GPU] Fallback: uploaded %d raw FFN matrices for layers "
+                    "where ffn-compress SVD was not applied\n", fb2_uploaded);
     }
 
     /* ── Phase 3: promote CPU layers to GPU using freed VRAM ── */
@@ -9525,6 +11213,12 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
         m->arch[0] == 'l' && m->arch[1] == 'l' &&
         m->arch[2] == 'a' && m->arch[3] == 'm' && m->arch[4] == 'a')
         is_llama = 1;
+    /* SmolLM models report llama arch but use ChatML format.
+     * Detect by model name substring "moll" (matches SmolLM, Smollm2, etc.) */
+    if (is_llama && !is_chatml && llm_strstr(m->name, "moll")) {
+        is_chatml = 1;
+        is_llama  = 0;
+    }
 
     if (is_gemma) {
         PA("<turn|>user\n");
@@ -9602,7 +11296,7 @@ void llm_reset_cache(void)
     /* Leave cuda_graph_decode_ready as-is: the next llm_generate_token_ids
      * call will set it appropriately; resetting here could block re-capture. */
 #endif
-    int kv_total = m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
+    int64_t kv_total = (int64_t)m->n_layers * m->max_seq * m->n_kv_heads * m->head_dim;
     if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
     kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
     kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
@@ -10859,6 +12553,56 @@ int llm_generate_tokens(const int *prompt_tokens, int n_prompt,
     }
 }
 
+int llm_eval_sequence_logprobs(const char *text, float *out_logprobs, int max_logprobs)
+{
+    if (!llm_is_loaded() || !text || !out_logprobs || max_logprobs <= 0) return -1;
+    if (__sync_lock_test_and_set(&llm_inference_active, 1)) return -1;
+
+    llm_model_t *m = &llm_model;
+    int result = -1;
+
+    /* Tokenize the input text (up to max_seq - 1 tokens) */
+    int max_toks = (m->max_seq < max_logprobs + 2) ? m->max_seq : max_logprobs + 2;
+    int *tokens = (int *)kmalloc((size_t)max_toks * sizeof(int));
+    if (!tokens) goto done;
+
+    int n = llm_tokenize_text(text, tokens, max_toks);
+    if (n < 2) { kfree(tokens); result = 0; goto done; }
+
+    /* Reset KV cache and run the sequence in eval mode */
+    m->cache_len = 0;
+    llm_rep_reset();
+
+    /* Allocate a scratch logits buffer for intermediate positions */
+    float *tmp_logits = (float *)kmalloc((size_t)m->vocab_size * sizeof(float));
+    if (!tmp_logits) { kfree(tokens); goto done; }
+
+    int n_written = 0;
+    for (int i = 0; i < n - 1 && n_written < max_logprobs; i++) {
+        /* Forward pass: emit logits for position i */
+        llm_forward_token(m, tmp_logits, tokens[i], i);
+
+        /* log-softmax over vocab and extract logprob of the actual next token */
+        float max_l = tmp_logits[0];
+        for (int v = 1; v < m->vocab_size; v++)
+            if (tmp_logits[v] > max_l) max_l = tmp_logits[v];
+
+        float sum_exp = 0.0f;
+        for (int v = 0; v < m->vocab_size; v++)
+            sum_exp += llm_expf(tmp_logits[v] - max_l);
+
+        float log_sum_exp = max_l + llm_log_approx(sum_exp);
+        out_logprobs[n_written++] = tmp_logits[tokens[i + 1]] - log_sum_exp;
+    }
+
+    kfree(tmp_logits);
+    kfree(tokens);
+    result = n_written;
+done:
+    __sync_lock_release(&llm_inference_active);
+    return result;
+}
+
 int llm_prompt_tokens(const char *user_text, int *output_tokens,
                       int max_output_tokens, int max_gen, float temperature)
 {
@@ -11161,11 +12905,13 @@ int llm_kv_restore_prefix(const int *prefix_tokens, int n_prefix_tokens)
         }
     }
 
+    g_kv_snap_lookups++;
     if (!s || !s->in_use) { return -1; }
     if (s->n_layers != m->n_layers || s->max_seq != m->max_seq ||
         s->n_kv_heads != m->n_kv_heads || s->head_dim != m->head_dim) {
         return -1;
     }
+    g_kv_snap_hits++;
 
     /* Restore: overwrite only the snapshot region — no full zero needed since
      * cache_len guards access to tail positions.  Skipping the full zero saves
@@ -11268,6 +13014,24 @@ int llm_prime_logits_fast(const int *ctx, int n_ctx)
         for (int t = 1; t < m->vocab_size; t++)
             if (llm_logits[t] > bv) { bv = llm_logits[t]; best = t; }
         llm_primed_greedy = best;
+
+        /* Compute Shannon entropy H = log(Z) - (Σ p_i * l_i) where Z = Σ exp(l_i - l_max).
+         * Two-pass: pass 1 finds max (already done above as bv), pass 2 computes sums. */
+        {
+            double log_sum_exp = 0.0;
+            double weighted_sum = 0.0;
+            float  l_max = (float)bv;
+            for (int t = 0; t < m->vocab_size; t++) {
+                double e = exp((double)(llm_logits[t] - l_max));
+                log_sum_exp   += e;
+                weighted_sum  += e * (double)(llm_logits[t] - l_max);
+            }
+            if (log_sum_exp > 1e-30) {
+                g_last_logit_entropy = (float)(log(log_sum_exp) - weighted_sum / log_sum_exp);
+            } else {
+                g_last_logit_entropy = 0.0f;
+            }
+        }
     }
     return 0;
 }
@@ -11536,7 +13300,17 @@ int llm_speculative_verify_with_correction(const int *context_tokens, int n_cont
 
     next = llm_sample(llm_logits, m->vocab_size, 0.0f);
     for (int i = 0; i < n_draft && pos < m->max_seq - 1; i++) {
-        if (draft_tokens[i] != next) break;
+        if (draft_tokens[i] != next) {
+            /* Rejection: record the verifier hidden state at this position
+             * as the residual for online basis update (Feature 1).
+             * We use a single representative layer (floor of n_layers/2)
+             * as a lightweight proxy rather than all layers. */
+            if (g_onb_ctx && llm_last_hs_valid && llm_last_hs) {
+                int rep_layer = m->n_layers / 2;
+                onb_record_residual(g_onb_ctx, rep_layer, llm_last_hs);
+            }
+            break;
+        }
         accepted++;
         llm_forward_token(m, llm_logits, draft_tokens[i], pos);
         llm_logits_pos = pos;
@@ -11545,6 +13319,8 @@ int llm_speculative_verify_with_correction(const int *context_tokens, int n_cont
     }
 
     if (correction_tok_out) *correction_tok_out = next;
+    /* Flush pending Oja updates accumulated during this verify call */
+    if (g_onb_ctx) onb_apply_pending(g_onb_ctx);
     m->cache_len = pos;
     __sync_lock_release(&llm_inference_active);
     return accepted;
@@ -12178,7 +13954,8 @@ int llm_session_create(const int *prompt_tokens, int n_prompt,
         /* Use batched GPU prefill when available — same path as llm_generate */
         int did_batch = 0;
         if (gpu_ctx.gpu_fwd && s->n_ctx >= 3 &&
-            !llm_attnres_enabled && !llm_depth_attn_enabled) {
+            !llm_attnres_enabled && !llm_depth_attn_enabled &&
+            axex_manifold_compressed_count() == 0) {  /* skip when GP active (raw weights freed) */
             if (gpu_ctx.prefill_max_n < s->n_ctx - 1)
                 llm_ensure_prefill_scratch(m, s->n_ctx - 1);
             if (gpu_ctx.prefill_max_n >= s->n_ctx - 1) {
@@ -12236,7 +14013,8 @@ int llm_session_step(int sid)
 #ifdef ENABLE_CUDA
                 int did_repf = 0;
                 if (gpu_ctx.gpu_fwd && s->n_ctx >= 3 &&
-                    !llm_attnres_enabled && !llm_depth_attn_enabled) {
+                    !llm_attnres_enabled && !llm_depth_attn_enabled &&
+                    axex_manifold_compressed_count() == 0) {  /* skip when GP active */
                     if (gpu_ctx.prefill_max_n < s->n_ctx - 1)
                         llm_ensure_prefill_scratch(m, s->n_ctx - 1);
                     if (gpu_ctx.prefill_max_n >= s->n_ctx - 1) {
