@@ -4,7 +4,7 @@ HyperTensor is a C11 inference runtime and compression research codebase centere
 
 How far can we compress attention weights while keeping usable quality and predictable throughput on real hardware?
 
-This repository currently ships a strong proof of concept for the 8B regime.
+This repository currently has a working proof of concept for the 8B regime.
 
 ## What Is In This Repo
 
@@ -69,7 +69,7 @@ No-pipe decode benchmark (avoid measurement artifacts):
 
 ## Scope Boundaries
 
-What is strong today:
+What is working today:
 
 - 8B attention-compression proof of concept with near-baseline quality
 - reproducible local eval path

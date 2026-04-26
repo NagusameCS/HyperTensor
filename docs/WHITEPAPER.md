@@ -215,16 +215,15 @@ Not yet claimed as complete:
 - broad model-family generalization
 - root-caused and fixed k=2048 throughput regression in the current branch
 
-## 10. Why This Is Worth Showing Publicly
+## 10. Current Research Interest
 
-This work combines multiple ideas into one operating path:
+This work brings together several engineering components in one operating path:
 
 - geometry-aware layerwise compression with explicit runtime projection
-- practical engineering constraints (cache identity, deterministic measurement, GPU/CPU path hygiene)
-- transparent baseline-relative reporting instead of absolute cherry-picking
+- practical constraints around cache identity, deterministic measurement, and GPU/CPU path hygiene
+- baseline-relative reporting to keep numbers interpretable across conditions
 
-The value here is not a single headline number.
-The value is that the method is concrete, measurable, and inspectable end to end.
+The approach is concrete and measurable; the tradeoffs are quantified and inspectable rather than asserted.
 
 ## 11. Next Technical Milestones
 

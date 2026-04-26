@@ -2,13 +2,13 @@
 
 Date: 2026-04-26
 
-This cycle defines the minimum work needed to move from strong proof-of-concept to field-shifting claim strength.
+This cycle defines the minimum work needed to move from current proof-of-concept to publication-ready claim strength.
 
 ## What "Paradigm Shift" Means Here
 
 For this repository, it means:
 
-- The method is reproducibly better under a locked protocol, not just occasionally faster.
+- The method shows repeatable improvement under a locked protocol, not just occasionally faster results.
 - The tradeoff shape holds across multiple models/hardware profiles.
 - External users can reproduce the core tables without manual debugging.
 
