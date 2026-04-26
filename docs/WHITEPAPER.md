@@ -173,6 +173,7 @@ They support stability analysis for the affected sessions, not broad performance
 
 PPL confidence pack artifacts are recorded under the benchmark output directory and used to bound quality claims.
 In this revision cycle, central quality claim remains anchored to the stable 6.7902 vs 7.1969 measurement pair and baseline-relative expression.
+The strict gate check still requires `ci_ppl_5run.csv`; this file is currently missing from the latest CI directory used by the validator.
 
 ## 8. Rank Sweep Status
 
@@ -188,6 +189,16 @@ Interpretation:
 
 - k=1024 and k=1536 are in a plausible operating range for this setup.
 - k=2048 is currently regressed in the active code path and is the primary blocker for publication-grade speed claims.
+
+Machine-gate status from `scripts/paradigm_shift_validate.ps1`:
+
+- strong-claim ready: false
+- k1024 decode gate: pass
+- k1536 decode gate: pass
+- k2048 decode gate: fail
+- k2048 prefill gate: fail
+- CI lower-bound throughput gate: fail
+- PPL gate: unresolved/fail due missing `ci_ppl_5run.csv` in current CI artifacts
 
 ## 9. What Is Demonstrated Today
 

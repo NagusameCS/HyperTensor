@@ -73,6 +73,23 @@ Interpretation:
 
 Current state: Not ready for a proper white paper submission.
 
+Latest machine-validated gate status (paradigm shift validator):
+
+- Validation artifact: benchmarks/whitepaper_rank_complete_20260425_205838/paradigm_shift_validation.json
+- Strong-claim ready: False
+- Gate pass/fail:
+  - k1024 decode >=95%: pass (103.27%)
+  - k1536 decode >=85%: pass (89.02%)
+  - k2048 decode >=75%: fail (46.22%)
+  - k2048 prefill <=150%: fail (244.48%)
+  - CI lower-bound decode >=75%: fail (coding 30.92%, reasoning 21.52%)
+  - PPL delta <= +8%: fail (missing 5-run PPL artifact)
+
+Interpretation:
+
+- The blocker is no longer a narrative judgment. It is now a hard gate failure under a reproducible validator.
+- A complete 5-run PPL file (`ci_ppl_5run.csv`) is still missing from the active CI pack, so quality-gate closure is not yet possible.
+
 What is complete:
 
 - Relative quality degradation is measured and moderate (+6% PPL).
