@@ -34,9 +34,7 @@
 
 /* FP16 → FP32 conversion (device) */
 __device__ __forceinline__ float fp16_to_f32(uint16_t h) {
-    __half hv;
-    *(uint16_t *)&hv = h;
-    return __half2float(hv);
+    return __half2float(__ushort_as_half(h));
 }
 
 /* Q4_0 block structure: fp16 scale + 16 bytes (32 nibbles) = 18 bytes */
@@ -375,6 +373,64 @@ __global__ void kernel_gemv_q8_0(
     if (threadIdx.x == 0) out[row] = sum;
 }
 
+/* Q8_0 GEMV element-parallel: each of 32 warp threads processes one element
+ * position across ALL quant-blocks, then warp-reduces.  For in_dim=512 the
+ * original kernel leaves threads 16-31 idle (n_blocks=16 < blockDim.x=32);
+ * this variant keeps all 32 threads active regardless of n_blocks. */
+__global__ void kernel_gemv_q8_0_elem(
+    float       *out,
+    const void  *W,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    int row = blockIdx.x;
+    if (row >= out_dim) return;
+
+    int n_blocks = in_dim / 32;
+    const struct q8_0_block *blks =
+        (const struct q8_0_block *)W + (int64_t)row * n_blocks;
+
+    int j = threadIdx.x;   /* element index within each quant-block [0..31] */
+    float sum = 0.0f;
+    for (int b = 0; b < n_blocks; b++) {
+        float scale = fp16_to_f32(blks[b].d);
+        sum += scale * (float)blks[b].qs[j] * x[b * 32 + j];
+    }
+    sum = warp_reduce_sum(sum);
+    if (j == 0) out[row] = sum;
+}
+
+/* Q8_0 GEMV batched: 8 rows per block (one warp per row).
+ * This reduces block-launch count 8x versus row-per-block kernels and
+ * improves scheduler occupancy on high out_dim decode/prefill paths.
+ */
+__global__ void kernel_gemv_q8_0_batched(
+    float       *out,
+    const void  *W,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * 8 + warp_id;
+    if (row >= out_dim) return;
+
+    int n_blocks = in_dim / 32;
+    const struct q8_0_block *blks =
+        (const struct q8_0_block *)W + (int64_t)row * n_blocks;
+
+    float sum = 0.0f;
+    for (int b = 0; b < n_blocks; b++) {
+        float scale = fp16_to_f32(blks[b].d);
+        sum += scale * (float)blks[b].qs[lane] * x[b * 32 + lane];
+    }
+
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) out[row] = sum;
+}
+
 /* GEMV for F32: simple dense matrix-vector */
 __global__ void kernel_gemv_f32(
     float       *out,
@@ -394,6 +450,30 @@ __global__ void kernel_gemv_f32(
     __shared__ float smem[32];
     sum = block_reduce_sum(sum, smem);
     if (threadIdx.x == 0) out[row] = sum;
+}
+
+/* F32 GEMV batched: 8 rows per block (1 warp per row), mirroring kernel_gemv_f16.
+ * Reduces block count by 8× (e.g. Pt projection 512→64 blocks) cutting scheduler
+ * overhead and improving SM occupancy. */
+__global__ void kernel_gemv_f32_batched(
+    float       *out,
+    const float *W,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * 8 + warp_id;
+    if (row >= out_dim) return;
+
+    const float *w_row = W + (int64_t)row * in_dim;
+    float sum = 0.0f;
+    for (int i = lane; i < in_dim; i += 32)
+        sum += w_row[i] * x[i];
+
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) out[row] = sum;
 }
 
 /* GEMV for F16: fp16 weights, f32 activation */
@@ -970,14 +1050,117 @@ __global__ void kernel_gemm(
  * ════════════════════════════════════════════════════════════════════════ */
 
 /* Type IDs from GGML */
-#define TYPE_F32   0
-#define TYPE_F16   1
-#define TYPE_Q4_0  2
-#define TYPE_Q4_1  3
-#define TYPE_Q8_0  8
-#define TYPE_Q4_K  12
-#define TYPE_Q6_K  14
-#define TYPE_BF16  30
+#define TYPE_F32     0
+#define TYPE_F16     1
+#define TYPE_Q4_0    2
+#define TYPE_Q4_1    3
+#define TYPE_Q8_0    8
+#define TYPE_Q4_K    12
+#define TYPE_Q6_K    14
+#define TYPE_IQ2_XS  17
+#define TYPE_BF16    30
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * IQ2_XS GEMV — native 2-bit imatrix quantization, 256 elements/74 bytes
+ *
+ * Block layout: fp16 d (2B) + uint16 qs[32] (64B) + uint8 scales[8] (8B)
+ * Each qs[i]: bits[8:0]=grid index into kgrid[512], bits[15:9]=7 sign bits
+ * kgrid[gi] encodes 8 pairs of 2-bit values → {1,3,5,7} via iq2xs_vals
+ * Dequant: val = d * (0.5 + nibble_scale) * 0.25 * codebook_val * sign
+ * ════════════════════════════════════════════════════════════════════════ */
+
+#pragma pack(push, 1)
+struct iq2_xs_block {
+    uint16_t d;        /* FP16 super-block scale */
+    uint16_t qs[32];   /* 32 codeword entries */
+    uint8_t  scales[8];/* group scales: low nibble = first 16, high nibble = last 16 */
+};
+#pragma pack(pop)
+
+__constant__ uint16_t iq2xs_kgrid[512] = {
+       0,     2,     5,     8,    10,    17,    20,    22,    25,    32,    34,    37,    40,    65,    68,    70,
+      73,    80,    82,    85,    88,    97,   100,   128,   130,   133,   136,   145,   148,   153,   160,   257,
+     260,   262,   265,   272,   274,   277,   280,   282,   289,   292,   320,   322,   325,   328,   337,   340,
+     352,   360,   385,   388,   400,   512,   514,   517,   520,   529,   532,   544,   577,   580,   592,   597,
+     640,   650,  1025,  1028,  1030,  1033,  1040,  1042,  1045,  1048,  1057,  1060,  1088,  1090,  1093,  1096,
+    1105,  1108,  1110,  1120,  1153,  1156,  1168,  1280,  1282,  1285,  1288,  1297,  1300,  1312,  1345,  1348,
+    1360,  1377,  1408,  1537,  1540,  1552,  1574,  1600,  1602,  1668,  2048,  2050,  2053,  2056,  2058,  2065,
+    2068,  2080,  2085,  2113,  2116,  2128,  2136,  2176,  2208,  2218,  2305,  2308,  2320,  2368,  2433,  2441,
+    2560,  2592,  2600,  2710,  2720,  4097,  4100,  4102,  4105,  4112,  4114,  4117,  4120,  4129,  4132,  4160,
+    4162,  4165,  4168,  4177,  4180,  4192,  4202,  4225,  4228,  4240,  4352,  4354,  4357,  4360,  4369,  4372,
+    4384,  4417,  4420,  4432,  4480,  4500,  4502,  4609,  4612,  4614,  4624,  4672,  4704,  5120,  5122,  5125,
+    5128,  5137,  5140,  5152,  5185,  5188,  5193,  5200,  5220,  5248,  5377,  5380,  5392,  5440,  5632,  5652,
+    5705,  6145,  6148,  6160,  6162,  6208,  6228,  6278,  6400,  6405,  6502,  6737,  6825,  8192,  8194,  8197,
+    8200,  8202,  8209,  8212,  8224,  8257,  8260,  8272,  8320,  8352,  8449,  8452,  8464,  8512,  8520,  8549,
+    8704,  8738,  8832,  8872,  9217,  9220,  9232,  9257,  9280,  9472,  9537,  9554,  9625,  9729,  9754,  9894,
+   10240, 10248, 10250, 10272, 10325, 10376, 10402, 10600, 10640, 10760, 10784, 10882, 10888, 10890, 16385, 16388,
+   16390, 16393, 16400, 16402, 16405, 16408, 16417, 16420, 16448, 16450, 16453, 16456, 16458, 16465, 16468, 16480,
+   16485, 16513, 16516, 16528, 16640, 16642, 16645, 16648, 16657, 16660, 16672, 16705, 16708, 16720, 16768, 16773,
+   16802, 16897, 16900, 16912, 16914, 16937, 16960, 17408, 17410, 17413, 17416, 17425, 17428, 17433, 17440, 17473,
+   17476, 17488, 17536, 17556, 17665, 17668, 17680, 17700, 17728, 17818, 17920, 17930, 17988, 18000, 18433, 18436,
+   18448, 18496, 18501, 18516, 18530, 18688, 18705, 18756, 18768, 18793, 18948, 20480, 20482, 20485, 20488, 20497,
+   20500, 20512, 20520, 20545, 20548, 20560, 20608, 20737, 20740, 20752, 20757, 20800, 20802, 20992, 21060, 21162,
+   21505, 21508, 21520, 21537, 21568, 21600, 21633, 21665, 21760, 21768, 21888, 21896, 22049, 22120, 22177, 22528,
+   22548, 22593, 22608, 22681, 22810, 22848, 22850, 23173, 24577, 24580, 24592, 24640, 24660, 24674, 24710, 24745,
+   24832, 25124, 25162, 25234, 25600, 25622, 25872, 25920, 25925, 26020, 26625, 26730, 26917, 27142, 27220, 27234,
+   32768, 32770, 32773, 32776, 32785, 32788, 32800, 32810, 32833, 32836, 32848, 32896, 32898, 32936, 32938, 33025,
+   33028, 33030, 33040, 33088, 33105, 33113, 33280, 33312, 33408, 33410, 33440, 33448, 33793, 33796, 33808, 33810,
+   33813, 33856, 33888, 33929, 34048, 34116, 34213, 34328, 34410, 34816, 34824, 34853, 34906, 34944, 34946, 34984,
+   35078, 35362, 35456, 35464, 35478, 35496, 36865, 36868, 36880, 36928, 36950, 36996, 37120, 37154, 37220, 37462,
+   37513, 37888, 37893, 37956, 37968, 37976, 38185, 38288, 38290, 38465, 38993, 39078, 39241, 39445, 39520, 40960,
+   40962, 40968, 40970, 40992, 41002, 41120, 41297, 41305, 41382, 41472, 41474, 41480, 41514, 41600, 41632, 42048,
+   42133, 42597, 42648, 43018, 43040, 43042, 43048, 43168, 43176, 43268, 43396, 43398, 43560, 43562, 43665, 43690,
+};
+
+__constant__ uint8_t iq2xs_vals[4] = {1, 3, 5, 7};
+
+/* IQ2_XS GEMV: warp-per-row, 8 rows per block (256 threads = 8 warps).
+ * Each lane handles ceil(n_sb / 32) super-blocks; dequants on-the-fly from constant cache. */
+__global__ void kernel_gemv_iq2_xs(
+    float       *out,
+    const void  *W,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * 8 + warp_id;
+    if (row >= out_dim) return;
+
+    int nb = in_dim / 256;  /* super-blocks per row */
+    const struct iq2_xs_block *blocks =
+        (const struct iq2_xs_block *)W + (int64_t)row * nb;
+
+    float sum = 0.0f;
+    for (int b = lane; b < nb; b += 32) {
+        float d = fp16_to_f32(blocks[b].d);
+        const float *xb = x + (int64_t)b * 256;
+        int xoff = 0;
+        for (int ib32 = 0; ib32 < 8; ib32++) {
+            float dl0 = d * (0.5f + (float)(blocks[b].scales[ib32] & 0xF)) * 0.25f;
+            float dl1 = d * (0.5f + (float)(blocks[b].scales[ib32] >> 4))  * 0.25f;
+            for (int l = 0; l < 4; l++) {
+                float dl = (l < 2) ? dl0 : dl1;
+                uint16_t qv = blocks[b].qs[ib32 * 4 + l];
+                uint16_t gi = qv & 511u;
+                uint8_t  s7 = (uint8_t)(qv >> 9);
+                /* Extend 7 sign bits to 8 using even parity */
+                uint8_t  s8 = s7 | (uint8_t)((__popc((unsigned)s7) & 1) << 7);
+                uint16_t gv16 = iq2xs_kgrid[gi];
+                #pragma unroll
+                for (int k = 0; k < 8; k++) {
+                    float gk = (float)iq2xs_vals[(gv16 >> (2 * k)) & 3u];
+                    if (s8 & (uint8_t)(1u << k)) gk = -gk;
+                    sum += dl * gk * xb[xoff + k];
+                }
+                xoff += 8;
+            }
+        }
+    }
+    sum = warp_reduce_sum(sum);
+    if (lane == 0) out[row] = sum;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * GEMV for BF16 weights — BF16 is upper 16 bits of IEEE 754 float32.
@@ -1028,11 +1211,14 @@ __global__ void kernel_gemv_bf16(
         sum += bf16_to_f32(w2) * x_tile_bf16[i4 + 2];
         sum += bf16_to_f32(w3) * x_tile_bf16[i4 + 3];
     }
-    /* Scalar remainder: handle elements not covered by the 4-wide loop.
-     * After the loop, the first uncovered position for this lane is i4.
-     * Step by 32 (one element per lane) to cover the tail. */
-    for (int i = lane + (i4 - lane * 4) / 4 * 32; i < in_dim; i += 32)
-        sum += bf16_to_f32(row_w[i]) * x_tile_bf16[i];
+    /* Scalar tail: process elements in the partial 4-element chunk at i4.
+     * The vectorized loop exits when i4+3 >= in_dim, so if i4 < in_dim there
+     * are 1-3 elements left that weren't covered by the 4-wide load. */
+    if (i4 < in_dim) {
+        int end4 = i4 + 4 < in_dim ? i4 + 4 : in_dim;
+        for (int i = i4; i < end4; i++)
+            sum += bf16_to_f32(row_w[i]) * x_tile_bf16[i];
+    }
 
     sum = warp_reduce_sum(sum);
     if (lane == 0) out[row] = sum;
@@ -2116,9 +2302,17 @@ static int ensure_batch_q8(int batch, int in_dim) {
     int alloc_b = batch > g_bq8_batch ? batch : g_bq8_batch + 1;
     int alloc_d = in_dim > g_bq8_dim   ? in_dim : g_bq8_dim + 32;
     int alloc_nb = alloc_d / 32;
-    if (cudaMalloc(&d_bq8, (int64_t)alloc_b * alloc_d) != cudaSuccess) return -1;
-    if (cudaMalloc(&d_bsc, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) return -1;
-    if (cudaMalloc(&d_bsu, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) return -1;
+    if (cudaMalloc(&d_bq8, (int64_t)alloc_b * alloc_d) != cudaSuccess) {
+        g_bq8_batch = 0; g_bq8_dim = 0; return -1;
+    }
+    if (cudaMalloc(&d_bsc, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) {
+        cudaFree(d_bq8); d_bq8 = NULL; g_bq8_batch = 0; g_bq8_dim = 0; return -1;
+    }
+    if (cudaMalloc(&d_bsu, (int64_t)alloc_b * alloc_nb * sizeof(float)) != cudaSuccess) {
+        cudaFree(d_bq8); d_bq8 = NULL;
+        cudaFree(d_bsc); d_bsc = NULL;
+        g_bq8_batch = 0; g_bq8_dim = 0; return -1;
+    }
     g_bq8_batch = alloc_b;
     g_bq8_dim   = alloc_d;
     return 0;
@@ -2284,17 +2478,26 @@ CUDA_API int ck_init(void) {
         cublasSetStream(g_cublas, stream_compute);
 
     /* Allocate device-side position vars for CUDA graph capture */
-    cudaMalloc(&d_pos_var, sizeof(int));
-    cudaMalloc(&d_seq_len_var, sizeof(int));
+    if (cudaMalloc(&d_pos_var, sizeof(int)) != cudaSuccess) return -1;
+    if (cudaMalloc(&d_seq_len_var, sizeof(int)) != cudaSuccess) {
+        cudaFree(d_pos_var); d_pos_var = NULL; return -1;
+    }
     int zero = 0;
     cudaMemcpy(d_pos_var, &zero, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_seq_len_var, &zero, sizeof(int), cudaMemcpyHostToDevice);
 
     /* Pre-allocate dot product result buffer (avoids per-call cudaMalloc). */
-    cudaMalloc(&d_dot_result, sizeof(float));
+    if (cudaMalloc(&d_dot_result, sizeof(float)) != cudaSuccess) {
+        cudaFree(d_pos_var); d_pos_var = NULL;
+        cudaFree(d_seq_len_var); d_seq_len_var = NULL; return -1;
+    }
 
     /* Pinned host buffer for low-latency argmax result readback. */
-    cudaMallocHost(&h_argmax_result, sizeof(int));
+    if (cudaMallocHost(&h_argmax_result, sizeof(int)) != cudaSuccess) {
+        cudaFree(d_pos_var); d_pos_var = NULL;
+        cudaFree(d_seq_len_var); d_seq_len_var = NULL;
+        cudaFree(d_dot_result); d_dot_result = NULL; return -1;
+    }
 
     return 0;
 }
@@ -2406,10 +2609,20 @@ CUDA_API void ck_gemv(float *out, const void *W, const float *x,
             kernel_gemv_q4_1<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
             break;
         case TYPE_Q8_0:
-            kernel_gemv_q8_0<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            /* Prefer warp-element kernels when in_dim is block-aligned (32).
+             * For large in_dim/out_dim, use 8-row batching to cut launch overhead. */
+            if ((in_dim & 31) == 0) {
+                if (in_dim >= 1024 && out_dim >= 256)
+                    kernel_gemv_q8_0_batched<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+                else
+                    kernel_gemv_q8_0_elem<<<out_dim, 32, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            } else {
+                kernel_gemv_q8_0<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            }
             break;
         case TYPE_F32:
-            kernel_gemv_f32<<<out_dim, threads, 0, stream_compute>>>(out, (const float *)W, x, out_dim, in_dim);
+            /* Batched: 8 rows per block (mirrors F16), reduces block count 8× */
+            kernel_gemv_f32_batched<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const float *)W, x, out_dim, in_dim);
             break;
         case TYPE_F16:
             kernel_gemv_f16<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const __half *)W, x, out_dim, in_dim);
@@ -2425,6 +2638,9 @@ CUDA_API void ck_gemv(float *out, const void *W, const float *x,
             kernel_gemv_bf16<<<(out_dim + 7) / 8, 256, smem, stream_compute>>>(out, (const uint16_t *)W, x, out_dim, in_dim);
             break;
         }
+        case TYPE_IQ2_XS:
+            kernel_gemv_iq2_xs<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            break;
         default:
             break;
     }
@@ -2549,7 +2765,7 @@ CUDA_API void ck_dequantize(float *out, const void *data, int n_elements,
             kernel_dequantize_q8_0<<<grid, threads, 0, stream_compute>>>(out, data, n_elements);
             break;
         case TYPE_F32:
-            cudaMemcpy(out, data, n_elements * sizeof(float), cudaMemcpyDeviceToDevice);
+            cudaMemcpyAsync(out, data, n_elements * sizeof(float), cudaMemcpyDeviceToDevice, stream_compute);
             break;
         default:
             break;
@@ -2639,6 +2855,42 @@ CUDA_API void ck_stream_sync_compute(void) {
     cudaStreamSynchronize(stream_compute);
 }
 
+/* ─── L2 Persistent Cache: pin Pt F16 in GPU L2 across all decode steps ─── *
+ * Call once after uploading all Pt F16 matrices to GPU.  The RTX 4070 has a  *
+ * 36 MB L2 cache; all 30 per-layer Pt F16 matrices (17.7 MB) fit easily.     *
+ * After the first token, every Pt access hits L2 (~1800 GB/s) instead of    *
+ * HBM (~340 GB/s), saving ~35 MB of HBM bandwidth per decode token.         */
+CUDA_API void ck_l2_persist(const void *ptr, size_t bytes) {
+    if (!ptr || bytes == 0 || !stream_compute) return;
+    cudaDeviceProp prop;
+    if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess) return;
+    /* NOTE: cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize) is intentionally
+     * omitted.  Setting it would permanently reduce the L2 cache available for
+     * all streaming kernels (baseline, softmax, attention, etc.) for the entire
+     * process lifetime, even when the persisting window is no longer needed.
+     * On RTX 4070 that shrinks usable L2 from 36 MB → 14 MB and measurably
+     * hurts every path that doesn't benefit from persistence.
+     *
+     * Without the device-level reservation the access-policy window below is
+     * best-effort only (CUDA may evict freely).  For CUDA-graph decode this is
+     * already a no-op because graph nodes capture stream state at record time
+     * and ignore access-policy changes made after cudaStreamBeginCapture.
+     * The window is still applied for non-graph paths (prefill, first token). */
+    size_t clamp = (bytes < prop.accessPolicyMaxWindowSize)
+                   ? bytes : prop.accessPolicyMaxWindowSize;
+    cudaStreamAttrValue attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.accessPolicyWindow.base_ptr  = (void *)ptr;
+    attr.accessPolicyWindow.num_bytes = clamp;
+    attr.accessPolicyWindow.hitRatio  = 1.0f;
+    attr.accessPolicyWindow.hitProp   = cudaAccessPropertyPersisting;
+    attr.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
+    cudaStreamSetAttribute(stream_compute, cudaStreamAttributeAccessPolicyWindow, &attr);
+    printf("[CUDA] L2 persist hint: %.2f MB (device max window %.2f MB, no global reservation)\n",
+           (double)clamp / (1 << 20),
+           (double)prop.accessPolicyMaxWindowSize / (1 << 20));
+}
+
 /* ─── Fused QKV norm + RoPE ─── */
 
 CUDA_API void ck_fused_qk_norm_rope(
@@ -2710,10 +2962,17 @@ CUDA_API void ck_gemv_async(float *out, const void *W, const float *x,
             kernel_gemv_q4_1<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
             break;
         case TYPE_Q8_0:
-            kernel_gemv_q8_0<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            if ((in_dim & 31) == 0) {
+                if (in_dim >= 1024 && out_dim >= 256)
+                    kernel_gemv_q8_0_batched<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+                else
+                    kernel_gemv_q8_0_elem<<<out_dim, 32, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            } else {
+                kernel_gemv_q8_0<<<out_dim, threads, 0, stream_compute>>>(out, W, x, out_dim, in_dim);
+            }
             break;
         case TYPE_F32:
-            kernel_gemv_f32<<<out_dim, threads, 0, stream_compute>>>(out, (const float *)W, x, out_dim, in_dim);
+            kernel_gemv_f32_batched<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const float *)W, x, out_dim, in_dim);
             break;
         case TYPE_F16:
             kernel_gemv_f16<<<(out_dim + 7) / 8, 256, 0, stream_compute>>>(out, (const __half *)W, x, out_dim, in_dim);
