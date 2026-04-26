@@ -183,6 +183,7 @@ int  cuda_upload_async(void *dst, const void *src, uint64_t size);
 int  cuda_download_async(void *dst, const void *src, uint64_t size);
 void cuda_stream_sync_transfer(void);
 void cuda_stream_sync_compute(void);
+void cuda_l2_persist(const void *ptr, size_t bytes); /* pin buffer in GPU L2 persistent cache */
 int  cuda_argmax(const float *data, int n);
 int  cuda_graph_begin_capture(void);
 int  cuda_graph_end_capture(void);
@@ -204,6 +205,7 @@ void cuda_prefill_attn_batched(float *O, const float *Q,
     int n_heads, int n_kv_heads, int head_dim,
     int n, int start_pos, int max_seq, float scale, float softcap);
 int  cuda_have_batch_attn(void); /* returns 1 if batched kernels are loaded */
+int  cuda_have_sgemm_batched_f32(void); /* returns 1 if cuBLAS batched GEMV helper is loaded */
 #endif
 
 #ifdef ENABLE_MLIR

@@ -98,6 +98,7 @@ void cuda_prefill_attn_batched(float *O, const float *Q,
     int n, int start_pos, int max_seq, float scale, float softcap);
 
 int  cuda_have_batch_attn(void);
+int  cuda_have_sgemm_batched_f32(void);
 void cuda_fused_geglu(float *gate, const float *up, int n);
 void cuda_fused_swiglu(float *gate, const float *up, int n);
 void cuda_batched_rmsnorm(float *data, const float *w,
@@ -6248,9 +6249,18 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
         int kv_stride_host = m->max_seq * n_kv * hd;
         int kv_dim_host = n_kv * hd;
 
-        /* Profiling counters (acummulated per forward) */
-        static int prof_enabled = 0;  /* disabled for clean benchmark */
-        static int prof_detail = 0;   /* per-op layer breakdown (1 layer only) */
+        /* Profiling counters (accumulated per forward).
+         * Opt-in via GD_PROFILE=1 and GD_PROFILE_DETAIL=1 to avoid contaminating normal benchmarks. */
+        static int prof_init = 0;
+        static int prof_enabled = 0;
+        static int prof_detail = 0;
+        if (!prof_init) {
+            const char *env_prof = getenv("GD_PROFILE");
+            const char *env_detail = getenv("GD_PROFILE_DETAIL");
+            prof_enabled = (env_prof && env_prof[0] && strcmp(env_prof, "0") != 0) ? 1 : 0;
+            prof_detail = (env_detail && env_detail[0] && strcmp(env_detail, "0") != 0) ? 1 : 0;
+            prof_init = 1;
+        }
         double t_embed = 0, t_iswa_pre = 0, t_layers = 0, t_lmhead = 0;
         double t_l_rmsnorm=0, t_l_qkv=0, t_l_rope=0, t_l_attn=0, t_l_oproj=0, t_l_ffn=0, t_l_iswa=0;
         uint64_t _pt0, _pt1;
@@ -6937,9 +6947,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                         d_gatew, d_upw, gpu_ctx.d_xn, lff, dim);
                 }
                 if (!used_dual) {
-                    /* cuBLAS batched path disabled — sequential compressed GEMV used */
-                    GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
-                    GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                    int used_batched = 0;
+                    if (!_gpu_x_sub_ffn_ready && _cw_g6 && _cw_u5 &&
+                        _cw_g6->d_Aarray_step1 && cuda_have_sgemm_batched_f32()) {
+                        cuda_sgemm_batched_f32(_cw_g6->rank, _cw_g6->n,
+                            (const float * const *)_cw_g6->d_Aarray_step1,
+                            (const float * const *)_cw_g6->d_xarray_step1,
+                            (float * const *)_cw_g6->d_yarray_step1,
+                            2);
+                        cuda_sgemm_batched_f32(_cw_g6->m, _cw_g6->rank,
+                            (const float * const *)_cw_g6->d_Aarray_step2,
+                            (const float * const *)_cw_g6->d_xarray_step2,
+                            (float * const *)_cw_g6->d_yarray_step2,
+                            2);
+                        used_batched = 1;
+                    }
+                    if (!used_batched) {
+                        GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
+                        GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                    }
                 }
                 cuda_fused_geglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
                 GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_g, dim, lff);
@@ -6959,9 +6985,25 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                         d_gatew, d_upw, gpu_ctx.d_xn, lff, dim);
                 }
                 if (!used_dual) {
-                    /* cuBLAS batched path disabled — sequential compressed GEMV used */
-                    GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
-                    GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                    int used_batched = 0;
+                    if (!_gpu_x_sub_ffn_ready && _cw_g6 && _cw_u5 &&
+                        _cw_g6->d_Aarray_step1 && cuda_have_sgemm_batched_f32()) {
+                        cuda_sgemm_batched_f32(_cw_g6->rank, _cw_g6->n,
+                            (const float * const *)_cw_g6->d_Aarray_step1,
+                            (const float * const *)_cw_g6->d_xarray_step1,
+                            (float * const *)_cw_g6->d_yarray_step1,
+                            2);
+                        cuda_sgemm_batched_f32(_cw_g6->m, _cw_g6->rank,
+                            (const float * const *)_cw_g6->d_Aarray_step2,
+                            (const float * const *)_cw_g6->d_xarray_step2,
+                            (float * const *)_cw_g6->d_yarray_step2,
+                            2);
+                        used_batched = 1;
+                    }
+                    if (!used_batched) {
+                        GPU_FFN_GATE_GEMV(gpu_ctx.d_ffn_g, gpu_ctx.d_xn, lff, dim);
+                        GPU_FFN_UP_GEMV(gpu_ctx.d_ffn_u,   gpu_ctx.d_xn, lff, dim);
+                    }
                 }
                 cuda_fused_swiglu(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
                 GPU_FFN_DOWN_GEMV(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_g, dim, lff);
