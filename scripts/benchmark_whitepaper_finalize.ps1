@@ -1,6 +1,8 @@
 param(
     [string]$Model = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-    [string]$Exe = ".\\build_host\\geodessical.exe"
+    [string]$Exe = ".\\build_host\\geodessical.exe",
+    [string]$OutDir = "",
+    [switch]$ReuseLatestPack
 )
 
 $ErrorActionPreference = "Stop"
@@ -187,18 +189,26 @@ function Invoke-PPLCase {
     return $ppl
 }
 
-$existingPack = Get-ChildItem .\benchmarks -Directory |
-    Where-Object { $_.Name -like 'whitepaper_pack_*' } |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+$selectedOutDir = $OutDir
+if (-not $selectedOutDir) {
+    if ($ReuseLatestPack) {
+        $existingPack = Get-ChildItem .\benchmarks -Directory |
+            Where-Object { $_.Name -like 'whitepaper_pack_*' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($existingPack) {
+            $selectedOutDir = $existingPack.FullName
+        }
+    }
 
-if ($existingPack) {
-    $outDir = $existingPack.FullName
-} else {
-    $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $outDir = Join-Path ".\\benchmarks" ("whitepaper_pack_" + $stamp)
-    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+    if (-not $selectedOutDir) {
+        $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $selectedOutDir = Join-Path ".\\benchmarks" ("whitepaper_pack_" + $stamp)
+    }
 }
+
+New-Item -ItemType Directory -Force -Path $selectedOutDir | Out-Null
+$outDir = (Resolve-Path $selectedOutDir).Path
 
 $codingPrompt = "Write a Python function that returns prime numbers up to n."
 $reasonPrompt = "Explain why gradient clipping helps stabilize training in deep networks."
