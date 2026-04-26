@@ -103,7 +103,20 @@ function Invoke-RunCase {
     $out = Join-Path $OutDir ("${safe}_rep${Rep}.txt")
     $err = Join-Path $OutDir ("${safe}_rep${Rep}_err.txt")
 
-    if (-not (Test-Path $out)) {
+    $needsRun = $true
+    if (Test-Path $out) {
+        try {
+            $null = Parse-Run $out
+            $needsRun = $false
+        } catch {
+            # Cached output exists but is incomplete/corrupt; regenerate it.
+            Remove-Item -ErrorAction SilentlyContinue $out
+            Remove-Item -ErrorAction SilentlyContinue $err
+            $needsRun = $true
+        }
+    }
+
+    if ($needsRun) {
         $ok = $false
         for ($attempt = 1; $attempt -le $Retries; $attempt++) {
             & $Exe $Model @ExtraArgs -p $Prompt -n $Tokens 1> $out 2> $err
@@ -111,7 +124,6 @@ function Invoke-RunCase {
                 $ok = $true
                 break
             }
-            Start-Sleep -Seconds 1
         }
         if (-not $ok) {
             $detail = Get-RunFailureDetail -StdoutPath $out -StderrPath $err
@@ -142,7 +154,18 @@ function Invoke-PPLCase {
         [int]$Retries = 3
     )
 
-    if (-not (Test-Path $OutPath)) {
+    $needsRun = $true
+    if (Test-Path $OutPath) {
+        $existingPpl = Parse-PPL $OutPath
+        if ($null -ne $existingPpl) {
+            $needsRun = $false
+        } else {
+            Remove-Item -ErrorAction SilentlyContinue $OutPath
+            Remove-Item -ErrorAction SilentlyContinue $ErrPath
+        }
+    }
+
+    if ($needsRun) {
         $ok = $false
         for ($attempt = 1; $attempt -le $Retries; $attempt++) {
             & $Exe $Model @Args 1> $OutPath 2> $ErrPath
