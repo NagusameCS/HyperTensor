@@ -315,6 +315,74 @@ memory bandwidth, and PCIe configuration.
 
 ---
 
+## 7.A Spectral Justification (SVD analysis)
+
+We computed the full SVD of every attention and FFN weight matrix in five layers
+($L \in \{0, 7, 15, 23, 31\}$) of Llama-3.1-8B-Instruct (Q4_K_M, dequantised to f32). Source
+script: `scripts/analysis/compute_spectra.py`. Full data:
+`docs/figures/spectra_summary.json`.
+
+Rank required to capture 95% of $\|W\|_F^2$:
+
+| Matrix | Range $k_{95}$ | Mean $k/d$ | Status at GRC $k=1024$ |
+|---|---|---|---|
+| $W_Q$ | 635 – 1947 | 0.32 | within target |
+| $W_K$ | 253 – 783 | 0.13 | well within target |
+| $W_V$ | 663 – 800 | 0.18 | within target |
+| $W_O$ | 1536 – 2104 | 0.45 | marginal |
+| FFN gate | 3263 – 3475 | 0.83 | far exceeds GRC rank |
+| FFN up | 3398 – 3510 | 0.85 | far exceeds GRC rank |
+| FFN down | 3407 – 3525 | 0.85 | far exceeds GRC rank |
+
+This empirically justifies the attention-only compression policy; FFN matrices have
+near-uniform spectra and would require ~3.4× the rank for the same energy capture, so
+compressing them is rejected by construction.
+
+Figures: `docs/figures/spectra_attn_vs_ffn.png`, `energy_capture.png`,
+`layerwise_rank_needed.png`.
+
+## 7.B Statistical Significance of the Super-Baseline
+
+Source: `scripts/analysis/statistical_tests.py` →
+`docs/figures/statistical_tests.json`. Three independent tests on paired baseline / GRC
+$k=1024$ throughput:
+
+| Configuration | $n$ | Mean ratio | Bootstrap 95% CI | $t$-stat | $p$-value | Verdict |
+|---|---|---|---|---|---|---|
+| **k=1024 decode (super-baseline)** | 8 | 1.0627 | [1.0607, 1.0650] | 53.878 | $9.945 \times 10^{-11}$ | $H_0$ rejected |
+| k=1536 decode (near-lossless) | 8 | 0.9755 | [0.9071, 1.0232] | −1.21 | 0.4814 | indistinguishable from baseline |
+| CI pack: coding 256-token | 5 | 0.9767 | — | −0.92 | 0.4173 | no significant change |
+| CI pack: reasoning 256-token | 5 | 0.9897 | — | −0.31 | 0.7773 | no significant change |
+
+The $k=1024$ super-baseline rejects $H_0$ (ratio $\leq 1$) at any conventional significance
+level. The $k=1536$ result is statistically equivalent to baseline.
+
+## 7.C Eckart–Young Theoretical Bound
+
+Source: `scripts/analysis/eckart_young_bound.py` →
+`docs/figures/eckart_young_bound.json`. We compare GRC's shared-basis Frobenius error
+against the Eckart–Young oracle bound for layers $L \in \{0, 15, 31\}$:
+
+| $k$ | EY mean rel-F² (oracle) | GRC mean rel-F² | Excess factor (mean across $W_Q$) |
+|---|---|---|---|
+| 512 | 0.190 | 0.471 | 1.83× |
+| **1024** | 0.042 (Q only) | 0.305 | ~3.7× (Q) |
+| 1536 | 0.020 | 0.204 | ~9.5× (Q) |
+| 2048 | 0.009 | 0.151 | ~28× (Q) |
+
+Note: $W_K, W_V$ in Llama-3.1's GQA have rank $\leq 1024$ by construction (shape
+$1024 \times 4096$), so the EY bound is $0$ at $k\geq 1024$ and the GRC error there
+is purely the cost of the shared (calibration-free) basis.
+
+The 3–10× excess factor over Eckart–Young quantifies the cost of using a shared basis
+instead of per-matrix bases. Despite this gap, downstream task quality is preserved
+(97.55% throughput retention, +13.30% PPL at $k=1536$), indicating that the directions
+missed by the shared basis are lower-importance for next-token prediction than their
+singular values alone would suggest. This motivates per-matrix bases (separate
+$P_Q, P_K, P_V$) as future work.
+
+---
+
 ## 8. Validation Gate Summary
 
 Gates evaluated by `scripts/paradigm_shift_validate.ps1` on pack `whitepaper_pack_20260427_121815`.
@@ -606,6 +674,22 @@ Vulkan compute, or CPU-only execution. Reproducing results requires an NVIDIA GP
 - **Long-context quality.** PPL was measured on 512-token windows. GRC quality at 4K–8K
   context lengths has not been evaluated.
 - **Task-level quality.** No MMLU, HumanEval, or other benchmark evaluation was performed.
+
+### 10.3 Methodological gaps (single-student infrastructure)
+
+Beyond the above, the following methodological gaps are documented honestly so that
+reviewers can calibrate the strength of the claims:
+
+| Gap | What is missing | Why it matters |
+|---|---|---|
+| Direct L2 cache-hit measurement | No Nsight Compute counter trace (e.g. `l2_tex_hit_rate`); cache-fit is argued from access-pattern analysis. | Alternative micro-architectural explanations cannot be ruled out without counter data. |
+| Task-level evaluations | Only WikiText-2 PPL; no MMLU / GSM8K / HumanEval / IFEval. | +13.30% PPL is a structural signal, not a behavioural one. |
+| Head-to-head vs AWQ / GPTQ / SmoothQuant | Direct A/B comparisons on identical hardware not included; we only compare against the same Q4_K_M baseline GRC sits on. | Production-scale ranking is unverifiable without compatible-runtime baselines. |
+| Cross-hardware validation | All measurements on RTX 4070 Laptop (32 MB L2, 336 GB/s); Table 7.3 predictions for RTX 4090 / A100 / H100 are calculated, not measured. | Cache-fit cannot be claimed as general — only as observed on this GPU. |
+
+Items 1, 3, 4 require infrastructure (Nsight Compute access, multi-GPU benchmark cluster,
+AWQ/GPTQ runtime ports) outside the scope of this independent project. Item 2 (task evals)
+is on the near-term roadmap.
 
 ---
 

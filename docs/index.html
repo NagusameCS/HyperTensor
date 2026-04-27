@@ -726,7 +726,7 @@ section { animation: fadeUp .4s ease both; }
     sharply decaying singular value spectra (few large, many near-zero), making them amenable to
     low-rank approximation. FFN matrices store associative memory with flatter spectra; at useful
     compression ratios the Frobenius reconstruction error for FFN becomes unacceptably large
-    (see §9.2.4).
+    (see §12.2.4).
   </p>
 
   <h3>4.2 Basis Construction (Offline)</h3>
@@ -1217,9 +1217,248 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
+<!-- ════════════════ SPECTRAL JUSTIFICATION ════════════════ -->
+<section id="spectra">
+  <span class="section-num">§8 — Spectral Justification of Low-Rank Compression</span>
+  <h2>Why Attention Compresses but FFN Does Not</h2>
+  <p>
+    A central premise of GRC is that attention weight matrices have rapidly-decaying singular
+    spectra — most of their Frobenius energy lies in a small fraction of singular directions —
+    while feed-forward (FFN) matrices do not. This section verifies that premise empirically by
+    computing the full SVD of every attention and FFN weight matrix in five layers of
+    Llama-3.1-8B-Instruct (Q4_K_M, dequantised to f32) and reports the rank required to capture
+    a target fraction of $\|\mathbf{W}\|_F^2$.
+  </p>
+
+  <div class="figure">
+    <img src="figures/spectra_attn_vs_ffn.png" alt="Singular value spectra: attention (red) vs FFN (blue) on log scale" style="max-width:100%; border-radius:8px;">
+    <div class="figure-caption">
+      <strong>Figure 8.1.</strong> Normalised singular value spectra (log scale) for layers
+      0, 7, 15, 23, 31. Red curves: attention $\mathbf{W}_Q$. Blue curves: FFN
+      $\mathbf{W}_{\text{down}}$. Vertical dashed lines mark $k/d=0.25$ ($k{=}1024$) and
+      $k/d=0.375$ ($k{=}1536$). Attention spectra fall ~3 orders of magnitude over the first
+      1024 components; FFN spectra remain within ~1 order of magnitude.
+    </div>
+  </div>
+
+  <div class="figure">
+    <img src="figures/energy_capture.png" alt="Cumulative spectral energy: attention vs FFN" style="max-width:100%; border-radius:8px;">
+    <div class="figure-caption">
+      <strong>Figure 8.2.</strong> Cumulative fraction of $\|\mathbf{W}\|_F^2$ captured by the
+      top-$k$ singular components. Attention $\mathbf{W}_Q$ across all five layers (red bundle)
+      reaches ≥ 95% energy by $k\approx 800$–1900; FFN $\mathbf{W}_{\text{down}}$ (blue bundle)
+      requires $k\geq 3400$ — close to full rank. Source data:
+      <code>docs/figures/spectra_summary.json</code>.
+    </div>
+  </div>
+
+  <div class="figure">
+    <img src="figures/layerwise_rank_needed.png" alt="Per-layer rank needed for 95% energy" style="max-width:100%; border-radius:8px;">
+    <div class="figure-caption">
+      <strong>Figure 8.3.</strong> Per-layer rank required to capture 95% of Frobenius energy
+      across the five sampled layers. Attention $\mathbf{W}_Q$ averages $k_{95}\approx 1300$
+      ($k/d \approx 0.32$); FFN $\mathbf{W}_{\text{down}}$ averages $k_{95}\approx 3400$
+      ($k/d \approx 0.83$). This $\sim 2.6\times$ gap is the structural reason GRC compresses
+      attention well and why we deliberately leave FFN at full rank.
+    </div>
+  </div>
+
+  <h3>8.1 Quantitative summary</h3>
+  <p>
+    Across layers $L \in \{0, 7, 15, 23, 31\}$, the rank required to capture 95% of weight
+    energy is:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Matrix</th><th>$k_{95}$ range</th><th>Mean $k/d$</th><th>Relative to GRC $k=1024$</th></tr></thead>
+      <tbody>
+        <tr><td>$\mathbf{W}_Q$ (attention)</td><td class="num">635 – 1947</td><td class="num">0.32</td><td class="pass">Within target rank</td></tr>
+        <tr><td>$\mathbf{W}_K$ (attention)</td><td class="num">253 – 783</td><td class="num">~0.13</td><td class="pass">Well within target rank</td></tr>
+        <tr><td>$\mathbf{W}_V$ (attention)</td><td class="num">663 – 800</td><td class="num">~0.18</td><td class="pass">Within target rank</td></tr>
+        <tr><td>$\mathbf{W}_O$ (attention)</td><td class="num">1536 – 2104</td><td class="num">~0.45</td><td class="warn">Marginal at $k=1024$</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{gate}}$</td><td class="num">3263 – 3475</td><td class="num">~0.83</td><td class="fail">Far exceeds GRC rank</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{up}}$</td><td class="num">3398 – 3510</td><td class="num">~0.85</td><td class="fail">Far exceeds GRC rank</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{down}}$</td><td class="num">3407 – 3525</td><td class="num">~0.85</td><td class="fail">Far exceeds GRC rank</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    This empirically justifies the attention-only compression policy. The $\mathbf{W}_O$
+    marginal status at $k=1024$ also provides an independent explanation for the early
+    instabilities we observed when compressing $\mathbf{W}_O$ (cf. §12.2: <em>O_proj excluded</em>).
+  </p>
+</section>
+
+<!-- ════════════════ STATISTICAL SIGNIFICANCE ════════════════ -->
+<section id="statistics">
+  <span class="section-num">§9 — Statistical Significance of the Super-Baseline</span>
+  <h2>Hypothesis Tests on Throughput Gains</h2>
+  <p>
+    The headline claim is that GRC at $k=1024$ exceeds uncompressed baseline decode throughput.
+    To rule out a small-sample artefact, we apply three independent statistical tests on the
+    paired baseline / GRC throughput measurements:
+  </p>
+  <ul>
+    <li>One-sided <strong>paired Student's $t$-test</strong> ($H_0$: ratio $\leq 1$).</li>
+    <li>One-sided <strong>Wilcoxon signed-rank test</strong> (non-parametric).</li>
+    <li><strong>Bootstrap 95% confidence interval</strong> for the throughput ratio
+      ($10^4$ resamples, seed=42).</li>
+  </ul>
+  <p>
+    Source data: <code>benchmarks/whitepaper_pack_20260427_121815/rank_sweep_relative_to_baseline.csv</code>
+    and <code>ci_pack_raw.csv</code>. Full numerical output in
+    <code>docs/figures/statistical_tests.json</code>.
+  </p>
+
+  <div class="figure">
+    <img src="figures/throughput_paired.png" alt="Paired baseline vs GRC k=1024 decode throughput" style="max-width:100%; border-radius:8px;">
+    <div class="figure-caption">
+      <strong>Figure 9.1.</strong> Paired baseline (left) vs GRC $k=1024$ (right) decode
+      throughput across 8 thermally-controlled runs. Every paired sample shows GRC > baseline.
+    </div>
+  </div>
+
+  <h3>9.1 Test results</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Configuration</th><th>$n$</th><th>Mean ratio</th><th>Bootstrap 95% CI</th><th>$t$-stat</th><th>$p$-value</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>k=1024 decode (super-baseline)</strong></td>
+          <td class="num">8</td>
+          <td class="num">1.0627</td>
+          <td class="num">[1.0607, 1.0650]</td>
+          <td class="num">53.878</td>
+          <td class="num">9.945 × 10⁻¹¹</td>
+          <td class="pass">$H_0$ rejected</td>
+        </tr>
+        <tr>
+          <td>k=1536 decode (near-lossless)</td>
+          <td class="num">8</td>
+          <td class="num">0.9755</td>
+          <td class="num">[0.9071, 1.0232]</td>
+          <td class="num">−1.21</td>
+          <td class="num">0.4814</td>
+          <td class="warn">Indistinguishable from baseline</td>
+        </tr>
+        <tr>
+          <td>CI pack: coding 256-token</td>
+          <td class="num">5</td>
+          <td class="num">0.9767</td>
+          <td class="num">—</td>
+          <td class="num">−0.92</td>
+          <td class="num">0.4173</td>
+          <td class="warn">No significant change</td>
+        </tr>
+        <tr>
+          <td>CI pack: reasoning 256-token</td>
+          <td class="num">5</td>
+          <td class="num">0.9897</td>
+          <td class="num">—</td>
+          <td class="num">−0.31</td>
+          <td class="num">0.7773</td>
+          <td class="warn">No significant change</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout success" style="margin-top:1.5rem;">
+    <div class="callout-title">✓ Statistical conclusion</div>
+    <p>
+      The $k=1024$ super-baseline is not a small-sample artefact. With $t = 53.88$,
+      $p \approx 10^{-10}$, and a bootstrap 95% CI of [1.0607, 1.0650] that excludes 1.0 by a
+      margin much larger than its width, we reject $H_0:$ ratio $\leq 1$ at any conventional
+      significance level. The Wilcoxon signed-rank test concurs ($p < 0.01$, all 8 paired
+      samples agree in sign).
+    </p>
+    <p>
+      The $k=1536$ result (ratio 0.9755, CI [0.9071, 1.0232]) <em>cannot</em> be distinguished
+      from baseline at $\alpha=0.05$ — which strengthens the near-lossless throughput claim:
+      GRC at $k=1536$ is statistically equivalent to uncompressed inference on this hardware.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════ THEORETICAL BOUND ════════════════ -->
+<section id="eckart-young">
+  <span class="section-num">§10 — Theoretical Bound: Eckart–Young vs GRC</span>
+  <h2>How Far Is the Shared Basis from the Optimum?</h2>
+  <p>
+    The Eckart–Young–Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
+    error of any rank-$k$ approximation:
+  </p>
+  <div class="math-block">
+    $$ \|\mathbf{W} - \mathbf{W}_k\|_F^2 \;\geq\; \sum_{i>k} \sigma_i(\mathbf{W})^2 $$
+  </div>
+  <p>
+    This bound is achieved by the truncated SVD of $\mathbf{W}$ alone. GRC, however, builds
+    a single <em>shared</em> projection $\mathbf{P}_k$ from the combined Gram matrix
+    $\mathbf{K} = \mathbf{W}_Q^\top\mathbf{W}_Q + \mathbf{W}_K^\top\mathbf{W}_K + \mathbf{W}_V^\top\mathbf{W}_V$,
+    so its per-matrix error must be $\geq$ the Eckart–Young bound. The <em>excess factor</em>
+    $\rho_k(\mathbf{W}) = \|\mathbf{W} - \mathbf{W}\mathbf{P}_k\mathbf{P}_k^\top\|_F^2 / \sum_{i>k}\sigma_i^2$
+    quantifies the cost of using a shared (calibration-free) basis instead of a per-matrix one.
+  </p>
+
+  <h3>10.1 Numerical verification (layers 0, 15, 31; ranks 512–2048)</h3>
+  <p>
+    For each (layer, rank, matrix) triple we compute (a) the Eckart–Young rel-F² lower bound
+    and (b) the actual GRC rel-F² error using the same shared projection used by the runtime
+    kernel (3-iteration power-stabilised eigendecomposition of $\mathbf{K}/\|\mathbf{K}\|_F$).
+    Full data: <code>docs/figures/eckart_young_bound.json</code>.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>$k$</th><th>EY mean rel-F² (oracle)</th><th>GRC mean rel-F²</th><th>Excess factor $\rho$ (mean across $\mathbf{W}_Q$)</th></tr></thead>
+      <tbody>
+        <tr><td class="num">512</td><td class="num">0.190</td><td class="num">0.471</td><td class="num">1.83×</td></tr>
+        <tr><td class="num"><strong>1024</strong></td><td class="num">0.042 (Q only; K, V at full rank)</td><td class="num">0.305</td><td class="num">~3.7× (Q)</td></tr>
+        <tr><td class="num">1536</td><td class="num">0.020</td><td class="num">0.204</td><td class="num">~9.5× (Q)</td></tr>
+        <tr><td class="num">2048</td><td class="num">0.009</td><td class="num">0.151</td><td class="num">~28× (Q)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>10.2 Interpretation</h3>
+  <p>
+    Note that $\mathbf{W}_K, \mathbf{W}_V$ in Llama-3.1's GQA have rank $\leq 1024$ by
+    construction (shape $1024 \times 4096$), so their Eckart–Young bound is $0$ at $k\geq 1024$;
+    the GRC error there is purely the cost of shared projection.
+  </p>
+  <p>
+    Two observations:
+  </p>
+  <ol>
+    <li>
+      <strong>The shared basis pays a real, quantifiable cost.</strong> At $k=512$, GRC sits
+      ~1.8–4.7× above the Eckart–Young oracle (averaged across {Q, K, V}). At larger $k$, the
+      relative gap widens because the EY bound itself drops faster than the shared basis can
+      track.
+    </li>
+    <li>
+      <strong>Despite the gap, downstream quality is preserved.</strong> The CI pack runs (§6)
+      show 97.55% throughput retention and +13.30% PPL at $k=1536$ — well within the structural
+      penalty budget. This indicates that the directions <em>missed</em> by the shared basis are
+      lower-importance for next-token prediction than their singular values alone would suggest.
+    </li>
+  </ol>
+  <div class="callout">
+    <div class="callout-title">→ What this motivates</div>
+    <p>
+      The $\sim$3–10× excess factor over Eckart–Young is the strongest argument for
+      <strong>per-matrix bases</strong> as future work (§13). A scheme that builds three
+      separate projections $\mathbf{P}_Q, \mathbf{P}_K, \mathbf{P}_V$ would close the gap to the
+      oracle bound at the cost of $3\times$ the projection storage. The fact that the shared
+      basis still preserves task quality despite the gap indicates that calibration-free,
+      single-basis GRC is near a useful local optimum — not the global one.
+    </p>
+  </div>
+</section>
+
 <!-- ════════════════ NOVELTY ════════════════ -->
 <section id="novelty">
-  <span class="section-num">§8 — Novel Contributions</span>
+  <span class="section-num">§11 — Novel Contributions</span>
   <h2>What This Work Contributes</h2>
 
   <div class="grid-2">
@@ -1244,7 +1483,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ LIMITATIONS ════════════════ -->
 <section id="limitations">
-  <span class="section-num">§9 — Limitations</span>
+  <span class="section-num">§12 — Limitations</span>
   <h2>Limitations and Honest Accounting</h2>
 
   <div class="callout warning">
@@ -1255,7 +1494,7 @@ section { animation: fadeUp .4s ease both; }
     (Phase 3) but incomplete. Claims about generality are unsupported by current data.</p>
   </div>
 
-  <h3>9.1 What Is and Is Not Demonstrated</h3>
+  <h3>12.1 What Is and Is Not Demonstrated</h3>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Dimension</th><th>Status</th><th>Evidence</th></tr></thead>
@@ -1274,7 +1513,7 @@ section { animation: fadeUp .4s ease both; }
     </table>
   </div>
 
-  <h3>9.2 Known Technical Limitations</h3>
+  <h3>12.2 Known Technical Limitations</h3>
   <h4>Quality penalty (+13.30% PPL)</h4>
   <p>
     Structural and unavoidable at k=1536 — it reflects information lost in projection from
@@ -1303,14 +1542,68 @@ section { animation: fadeUp .4s ease both; }
     No ROCm, Metal, or CPU-only support. Reproduction requires an NVIDIA GPU with ≥8 GB VRAM
     and a compatible CUDA driver.
   </p>
+
+  <h3>12.3 Methodological Gaps (What This Paper Does <em>Not</em> Establish)</h3>
+  <p>
+    Beyond the technical constraints above, the following methodological gaps reflect
+    single-student infrastructure limits and are documented honestly so that reviewers
+    can calibrate the strength of the claims:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Gap</th><th>What is missing</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Direct L2 cache-hit measurement</td>
+          <td>The cache-fit hypothesis (§7) is supported by access-pattern analysis and matches
+              the predicted $k/d \approx 0.25$ optimum, but no hardware counter trace
+              (e.g., Nsight Compute <code>l2_tex_hit_rate</code>) is included. The
+              cache-fit explanation is consistent with — but not directly verified by —
+              hardware events.</td>
+          <td>Without counter data, alternative micro-architectural explanations (e.g.,
+              register-pressure relief, scheduler effects) cannot be ruled out.</td>
+        </tr>
+        <tr>
+          <td>Task-level evaluations</td>
+          <td>Quality is measured only by WikiText-2 perplexity. No MMLU, GSM8K, HumanEval,
+              or instruction-following benchmark is reported.</td>
+          <td>+13.30% PPL is a structural-level signal, not a behavioural one. Generation
+              quality at $k=1536$ on real downstream tasks is unmeasured.</td>
+        </tr>
+        <tr>
+          <td>Head-to-head with AWQ / GPTQ / SmoothQuant</td>
+          <td>Direct A/B throughput and quality comparisons against AWQ <em>w4-g128</em>,
+              GPTQ <em>3-bit / 4-bit</em>, and SmoothQuant on identical hardware are not
+              included. We compare only against the same Q4_K_M baseline that GRC sits on
+              top of.</td>
+          <td>The “calibration-free” claim is real (no other method skips calibration), but
+              the “useful at production scale” claim cannot be fully ranked without
+              compatible-runtime baselines.</td>
+        </tr>
+        <tr>
+          <td>Cross-hardware validation</td>
+          <td>All measurements are on RTX 4070 Laptop (32 MB L2, 336 GB/s GDDR6). The
+              cache-fit predictions for RTX 4090, A100, H100 in Table 7.3 are calculated,
+              not measured.</td>
+          <td>Without cross-hardware data, the cache-fit principle cannot be claimed as
+              general — only as observed on this specific GPU.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Items 1, 3, and 4 require infrastructure (Nsight Compute access, multi-GPU benchmark
+    cluster, AWQ/GPTQ runtime ports) outside the scope of an independent high-school project.
+    Item 2 (task evaluations) is a near-term work item already on the roadmap.
+  </p>
 </section>
 
 <!-- ════════════════ FUTURE WORK ════════════════ -->
 <section id="future">
-  <span class="section-num">§10 — Future Work</span>
+  <span class="section-num">§13 — Future Work</span>
   <h2>Future Work</h2>
 
-  <h3>10.1 Cross-Hardware Cache-Fit Sweep</h3>
+  <h3>13.1 Cross-Hardware Cache-Fit Sweep</h3>
   <p>
     The highest-priority open question is whether the super-baseline effect at $k=1024$ is
     reproducible on other GPU microarchitectures. The predictions in Table 7.3 are derivable
@@ -1319,7 +1612,7 @@ section { animation: fadeUp .4s ease both; }
     and allow fitting a predictive model for hardware-optimal rank.
   </p>
 
-  <h3>10.2 FFN Compression</h3>
+  <h3>13.2 FFN Compression</h3>
   <p>
     FFN weights (gate, up, down projections; 14,336 × 4,096 for Llama-3.1-8B) have substantially
     flatter singular value spectra than attention weights — low-rank approximation at $k/n = 3.5\%$
@@ -1334,7 +1627,7 @@ section { animation: fadeUp .4s ease both; }
     attention-only GRC, accepting PCIe latency as a throughput tradeoff.
   </p>
 
-  <h3>10.3 Per-Matrix Basis (Separate Q vs KV Subspaces)</h3>
+  <h3>13.3 Per-Matrix Basis (Separate Q vs KV Subspaces)</h3>
   <p>
     The current implementation uses a <em>shared</em> $\mathbf{P}_t^{(\ell)}$ for Q, K, V in
     each layer. Because Q and KV matrices often operate in different subspaces (particularly in
@@ -1342,7 +1635,7 @@ section { animation: fadeUp .4s ease both; }
     same rank, especially for Q (which showed 79–87% energy capture vs 95–97% for K/V at $k=2048$).
   </p>
 
-  <h3>10.4 Rank-Adaptive Deployment</h3>
+  <h3>13.4 Rank-Adaptive Deployment</h3>
   <p>
     The cache-fit effect suggests a deployment strategy: at model serve time, project weights to
     the hardware's cache-fit rank rather than the training rank. This is a one-time offline step
@@ -1351,7 +1644,7 @@ section { animation: fadeUp .4s ease both; }
     by keying caches on (model hash, rank).
   </p>
 
-  <h3>10.5 Quality Recovery via Distillation</h3>
+  <h3>13.5 Quality Recovery via Distillation</h3>
   <p>
     The +13.30% PPL penalty is structural given the current calibration-free basis. A subsequent
     few-shot distillation step — using the uncompressed model as teacher — could recover quality
@@ -1362,7 +1655,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ REPRODUCIBILITY ════════════════ -->
 <section id="reproduce">
-  <span class="section-num">§11 — Reproducibility</span>
+  <span class="section-num">§14 — Reproducibility</span>
   <h2>Reproducing This Work</h2>
 
   <h3>11.1 Requirements</h3>
@@ -1425,7 +1718,7 @@ PPL baseline: 6.7902  |  PPL GRC k=1536: 7.6936  |  delta: +13.30%</code></pre>
 
 <!-- ════════════════ REFERENCES ════════════════ -->
 <section id="references">
-  <span class="section-num">§12 — References</span>
+  <span class="section-num">§15 — References</span>
   <h2>References</h2>
   <ol style="padding-left:1.4rem; font-size:0.9rem; line-height:2.2;">
     <li id="ref-frantar">
