@@ -1,6 +1,6 @@
 # HyperTensor
 
-> **📄 Read the full research paper:** [legomaster378.github.io/HyperTensor](https://legomaster378.github.io/HyperTensor)
+> **📄 Read the full research paper:** [nagusamecs.github.io/HyperTensor](https://nagusamecs.github.io/HyperTensor)
 > &nbsp;&nbsp;·&nbsp;&nbsp; **📘 Whitepaper:** [docs/WHITEPAPER.md](docs/WHITEPAPER.md)
 > &nbsp;&nbsp;·&nbsp;&nbsp; **🔁 Reproduce:** [repro/REPRODUCE.md](repro/REPRODUCE.md)
 
