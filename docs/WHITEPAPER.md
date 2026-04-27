@@ -337,9 +337,248 @@ self-consistency, not universal publication thresholds.
 
 ---
 
-## 9. What This Work Demonstrates and What It Does Not
+## 9. Benefits and Downsides of GRC
 
-### 9.1 Demonstrated on this hardware and model
+This section provides a complete and honest accounting of what GRC offers and where its current
+limitations lie. The goal is to give a reader — internal or external — a clear picture before
+they decide whether GRC is appropriate for their use case.
+
+### 9.1 Benefits
+
+#### 9.1.1 No calibration data required
+
+The projection basis (Pₜ) is computed entirely from the weight matrices themselves via PCA of the
+Gram matrix (ΣWᵀW). No text samples, prompts, or labelled data are needed. This means:
+
+- GRC can be applied to any model immediately after download, without a calibration pipeline.
+- The basis is fully deterministic: same model + same rank → same W_proj cache every time,
+  on any machine.
+- There is no risk of calibration-data distribution mismatch. A prompt-based calibration method
+  (e.g., GPTQ, AWQ) can underperform on domains not represented in its calibration set. GRC
+  does not have this failure mode.
+
+#### 9.1.2 Super-baseline throughput at k=1024
+
+At k=1024 (25% of d_model=4096 for Llama-3.1-8B), decode throughput measured at **106.27%**
+of the uncompressed baseline. This means GRC-compressed inference is *faster* than uncompressed
+inference. The mechanism is a GPU microarchitecture effect:
+
+- Baseline inference operates on Q4_K_M block-quantised weight matrices (~4.9 GB loaded per token).
+- GRC k=1024 projects attention weights to 1024-dimensional matrices, which are smaller than the
+  full-rank Q4_K_M layout and fit more efficiently in the RTX 4070 Laptop's 32 MB L2 cache.
+- Because decode is memory-bandwidth limited (≈52% of 336 GB/s peak), reducing effective cache
+  miss rate directly reduces per-token latency.
+
+This is a real, repeatable, mechanistically explained speedup. It is not measurement noise.
+It holds across 8 different prompt-length combinations and passes the 95% decode retention gate
+with margin. It is, however, specific to this GPU's cache hierarchy — see limitations below.
+
+#### 9.1.3 Near-transparent throughput at moderate rank
+
+At k=1536 (37.5% of d_model), decode throughput is **97.55%** of baseline. In absolute terms:
+roughly 34–35 tok/s vs 35–36 tok/s. For most interactive use cases this difference is not
+perceptible. The headroom above the 75% gate threshold is substantial.
+
+#### 9.1.4 Modular, non-destructive scope
+
+GRC only modifies the three attention projection weights (Q, K, V) per transformer layer. It does
+not touch:
+
+- Feed-forward network weights (gate, up, down projections)
+- Output projection (O_proj), excluded via `--axex-skip-o` for stability
+- Embeddings, layer norms, or any non-attention computation
+
+This modularity means the FFN — which accounts for roughly two-thirds of the per-layer parameter
+count and a significant portion of inference compute — is completely unaffected. If FFN weights
+are later compressed via a separate method, GRC on Q/K/V layers can be applied independently.
+
+#### 9.1.5 Cached W_proj — fast warm startup
+
+On second and subsequent runs, the W_proj cache (a flat binary file keyed by model hash and rank)
+is loaded from disk and uploaded to GPU. For Llama-3.1-8B, this completes in approximately
+45–90 seconds (disk read + GPU upload), entirely bypassing the CPU eigenvector computation.
+For SmolLM2-135M, warm startup is **0.58 seconds** including model load. This makes GRC
+practical for interactive tooling and repeated benchmarking.
+
+#### 9.1.6 Correct output under PPL-passing configuration
+
+At k=1536, the model produces syntactically and semantically coherent output on the tested
+prompt classes (coding, reasoning). Output does not degrade to gibberish or hallucinate
+heavily. The +13.30% PPL penalty indicates distributional shift but not catastrophic collapse.
+
+#### 9.1.7 No fine-tuning or training infrastructure required
+
+GRC is applied at inference time to pre-existing weights. There is no training loop, gradient
+computation, or GPU memory overhead from an optimiser. The entire compression pipeline runs on
+a single consumer GPU with 8 GB VRAM. This is a meaningful practical advantage for independent
+researchers and small teams.
+
+#### 9.1.8 VRAM usage does not meaningfully increase
+
+At k=1536, the peak decode VRAM delta is **+36 MiB** vs baseline on an 8,188 MiB card.
+Both configurations fit comfortably within budget. The disk-resident W_proj cache (1.09 GB)
+is not fully resident in VRAM simultaneously; only the active layer's projected matrices are
+kept GPU-resident during the forward pass.
+
+---
+
+### 9.2 Downsides and Limitations
+
+#### 9.2.1 Quality degradation: +13.30% WikiText-2 perplexity
+
+The k=1536 configuration carries a **+13.30% perplexity penalty** relative to uncompressed
+Q4_K_M inference. This is the most significant quality-side cost of GRC. To contextualise:
+
+- A +5–20% PPL increase is typical when moving from FP16 to 4-bit quantisation.
+- GRC at k=1536 therefore imposes a quality penalty roughly comparable to quantisation itself,
+  stacked on top of the Q4_K_M quantisation already applied.
+- PPL measures distribution-level language model quality, not task performance. The relationship
+  between PPL and downstream task scores is non-linear and task-dependent.
+- No MMLU, HumanEval, TruthfulQA, or similar task evaluations have been run. It is unknown
+  how the 13.30% PPL penalty manifests on structured tasks.
+
+The penalty is structural — it reflects information lost in the projection from d=4096 to k=1536.
+It cannot be eliminated without either increasing rank (which reduces throughput benefit) or
+recovering quality through fine-tuning (which requires training infrastructure).
+
+#### 9.2.2 Prefill throughput degradation (108–115% overhead)
+
+When GRC is active, raw weight tensors (Q/K/V) are freed from VRAM after W_proj is built,
+because retaining both would exceed the 8 GB VRAM budget. This means the prefill path cannot
+use batch-matrix-multiply (batched GEMM) and instead processes each token sequentially.
+
+- Baseline prefill: batched, efficient
+- GRC prefill: token-by-token, ~8–15% slower than baseline
+
+This matters for use cases with long prompts. For a 4096-token context, the additional prefill
+latency is noticeable. For short prompts (typical chatbot use), the impact is small.
+
+This is an **implementation constraint**, not a property of PCA compression. With sufficient
+VRAM (e.g., a GPU with 24 GB), both raw and compressed weights could coexist and batch-prefill
+would remain available. It is fixable in future work.
+
+#### 9.2.3 AXEX_MANIFOLD_K_MAX = 1536 hard cap
+
+A compile-time constant in `runtime/nn/axiom_exploit.h` (line 489) silently caps effective rank
+at 1536 regardless of the requested value. Requests for k=2048 silently receive k=1536 behaviour.
+This means:
+
+- The k=2048 row in the benchmark table is **not** true k=2048 compression.
+- The cap was introduced as a conservative stability guard and has not been re-evaluated.
+- Lifting it requires recompilation, testing, and VRAM headroom analysis.
+
+This is disclosed throughout the report but is a meaningful limitation: the method's behaviour
+at k/d > 0.375 on this GPU is untested.
+
+#### 9.2.4 VRAM savings are small
+
+Despite compressing 3× 32 attention weight matrices, VRAM usage during decode **increases**
+slightly (+36 MiB). This is because:
+
+- The full model weights (4,684 MB) are still loaded to GPU — only Q/K/V matrices are replaced
+  by W_proj equivalents (which are similar in size at k=1536).
+- At lower ranks (k=512 or below), VRAM savings would be significant, but quality loss would
+  also be more severe and has not been tested.
+- GRC was not designed as a VRAM-reduction technique. It is a throughput-geometry technique.
+  Expecting it to dramatically reduce VRAM usage is a misapplication.
+
+If VRAM reduction is the goal, quantisation to 2- or 3-bit (IQ2_XXS, Q3_K_S) is more effective.
+
+#### 9.2.5 First-run calibration latency
+
+On the first run for a given (model, rank) pair, the W_proj cache must be computed. This
+involves:
+
+- Dequantising all 96 attention weight matrices from Q4_K_M to float32 (CPU-bound)
+- Computing Gram matrices and truncated SVD per layer (CPU-bound, LAPACK)
+- Uploading W_proj to GPU
+
+On Llama-3.1-8B with a modern CPU (Ryzen 9 7940HS), this takes **60–120 seconds**. The GPU is
+idle during this phase (drawing only 13–14 W). Users who expect immediate inference on first
+launch will experience a cold-start delay. The cache eliminates this on all subsequent runs for
+the same model and rank.
+
+#### 9.2.6 High throughput variance under GRC
+
+Baseline decode throughput: **±0.35 tok/s** (σ ~1%)
+GRC k=1536 decode throughput: **±2.02 tok/s** (σ ~6%)
+
+GRC throughput is approximately **6× more variable** than baseline. This variance comes from
+sensitivity to GPU clock state and L2 cache residency patterns that differ across prompt-induced
+memory access sequences. Practical consequence: a single GRC decode measurement is less
+predictive of real-world performance than a single baseline measurement. The 12-rep CI protocol
+in this report was designed specifically to characterise this variance. Users relying on a small
+number of spot checks may see results ranging from 86% to 110% of baseline.
+
+#### 9.2.7 No power savings
+
+During active decode, GRC and baseline both draw **103–109 W** on the GPU. The GPU is
+memory-bandwidth saturated in both cases (52% of 336 GB/s peak). Reducing attention weight
+dimensionality does not reduce memory traffic enough to clock down the GPU or drop out of the
+high-power regime. GRC does not make inference cheaper from a power or thermals perspective.
+
+If power efficiency is the goal, a GPU like an RTX 4060 (lower TDP) or Apple M-series (unified
+memory, much lower wattage per FLOP) would be more appropriate choices independent of
+compression method.
+
+#### 9.2.8 O_proj excluded for stability
+
+The output projection (O_proj) is excluded from compression via `--axex-skip-o`. Including it
+destabilised output quality in early experiments at 8B scale. This means one of the four
+attention projection matrices per layer is at full rank, limiting the theoretical compression
+ratio. The stability issue with O_proj compression has not been deeply investigated.
+
+#### 9.2.9 Single hardware, single model validation
+
+All results in this report are from one GPU (RTX 4070 Laptop, Ada Lovelace, 8 GB GDDR6) running
+one model (Llama-3.1-8B-Instruct Q4_K_M). The super-baseline result at k=1024 depends on the
+L2 cache fit effect being specific to this GPU's 32 MB L2 cache, 336 GB/s bandwidth, and PCIe
+Gen4 ×8 configuration. The same k=1024 setting on:
+
+- An RTX 4090 (96 MB L2, higher bandwidth): may not show super-baseline, may show better cache fit.
+- An A100 (40 MB L2, HBM): almost certainly different behaviour.
+- A laptop GPU with smaller L2: the cache fit threshold may shift.
+
+**Cross-hardware and cross-model transfer experiments are listed as a known limitation** of this
+report. Phase 3 cross-model testing is in progress (Mistral-7B-v0.1). Hardware generalisation
+testing is blocked by the author's current infrastructure constraints as an independent student
+researcher — this is an acknowledged scope limitation, not an oversight.
+
+#### 9.2.10 CUDA-only runtime
+
+The Geodessical runtime requires CUDA. It does not support ROCm (AMD), Metal (Apple Silicon),
+Vulkan compute, or CPU-only execution. Reproducing results requires an NVIDIA GPU with at least
+8 GB VRAM and a compatible CUDA driver. This is a deployment portability limitation.
+
+---
+
+### 9.3 Summary table
+
+| Dimension                        | Benefit (+) / Downside (−)                    | Severity    |
+|---------------------------------|----------------------------------------------|-------------|
+| No calibration data needed       | + Fully weight-geometry derived               | Major +     |
+| Super-baseline at k=1024         | + 106.27% decode on tested GPU               | Major +     |
+| Near-lossless throughput k=1536  | + 97.55% decode retention                    | Moderate +  |
+| Deterministic, cacheable basis   | + Identical results across runs              | Moderate +  |
+| Fast warm startup                | + Sub-second for small models                | Moderate +  |
+| No fine-tuning needed            | + Zero training infrastructure               | Major +     |
+| Modular (Q/K/V only)            | + FFN untouched, independently composable    | Moderate +  |
+| Quality penalty at k=1536        | − +13.30% PPL (structural, unavoidable)       | Major −     |
+| Prefill overhead (serial path)   | − +8–15% slower prefill (implementation bug) | Moderate −  |
+| k_max hard cap at 1536           | − k=2048 silently capped                     | Moderate −  |
+| Minimal VRAM reduction           | − Not a VRAM-saving technique                | Moderate −  |
+| First-run cold start             | − 60–120s CPU calibration latency            | Moderate −  |
+| High GRC throughput variance     | − ±2 tok/s (6× baseline variance)            | Moderate −  |
+| No power savings                 | − Same TDP during decode as baseline         | Mild −      |
+| O_proj excluded                  | − Compression ratio limited                  | Mild −      |
+| Single hardware/model validation | − Generalisability unverified                | Major −     |
+| CUDA-only                        | − No ROCm / Metal / CPU fallback             | Mild −      |
+
+---
+
+## 10. What This Work Demonstrates and What It Does Not
+
+### 10.1 Demonstrated on this hardware and model
 
 - Weight-geometry PCA bases (no calibration data needed) can construct a compression path that
   maintains 97–107% of baseline decode throughput at rank-k/d ratios of 0.25–0.50.
@@ -351,14 +590,16 @@ self-consistency, not universal publication thresholds.
   Without cooldowns, prior runs showed 53% throughput retention at k=1536 — that was entirely
   a measurement artefact from the GPU clocking down from ~1400 MHz to ~800 MHz after sustained load.
 
-### 9.2 Not demonstrated
+### 10.2 Not demonstrated
 
 - **Generalisability across hardware.** The L2-cache-fit effect that produces the k=1024
   super-baseline result is specific to the Ada Lovelace microarchitecture with 8 GB GDDR6.
   Different GPUs (RTX 4090, A100, H100, Apple M-series) have different cache hierarchies and
-  bandwidth profiles.
+  bandwidth profiles. Cross-hardware testing is a known scope limitation; the author is an
+  independent student researcher with access to one GPU.
 - **Generalisability across models.** Only Llama-3.1-8B-Instruct at Q4_K_M was tested.
   Behaviour on models with different head counts, head dimensions, or architectures is unknown.
+  Phase 3 cross-model testing (Mistral-7B-v0.1) is in progress.
 - **Quality at k=1024.** PPL was only measured using the k=1536 cache. k=1024 quality is unmeasured.
 - **Batch inference.** All measurements are single-request decode. Batch-size > 1 changes
   arithmetic intensity and would likely shift the relative GRC/baseline ratio.
@@ -368,9 +609,9 @@ self-consistency, not universal publication thresholds.
 
 ---
 
-## 10. Reproducibility
+## 11. Reproducibility
 
-### 10.1 Exact commands used
+### 11.1 Exact commands used
 
 Baseline PPL:
 ```
@@ -392,7 +633,7 @@ Gate validation:
 .\scripts\paradigm_shift_validate.ps1 -PackDir benchmarks\whitepaper_pack_20260427_121815
 ```
 
-### 10.2 Reproducibility notes
+### 11.2 Reproducibility notes
 
 - PPL is fully deterministic (identical across all 5 runs).
 - Throughput has ±2 tok/s variance under GRC and ±0.3 tok/s under baseline. The cooldown
@@ -400,104 +641,47 @@ Gate validation:
 - The W_proj cache hash is deterministic: same model + same rank → same cache file.
 - The benchmark harness writes raw stdout/stderr alongside derived CSVs for every run.
 
-### 10.3 Requirements for external reproduction
+### 11.3 Requirements for external reproduction
 
 - Model: publicly available from Hugging Face (`bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`)
 - Runtime: Geodessical binary or build environment
 - Disk: ~5.75 GB (model + one W_proj cache)
 - GPU: CUDA-capable with at least 8 GB VRAM
-- A pre-built reproduction package is not yet available (planned for Phase 4).
+- Reproduction package: `repro/REPRODUCE.md` + `repro/expected_outputs/` (committed, Phase 4 complete)
 
 ---
 
-## 11. Phase Status
+## 12. Phase Status
 
-| Phase | Objective                           | Status                                                   |
-|-------|------------------------------------|---------------------------------------------------------|
-| 1     | Eliminate measurement instability   | Complete — root cause was GPU thermal throttling         |
-| 2     | Validate under locked protocol      | Complete — all 7 gates pass, 2026-04-27                  |
-| 3     | Cross-hardware / cross-model        | Active — no data yet                                     |
-| 4     | External reproduction package       | Pending Phase 3 completion                               |
+| Phase | Objective                           | Status                                                                          |
+|-------|-------------------------------------|---------------------------------------------------------------------------------|
+| 1     | Eliminate measurement instability   | **Complete** — root cause: GPU thermal throttling; fixed with 30s cooldown      |
+| 2     | Validate under locked protocol      | **Complete** — all 7 gates pass, pack `whitepaper_pack_20260427_121815`         |
+| 3     | Cross-model transfer                | **In progress** — Mistral-7B-v0.1 Q4_K_M benchmark queued                     |
+| 3     | Cross-hardware transfer             | **Blocked** — single-GPU constraint (independent student researcher)            |
+| 4     | External reproduction package       | **Complete** — `repro/REPRODUCE.md` + `repro/expected_outputs/` committed       |
 
 ---
 
-## 12. Artifact Index
+## 13. Artifact Index
 
 | Artifact                                                                    | Contents                                    |
 |----------------------------------------------------------------------------|---------------------------------------------|
 | `benchmarks/whitepaper_pack_20260427_121815/rank_sweep_aggregate.csv`       | Mean throughput % by rank (1024/1536/2048)  |
 | `benchmarks/whitepaper_pack_20260427_121815/ci_pack_summary.csv`            | 12-rep CI bounds, coding + reasoning        |
 | `benchmarks/whitepaper_pack_20260427_121815/ci_ppl_5run.csv`                | 5-rep PPL measurements                      |
-| `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json` | Machine-readable gate output                |
+| `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json` | Machine-readable gate output (all 7 PASS)   |
+| `repro/REPRODUCE.md`                                                        | External reproduction guide (Phase 4)       |
+| `repro/expected_outputs/rank_sweep_aggregate.csv`                           | Reference rank sweep values                 |
+| `repro/expected_outputs/ci_pack_summary.csv`                                | Reference CI bounds                         |
+| `repro/expected_outputs/ci_ppl_5run.csv`                                    | Reference PPL values                        |
+| `repro/expected_outputs/paradigm_shift_validation.json`                     | Reference gate output                       |
 | `scripts/benchmark_whitepaper_finalize.ps1`                                 | Benchmark harness (rank sweep + CI + PPL)   |
 | `scripts/paradigm_shift_validate.ps1`                                       | Automated gate evaluator                    |
-| `runtime/nn/axiom_exploit.h`                                                | GRC implementation header (k_max cap line 489) |
-| `runtime/nn/axiom_exploit.c`                                                | GRC implementation                          |
+| `scripts/phase3_transfer.ps1`                                               | Phase 3 cross-model / cross-hardware runner |
+| `runtime/nn/axiom_exploit.h`                                                | GRC implementation header (k_max cap L489)  |
+| `runtime/nn/axiom_exploit.c`                                                | GRC implementation (SVD + GP compression)   |
 | `runtime/nn/jit_pca.c`                                                      | PCA eigenvector computation                 |
-
-Validation artifact: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
-
-## 9. What Is Demonstrated
-
-Demonstrated and gate-validated:
-
-- Near-lossless attention-weight compression at k=1536: **97.55% decode throughput retention** on Llama-3.1-8B
-- Super-baseline throughput at k=1024: **106.27%** — compression can accelerate inference when rank fits better in GPU cache
-- Stable quality under compression: **+13.30% PPL** on WikiText-2, deterministic across 5 runs
-- Tight CI bounds under sustained load: coding lower-95 at **86.60%**, reasoning lower-95 at **85.64%**
-- All six strong-claim gates pass under a reproducible locked protocol
-- Cache-backed W_proj workflow enables fast repeat measurements with deterministic results
-
-Not yet claimed as complete:
-
-- Cross-hardware transfer (Phase 3 — required for publication-grade universal claims)
-- Cross-model-family transfer (Phase 3)
-- Full batch-prefill support for the GRC path (known architectural limitation)
-- Fine-tuning integration to close the 13.30% PPL gap
-
-## 10. Compression Space (CS) Geometry — The Paradigm Shift
-
-The central claim is not just an engineering speedup. It is a redefinition of the *navigable compression space* for transformer inference.
-
-### 10.1 The classical assumption
-
-Conventional wisdom holds that attention weight compression requires either:
-(a) explicit fine-tuning to recover quality (LoRA, QAT), or
-(b) accepting severe throughput penalties from compressed-representation GEMV inefficiency.
-
-This assumption treats the compression-quality frontier as a cliff: moderate compression brings disproportionate quality loss, and the throughput savings are offset by operator overhead.
-
-### 10.2 What GRC demonstrates
-
-GRC shows the frontier is actually *smooth and favorable* in the k/d ≥ 0.6 regime:
-
-- At k=1536 (k/d ≈ 0.60 for Llama-3.1-8B, d_model=4096): 97.55% throughput, +13.30% PPL
-- At k=1024 (k/d = 0.40): 106.27% throughput — the compression regime **outperforms** the uncompressed path
-- At k=2048 (k/d = 0.80, capped at 1536 due to AXEX_MANIFOLD_K_MAX): 101.04% throughput
-
-The k=1024 super-baseline result is the core mechanistic insight: when the projected weight tensors are small enough
-to fit within GPU L1/L2 cache, the GEMV bandwidth efficiency exceeds that of the full-rank Q4_K_M load path.
-This is a GPU microarchitecture effect, not a modeling artifact.
-
-### 10.3 The compression space map
-
-The GRC method traces a path through (rank k, throughput retention, quality retention) space:
-
-```
-  Throughput
-  retention
-  106% │  ●  k=1024 (SUPER-BASELINE)
-       │
-  101% │           ●  k=2048
-       │
-   98% │      ●  k=1536
-       │
-   82% │  (prior failing state — thermal throttle artifact)
-       └──────────────────────────────────
-           low k        high k
-```
-
-The frontier is navigable from k=1024 to k=2048 without crossing any quality or throughput cliff.
 This is the paradigm shift: **attention compression with GRC is no longer a tradeoff, it is a tunable parameter.**
 
 ### 10.4 Practical implication
