@@ -280,6 +280,39 @@ gd_daemon_result_t gd_daemon_generate(
     gd_daemon_result_t res;
     memset(&res, 0, sizeof(res));
 
+    /* DEBUG TRAP: this function has no legitimate call sites in application code.
+     * Reaching here during calibration means something corrupted control flow.
+     * Print caller addresses and abort to identify the source. */
+#ifdef GEODESSICAL_HOSTED
+    {
+        void *ra0 = __builtin_return_address(0);
+        fprintf(stderr,
+            "[FATAL] gd_daemon_generate entered unexpectedly! ra0=%p\n"
+            "  exe=%s model=%s prompt=%.32s port=%d\n",
+            ra0, exe_path ? exe_path : "NULL",
+            model_path ? model_path : "NULL",
+            prompt ? prompt : "NULL", port);
+#ifdef __linux__
+        /* Print full backtrace via execve("/proc/self/exe", ...) or just dump addrs */
+        void *bt[16];
+        int n = 0;
+        /* manual unwind: ra0=caller, ra1=caller's caller */
+        void *p = __builtin_frame_address(0);
+        for (int _i = 0; _i < 16 && p; _i++) {
+            void **fp = (void **)p;
+            if (!fp[0] || fp[0] == p) break;
+            bt[n++] = fp[1];
+            p = fp[0];
+        }
+        fprintf(stderr, "[FATAL] Stack frames:");
+        for (int _i = 0; _i < n; _i++) fprintf(stderr, " %p", bt[_i]);
+        fprintf(stderr, "\n");
+#endif
+        fflush(stderr);
+        abort();
+    }
+#endif
+
     /* 1. Ensure daemon is running */
     if (!gd_daemon_ping(port)) {
         fprintf(stderr, "[GD] No server on port %d — starting daemon...\n", port);

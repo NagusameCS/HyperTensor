@@ -29,6 +29,7 @@ $CFLAGS = @(
     "-Wno-unused-function", "-Wno-unused-variable", "-Wno-format",
     "-Wno-incompatible-pointer-types", "-Wno-int-conversion",
     "-Wno-sign-compare", "-Wno-missing-field-initializers",
+    "-Wno-comment",
     "-Wno-unused-parameter"
 )
 
@@ -51,7 +52,14 @@ $SOURCES = @(
     "runtime/nn/axiom_geo.c",
     "runtime/nn/axiom_beta.c",
     "runtime/nn/axiom_exploit.c",
+    "runtime/nn/axiom_gauge.c",
     "runtime/nn/axiom_vis.c",
+    "runtime/nn/online_basis.c",
+    "runtime/nn/geo_research.c",
+    "runtime/nn/mcr_compress.c",
+    "runtime/nn/thermal_rank.c",
+    "runtime/nn/qspec_basis.c",
+    "runtime/nn/jit_kernel.c",
     "runtime/jit/x86_jit.c",
     "runtime/jit/llm_jit.c"
 )

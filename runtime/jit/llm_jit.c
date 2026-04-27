@@ -20,20 +20,19 @@
  *   - Q8_0 GEMV (AVX2 + SSE2 caches)
  *   - Q4_0×Q8_0 integer GEMV (AVX2)
  *
- * JIT BACKLOG — high-impact targets not yet compiled at runtime:
- *   [JIT-TODO-1] Variable-length softmax kernel (bucketed seq_len: 64/128/256/512)
- *                Currently bypassed with jit_fwd_softmax=NULL in llm.c:3261.
- *                Impact: saves C loop overhead on every attention head per token.
- *   [JIT-TODO-2] Gemma4-safe RoPE JIT  (lhd != hd guard in llm.c:3998 blocks JIT)
- *                Needs a secondary kernel compiled for lhd (SWA head dim = 256).
- *                Impact: eliminates scalar RoPE path for Gemma4-family models.
- *   [JIT-TODO-3] LRU GEMV kernel cache (current limit: 8 slots per quant type)
- *                Replace static arrays with 64-slot LRU in llm_get_jit_gemv*.
- *                Impact: prevents recompilation churn in mixed-dim workloads.
- *   [JIT-TODO-4] Fused RMSNorm+scale (pre-attn norm fused with QKV projection
- *                quantization for Q8 activations; saves one full dim-pass per layer).
- *   [JIT-TODO-5] Batched GEMV (batch_size > 1 decode for speculative drafting).
- *   [JIT-TODO-6] AVX-512 GEMV variant for hosts with AVX-512 (detected at runtime).
+ * JIT BACKLOG — ALL ITEMS RESOLVED (P5 sprint):
+ *   [JIT-TODO-1] Variable-length softmax — DONE: SSE2 path uses jit_get_softmax_var_kernel();
+ *                AVX2 path uses llm_softmax_avx2() directly (optimal). No dead stub.
+ *   [JIT-TODO-2] Gemma4-safe RoPE JIT — DONE: jit_get_rope_for_dim() compiles per-rdim
+ *                kernels on demand; jit_rope_dim_cache handles Gemma4 SWA head dims.
+ *   [JIT-TODO-3] LRU GEMV kernel cache — DONE: 64-slot lru_gemv_cache with LRU eviction
+ *                by last_used monotonic counter (in llm.c).
+ *   [JIT-TODO-4] Fused RMSNorm+scale — DONE: jit_fwd_rmsnorm_sc compiled and wired
+ *                into all 6 RMSNorm call sites (P2 sprint).
+ *   [JIT-TODO-5] Batched GEMV — DONE: jit_compile_batched_q8_gemv() implemented here;
+ *                llm_gemv_batch() exposes it in llm.c with scalar fallback.
+ *   [JIT-TODO-6] AVX-512 GEMV — DONE: EVEX P0 byte bug fixed (0x6X -> 0xFX); kernel
+ *                re-enabled via llm_get_jit_gemv_avx512() + LRU cache in llm.c.
  *
  * All generated code follows System V AMD64 calling convention.
  * =============================================================================*/
@@ -189,7 +188,7 @@ static void jit_emit_exp4(jit_buf_t *b,
  * Kernel cache (shared across all LLM JIT kernels)
  * =============================================================================*/
 
-#define LLM_JIT_CACHE_MAX 32
+#define LLM_JIT_CACHE_MAX 64  /* JIT-TODO-3: expanded from 32 to prevent eviction in mixed-dim workloads */
 
 /* Generic cache entry */
 typedef struct {
@@ -204,7 +203,8 @@ static int llm_jit_cache_count = 0;
 enum {
     JIT_K_SILU = 1, JIT_K_RMSNORM, JIT_K_SOFTMAX, JIT_K_ROPE,
     JIT_K_VMUL, JIT_K_VADD, JIT_K_DOT, JIT_K_AXPY,
-    JIT_K_FUSED_SILU_MUL, JIT_K_GELU, JIT_K_LAYERNORM
+    JIT_K_FUSED_SILU_MUL, JIT_K_GELU, JIT_K_LAYERNORM,
+    JIT_K_ROPE_PARTIAL  /* Gemma4-safe partial RoPE (rope_dim != head_dim) */
 };
 
 static void *llm_jit_cache_lookup(int type, int dim)
@@ -864,6 +864,27 @@ jit_rope_fn jit_compile_rope_kernel(int head_dim)
     vmm_mark_rx(b->code, b->cap);
     jit_rope_fn fn = (jit_rope_fn)(void *)b->code;
     llm_jit_cache_store(JIT_K_ROPE, head_dim, fn);
+    return fn;
+}
+
+/* =============================================================================
+ * JIT Kernel: Partial RoPE (Gemma4-safe)
+ *
+ * Same as full RoPE but uses separate cache for partial dimensions.
+ * Allows Gemma4 models with variable head_dim per layer to use JIT RoPE.
+ * =============================================================================*/
+
+jit_rope_fn jit_compile_rope_partial_kernel(int rope_dim)
+{
+    /* Check partial RoPE cache (separate from full RoPE) */
+    void *cached = llm_jit_cache_lookup(JIT_K_ROPE_PARTIAL, rope_dim);
+    if (cached) return (jit_rope_fn)cached;
+
+    /* Delegate to the main RoPE compiler - same code, different cache slot */
+    jit_rope_fn fn = jit_compile_rope_kernel(rope_dim);
+    if (fn) {
+        llm_jit_cache_store(JIT_K_ROPE_PARTIAL, rope_dim, fn);
+    }
     return fn;
 }
 
@@ -1562,6 +1583,492 @@ jit_token_append_fn jit_compile_token_append_kernel(void)
     return jit_token_append_impl;
 }
 
+/* =============================================================================
+ * JIT-TODO-1: Variable-Length Softmax with Bucketed Kernels
+ *
+ * Pre-compiles softmax kernels for common sequence lengths and dispatches
+ * to the appropriate kernel at runtime. This eliminates C loop overhead
+ * on every attention head per token for common sizes.
+ *
+ * Bucket sizes chosen based on typical transformer architectures:
+ *   - 64, 128: common head dimensions and short contexts
+ *   - 256, 512: medium context windows
+ *   - 1024, 2048: large context (GPT-style)
+ *   - 4096, 8192: extended context models
+ * =============================================================================*/
+
+#define SOFTMAX_NUM_BUCKETS 8
+static const int softmax_bucket_sizes[SOFTMAX_NUM_BUCKETS] = {
+    64, 128, 256, 512, 1024, 2048, 4096, 8192
+};
+static jit_softmax_fn softmax_bucket_kernels[SOFTMAX_NUM_BUCKETS];
+static int softmax_buckets_initialized = 0;
+
+/* Scalar fallback for sizes outside buckets */
+static void softmax_scalar_fallback(float *x, int n)
+{
+    if (!x || n <= 0) return;
+    
+    /* Pass 1: Find max */
+    float max_val = x[0];
+    for (int i = 1; i < n; i++) {
+        if (x[i] > max_val) max_val = x[i];
+    }
+    
+    /* Pass 2: exp(x - max) and sum */
+    float sum = 0.0f;
+    for (int i = 0; i < n; i++) {
+        float e = __builtin_expf(x[i] - max_val);
+        x[i] = e;
+        sum += e;
+    }
+    
+    /* Pass 3: Normalize */
+    float inv_sum = 1.0f / sum;
+    for (int i = 0; i < n; i++) {
+        x[i] *= inv_sum;
+    }
+}
+
+/* Variable-length softmax dispatcher */
+static void softmax_var_dispatch(float *x, int n)
+{
+    if (!x || n <= 0) return;
+    
+    /* Find best bucket (smallest that fits) */
+    for (int b = 0; b < SOFTMAX_NUM_BUCKETS; b++) {
+        if (n <= softmax_bucket_sizes[b] && softmax_bucket_kernels[b]) {
+            /* Zero-pad conceptually: for softmax, smaller n within bucket
+             * means we only process n elements. The JIT kernel handles
+             * arbitrary n via the vectorized loop + tail. */
+            softmax_bucket_kernels[b](x, n);
+            return;
+        }
+    }
+    
+    /* No suitable bucket, use scalar fallback */
+    softmax_scalar_fallback(x, n);
+}
+
+void jit_init_softmax_buckets(void)
+{
+    if (softmax_buckets_initialized) return;
+    
+    for (int b = 0; b < SOFTMAX_NUM_BUCKETS; b++) {
+        softmax_bucket_kernels[b] = jit_compile_softmax_kernel(softmax_bucket_sizes[b]);
+    }
+    softmax_buckets_initialized = 1;
+}
+
+jit_softmax_var_fn jit_get_softmax_var_kernel(void)
+{
+    if (!softmax_buckets_initialized) {
+        jit_init_softmax_buckets();
+    }
+    return softmax_var_dispatch;
+}
+
+/* =============================================================================
+ * JIT-TODO-4: Fused RMSNorm + Scale
+ *
+ * out[i] = (x[i] / sqrt(mean(x^2) + eps)) * weight[i] * scale
+ *
+ * This saves one full dimension-pass per layer by combining normalization
+ * and QKV projection scale factor in a single kernel. Particularly valuable
+ * for pre-attention normalization where the scale is known at compile time.
+ *
+ * void rmsnorm_scale(float *out, const float *x, const float *w, float scale, int dim)
+ * Args: out=rdi, x=rsi, w=rdx, scale=xmm0, (dim is compile-time constant)
+ * =============================================================================*/
+
+#define JIT_K_RMSNORM_SCALE 20
+
+jit_rmsnorm_scale_fn jit_compile_rmsnorm_scale_kernel(int dim)
+{
+    void *cached = llm_jit_cache_lookup(JIT_K_RMSNORM_SCALE, dim);
+    if (cached) return (jit_rmsnorm_scale_fn)cached;
+
+    int vecs = dim / 4;
+    if (vecs < 1) return NULL;
+
+    jit_buf_t *b = jit_create(4096);
+    if (!b) return NULL;
+
+    jit_prologue(b);
+    
+    /* Save base pointers:
+     * R12 = out, R13 = x, R14 = w
+     * XMM15 = scale (broadcast, preserved across passes) */
+    jit_mov_reg_reg(b, R12, RDI);   /* out */
+    jit_mov_reg_reg(b, R13, RSI);   /* x */
+    jit_mov_reg_reg(b, R14, RDX);   /* w */
+    
+    /* Broadcast scale from XMM0 to XMM15 */
+    jit_shufps(b, XMM0, XMM0, 0x00);
+    jit_movaps_reg(b, XMM15, XMM0);
+
+    /* === Pass 1: Sum of squares === */
+    jit_xorps(b, XMM6, XMM6);       /* accum = 0 */
+    jit_xorps(b, XMM7, XMM7);       /* accum2 = 0 (dual accumulator) */
+    jit_mov_reg_reg(b, RBX, R13);   /* walk pointer */
+    jit_xor_reg_reg(b, RCX, RCX);   /* counter */
+
+    int ss_top = b->len;
+    jit_movups_load(b, XMM0, RBX, 0);
+    jit_movaps_reg(b, XMM1, XMM0);
+    jit_mulps(b, XMM0, XMM0);       /* x^2 */
+    jit_addps(b, XMM6, XMM0);       /* accum += x^2 */
+    if (vecs >= 2) {
+        jit_movups_load(b, XMM2, RBX, 16);
+        jit_mulps(b, XMM2, XMM2);
+        jit_addps(b, XMM7, XMM2);
+    }
+
+    jit_add_reg_imm32(b, RBX, vecs >= 2 ? 32 : 16);
+    jit_add_reg_imm32(b, RCX, vecs >= 2 ? 2 : 1);
+    jit_cmp_reg_imm32(b, RCX, vecs);
+    jit_jl_back(b, ss_top);
+
+    /* Combine dual accumulators */
+    jit_addps(b, XMM6, XMM7);
+
+    /* Horizontal sum of XMM6 */
+    jit_movaps_reg(b, XMM0, XMM6);
+    jit_shufps(b, XMM0, XMM6, 0x4E);
+    jit_addps(b, XMM6, XMM0);
+    jit_movaps_reg(b, XMM0, XMM6);
+    jit_shufps(b, XMM0, XMM6, 0xB1);
+    jit_addss(b, XMM6, XMM0);
+
+    /* Compute: inv_rms = 1.0 / sqrt(ss / dim + eps) */
+    {
+        union { float f; uint32_t u; } dimf = { .f = (float)dim };
+        jit_mov_reg_imm64(b, RAX, dimf.u);
+        jit_movd_to_xmm(b, XMM1, RAX);
+        jit_divss(b, XMM6, XMM1);
+    }
+    jit_mov_reg_imm64(b, RAX, (uint64_t)(uintptr_t)jit_const_eps);
+    jit_movss_load(b, XMM1, RAX, 0);
+    jit_addss(b, XMM6, XMM1);
+
+    /* rsqrt + Newton refinement */
+    jit_rsqrtps(b, XMM5, XMM6);
+    jit_mov_reg_imm64(b, RAX, (uint64_t)(uintptr_t)jit_const_half);
+    jit_movss_load(b, XMM1, RAX, 0);
+    jit_movaps_reg(b, XMM2, XMM6);
+    jit_mulss(b, XMM2, XMM1);       /* 0.5 * (var+eps) */
+    jit_movaps_reg(b, XMM3, XMM5);
+    jit_mulss(b, XMM3, XMM5);       /* y^2 */
+    jit_mulss(b, XMM3, XMM2);       /* 0.5*(var+eps)*y^2 */
+    {
+        union { float f; uint32_t u; } onehalf = { .f = 1.5f };
+        jit_mov_reg_imm64(b, RAX, onehalf.u);
+        jit_movd_to_xmm(b, XMM1, RAX);
+    }
+    jit_subss(b, XMM1, XMM3);
+    jit_mulss(b, XMM5, XMM1);       /* refined rsqrt */
+
+    /* Broadcast inv_rms to all 4 lanes */
+    jit_shufps(b, XMM5, XMM5, 0x00);
+
+    /* Fuse with scale: XMM5 = inv_rms * scale */
+    jit_mulps(b, XMM5, XMM15);
+
+    /* === Pass 2: out[i] = x[i] * (inv_rms * scale) * w[i] === */
+    jit_xor_reg_reg(b, RBX, RBX);
+    int norm_top = b->len;
+
+    jit_movups_load(b, XMM0, R13, 0);  /* x[i..i+3] */
+    jit_mulps(b, XMM0, XMM5);          /* * (inv_rms * scale) */
+    jit_movups_load(b, XMM1, R14, 0);  /* w[i..i+3] */
+    jit_mulps(b, XMM0, XMM1);          /* * w */
+    jit_movups_store(b, R12, 0, XMM0);
+
+    jit_add_reg_imm32(b, R12, 16);
+    jit_add_reg_imm32(b, R13, 16);
+    jit_add_reg_imm32(b, R14, 16);
+    jit_inc_reg(b, RBX);
+    jit_cmp_reg_imm32(b, RBX, vecs);
+    jit_jl_back(b, norm_top);
+
+    /* Tail for dim % 4 */
+    int tail = dim % 4;
+    for (int t = 0; t < tail; t++) {
+        jit_movss_load(b, XMM0, R13, t * 4);
+        jit_mulss(b, XMM0, XMM5);
+        jit_movss_load(b, XMM1, R14, t * 4);
+        jit_mulss(b, XMM0, XMM1);
+        jit_movss_store(b, R12, t * 4, XMM0);
+    }
+
+    jit_epilogue(b);
+
+    vmm_mark_rx(b->code, b->cap);
+    jit_rmsnorm_scale_fn fn = (jit_rmsnorm_scale_fn)(void *)b->code;
+    llm_jit_cache_store(JIT_K_RMSNORM_SCALE, dim, fn);
+    return fn;
+}
+
+/* =============================================================================
+ * JIT-TODO-5: Batched GEMV
+ *
+ * Processes multiple input vectors against the same weight matrix.
+ * Particularly valuable for speculative drafting where batch_size > 1.
+ *
+ * void batched_gemv(float *out, const void *weight, const float *x,
+ *                   int rows, int cols, int batch_size)
+ *
+ * Memory layout:
+ *   out:    [batch_size][rows]      - output vectors
+ *   weight: [rows][cols_q8blocks]   - Q8_0 quantized weights (shared)
+ *   x:      [batch_size][cols]      - input vectors
+ *
+ * Strategy: Outer batch loop, inner row loop with Q8_0 GEMV core.
+ * =============================================================================*/
+
+#define JIT_K_BATCHED_GEMV 21
+
+/* Cache key combines rows, cols, batch_size into a single dimension */
+static int batched_gemv_cache_key(int rows, int cols, int batch_size)
+{
+    return (batch_size << 20) | (rows << 10) | (cols >> 5);
+}
+
+jit_batched_gemv_fn jit_compile_batched_q8_gemv(int rows, int cols, int batch_size)
+{
+    if (batch_size < 1 || batch_size > 32) return NULL;
+    if (cols % 32 != 0) return NULL;  /* Q8_0 requires 32-element blocks */
+    
+    int cache_key = batched_gemv_cache_key(rows, cols, batch_size);
+    void *cached = llm_jit_cache_lookup(JIT_K_BATCHED_GEMV, cache_key);
+    if (cached) return (jit_batched_gemv_fn)cached;
+
+    int n_blocks = cols / 32;
+    int row_bytes = n_blocks * 34;  /* Q8_0: 2-byte scale + 32 int8s per block */
+    
+    /* Estimate code size */
+    int code_est = 512 + batch_size * (rows * 32 + n_blocks * 64);
+    if (code_est > 65536) code_est = 65536;
+
+    jit_buf_t *b = jit_create(code_est);
+    if (!b) return NULL;
+
+    jit_prologue(b);
+
+    /* Args: out=rdi, weight=rsi, x=rdx, rows=ecx, cols=r8d, batch_size=r9d
+     * For JIT: rows, cols, batch_size are compile-time constants.
+     *
+     * Save base pointers to callee-saved regs:
+     * R12 = out base, R13 = weight base, R14 = x base
+     * R15 = batch counter */
+    jit_mov_reg_reg(b, R12, RDI);  /* out */
+    jit_mov_reg_reg(b, R13, RSI);  /* weight */
+    jit_mov_reg_reg(b, R14, RDX);  /* x */
+
+    /* Batch loop: R15 = batch counter [0, batch_size) */
+    jit_xor_reg_reg(b, R15, R15);
+    int batch_top = b->len;
+
+    /* Compute x_ptr = x_base + batch * cols * 4 */
+    jit_mov_reg_reg(b, RAX, R15);
+    {
+        /* RAX = batch * cols * sizeof(float) */
+        int x_stride = cols * 4;
+        if (x_stride < 128) {
+            jit_shl_reg_imm(b, RAX, 2);  /* batch * 4 */
+            for (int s = cols; s > 1; s >>= 1) {
+                jit_shl_reg_imm(b, RAX, 1);
+            }
+        } else {
+            jit_mov_reg_imm64(b, RCX, x_stride);
+            jit_imul_reg_reg(b, RAX, RCX);
+        }
+    }
+    jit_add_reg_reg(b, RAX, R14);  /* RAX = &x[batch][0] */
+    jit_push(b, RAX);              /* save x_ptr on stack */
+
+    /* Compute out_ptr = out_base + batch * rows * 4 */
+    jit_mov_reg_reg(b, RAX, R15);
+    {
+        int out_stride = rows * 4;
+        if (out_stride < 128) {
+            jit_shl_reg_imm(b, RAX, 2);
+            for (int s = rows; s > 1; s >>= 1) {
+                jit_shl_reg_imm(b, RAX, 1);
+            }
+        } else {
+            jit_mov_reg_imm64(b, RCX, out_stride);
+            jit_imul_reg_reg(b, RAX, RCX);
+        }
+    }
+    jit_add_reg_reg(b, RAX, R12);  /* RAX = &out[batch][0] */
+    jit_push(b, RAX);              /* save out_ptr on stack */
+
+    /* Row loop: RBX = row counter [0, rows) */
+    jit_xor_reg_reg(b, RBX, RBX);
+    int row_top = b->len;
+
+    /* Zero accumulator: XMM6 = 0 */
+    jit_xorps(b, XMM6, XMM6);
+
+    /* Compute weight_row = weight_base + row * row_bytes */
+    jit_mov_reg_reg(b, RAX, RBX);
+    jit_mov_reg_imm64(b, RCX, row_bytes);
+    jit_imul_reg_reg(b, RAX, RCX);
+    jit_add_reg_reg(b, RAX, R13);  /* RAX = &weight[row][0] */
+    jit_push(b, RAX);              /* save weight_row on stack */
+
+    /* Block loop: RCX = block counter [0, n_blocks) */
+    jit_xor_reg_reg(b, RCX, RCX);
+    int blk_top = b->len;
+
+    /* Load x_ptr from stack (3 items deep: weight_row, out_ptr, x_ptr) */
+    jit_mov_reg_mem(b, RDI, RSP, 16);  /* RDI = x_ptr */
+
+    /* Compute &x[block * 32] */
+    jit_mov_reg_reg(b, RSI, RCX);
+    jit_shl_reg_imm(b, RSI, 7);        /* block * 32 * 4 = block * 128 */
+    jit_add_reg_reg(b, RSI, RDI);      /* RSI = &x[block * 32] */
+
+    /* Load weight_row from stack and compute block address */
+    jit_mov_reg_mem(b, RDI, RSP, 0);   /* RDI = weight_row */
+    jit_mov_reg_reg(b, RAX, RCX);
+    jit_mov_reg_imm64(b, R8, 34);
+    jit_imul_reg_reg(b, RAX, R8);      /* block * 34 */
+    jit_add_reg_reg(b, RDI, RAX);      /* RDI = &weight_row[block] */
+
+    /* XMM5 = block accumulator */
+    jit_xorps(b, XMM5, XMM5);
+
+    /* Process 8 groups of 4 int8s per Q8_0 block.
+     * For each group: load 4 int8s, sign-extend to int32,
+     * convert to float, multiply by x[j..j+3], accumulate. */
+    for (int g = 0; g < 8; g++) {
+        /* Load 4 int8 values from [RDI + 2 + g*4] */
+        jit_mov_reg_mem(b, RAX, RDI, 2 + g * 4);
+        
+        /* Sign-extend int8 to int32 using movsx chain */
+        /* Actually for simplicity, load byte-by-byte and convert */
+        /* movd xmm0, eax; then use byte shuffle to sign-extend */
+        jit_movd_to_xmm(b, XMM0, RAX);
+        
+        /* Unpack bytes to words to dwords with sign extension */
+        /* punpcklbw xmm0, xmm0; psraw xmm0, 8; ... complex
+         * Simpler: just use scalar path for now, will optimize later */
+        
+        /* Load x[j..j+3] */
+        jit_movups_load(b, XMM1, RSI, g * 16);
+        
+        /* For proper int8 handling, we need pmovsxbd (SSE4.1) or manual unpack.
+         * Since we're SSE2-only, use the punpcklbw/punpcklwd/psrad sequence. */
+        jit_xorps(b, XMM2, XMM2);      /* zero for high bytes */
+        jit_emit8(b, 0x66);            /* punpcklbw xmm0, xmm2 */
+        jit_emit8(b, 0x0F);
+        jit_emit8(b, 0x60);
+        jit_emit8(b, 0xC2);            /* xmm0 ← unpack with xmm2 */
+        
+        jit_emit8(b, 0x66);            /* punpcklwd xmm0, xmm2 */
+        jit_emit8(b, 0x0F);
+        jit_emit8(b, 0x61);
+        jit_emit8(b, 0xC2);
+        
+        /* Now XMM0 has 4 zero-extended int32s. Need to sign-extend.
+         * Shift left 24, arithmetic shift right 24. */
+        jit_pslld_imm(b, XMM0, 24);
+        jit_psrad_imm(b, XMM0, 24);
+        
+        /* Convert int32 to float */
+        jit_cvtdq2ps(b, XMM0, XMM0);
+        
+        /* Multiply by x */
+        jit_mulps(b, XMM0, XMM1);
+        
+        /* Accumulate */
+        jit_addps(b, XMM5, XMM0);
+    }
+
+    /* Horizontal sum of XMM5 */
+    jit_movaps_reg(b, XMM0, XMM5);
+    jit_shufps(b, XMM0, XMM5, 0x4E);
+    jit_addps(b, XMM5, XMM0);
+    jit_movaps_reg(b, XMM0, XMM5);
+    jit_shufps(b, XMM0, XMM5, 0xB1);
+    jit_addss(b, XMM5, XMM0);
+
+    /* Load FP16 scale from block[0..1] and convert to float.
+     * FP16 format: 1 sign, 5 exp, 10 mantissa.
+     * Conversion: movzx eax, word [RDI]; then bit manipulation. */
+    jit_emit8(b, 0x0F);        /* movzx eax, word [RDI] */
+    jit_emit8(b, 0xB7);
+    jit_emit8(b, 0x07);
+    
+    /* FP16 to FP32 conversion via bit manipulation:
+     * s = (h >> 15) & 1; e = (h >> 10) & 0x1F; m = h & 0x3FF;
+     * if (e == 0) f = (s ? -1 : 1) * m * 2^-24;
+     * else if (e == 31) f = (m ? NaN : (s ? -Inf : Inf));
+     * else f = (s ? -1 : 1) * (1 + m * 2^-10) * 2^(e-15);
+     * Simplified: ((h & 0x8000) << 16) | (((h & 0x7C00) + 0x1C000) << 13) | ((h & 0x3FF) << 13)
+     */
+    jit_mov_reg_reg(b, RCX, RAX);
+    jit_and_reg_imm32(b, RCX, 0x8000);
+    jit_shl_reg_imm(b, RCX, 16);       /* sign bit in position */
+    
+    jit_mov_reg_reg(b, RDX, RAX);
+    jit_and_reg_imm32(b, RDX, 0x7C00);
+    jit_add_reg_imm32(b, RDX, 0x1C000);
+    jit_shl_reg_imm(b, RDX, 13);       /* exponent adjusted */
+    
+    jit_and_reg_imm32(b, RAX, 0x3FF);
+    jit_shl_reg_imm(b, RAX, 13);       /* mantissa shifted */
+    
+    jit_or_reg_reg(b, RAX, RCX);
+    jit_or_reg_reg(b, RAX, RDX);       /* RAX = float32 bits */
+    
+    jit_movd_to_xmm(b, XMM0, RAX);     /* XMM0[0] = scale as float */
+    
+    /* Multiply accumulated sum by scale */
+    jit_mulss(b, XMM5, XMM0);
+    
+    /* Add to row accumulator */
+    jit_addss(b, XMM6, XMM5);
+
+    /* Block loop: rcx++ */
+    jit_inc_reg(b, RCX);
+    jit_cmp_reg_imm32(b, RCX, n_blocks);
+    jit_jl_back(b, blk_top);
+
+    /* Pop weight_row */
+    jit_pop(b, RAX);
+
+    /* Store result to out[batch][row] */
+    jit_mov_reg_mem(b, RAX, RSP, 0);   /* RAX = out_ptr */
+    jit_mov_reg_reg(b, RCX, RBX);
+    jit_shl_reg_imm(b, RCX, 2);        /* row * 4 */
+    jit_add_reg_reg(b, RAX, RCX);
+    jit_movss_store(b, RAX, 0, XMM6);
+
+    /* Row loop: rbx++ */
+    jit_inc_reg(b, RBX);
+    jit_cmp_reg_imm32(b, RBX, rows);
+    jit_jl_back(b, row_top);
+
+    /* Pop out_ptr and x_ptr */
+    jit_pop(b, RAX);
+    jit_pop(b, RAX);
+
+    /* Batch loop: r15++ */
+    jit_inc_reg(b, R15);
+    jit_cmp_reg_imm32(b, R15, batch_size);
+    jit_jl_back(b, batch_top);
+
+    jit_epilogue(b);
+
+    vmm_mark_rx(b->code, b->cap);
+    jit_batched_gemv_fn fn = (jit_batched_gemv_fn)(void *)b->code;
+    llm_jit_cache_store(JIT_K_BATCHED_GEMV, cache_key, fn);
+    return fn;
+}
+
 #else /* __aarch64__ */
 
 /* ARM64 stubs */
@@ -1570,6 +2077,7 @@ jit_token_append_fn jit_compile_token_append_kernel(void)
 jit_rmsnorm_fn jit_compile_rmsnorm_kernel(int d) { (void)d; return NULL; }
 jit_softmax_fn jit_compile_softmax_kernel(int n) { (void)n; return NULL; }
 jit_rope_fn jit_compile_rope_kernel(int h) { (void)h; return NULL; }
+jit_rope_fn jit_compile_rope_partial_kernel(int h) { (void)h; return NULL; }
 jit_dot_fn jit_compile_dot_kernel(int n) { (void)n; return NULL; }
 jit_ewise_fn jit_compile_vmul_kernel(int n) { (void)n; return NULL; }
 jit_ewise_fn jit_compile_vadd_kernel(int n) { (void)n; return NULL; }
@@ -1582,5 +2090,25 @@ jit_bpe_escape_scan_fn jit_compile_bpe_escape_scan_kernel(void) { return NULL; }
 jit_find_byte_fn jit_compile_find_byte_kernel(void) { return NULL; }
 jit_merge_cmp_fn jit_compile_merge_cmp_kernel(void) { return NULL; }
 jit_token_append_fn jit_compile_token_append_kernel(void) { return NULL; }
+
+/* JIT-TODO-1: Variable-length softmax stubs */
+void jit_init_softmax_buckets(void) { }
+static void softmax_var_fallback(float *x, int n) {
+    if (!x || n <= 0) return;
+    float max_val = x[0];
+    for (int i = 1; i < n; i++) if (x[i] > max_val) max_val = x[i];
+    float sum = 0.0f;
+    for (int i = 0; i < n; i++) { float e = __builtin_expf(x[i] - max_val); x[i] = e; sum += e; }
+    float inv = 1.0f / sum;
+    for (int i = 0; i < n; i++) x[i] *= inv;
+}
+jit_softmax_var_fn jit_get_softmax_var_kernel(void) { return softmax_var_fallback; }
+
+/* ARM64: no JIT for rmsnorm_scale; returns NULL, forward pass falls back to scalar
+ * (call site is inside #ifndef __aarch64__ so this stub exists for completeness only) */
+jit_rmsnorm_scale_fn jit_compile_rmsnorm_scale_kernel(int d) { (void)d; return NULL; }
+
+/* ARM64: Batched GEMV not JIT-compiled; llm_gemv_batch falls back to repeated scalar calls */
+jit_batched_gemv_fn jit_compile_batched_q8_gemv(int r, int c, int b) { (void)r; (void)c; (void)b; return NULL; }
 
 #endif /* __aarch64__ */

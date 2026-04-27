@@ -1,0 +1,2 @@
+#include "jit_stub.h"
+// No-op stub for future expansion

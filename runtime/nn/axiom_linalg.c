@@ -439,6 +439,397 @@ void axpca_destroy(axpca_t *pca)
     pca->n_components = 0;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Fast Truncated PCA — Randomized SVD (Halko, Martinsson, Tropp 2011)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+axpca_t axpca_compute_topk(const axmat_t *X, int k_max)
+{
+    if (!X || !X->data) {
+        axpca_t empty; memset(&empty, 0, sizeof(empty)); return empty;
+    }
+    int n = X->rows, d = X->cols;
+    if (k_max <= 0) k_max = (n < d ? n : d);
+    /* Fall back to full Jacobi for near-full-rank */
+    if ((double)k_max >= 0.65 * (double)(n < d ? n : d))
+        return axpca_compute(X, 0.0);
+
+    axpca_t pca; memset(&pca, 0, sizeof(pca));
+    pca.dim = d;
+    pca.mean = (double *)tensor_alloc((uint64_t)d * sizeof(double));
+    if (!pca.mean) return pca;
+    memset(pca.mean, 0, (uint64_t)d * sizeof(double));
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < d; j++)
+            pca.mean[j] += X->data[(uint64_t)i * d + j];
+    for (int j = 0; j < d; j++) pca.mean[j] /= (double)n;
+
+    axmat_t Xc = axmat_clone(X);
+    if (!Xc.data) { axpca_destroy(&pca); return pca; }
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < d; j++)
+            Xc.data[(uint64_t)i * d + j] -= pca.mean[j];
+
+    int over = 10, k_eff = k_max + over;
+    if (k_eff > d) k_eff = d;
+
+    double *Omega = (double *)tensor_alloc((uint64_t)d * k_eff * sizeof(double));
+    if (!Omega) { axmat_destroy(&Xc); axpca_destroy(&pca); return pca; }
+    uint64_t seed = 0xB1C2D3E4F5061728ULL;
+    for (int i = 0; i < d * k_eff; i += 2) {
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        double u1 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        double u2 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+        double r = sqrt(-2.0 * log(u1)), th = 6.283185307179586476925 * u2;
+        Omega[i] = r * cos(th);
+        if (i + 1 < d * k_eff) Omega[i + 1] = r * sin(th);
+    }
+    axmat_t Y; memset(&Y, 0, sizeof(Y));
+    Y.data = Omega; Y.rows = d; Y.cols = k_eff;
+
+    axmat_t XcT = axmat_transpose(&Xc);
+    for (int pi = 0; pi < 3; pi++) {
+        axmat_t T = axmat_mul(&Xc, &Y);
+        tensor_free(Y.data);
+        Y.data = NULL;
+        axmat_t Y2 = axmat_mul(&XcT, &T);
+        axmat_destroy(&T);
+        Y = Y2;
+    }
+    axmat_destroy(&XcT);
+
+    /* QR via Gram-Schmidt */
+    axmat_t Q = axmat_create(d, k_eff);
+    if (!Q.data) { tensor_free(Y.data); axmat_destroy(&Xc); axpca_destroy(&pca); return pca; }
+    memcpy(Q.data, Y.data, (uint64_t)d * k_eff * sizeof(double));
+    tensor_free(Y.data); Y.data = NULL;
+    for (int j = 0; j < k_eff; j++) {
+        for (int jj = 0; jj < j; jj++) {
+            double dot = 0.0;
+            for (int i = 0; i < d; i++)
+                dot += Q.data[(uint64_t)i * k_eff + jj] * Q.data[(uint64_t)i * k_eff + j];
+            for (int i = 0; i < d; i++)
+                Q.data[(uint64_t)i * k_eff + j] -= dot * Q.data[(uint64_t)i * k_eff + jj];
+        }
+        double norm = 0.0;
+        for (int i = 0; i < d; i++) { double v = Q.data[(uint64_t)i * k_eff + j]; norm += v * v; }
+        if (norm > 1e-28) { double inv = 1.0 / sqrt(norm);
+            for (int i = 0; i < d; i++) Q.data[(uint64_t)i * k_eff + j] *= inv; }
+    }
+
+    /* B = Q^T Xc^T Xc Q */
+    axmat_t XcQ = axmat_mul(&Xc, &Q);
+    axmat_destroy(&Xc);
+    axmat_t Qt = axmat_transpose(&Q);
+    axmat_t B = axmat_mul(&Qt, &XcQ);
+    axmat_destroy(&Qt); axmat_destroy(&XcQ);
+    for (int i = 0; i < k_eff; i++)
+        for (int j = i + 1; j < k_eff; j++) {
+            double avg = 0.5 * (B.data[(uint64_t)i * k_eff + j] + B.data[(uint64_t)j * k_eff + i]);
+            B.data[(uint64_t)i * k_eff + j] = avg; B.data[(uint64_t)j * k_eff + i] = avg;
+        }
+    double *evals = (double *)tensor_alloc((uint64_t)k_eff * sizeof(double));
+    axmat_t U = axmat_create(k_eff, k_eff);
+    if (!evals || !U.data) { if (evals) tensor_free(evals); axmat_destroy(&U);
+        axmat_destroy(&B); axmat_destroy(&Q); axpca_destroy(&pca); return pca; }
+    axmat_symeig(&B, evals, &U); axmat_destroy(&B);
+    int keep = (k_max < k_eff) ? k_max : k_eff;
+    axmat_t Vt = axmat_create(keep, d);
+    if (!Vt.data) { tensor_free(evals); axmat_destroy(&U); axmat_destroy(&Q);
+        axpca_destroy(&pca); return pca; }
+    for (int i = 0; i < keep; i++)
+        for (int j = 0; j < d; j++) {
+            double val = 0.0;
+            for (int l = 0; l < k_eff; l++) val += Q.data[(uint64_t)j * k_eff + l] * U.data[(uint64_t)l * k_eff + i];
+            Vt.data[(uint64_t)i * d + j] = val;
+        }
+    axmat_destroy(&Q); axmat_destroy(&U);
+    pca.components = Vt; pca.eigenvalues = evals; pca.n_components = keep;
+    pca.explained_variance = 0.0;
+    for (int i = 0; i < keep; i++) pca.explained_variance += evals[i];
+    pca.mean_proj = (double *)tensor_alloc((uint64_t)keep * sizeof(double));
+    if (pca.mean_proj)
+        for (int i = 0; i < keep; i++) {
+            double dot = 0.0;
+            for (int j = 0; j < d; j++) dot += pca.components.data[(uint64_t)i * d + j] * pca.mean[j];
+            pca.mean_proj[i] = dot;
+        }
+    return pca;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Fast Weighted PCA — eigenvectors of Xc^T Xc K (data × weight gram)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+axpca_t axpca_compute_topk_weighted(
+    const axmat_t *X,
+    matvec_fn      K_apply,
+    void          *K_ctx,
+    int            k_max)
+{
+    if (!X || !X->data) {
+        axpca_t empty; memset(&empty, 0, sizeof(empty)); return empty;
+    }
+    int n = X->rows, d = X->cols;
+    if (k_max <= 0) k_max = (n < d ? n : d);
+
+    axpca_t pca; memset(&pca, 0, sizeof(pca)); pca.dim = d;
+    pca.mean = (double *)tensor_alloc((uint64_t)d * sizeof(double));
+    if (!pca.mean) return pca;
+    memset(pca.mean, 0, (uint64_t)d * sizeof(double));
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < d; j++)
+            pca.mean[j] += X->data[(uint64_t)i * d + j];
+    for (int j = 0; j < d; j++) pca.mean[j] /= (double)n;
+
+    axmat_t Xc = axmat_clone(X);
+    if (!Xc.data) { axpca_destroy(&pca); return pca; }
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < d; j++)
+            Xc.data[(uint64_t)i * d + j] -= pca.mean[j];
+
+    int oversampling = 10, k_eff = k_max + oversampling;
+    if (k_eff > d) k_eff = d;
+
+    double *Omega_data = (double *)tensor_alloc((uint64_t)d * k_eff * sizeof(double));
+    if (!Omega_data) { axmat_destroy(&Xc); axpca_destroy(&pca); return pca; }
+    uint64_t seed = 0xA1B2C3D4E5F60718ULL;
+    for (int i = 0; i < d * k_eff; i += 2) {
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        double u1 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        double u2 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+        double r = sqrt(-2.0 * log(u1)), th = 6.283185307179586476925 * u2;
+        Omega_data[i] = r * cos(th);
+        if (i + 1 < d * k_eff) Omega_data[i + 1] = r * sin(th);
+    }
+    axmat_t Y; memset(&Y, 0, sizeof(Y));
+    Y.data = Omega_data; Y.rows = d; Y.cols = k_eff;
+
+    float *x_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    float *y_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    if (!x_f32 || !y_f32) {
+        if (x_f32) tensor_free(x_f32); if (y_f32) tensor_free(y_f32);
+        tensor_free(Y.data); axmat_destroy(&Xc); axpca_destroy(&pca); return pca;
+    }
+    axmat_t XcT = axmat_transpose(&Xc);
+
+    /* Power iterations: Y <- Xc^T Xc K Y */
+    for (int pi = 0; pi < 3; pi++) {
+        axmat_t Z = axmat_create(d, k_eff);
+        if (!Z.data) break;
+        for (int j = 0; j < k_eff; j++) {
+            for (int i = 0; i < d; i++) x_f32[i] = (float)Y.data[(uint64_t)i * k_eff + j];
+            K_apply(x_f32, y_f32, d, K_ctx);
+            for (int i = 0; i < d; i++) Z.data[(uint64_t)i * k_eff + j] = (double)y_f32[i];
+        }
+        axmat_t T = axmat_mul(&Xc, &Z); axmat_destroy(&Z);
+        tensor_free(Y.data); Y.data = NULL;
+        axmat_t Y2 = axmat_mul(&XcT, &T); axmat_destroy(&T);
+        Y = Y2;
+    }
+    tensor_free(x_f32); tensor_free(y_f32);
+
+    /* QR via Gram-Schmidt Q[d × k_eff] */
+    axmat_t Q = axmat_create(d, k_eff);
+    if (!Q.data) { tensor_free(Y.data); axmat_destroy(&Xc); axmat_destroy(&XcT); axpca_destroy(&pca); return pca; }
+    memcpy(Q.data, Y.data, (uint64_t)d * k_eff * sizeof(double));
+    tensor_free(Y.data); Y.data = NULL;
+    for (int j = 0; j < k_eff; j++) {
+        for (int jj = 0; jj < j; jj++) {
+            double dot = 0.0;
+            for (int i = 0; i < d; i++)
+                dot += Q.data[(uint64_t)i * k_eff + jj] * Q.data[(uint64_t)i * k_eff + j];
+            for (int i = 0; i < d; i++)
+                Q.data[(uint64_t)i * k_eff + j] -= dot * Q.data[(uint64_t)i * k_eff + jj];
+        }
+        double norm = 0.0;
+        for (int i = 0; i < d; i++) { double v = Q.data[(uint64_t)i * k_eff + j]; norm += v * v; }
+        if (norm > 1e-28) { double inv = 1.0 / sqrt(norm);
+            for (int i = 0; i < d; i++) Q.data[(uint64_t)i * k_eff + j] *= inv; }
+    }
+    axmat_destroy(&Y);
+
+    /* B = Q^T Xc^T Xc K Q */
+    x_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    y_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    axmat_t KQ = axmat_create(d, k_eff);
+    if (!x_f32 || !y_f32 || !KQ.data) {
+        if (x_f32) tensor_free(x_f32); if (y_f32) tensor_free(y_f32);
+        axmat_destroy(&KQ); axmat_destroy(&Q); axmat_destroy(&Xc); axmat_destroy(&XcT);
+        axpca_destroy(&pca); return pca;
+    }
+    for (int j = 0; j < k_eff; j++) {
+        for (int i = 0; i < d; i++) x_f32[i] = (float)Q.data[(uint64_t)i * k_eff + j];
+        K_apply(x_f32, y_f32, d, K_ctx);
+        for (int i = 0; i < d; i++) KQ.data[(uint64_t)i * k_eff + j] = (double)y_f32[i];
+    }
+    tensor_free(x_f32); tensor_free(y_f32);
+    axmat_t T = axmat_mul(&Xc, &KQ); axmat_t XcT_T = axmat_mul(&XcT, &T);
+    axmat_destroy(&T); axmat_destroy(&XcT); axmat_destroy(&KQ); axmat_destroy(&Xc);
+    axmat_t Qt = axmat_transpose(&Q);
+    axmat_t B = axmat_mul(&Qt, &XcT_T);
+    axmat_destroy(&Qt); axmat_destroy(&XcT_T);
+    for (int i = 0; i < k_eff; i++)
+        for (int j = i + 1; j < k_eff; j++) {
+            double avg = 0.5 * (B.data[(uint64_t)i * k_eff + j] + B.data[(uint64_t)j * k_eff + i]);
+            B.data[(uint64_t)i * k_eff + j] = avg; B.data[(uint64_t)j * k_eff + i] = avg;
+        }
+    double *evals = (double *)tensor_alloc((uint64_t)k_eff * sizeof(double));
+    axmat_t U = axmat_create(k_eff, k_eff);
+    if (!evals || !U.data) { if (evals) tensor_free(evals); axmat_destroy(&U);
+        axmat_destroy(&B); axmat_destroy(&Q); axpca_destroy(&pca); return pca; }
+    axmat_symeig(&B, evals, &U); axmat_destroy(&B);
+    int keep = (k_max < k_eff) ? k_max : k_eff;
+    axmat_t Vt = axmat_create(keep, d);
+    if (!Vt.data) { tensor_free(evals); axmat_destroy(&U); axmat_destroy(&Q);
+        axpca_destroy(&pca); return pca; }
+    for (int i = 0; i < keep; i++)
+        for (int j = 0; j < d; j++) {
+            double val = 0.0;
+            for (int l = 0; l < k_eff; l++) val += Q.data[(uint64_t)j * k_eff + l] * U.data[(uint64_t)l * k_eff + i];
+            Vt.data[(uint64_t)i * d + j] = val;
+        }
+    axmat_destroy(&Q); axmat_destroy(&U);
+    pca.components = Vt; pca.eigenvalues = evals; pca.n_components = keep;
+    pca.explained_variance = 0.0;
+    for (int i = 0; i < keep; i++) pca.explained_variance += evals[i];
+    pca.mean_proj = (double *)tensor_alloc((uint64_t)keep * sizeof(double));
+    if (pca.mean_proj)
+        for (int i = 0; i < keep; i++) {
+            double dot = 0.0;
+            for (int j = 0; j < d; j++) dot += pca.components.data[(uint64_t)i * d + j] * pca.mean[j];
+            pca.mean_proj[i] = dot;
+        }
+    return pca;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Weight-only eigenvector basis (no calibration data needed)
+ *
+ * Finds top-k eigenvectors of K = Σ Wᵢ^T Wᵢ using matrix-free power
+ * iteration via K_apply.  This maximises sum_i ||Wᵢ Ptᵀ||_F^2 exactly,
+ * unlike axpca_compute_topk_weighted which finds eigenvectors of Xc^T Xc K
+ * (data-dominated when hidden-state covariance has large eigenvalue spread).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+axpca_t axpca_compute_weight_topk(
+    matvec_fn  K_apply,
+    void      *K_ctx,
+    int        d,
+    int        k_max)
+{
+    axpca_t pca; memset(&pca, 0, sizeof(pca));
+    if (!K_apply || d <= 0 || k_max <= 0) return pca;
+    pca.dim = d;
+    pca.mean = (double *)tensor_alloc((uint64_t)d * sizeof(double));
+    if (!pca.mean) return pca;
+    memset(pca.mean, 0, (uint64_t)d * sizeof(double));
+
+    int oversampling = 10, k_eff = k_max + oversampling;
+    if (k_eff > d) k_eff = d;
+
+    double *Y_data = (double *)tensor_alloc((uint64_t)d * k_eff * sizeof(double));
+    if (!Y_data) { axpca_destroy(&pca); return pca; }
+    {
+        uint64_t seed = 0xC3D4E5F6A1B20718ULL;
+        for (int i = 0; i < d * k_eff; i += 2) {
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+            double u1 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+            double u2 = (double)((seed >> 11) + 1) * (1.0 / 9007199254740992.0);
+            double r = sqrt(-2.0 * log(u1)), th = 6.283185307179586476925 * u2;
+            Y_data[i] = r * cos(th);
+            if (i + 1 < d * k_eff) Y_data[i + 1] = r * sin(th);
+        }
+    }
+    axmat_t Y; memset(&Y, 0, sizeof(Y));
+    Y.data = Y_data; Y.rows = d; Y.cols = k_eff;
+
+    float *x_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    float *y_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    if (!x_f32 || !y_f32) {
+        if (x_f32) tensor_free(x_f32); if (y_f32) tensor_free(y_f32);
+        tensor_free(Y.data); axpca_destroy(&pca); return pca;
+    }
+
+    /* Power iterations: Y <- K @ Y */
+    for (int pi = 0; pi < 3; pi++) {
+        axmat_t Z = axmat_create(d, k_eff);
+        if (!Z.data) break;
+        for (int j = 0; j < k_eff; j++) {
+            for (int i = 0; i < d; i++) x_f32[i] = (float)Y.data[(uint64_t)i * k_eff + j];
+            K_apply(x_f32, y_f32, d, K_ctx);
+            for (int i = 0; i < d; i++) Z.data[(uint64_t)i * k_eff + j] = (double)y_f32[i];
+        }
+        tensor_free(Y.data); Y.data = Z.data; Y.rows = Z.rows; Y.cols = Z.cols;
+    }
+    tensor_free(x_f32); x_f32 = NULL;
+    tensor_free(y_f32); y_f32 = NULL;
+
+    /* QR via Gram-Schmidt */
+    axmat_t Q = axmat_create(d, k_eff);
+    if (!Q.data) { tensor_free(Y.data); axpca_destroy(&pca); return pca; }
+    memcpy(Q.data, Y.data, (uint64_t)d * k_eff * sizeof(double));
+    tensor_free(Y.data); Y.data = NULL;
+    for (int j = 0; j < k_eff; j++) {
+        for (int jj = 0; jj < j; jj++) {
+            double dot = 0.0;
+            for (int i = 0; i < d; i++)
+                dot += Q.data[(uint64_t)i * k_eff + jj] * Q.data[(uint64_t)i * k_eff + j];
+            for (int i = 0; i < d; i++)
+                Q.data[(uint64_t)i * k_eff + j] -= dot * Q.data[(uint64_t)i * k_eff + jj];
+        }
+        double norm = 0.0;
+        for (int i = 0; i < d; i++) { double v = Q.data[(uint64_t)i * k_eff + j]; norm += v * v; }
+        if (norm > 1e-28) { double inv = 1.0 / sqrt(norm);
+            for (int i = 0; i < d; i++) Q.data[(uint64_t)i * k_eff + j] *= inv; }
+    }
+
+    /* B = Q^T K Q */
+    x_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    y_f32 = (float *)tensor_alloc((uint64_t)d * sizeof(float));
+    axmat_t KQ = axmat_create(d, k_eff);
+    if (!x_f32 || !y_f32 || !KQ.data) {
+        if (x_f32) tensor_free(x_f32); if (y_f32) tensor_free(y_f32);
+        axmat_destroy(&KQ); axmat_destroy(&Q); axpca_destroy(&pca); return pca;
+    }
+    for (int j = 0; j < k_eff; j++) {
+        for (int i = 0; i < d; i++) x_f32[i] = (float)Q.data[(uint64_t)i * k_eff + j];
+        K_apply(x_f32, y_f32, d, K_ctx);
+        for (int i = 0; i < d; i++) KQ.data[(uint64_t)i * k_eff + j] = (double)y_f32[i];
+    }
+    tensor_free(x_f32); tensor_free(y_f32);
+    axmat_t Qt = axmat_transpose(&Q);
+    axmat_t B = axmat_mul(&Qt, &KQ);
+    axmat_destroy(&Qt); axmat_destroy(&KQ);
+    for (int i = 0; i < k_eff; i++)
+        for (int j = i + 1; j < k_eff; j++) {
+            double avg = 0.5 * (B.data[(uint64_t)i * k_eff + j] + B.data[(uint64_t)j * k_eff + i]);
+            B.data[(uint64_t)i * k_eff + j] = avg; B.data[(uint64_t)j * k_eff + i] = avg;
+        }
+    double *evals = (double *)tensor_alloc((uint64_t)k_eff * sizeof(double));
+    axmat_t U = axmat_create(k_eff, k_eff);
+    if (!evals || !U.data) { if (evals) tensor_free(evals); axmat_destroy(&U);
+        axmat_destroy(&B); axmat_destroy(&Q); axpca_destroy(&pca); return pca; }
+    axmat_symeig(&B, evals, &U); axmat_destroy(&B);
+    int keep = (k_max < k_eff) ? k_max : k_eff;
+    axmat_t Vt = axmat_create(keep, d);
+    if (!Vt.data) { tensor_free(evals); axmat_destroy(&U); axmat_destroy(&Q);
+        axpca_destroy(&pca); return pca; }
+    for (int i = 0; i < keep; i++)
+        for (int j = 0; j < d; j++) {
+            double val = 0.0;
+            for (int l = 0; l < k_eff; l++) val += Q.data[(uint64_t)j * k_eff + l] * U.data[(uint64_t)l * k_eff + i];
+            Vt.data[(uint64_t)i * d + j] = val;
+        }
+    axmat_destroy(&Q); axmat_destroy(&U);
+    pca.components = Vt; pca.eigenvalues = evals; pca.n_components = keep;
+    pca.explained_variance = 0.0;
+    for (int i = 0; i < keep; i++) pca.explained_variance += evals[i];
+    pca.mean_proj = (double *)tensor_alloc((uint64_t)keep * sizeof(double));
+    if (pca.mean_proj) memset(pca.mean_proj, 0, (uint64_t)keep * sizeof(double));
+    return pca;
+}
+
 void axpca_project(const axpca_t *pca, const double *x_full, double *x_sub)
 {
     int d = pca->dim;

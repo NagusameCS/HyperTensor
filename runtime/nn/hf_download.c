@@ -206,8 +206,14 @@ static int winhttp_download(hf_download_ctx_t *ctx,
 
     for (;;) {
         DWORD bytes_read = 0;
-        if (!WinHttpReadData(hRequest, chunk, HF_CHUNK_SIZE, &bytes_read))
-            break;
+        if (!WinHttpReadData(hRequest, chunk, HF_CHUNK_SIZE, &bytes_read)) {
+            snprintf(ctx->error, sizeof(ctx->error),
+                     "WinHttpReadData failed at offset %llu (error %lu)",
+                     (unsigned long long)ctx->downloaded_bytes,
+                     (unsigned long)GetLastError());
+            free(chunk);
+            goto done;
+        }
         if (bytes_read == 0) break;
 
         if (fwrite(chunk, 1, bytes_read, fp) != bytes_read) {

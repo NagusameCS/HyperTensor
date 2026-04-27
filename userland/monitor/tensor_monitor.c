@@ -4,6 +4,9 @@
 
 #include "userland/monitor/tensor_monitor.h"
 #include "kernel/drivers/gpu/gpu.h"
+#ifdef GEODESSICAL_HOSTED
+#  include "runtime/nn/llm.h"
+#endif
 
 void monitor_init(tensor_monitor_t *mon)
 {
@@ -52,18 +55,18 @@ void monitor_tick(tensor_monitor_t *mon)
     if (kstate.gpu_count > 0) {
         s->gpu_util_percent = gpu_get_utilization(0);
         s->gpu_temp_celsius = gpu_get_temperature(0);
-        s->gpu_vram_used    = 0;  /* Per-GPU VRAM tracking not yet exposed */
-        s->gpu_vram_total   = 0;
-        s->gpu_power_watts  = gpu_get_power_watts(0);
+        s->gpu_vram_used    = gpu_get_vram_used(0);
+        s->gpu_vram_total   = gpu_get_vram_total(0);
+        s->gpu_power_mw     = gpu_get_power_mw(0);  /* mW precision: avoids sub-1W truncation */
         s->gpu_fan_percent  = 0;
     }
 
-    /* Cache hit rate: not yet tracked, report as unavailable */
-    if (kstate.tensor_ops_total > 0) {
-        s->cache_hit_rate = 0.0f;  /* Real cache tracking not yet implemented */
-    } else {
-        s->cache_hit_rate = 0.0f;
-    }
+    /* KV prefix-cache hit rate (tracked via llm_kv_snapshot restore calls) */
+#ifdef GEODESSICAL_HOSTED
+    s->cache_hit_rate = llm_kv_cache_hit_rate();
+#else
+    s->cache_hit_rate = 0.0f;  /* LLM not linked in kernel build */
+#endif
 
     mon->sample_cursor++;
     if (mon->sample_count < MONITOR_MAX_SAMPLES)
@@ -147,10 +150,10 @@ void monitor_print_dashboard(tensor_monitor_t *mon)
     /* GPU */
     if (kstate.gpu_count > 0) {
         kprintf("+--------------------------------------------------------------+\n");
-        kprintf("|  GPU #0: %dC  Util: %d%%  VRAM: %lu/%lu MB  Power: %dW     |\n",
+        kprintf("|  GPU #0: %dC  Util: %d%%  VRAM: %lu/%lu MB  Power: %.1fW     |\n",
                 s->gpu_temp_celsius, s->gpu_util_percent,
                 s->gpu_vram_used / (1024*1024), s->gpu_vram_total / (1024*1024),
-                s->gpu_power_watts);
+                (double)(s->gpu_power_mw / 1000.0f));
     }
 
     /* Alerts */

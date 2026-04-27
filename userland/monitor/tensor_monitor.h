@@ -45,7 +45,7 @@ typedef struct {
     uint32_t gpu_temp_celsius;
     uint64_t gpu_vram_used;
     uint64_t gpu_vram_total;
-    uint32_t gpu_power_watts;
+    float    gpu_power_mw;        /* milliwatts — float for sub-1W idle precision */
     uint32_t gpu_fan_percent;
 
     /* System-wide */

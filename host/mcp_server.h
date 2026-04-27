@@ -37,4 +37,19 @@ typedef int mcp_socket_t;
 int mcp_handle_request(mcp_socket_t sock, const char *method,
                        const char *body, int body_len);
 
+/* SSE streaming API — send server-initiated notifications */
+
+/* Send a progress update during tool execution.
+ * tokens_done: number of tokens generated so far
+ * tokens_total: total tokens to generate (0 if unknown)
+ * partial_text: partial generated text (may be NULL)
+ * Returns 0 on success, -1 if no SSE connection is active. */
+int mcp_sse_progress(int tokens_done, int tokens_total, const char *partial_text);
+
+/* Send a server notification to connected SSE clients.
+ * method: notification method name
+ * params_json: JSON parameters (may be NULL)
+ * Returns 0 on success, -1 if no SSE connection is active. */
+int mcp_sse_notify(const char *method, const char *params_json);
+
 #endif /* GD_MCP_SERVER_H */

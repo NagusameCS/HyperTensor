@@ -275,20 +275,57 @@ static inline void vec_scale_sse2(float *dst, float scale, int n)
 #endif  /* __AVX2__ */
 
 #else
-/* ARM64 NEON fallback */
+/* ARM64 NEON implementations */
+#include <arm_neon.h>
+
 static inline float dot_sse2(const float *a, const float *b, int n)
 {
-    float s = 0;
-    for (int i = 0; i < n; i++) s += a[i] * b[i];
+    float32x4_t acc0 = vdupq_n_f32(0.0f);
+    float32x4_t acc1 = vdupq_n_f32(0.0f);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float32x4_t va0 = vld1q_f32(a + i);
+        float32x4_t va1 = vld1q_f32(a + i + 4);
+        float32x4_t vb0 = vld1q_f32(b + i);
+        float32x4_t vb1 = vld1q_f32(b + i + 4);
+        acc0 = vmlaq_f32(acc0, va0, vb0);
+        acc1 = vmlaq_f32(acc1, va1, vb1);
+    }
+    for (; i + 4 <= n; i += 4)
+        acc0 = vmlaq_f32(acc0, vld1q_f32(a + i), vld1q_f32(b + i));
+    float s = vaddvq_f32(vaddq_f32(acc0, acc1));
+    for (; i < n; i++) s += a[i] * b[i];
     return s;
 }
+
 static inline void vec_scale_add_sse2(float *dst, const float *src, float scale, int n)
 {
-    for (int i = 0; i < n; i++) dst[i] += scale * src[i];
+    float32x4_t vs = vdupq_n_f32(scale);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float32x4_t d0 = vld1q_f32(dst + i);
+        float32x4_t d1 = vld1q_f32(dst + i + 4);
+        float32x4_t s0 = vld1q_f32(src + i);
+        float32x4_t s1 = vld1q_f32(src + i + 4);
+        vst1q_f32(dst + i,     vmlaq_f32(d0, s0, vs));
+        vst1q_f32(dst + i + 4, vmlaq_f32(d1, s1, vs));
+    }
+    for (; i + 4 <= n; i += 4)
+        vst1q_f32(dst + i, vmlaq_f32(vld1q_f32(dst + i), vld1q_f32(src + i), vs));
+    for (; i < n; i++) dst[i] += scale * src[i];
 }
+
 static inline void vec_scale_sse2(float *dst, float scale, int n)
 {
-    for (int i = 0; i < n; i++) dst[i] *= scale;
+    float32x4_t vs = vdupq_n_f32(scale);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        vst1q_f32(dst + i,     vmulq_f32(vld1q_f32(dst + i), vs));
+        vst1q_f32(dst + i + 4, vmulq_f32(vld1q_f32(dst + i + 4), vs));
+    }
+    for (; i + 4 <= n; i += 4)
+        vst1q_f32(dst + i, vmulq_f32(vld1q_f32(dst + i), vs));
+    for (; i < n; i++) dst[i] *= scale;
 }
 #endif
 
@@ -538,9 +575,11 @@ int flash_attn_decode_strided(
 
     int hd     = cfg->head_dim;
     int nh     = cfg->n_heads;
-    int nkv    = cfg->n_kv_heads;
-    kprintf("[DBG-FA] decode_strided: nh=%d nkv=%d hd=%d cache_len=%d\n", nh, nkv, hd, cache_len);
-    if (nkv <= 0) { kprintf("[DBG-FA] CRASH GUARD nkv=%d!\n", nkv); return -1; }
+    /* Derive nkv from the direct integer arg: kv_pos_stride = n_kv_heads * head_dim.
+     * cfg->n_kv_heads may be zero due to compiler SROA at -O2 keeping the struct
+     * field in a register and never writing it to the stack pointer we pass. */
+    int nkv    = (hd > 0) ? (kv_pos_stride / hd) : cfg->n_kv_heads;
+    if (nkv <= 0) return -1;
     int kv_rep = nh / nkv;
     float scale = cfg->scale;
 
@@ -548,10 +587,8 @@ int flash_attn_decode_strided(
      * Each head is independent — no shared mutable state between workers.
      * Fall back to sequential when only BSP is available or nh == 1. */
     uint32_t ncpu = smp.ap_started + 1;
-    kprintf("[DBG-FA] ncpu=%u kv_rep=%d\n", ncpu, kv_rep);
     if (ncpu > 1 && nh > 1) {
         int heads_per_cpu = (int)ncpu > 0 ? nh / (int)ncpu : nh;
-        kprintf("[DBG-FA] SMP path heads_per_cpu=%d\n", heads_per_cpu);
         int remainder     = nh % (int)ncpu;
         int h = 0;
 
@@ -587,9 +624,7 @@ int flash_attn_decode_strided(
         fa_work[0].h_start       = 0;
         fa_work[0].h_end         = bsp_end;
         flash_attn_smp_head_worker(&fa_work[0]);
-        kprintf("[DBG-FA] BSP worker done, waiting for APs...\n");
         smp_wait_all();
-        kprintf("[DBG-FA] all workers done\n");
         return 0;
     }
 

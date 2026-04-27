@@ -120,9 +120,19 @@ int gpu_detect_and_init(void)
                     gpu->pci_device = dev;
                     gpu->pci_function = func;
 
-                    /* Read BAR0 for MMIO */
+                    /* Read BAR0 for MMIO — handle 64-bit BARs (bits[2:1]==0b10).
+                     * PCI spec: if BAR type field == 0x2, BAR1 holds the upper 32 address bits.
+                     * All modern NVIDIA/AMD discrete GPUs use 64-bit BARs; reading only
+                     * BAR0 silently zeros the upper half and maps the wrong physical address. */
                     uint32_t bar0 = pci_read_bar(bus, dev, func, 0);
-                    gpu->mmio_base = (void *)(uint64_t)(bar0 & ~0xF);
+                    uint64_t mmio_base;
+                    if (((bar0 >> 1) & 0x3) == 0x2) { /* 64-bit BAR */
+                        uint32_t bar1 = pci_read_bar(bus, dev, func, 1);
+                        mmio_base = (bar0 & ~0xFU) | ((uint64_t)bar1 << 32);
+                    } else {
+                        mmio_base = bar0 & ~0xFU;
+                    }
+                    gpu->mmio_base = (void *)mmio_base;
 
                     /* Set name based on vendor */
                     switch (vendor) {
@@ -275,6 +285,18 @@ void gpu_vram_free(uint32_t gpu_id, void *ptr)
     }
 }
 
+uint64_t gpu_get_vram_used(uint32_t gpu_id)
+{
+    if (gpu_id >= gpu_count) return 0;
+    return gpu_vram[gpu_id].next_free;
+}
+
+uint64_t gpu_get_vram_total(uint32_t gpu_id)
+{
+    if (gpu_id >= gpu_count) return 0;
+    return (uint64_t)gpus[gpu_id].vram_mb * 1024 * 1024;
+}
+
 /* ---------------------------------------------------------------------------
  * DMA Copy (Host ↔ Device)
  * For real GPUs: programs the copy engine.  For QEMU with no GPU: memcpy.
@@ -363,11 +385,15 @@ gpu_cmd_queue_t *gpu_queue_create(uint32_t gpu_id, uint64_t size)
     return q;
 }
 
-/* Push a command word into the ring */
-static void pushbuf_push(uint32_t gpu_id, uint32_t word)
+/* Push a command word into the ring — returns 0 on success, -1 when full */
+static int pushbuf_push(uint32_t gpu_id, uint32_t word)
 {
-    if (gpu_queues[gpu_id].wp < GPU_PUSHBUF_SIZE)
-        gpu_queues[gpu_id].buf[gpu_queues[gpu_id].wp++] = word;
+    if (gpu_queues[gpu_id].wp >= GPU_PUSHBUF_SIZE) {
+        kprintf("[GPU %u] pushbuf overflow — command 0x%08x dropped\n", gpu_id, word);
+        return -1;
+    }
+    gpu_queues[gpu_id].buf[gpu_queues[gpu_id].wp++] = word;
+    return 0;
 }
 
 /* Submit and kick the GPU to process commands */
@@ -405,11 +431,13 @@ int gpu_queue_wait(gpu_cmd_queue_t *queue)
         /* Poll PGRAPH status until idle */
         for (int i = 0; i < 1000000; i++) {
             uint32_t status = gpu_mmio_read32(gpu, NV_PGRAPH_STATUS);
-            if (status == 0) break;
+            if (status == 0) goto done;
             __asm__ volatile ("pause");
         }
+        kprintf("[GPU %u] gpu_queue_wait timed out — possible GPU hang\n", gpu_id);
+        return -1;  /* timeout: GPU did not reach idle state */
     }
-
+done:
     /* Reset write pointer for next batch */
     gpu_queues[gpu_id].wp = 0;
     return 0;
@@ -637,10 +665,24 @@ uint32_t gpu_get_power_watts(uint32_t gpu_id)
 
     if (gpu->vendor_id == GPU_VENDOR_NVIDIA) {
         uint32_t raw = gpu_mmio_read32(gpu, NV_THERM_POWER);
-        /* Power reading in microwatts, convert to watts */
+        /* Power reading in microwatts, convert to watts (coarse — sub-1W readings become 0) */
         return raw / 1000000;
     }
     return 0;
+}
+
+float gpu_get_power_mw(uint32_t gpu_id)
+{
+    if (gpu_id >= gpu_count) return 0.0f;
+    struct gpu_info *gpu = &gpus[gpu_id];
+    if (!gpu->mmio_base) return 0.0f;
+
+    if (gpu->vendor_id == GPU_VENDOR_NVIDIA) {
+        uint32_t raw = gpu_mmio_read32(gpu, NV_THERM_POWER);
+        /* µW → mW: preserves sub-1W precision (e.g. 500 mW idle correctly reported as 500.0) */
+        return (float)raw / 1000.0f;
+    }
+    return 0.0f;
 }
 
 uint32_t gpu_get_utilization(uint32_t gpu_id)

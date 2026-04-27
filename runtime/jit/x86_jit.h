@@ -62,12 +62,46 @@ enum x86_gpr {
 #define YMM14 14
 #define YMM15 15
 
+/* ZMM register IDs (AVX-512 512-bit, same encoding as XMM/YMM) */
+#define ZMM0  0
+#define ZMM1  1
+#define ZMM2  2
+#define ZMM3  3
+#define ZMM4  4
+#define ZMM5  5
+#define ZMM6  6
+#define ZMM7  7
+#define ZMM8  8
+#define ZMM9  9
+#define ZMM10 10
+#define ZMM11 11
+#define ZMM12 12
+#define ZMM13 13
+#define ZMM14 14
+#define ZMM15 15
+#define ZMM16 16
+#define ZMM17 17
+#define ZMM18 18
+#define ZMM19 19
+#define ZMM20 20
+#define ZMM21 21
+#define ZMM22 22
+#define ZMM23 23
+#define ZMM24 24
+#define ZMM25 25
+#define ZMM26 26
+#define ZMM27 27
+#define ZMM28 28
+#define ZMM29 29
+#define ZMM30 30
+#define ZMM31 31
+
 /* =============================================================================
  * JIT Code Buffer
- * =============================================================================*/
+ * ============================================================================= */
 
 #define JIT_DEFAULT_CAP  8192
-#define JIT_MAX_CAP      (1 << 20)  /* 1 MB max */
+#define JIT_MAX_CAP      (1 << 20)  // 1 MB max
 
 typedef struct {
     uint8_t *code;      /* Executable code buffer */
@@ -272,6 +306,9 @@ jit_softmax_fn jit_compile_softmax_kernel(int n);
 /* Compile RoPE kernel for given head dimension */
 jit_rope_fn jit_compile_rope_kernel(int head_dim);
 
+/* Compile Gemma4-safe partial RoPE kernel (rope_dim may be < head_dim) */
+jit_rope_fn jit_compile_rope_partial_kernel(int rope_dim);
+
 /* Compile dot product kernel for given size */
 jit_dot_fn jit_compile_dot_kernel(int n);
 
@@ -311,6 +348,45 @@ jit_bpe_escape_scan_fn jit_compile_bpe_escape_scan_kernel(void);
 jit_find_byte_fn jit_compile_find_byte_kernel(void);
 jit_merge_cmp_fn jit_compile_merge_cmp_kernel(void);
 jit_token_append_fn jit_compile_token_append_kernel(void);
+
+/* =============================================================================
+ * JIT-TODO-1: Variable-Length Softmax with Bucketed Kernels
+ *
+ * Pre-compiles softmax kernels for common sequence lengths (64, 128, 256, 512,
+ * 1024, 2048, 4096) and dispatches to the appropriate kernel at runtime.
+ * Falls back to scalar implementation for sizes not in the bucket set.
+ * =============================================================================*/
+
+/* Variable-length softmax: dispatches to pre-compiled bucketed kernel */
+typedef void (*jit_softmax_var_fn)(float *x, int n);
+jit_softmax_var_fn jit_get_softmax_var_kernel(void);
+
+/* Initialize bucketed softmax kernels (call during JIT init) */
+void jit_init_softmax_buckets(void);
+
+/* =============================================================================
+ * JIT-TODO-4: Fused RMSNorm + Scale
+ *
+ * Combines RMSNorm normalization with QKV scale factor application in one pass.
+ * Saves one full dimension-pass per layer in pre-attention normalization.
+ * =============================================================================*/
+
+/* Fused RMSNorm+scale: out[i] = (x[i] / sqrt(mean(x^2)+eps)) * w[i] * scale */
+typedef void (*jit_rmsnorm_scale_fn)(float *out, const float *x, const float *w,
+                                      float scale, int dim);
+jit_rmsnorm_scale_fn jit_compile_rmsnorm_scale_kernel(int dim);
+
+/* =============================================================================
+ * JIT-TODO-5: Batched GEMV
+ *
+ * Supports batch_size > 1 decode for speculative drafting and batch inference.
+ * Processes multiple input vectors against the same weight matrix in one call.
+ * =============================================================================*/
+
+/* Batched GEMV: out[batch][rows] = W[rows × cols] · x[batch][cols] */
+typedef void (*jit_batched_gemv_fn)(float *out, const void *weight, const float *x,
+                                     int rows, int cols, int batch_size);
+jit_batched_gemv_fn jit_compile_batched_q8_gemv(int rows, int cols, int batch_size);
 
 /* =============================================================================
  * AVX2 VEX-Encoded Instructions (256-bit SIMD)
@@ -372,6 +448,9 @@ jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int rows, int cols);
 
 /* Compile AVX2 Q4_0×Q8_0 integer GEMV kernel */
 jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int rows, int cols);
+
+/* Compile AVX-512 Q8_0 GEMV kernel (16-wide, 4-row batched) */
+jit_gemv_q8_fn jit_compile_q8_gemv_avx512(int rows, int cols);
 
 /* Get number of JIT-compiled kernels cached */
 int jit_kernel_count(void);

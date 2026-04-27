@@ -12,6 +12,7 @@
  * =============================================================================*/
 
 #include "runtime/nn/transformer.h"
+#include "kernel/mm/tensor_mm.h"
 
 /* SSE2 vector type (4 floats, 16-byte aligned) */
 typedef float v4f __attribute__((vector_size(16)));

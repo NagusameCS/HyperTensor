@@ -169,6 +169,13 @@ CUDA_API void ck_gemv_dual_q4_0(
     const float *x,
     int out_dim, int in_dim);
 
+/* Fused dual Q8_0 GEMV: two outputs share the same input x and launch. */
+CUDA_API void ck_gemv_dual_q8_0(
+  float *out_a, float *out_b,
+  const void *W_a, const void *W_b,
+  const float *x,
+  int out_dim, int in_dim);
+
 /* Fused triple Q4_0 GEMV: Q+K+V in one kernel (shared Q8 quantization) */
 CUDA_API void ck_gemv_triple_q4_0(
     float *out_q, float *out_k, float *out_v,

@@ -79,6 +79,8 @@ typedef void     (*fn_rmsnorm_add)(float *, const float *, const float *, int, f
 typedef void     (*fn_gelu_mul)(float *, const float *, int);
 typedef void     (*fn_gemv_dual_q4_0)(float *, float *, const void *, const void *,
                                        const float *, int, int);
+typedef void     (*fn_gemv_dual_q8_0)(float *, float *, const void *, const void *,
+                                       const float *, int, int);
 typedef void     (*fn_gemv_triple_q4_0)(float *, float *, float *,
                                          const void *, const void *, const void *,
                                          const float *, int, int, int, int);
@@ -154,6 +156,7 @@ static struct {
     fn_rmsnorm_add  rmsnorm_add;
     fn_gelu_mul     gelu_mul;
     fn_gemv_dual_q4_0              gemv_dual_q4_0;
+    fn_gemv_dual_q8_0              gemv_dual_q8_0;
     fn_gemv_triple_q4_0            gemv_triple_q4_0;
     fn_fused_rmsnorm_triple_q4_0   fused_rmsnorm_triple_q4_0;
     fn_graph_op     graph_begin_capture;
@@ -271,6 +274,7 @@ static int cuda_load_library(void) {
     ck.rmsnorm_add = (fn_rmsnorm_add)LIB_SYM(ck.lib, "ck_rmsnorm_add");
     ck.gelu_mul    = (fn_gelu_mul)LIB_SYM(ck.lib, "ck_gelu_mul");
     ck.gemv_dual_q4_0              = (fn_gemv_dual_q4_0)LIB_SYM(ck.lib, "ck_gemv_dual_q4_0");
+    ck.gemv_dual_q8_0              = (fn_gemv_dual_q8_0)LIB_SYM(ck.lib, "ck_gemv_dual_q8_0");
     ck.gemv_triple_q4_0            = (fn_gemv_triple_q4_0)LIB_SYM(ck.lib, "ck_gemv_triple_q4_0");
     ck.fused_rmsnorm_triple_q4_0   = (fn_fused_rmsnorm_triple_q4_0)LIB_SYM(ck.lib, "ck_fused_rmsnorm_triple_q4_0");
     ck.graph_begin_capture = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_begin_capture");
@@ -472,6 +476,16 @@ int cuda_gemv_dual_q4_0(float *out_a, float *out_b,
                          const float *x, int out_dim, int in_dim) {
     if (ck.gemv_dual_q4_0) {
         ck.gemv_dual_q4_0(out_a, out_b, W_a, W_b, x, out_dim, in_dim);
+        return 1;
+    }
+    return 0;
+}
+
+int cuda_gemv_dual_q8_0(float *out_a, float *out_b,
+                         const void *W_a, const void *W_b,
+                         const float *x, int out_dim, int in_dim) {
+    if (ck.gemv_dual_q8_0) {
+        ck.gemv_dual_q8_0(out_a, out_b, W_a, W_b, x, out_dim, in_dim);
         return 1;
     }
     return 0;

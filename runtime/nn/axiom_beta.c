@@ -474,20 +474,26 @@ static void ott_hs_disk_save(int model_dim, int sink_layer)
     uint32_t fdim   = (uint32_t)model_dim;
     uint32_t flayer = (uint32_t)sink_layer;
     uint32_t fn     = (uint32_t)n;
-    fwrite(&magic,  4, 1, f);
-    fwrite(&fdim,   4, 1, f);
-    fwrite(&flayer, 4, 1, f);
-    fwrite(&fn,     4, 1, f);
+    if (fwrite(&magic,  4, 1, f) != 1) goto hs_write_err;
+    if (fwrite(&fdim,   4, 1, f) != 1) goto hs_write_err;
+    if (fwrite(&flayer, 4, 1, f) != 1) goto hs_write_err;
+    if (fwrite(&fn,     4, 1, f) != 1) goto hs_write_err;
 
     for (int i = 0; i < OTT_HS_CACHE_CAP; i++) {
         const ott_hs_entry_t *e = &ott_hs_cache[i];
         if (!e->data || e->layer != sink_layer || e->dim != model_dim) continue;
         int32_t tok = (int32_t)e->token_id;
-        fwrite(&tok,    4, 1, f);
-        fwrite(e->data, sizeof(float), (size_t)model_dim, f);
+        if (fwrite(&tok,    4, 1, f) != 1) goto hs_write_err;
+        if (fwrite(e->data, sizeof(float), (size_t)model_dim, f) != (size_t)model_dim) goto hs_write_err;
     }
     fclose(f);
     kprintf("[OTT-DISK] Saved %d hidden states to %s\n", n, OTT_HS_DISK_PATH);
+    return;
+
+hs_write_err:
+    fclose(f);
+    remove(OTT_HS_DISK_PATH);  /* delete partial/corrupt file so next load doesn't use garbage */
+    kprintf("[OTT-DISK] Write error — deleted partial %s\n", OTT_HS_DISK_PATH);
 }
 
 /* ── OTT helper: last-layer hidden state capture (with LRU cache + RMSNorm key) ─
@@ -572,23 +578,16 @@ static int ott_get_hidden_state(int token_id, int layer, float *out, int dim)
     bridge->mode = (bridge_mode_t)(bridge->mode | BRIDGE_MODE_CAP_ONCE);
     int prompt[1] = { token_id };
     int out_tok[2];
-    static int ott_fail_count = 0;
-    static int ott_gen_call_count = 0;
     /* continue_cache=1 when context snapshot is active: runs token at pos=n_ctx
      * (contextualized), not at pos=0 (uncontextualized raw embedding path).
      * This is critical for correct PCA-space positioning of the geodesic. */
     int continue_ctx = (ott_gen_ctx_n > 0) ? 1 : 0;
-    if (++ott_gen_call_count <= 3)
-        kprintf("[DBG-AB] llm_generate_tokens call #%d tok=%d layer=%d dim=%d continue=%d\n",
-                ott_gen_call_count, token_id, resolved_layer, dim, continue_ctx);
     int gen_rc = llm_generate_tokens(prompt, 1, out_tok, 2, 1, 0.0f, continue_ctx);
-    if (ott_gen_call_count <= 3)
-        kprintf("[DBG-AB] llm_generate_tokens call #%d returned %d\n", ott_gen_call_count, gen_rc);
     int ok = (gen_rc >= 0) && bridge->capture_buf.valid &&
              bridge->capture_buf.data && bridge->capture_buf.dim >= dim;
-    if (!ok && ++ott_fail_count <= 3)
-        kprintf("[OTT-HS] FAIL call #%d: gen_rc=%d valid=%d dim=%d need=%d\n",
-                ott_fail_count, gen_rc, (int)bridge->capture_buf.valid,
+    if (!ok)
+        kprintf("[OTT-HS] hidden-state capture failed: tok=%d layer=%d gen_rc=%d valid=%d dim_got=%d need=%d\n",
+                token_id, resolved_layer, gen_rc, (int)bridge->capture_buf.valid,
                 bridge->capture_buf.dim, dim);
     /* Restore context snapshot if available; otherwise reset cache.
      * Use restore_and_prime so the next speculative verifier call can skip
@@ -623,6 +622,25 @@ static int ott_get_hidden_state(int token_id, int layer, float *out, int dim)
  * Probes n_probe uniformly-spaced tokens at each candidate layer.
  * Computes mean pairwise cosine similarity; layer with max = depth sink.
  * Writes result to ott_depth_sink_layer. */
+/* Crash-resilient checkpoint for depth-sink detection.
+ * Saved after each candidate; loaded on restart to skip already-computed ones.
+ * Format: magic(4) + n_layers(4) + n_done(4) + {lyr(4) + mean_cos(f32)} × n_done */
+#define OTT_SINK_PROG_MAGIC 0x534E4B50U  /* 'SNKP' */
+#define OTT_SINK_PROG_PATH  "ott_depth_sink_progress.bin"
+
+static void ott_sink_checkpoint_save(int n_layers, int *lyrs, float *coss, int n)
+{
+    FILE *f = fopen(OTT_SINK_PROG_PATH, "wb");
+    if (!f) return;
+    uint32_t m = OTT_SINK_PROG_MAGIC, nl = (uint32_t)n_layers, nd = (uint32_t)n;
+    fwrite(&m, 4, 1, f); fwrite(&nl, 4, 1, f); fwrite(&nd, 4, 1, f);
+    for (int i = 0; i < n; i++) {
+        int32_t l = lyrs[i];
+        fwrite(&l, 4, 1, f); fwrite(&coss[i], 4, 1, f);
+    }
+    fclose(f);
+}
+
 static void ott_detect_depth_sink(uint64_t *seed)
 {
     /* Skip detection if already loaded from geometry cache */
@@ -648,8 +666,49 @@ static void ott_detect_depth_sink(uint64_t *seed)
     int    best_layer = n_layers - 1;
     double best_score = 2.0;  /* invert: seek MINIMUM pairwise-cos (most diverse layer) */
 
+    /* ── Checkpoint resume ───────────────────────────────────────────────────
+     * Load previously saved progress so a crash mid-detection doesn't restart
+     * from scratch.  Replays saved candidates to restore best_layer/best_score. */
+    int   cp_lyrs[16]; float cp_coss[16]; int n_cp = 0;
+    {
+        FILE *cpf = fopen(OTT_SINK_PROG_PATH, "rb");
+        if (cpf) {
+            uint32_t m = 0, nl = 0, nd = 0;
+            if (fread(&m, 4, 1, cpf) == 1 && m == OTT_SINK_PROG_MAGIC &&
+                fread(&nl, 4, 1, cpf) == 1 && (int)nl == n_layers &&
+                fread(&nd, 4, 1, cpf) == 1 && nd <= 16) {
+                for (uint32_t i = 0; i < nd; i++) {
+                    int32_t cl = 0; float cf = 0.0f;
+                    if (fread(&cl, 4, 1, cpf) != 1 || fread(&cf, 4, 1, cpf) != 1) break;
+                    cp_lyrs[n_cp] = cl; cp_coss[n_cp] = cf; n_cp++;
+                }
+            }
+            fclose(cpf);
+            if (n_cp > 0)
+                kprintf("[OTT-SINK] Resuming from checkpoint: %d/%d candidates done\n",
+                        n_cp, n_cands);
+        }
+    }
+    /* Replay checkpointed results into best_layer/best_score */
+    for (int ci = 0; ci < n_cp; ci++) {
+        kprintf("[OTT-SINK] (resume) layer=%d mean_pairwise_cos=%.4f\n",
+                cp_lyrs[ci], cp_coss[ci]);
+        if (cp_coss[ci] < (float)best_score && cp_coss[ci] > 0.05f) {
+            best_score = cp_coss[ci];
+            best_layer = cp_lyrs[ci];
+        }
+    }
+
     for (int ci = 0; ci < n_cands; ci++) {
         int lyr = cands[ci];
+
+        /* Skip candidates already loaded from checkpoint */
+        int already_done = 0;
+        for (int k = 0; k < n_cp; k++) {
+            if (cp_lyrs[k] == lyr) { already_done = 1; break; }
+        }
+        if (already_done) continue;
+
         /* Sample n_probe uniformly-spaced vocab tokens.
          * On failure try up to 4 consecutive alternates in the same block. */
         int got = 0;
@@ -694,8 +753,15 @@ static void ott_detect_depth_sink(uint64_t *seed)
             best_score = mean_cos;
             best_layer = lyr;
         }
+
+        /* Save checkpoint after each candidate so crashes can resume */
+        if (n_cp < 16) { cp_lyrs[n_cp] = lyr; cp_coss[n_cp] = (float)mean_cos; n_cp++; }
+        ott_sink_checkpoint_save(n_layers, cp_lyrs, cp_coss, n_cp);
     }
     tensor_free(hs);
+
+    /* Detection complete — remove progress file (result persists in geometry.bin) */
+    remove(OTT_SINK_PROG_PATH);
 
     ott_depth_sink_layer = best_layer;
     kprintf("[OTT-SINK] best-diversity layer=%d (mean_cos=%.4f, %d candidates tested)\n",
@@ -842,6 +908,44 @@ int axiom_beta_probe_all_layer_states(int token_id, float *out_per_layer,
     }
 
     return 0;
+}
+
+int axiom_beta_probe_all_ffn_states(int token_id, float *out_per_layer,
+                                    int *out_valid, int n_layers, int ff_dim)
+{
+    if (!out_per_layer || !out_valid || n_layers <= 0 || ff_dim <= 0) return -1;
+
+    for (int i = 0; i < n_layers; i++) out_valid[i] = 0;
+
+    tensor_bridge_t *bridge = llm_get_bridge();
+    if (!bridge) return -1;
+    tensor_bridge_init(bridge);
+    tensor_bridge_set_ffn_capture(bridge, out_per_layer, out_valid, n_layers, ff_dim);
+    bridge->mode = (bridge_mode_t)(bridge->mode | BRIDGE_MODE_CAP_ONCE);
+
+    if (ott_gen_ctx_n > 0) {
+        int snap_ok = llm_kv_restore_prefix(ott_gen_ctx_tokens, ott_gen_ctx_n);
+        if (snap_ok < 0) ott_gen_ctx_n = 0;
+    }
+    if (!ott_gen_ctx_n) llm_reset_cache();
+
+    int prompt[1] = { token_id };
+    int out_tok[2];
+    int continue_ctx = (ott_gen_ctx_n > 0) ? 1 : 0;
+    int gen_rc = llm_generate_tokens(prompt, 1, out_tok, 2, 1, 0.0f, continue_ctx);
+
+    if (ott_gen_ctx_n > 0)
+        llm_kv_restore_and_prime(ott_gen_ctx_tokens, ott_gen_ctx_n);
+    else
+        llm_reset_cache();
+
+    bridge->mode = BRIDGE_MODE_NONE;
+    bridge->ffn_cap_bufs  = NULL;
+    bridge->ffn_cap_valid = NULL;
+    bridge->ffn_cap_n     = 0;
+    bridge->ffn_cap_dim   = 0;
+
+    return (gen_rc < 0) ? -1 : 0;
 }
 
 /* Phase 3 geometry â€” retained for Phase 5 geodesic pilot */
@@ -1369,6 +1473,14 @@ static int phase1_manifold(const axiom_beta_config_t *cfg,
             for (int j = 0; j < dim; j++)
                 X.data[i * dim + j] = (double)emb_f32[j];
         }
+        /* Incremental crash-resilience: flush HS cache to disk every 32 samples.
+         * On a restart the disk load (called after depth-sink) pre-warms the
+         * LRU so these forward passes become cache hits and are skipped. */
+        if (((i + 1) % 32) == 0 && ott_depth_sink_layer >= 0) {
+            kprintf("[AXIOM-P1] Progress: %d/%d samples (%.0f%%)\n",
+                    i + 1, n_samples, (i + 1) * 100.0 / n_samples);
+            ott_hs_disk_save(dim, ott_depth_sink_layer);
+        }
     }
 
     tensor_free(emb_f32);
@@ -1628,6 +1740,12 @@ static int phase3_curvature(const axiom_beta_config_t *cfg,
     if (id_est < sub_dim) sub_dim = id_est;
     if (sub_dim > 128) sub_dim = 128;
     if (sub_dim <= 0) sub_dim = 16;
+    /* Floor sub_dim proportional to model_dim: prevents manifold degeneracy on
+     * small-hidden models (e.g. SmolLM2 dim=576 → TwoNN id_est≈22, floor=36).
+     * Without this floor, the 22-D curvature subspace collapses cosine distance
+     * among vocab embeddings → GRC compression produces repetitive output. */
+    { int _floor = r->model_dim / 16; if (_floor < 16) _floor = 16;
+      if (sub_dim < _floor) sub_dim = _floor; }
 
     int dim   = r->model_dim;
     int vocab = r->model_vocab;
@@ -1642,6 +1760,17 @@ static int phase3_curvature(const axiom_beta_config_t *cfg,
     /* Build metric tensor field by computing local covariance at N sample
      * points in PCA subspace.  Each metric is the covariance of k nearest
      * embedding vectors projected to the subspace. */
+
+    /* sub_dim cannot exceed the number of PCA components we actually have.
+     * The model_dim/16 floor may push sub_dim above pca_full when Phase 1
+     * only keeps a small number of components (e.g. 5 from 32 calib samples).
+     * k_local, n_mp, and n_total_samples are computed from sub_dim below, so
+     * this cap must come first to keep all downstream sizes consistent. */
+    {
+        int pca_avail = phase1_pca.n_components;
+        if (sub_dim > pca_avail) sub_dim = pca_avail;
+        if (sub_dim <= 0) { r->phase3_us = hal_timer_us() - t0; return -1; }
+    }
 
     /* Todo 22: block-partitioned sampling with adaptive k_local.
      * k_local must exceed sub_dim for non-degenerate local covariance.
@@ -2275,7 +2404,7 @@ static int phase4_axioms(const axiom_beta_config_t *cfg,
                 /* Update candidate confidence with Bayesian update:
                  * posterior âˆ prior Ã— likelihood */
                 double prior = candidates[best].confidence;
-                candidates[best].confidence = 0.7 * prior + 0.3 * evidence;
+                candidates[best].confidence = 0.5 * prior + 0.5 * evidence;  /* 50/50: evidence can overcome stale prior */
                 candidates[best].info_gain = fabs(evidence - prior);
                 total_info_gain += candidates[best].info_gain;
                 oracle_calls++;
@@ -2286,12 +2415,14 @@ static int phase4_axioms(const axiom_beta_config_t *cfg,
     if (emb1) tensor_free(emb1);
     if (emb2) tensor_free(emb2);
 
-    /* Phase 4.3: Accept candidates above threshold */
+    /* Phase 4.3: Accept candidates above threshold.
+     * Lowered from 0.65 to 0.55 — the prior-heavy Bayesian update rarely
+     * drove confidence above 0.65 even for valid axioms (Phi axiom_count=0). */
     int accepted = 0;
     double consistency_sum = 0.0;
 
     for (int i = 0; i < n_candidates; i++) {
-        if (candidates[i].confidence > 0.65) {
+        if (candidates[i].confidence > 0.55) {
             candidates[i].accepted = 1;
             accepted++;
             consistency_sum += candidates[i].confidence;
@@ -2299,9 +2430,10 @@ static int phase4_axioms(const axiom_beta_config_t *cfg,
     }
 
     /* Deduplicate: unique axiom count = accepted / redundancy_factor
-     * (many candidates encode the same geometric fact) */
+     * (changed from /4 to /2 — previous factor was too aggressive,
+     * collapsing 8 valid candidates into 2 when 4 was the real count). */
     int unique_axioms = clamp_i(
-        accepted / 4,
+        accepted / 2,
         4,
         r->phase1.intrinsic_dim > 0 ? r->phase1.intrinsic_dim * 2 : 32);
 
@@ -3432,16 +3564,45 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
 
     memset(report, 0, sizeof(*report));
     seed = cfg->seed ? cfg->seed : 0xA110CAFEBEEFULL; /* seed before any RNG use */
-    kprintf("[DBG-AB] axiom_beta_run entry: n_layers=%d dim=%d vocab=%d n_kv=%d n_heads=%d\n",
-            llm_model_layers(), llm_model_dim(), llm_model_vocab(),
-            llm_get_model() ? llm_get_model()->n_kv_heads : -1,
-            llm_get_model() ? llm_get_model()->n_heads    : -1);
-    ott_hs_cache_flush(); /* reset hidden-state cache each run */
-    ott_depth_sink_layer = -1; /* reset so detection re-runs for this model */
-    kprintf("[DBG-AB] calling ott_detect_depth_sink...\n");
+    /* Peek geometry cache header to recover saved sink_layer — avoids 128
+     * LLM forward calls for depth-sink detection when cache is valid. */
+    {
+        int _peek_sink = -1;
+        FILE *_gf = fopen("ott_geometry.bin", "rb");
+        if (_gf) {
+            uint64_t _m = 0; int _v = 0, _sd = 0, _np = 0, _md = 0;
+            if (fread(&_m,  8, 1, _gf) == 1 && fread(&_v,  4, 1, _gf) == 1 &&
+                fread(&_sd, 4, 1, _gf) == 1 && fread(&_np, 4, 1, _gf) == 1 &&
+                fread(&_md, 4, 1, _gf) == 1 && fread(&_peek_sink, 4, 1, _gf) == 1 &&
+                _m == 0x4F54544743454F00ULL && _md == llm_model_dim() &&
+                _peek_sink >= 0 && _peek_sink < llm_model_layers())
+                ott_depth_sink_layer = _peek_sink;
+            else
+                ott_depth_sink_layer = -1;
+            fclose(_gf);
+        } else {
+            ott_depth_sink_layer = -1;
+        }
+    }
+    /* Flush the in-memory hidden-state LRU only when the model or sink layer
+     * changed since the last run.  On multi-turn sessions where the geometry
+     * was loaded from disk (same model dim + same sink layer), the warm LRU
+     * built during the previous turn is still valid — reusing it avoids
+     * O(n_probe) forward passes in Phase 5.  Always flush on the first run
+     * (hs_flush_last_sink == -2) or when the sink layer is unknown. */
+    {
+        static int hs_flush_last_sink = -2;  /* -2 = never initialized */
+        static int hs_flush_last_dim  = 0;
+        int cur_dim = llm_model_dim();
+        if (ott_depth_sink_layer != hs_flush_last_sink || cur_dim != hs_flush_last_dim) {
+            ott_hs_cache_flush();
+            hs_flush_last_sink = ott_depth_sink_layer;
+            hs_flush_last_dim  = cur_dim;
+        }
+        /* else: reuse warm LRU from prior turn — same model, same sink layer */
+    }
     ott_detect_depth_sink(&seed); /* Todo 25: find most informative layer */
-    kprintf("[DBG-AB] ott_detect_depth_sink done, sink_layer=%d\n", ott_depth_sink_layer);
-    ott_hs_cache_flush(); /* flush cache populated during depth-sink probe */
+    ott_hs_cache_flush(); /* flush probe artifacts from depth-sink scan */
     /* Todo 26: load disk-persistent HS cache — warm LRU before Phase 1/3/5 */
     if (ott_depth_sink_layer >= 0)
         ott_hs_disk_load(llm_model_dim(), ott_depth_sink_layer);
@@ -3593,6 +3754,10 @@ axiom_beta_status_t axiom_beta_run(const axiom_beta_config_t *cfg,
             report->phase1.pca_components_kept,
             report->phase1.explained_ratio * 100.0,
             (double)report->phase1_us / 1000.0);
+        /* Final authoritative HS disk save after Phase 1 — ensures a restart
+         * after a Phase 2/3 crash doesn't redo the expensive Phase 1 forward passes. */
+        if (ott_depth_sink_layer >= 0)
+            ott_hs_disk_save(report->model_dim, ott_depth_sink_layer);
 
         /* Vocab PCA index: build (or load from disk) after Phase 1 PCA is ready */
         {
@@ -4623,7 +4788,7 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
                     /* vel = PCA(T0_embedding) - pos */
                     if (hs_pos_ok && llm_get_embedding_vec(p_best, e_f, dim) == 0) {
                         for (int j = 0; j < dim; j++) e_d[j] = (double)e_f[j];
-                        double t0_pca[64];
+                        double t0_pca[128]; /* n_components capped at 128 */
                         axpca_project(&phase1_pca, e_d, t0_pca);
                         for (int j = 0; j < k; j++) vel[j] = t0_pca[j] - pos[j];
                         /* Normalise velocity */
@@ -4688,7 +4853,7 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
             if (gv != gv || gv > 1e20 || gv < -1e20) gamma_bad = 1;
         }
         /* k1: acceleration at current position (Christoffel acts on k_geo dims) */
-        double acc_k1[64]; /* k_pca ≤ 64 in practice */
+        double acc_k1[128]; /* k_geo ≤ 128 (n_components cap) */
         memset(acc_k1, 0, sizeof(acc_k1));
         for (int alpha = 0; alpha < k_geo; alpha++) {
             double a = 0.0;
@@ -4704,7 +4869,7 @@ axiom_beta_status_t axiom_beta_geodesic_rollout(const int *context_tokens,
         }
         /* k2: acceleration at midpoint */
         axgeo_christoffel_interpolate(&phase3_ch, &phase3_mf, pos_mid, gamma_m);
-        double acc_k2[64];
+        double acc_k2[128];
         memset(acc_k2, 0, sizeof(acc_k2));
         for (int alpha = 0; alpha < k_geo; alpha++) {
             double a = 0.0;
@@ -4906,10 +5071,13 @@ axiom_beta_status_t axiom_beta_grc_feedback(const int *context_tokens,
     for (int i = 0; i < dim; i++) e_d[i] = (double)e_f[i];
     axpca_project(&phase1_pca, e_d, q_correct);
 
-    /* J = identity (first-order hint: no curvature correction needed here,
-     * the GRC lookup will still benefit from the directional record) */
+    /* J = 0 (zero-order record): lookup always returns exactly q_correct regardless
+     * of query displacement.  With J=I the lookup computes x_end = q_correct +
+     * J·(q_fwd - q_curr) = q_correct + (q_fwd - q_curr), which steers the rollout
+     * trajectory AWAY from q_correct by the query offset.  J=0 gives x_end = q_correct
+     * always, so the rollout velocity update becomes vel = 0.9*(q_correct - pos) + 0.1*vel
+     * which is the correct gradient step toward the stored correction. */
     for (int i = 0; i < k * k; i++) J_eye[i] = 0.0;
-    for (int i = 0; i < k; i++) J_eye[i * k + i] = 1.0;
 
     /* Injectivity radius from curvature */
     double rho = axgeo_estimate_injectivity_radius(

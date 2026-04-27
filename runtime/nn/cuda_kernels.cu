@@ -2057,6 +2057,45 @@ __global__ void kernel_gemv_dual_q4_0(
     }
 }
 
+/* Fused dual Q8_0 GEMV: computes two output vectors with shared x load/launch.
+ * Useful for GP K/V projected decode where both matrices read the same x_sub. */
+__global__ void kernel_gemv_dual_q8_0(
+    float       *out_a,
+    float       *out_b,
+    const void  *W_a,
+    const void  *W_b,
+    const float *x,
+    int          out_dim,
+    int          in_dim)
+{
+    int warp_id = threadIdx.x >> 5;
+    int lane    = threadIdx.x & 31;
+    int row     = blockIdx.x * 8 + warp_id;
+    if (row >= out_dim) return;
+
+    int n_blocks = in_dim / 32;
+
+    const struct q8_0_block *ba =
+        (const struct q8_0_block *)W_a + (int64_t)row * n_blocks;
+    const struct q8_0_block *bb =
+        (const struct q8_0_block *)W_b + (int64_t)row * n_blocks;
+
+    float sum_a = 0.0f;
+    float sum_b = 0.0f;
+    for (int b = 0; b < n_blocks; b++) {
+        const float xv = x[b * 32 + lane];
+        sum_a += fp16_to_f32(ba[b].d) * (float)ba[b].qs[lane] * xv;
+        sum_b += fp16_to_f32(bb[b].d) * (float)bb[b].qs[lane] * xv;
+    }
+
+    sum_a = warp_reduce_sum(sum_a);
+    sum_b = warp_reduce_sum(sum_b);
+    if (lane == 0) {
+        out_a[row] = sum_a;
+        out_b[row] = sum_b;
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Fused RMSNorm + Triple Q4_0 GEMV (GPU)
  *
@@ -3059,6 +3098,17 @@ CUDA_API void ck_gemv_dual_q4_0(
     int smem = in_dim + nb * 8;
     int grid = (out_dim + 7) / 8;
     kernel_gemv_dual_q4_0<<<grid, 256, smem, stream_compute>>>(
+        out_a, out_b, W_a, W_b, x, out_dim, in_dim);
+}
+
+CUDA_API void ck_gemv_dual_q8_0(
+    float *out_a, float *out_b,
+    const void *W_a, const void *W_b,
+    const float *x,
+    int out_dim, int in_dim)
+{
+    int grid = (out_dim + 7) / 8;
+    kernel_gemv_dual_q8_0<<<grid, 256, 0, stream_compute>>>(
         out_a, out_b, W_a, W_b, x, out_dim, in_dim);
 }
 

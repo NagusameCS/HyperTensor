@@ -6,14 +6,14 @@
  */
 
 #define _CRT_SECURE_NO_WARNINGS
-#include "mcp_server.h"
-#include "hal.h"
-#include "../runtime/nn/llm.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
+#include "mcp_server.h"
+#include "hal.h"
+#include "../runtime/nn/llm.h"
 
 #ifdef _WIN32
 #  include <winsock2.h>
@@ -543,24 +543,139 @@ static void handle_ping(mcp_socket_t sock, const jsonrpc_id_t *id) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * SSE (Server-Sent Events) Stream Implementation
+ *
+ * GET /mcp establishes a persistent SSE connection for server-initiated
+ * notifications. This enables the server to push events to clients in
+ * real-time without polling.
+ *
+ * Event types:
+ *   ping       – Keep-alive heartbeat (every 30s)
+ *   progress   – Generation progress updates during tool execution
+ *   notify     – Server-initiated notifications
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* SSE connection state */
+static volatile int g_sse_active = 0;
+static mcp_socket_t g_sse_socket = -1;
+
+/* Send an SSE event with the given type and data */
+static int sse_send_event(mcp_socket_t sock, const char *event_type,
+                          const char *data) {
+    if (sock < 0) return -1;
+    
+    char buf[4096];
+    int len = snprintf(buf, sizeof(buf),
+                       "event: %s\n"
+                       "data: %s\n\n",
+                       event_type, data);
+    if (len < 0 || len >= (int)sizeof(buf)) return -1;
+    
+    int sent = sock_send(sock, buf, len);
+    return (sent == len) ? 0 : -1;
+}
+
+/* Send an SSE ping (keep-alive) */
+static int sse_send_ping(mcp_socket_t sock) {
+    char data[128];
+    snprintf(data, sizeof(data),
+             "{\"type\":\"ping\",\"timestamp\":%lu}",
+             (unsigned long)time(NULL));
+    return sse_send_event(sock, "ping", data);
+}
+
+/* Send a progress update */
+int mcp_sse_progress(int tokens_done, int tokens_total, const char *partial_text) {
+    if (!g_sse_active || g_sse_socket < 0) return -1;
+    
+    char data[2048];
+    int p = 0;
+    p = ja(data, p, sizeof(data), "{\"type\":\"progress\",");
+    p = ja_ki(data, p, sizeof(data), "tokensDone", tokens_done);
+    p = ja(data, p, sizeof(data), ",");
+    p = ja_ki(data, p, sizeof(data), "tokensTotal", tokens_total);
+    if (partial_text && *partial_text) {
+        p = ja(data, p, sizeof(data), ",");
+        p = ja_kv(data, p, sizeof(data), "text", partial_text);
+    }
+    p = ja(data, p, sizeof(data), "}");
+    data[p] = '\0';
+    
+    return sse_send_event(g_sse_socket, "progress", data);
+}
+
+/* Send a server notification */
+int mcp_sse_notify(const char *method, const char *params_json) {
+    if (!g_sse_active || g_sse_socket < 0) return -1;
+    
+    char data[2048];
+    int p = 0;
+    p = ja(data, p, sizeof(data), "{\"jsonrpc\":\"2.0\",\"method\":");
+    p = ja_str_val(data, p, sizeof(data), method);
+    if (params_json && *params_json) {
+        p = ja(data, p, sizeof(data), ",\"params\":");
+        p = ja(data, p, sizeof(data), params_json);
+    }
+    p = ja(data, p, sizeof(data), "}");
+    data[p] = '\0';
+    
+    return sse_send_event(g_sse_socket, "notify", data);
+}
+
+/* Close the SSE connection */
+static void sse_close(void) {
+    g_sse_active = 0;
+    g_sse_socket = -1;
+}
+
+/* Handle GET /mcp - establish SSE connection */
+static int handle_sse_stream(mcp_socket_t sock) {
+    /* Send SSE headers */
+    const char *headers =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/event-stream\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Connection: keep-alive\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "\r\n";
+    
+    int hlen = (int)strlen(headers);
+    if (sock_send(sock, headers, hlen) != hlen) {
+        return -1;
+    }
+    
+    /* Register as active SSE connection */
+    g_sse_socket = sock;
+    g_sse_active = 1;
+    
+    /* Send initial connection event */
+    char init_data[256];
+    snprintf(init_data, sizeof(init_data),
+             "{\"type\":\"connected\",\"server\":\"%s\",\"version\":\"%s\"}",
+             MCP_SERVER_NAME, MCP_SERVER_VERSION);
+    sse_send_event(sock, "init", init_data);
+    
+    /* Send initial ping */
+    sse_send_ping(sock);
+    
+    return 0;  /* Connection stays open for future events */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Main MCP request dispatcher
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int mcp_handle_request(mcp_socket_t sock, const char *method,
                        const char *body, int body_len) {
 
-    /* GET /mcp — SSE stream endpoint (not yet implemented, return empty) */
+    /* GET /mcp — SSE stream endpoint for server-initiated notifications */
     if (strcmp(method, "GET") == 0) {
-        /* For now, return 405 — full SSE streaming is a future enhancement.
-         * The Streamable HTTP transport works with POST-only for request/response. */
-        const char *err = "{\"jsonrpc\":\"2.0\",\"id\":null,"
-                          "\"error\":{\"code\":-32600,\"message\":\"GET SSE not supported yet\"}}";
-        send_http(sock, 405, "application/json", err, (int)strlen(err));
-        return 0;
+        return handle_sse_stream(sock);
     }
 
     /* DELETE /mcp — session termination */
     if (strcmp(method, "DELETE") == 0) {
+        sse_close();  /* Close any active SSE connection */
         llm_reset_cache();
         send_http(sock, 200, "application/json",
                   "{\"status\":\"session terminated\"}", 33);

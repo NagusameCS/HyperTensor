@@ -114,6 +114,9 @@ void cuda_gelu_mul(float *a, const float *b, int n);
 int cuda_gemv_dual_q4_0(float *out_a, float *out_b,
                          const void *W_a, const void *W_b,
                          const float *x, int out_dim, int in_dim);
+int cuda_gemv_dual_q8_0(float *out_a, float *out_b,
+                         const void *W_a, const void *W_b,
+                         const float *x, int out_dim, int in_dim);
 /* cuBLAS batched GEMV wrapper (defined in backend_cuda.c) */
 void cuda_sgemm_batched_f32(int M, int K,
                               const float * const *d_Aarray,
@@ -6603,10 +6606,13 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             const axex_manifold_weight_t *_gp_q  = axex_get_manifold_layer(L, 1);
             const float    *_gp_dPt     = axex_manifold_d_Pt();
             const uint16_t *_gp_dPt_f16 = axex_manifold_d_Pt_f16();
-            /* Use F16 Pt if available (half bandwidth); fall back to F32 */
-            const void *_gp_Pt_ptr  = _gp_dPt_f16 ? (const void *)_gp_dPt_f16
+            /* Prefer Q4_0 Pt (2.8x less bandwidth vs F16); fall back to F16 then F32 */
+            const void     *_gp_dPt_q4  = axex_manifold_d_Pt_q4();
+            const void *_gp_Pt_ptr  = _gp_dPt_q4  ? _gp_dPt_q4
+                                    : _gp_dPt_f16  ? (const void *)_gp_dPt_f16
                                                    : (const void *)_gp_dPt;
-            ggml_type_t _gp_Pt_type = _gp_dPt_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
+            ggml_type_t _gp_Pt_type = _gp_dPt_q4  ? GGML_TYPE_Q4_0
+                                    : _gp_dPt_f16  ? GGML_TYPE_F16 : GGML_TYPE_F32;
             int  _gp_k  = axex_manifold_k();
             int  _gp_n  = axex_manifold_n();
             int gpu_x_sub_qkv_ready = 0;
@@ -6641,19 +6647,39 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                     if (_gp_q->d_bias)
                         be->compute.add(gpu_ctx.d_q, gpu_ctx.d_q, _gp_q->d_bias, lq_dim);
                     if (_gp_k2 && _gp_k2->d_W_proj) {
-                        be->compute.gemv(gpu_ctx.d_k, (void *)_gp_k2->d_W_proj, gpu_ctx.d_x_sub,
-                                         lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                        int kv_fused = 0;
+                        if (_gp_v2 && _gp_v2->d_W_proj && axex_manifold_wp_is_q8()) {
+                            kv_fused = cuda_gemv_dual_q8_0(
+                                gpu_ctx.d_k, gpu_ctx.d_v,
+                                (void *)_gp_k2->d_W_proj, (void *)_gp_v2->d_W_proj,
+                                gpu_ctx.d_x_sub, lkv_dim, _gp_k);
+                        }
+                        if (!kv_fused) {
+                            be->compute.gemv(gpu_ctx.d_k, (void *)_gp_k2->d_W_proj, gpu_ctx.d_x_sub,
+                                             lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                            if (_gp_v2 && _gp_v2->d_W_proj) {
+                                be->compute.gemv(gpu_ctx.d_v, (void *)_gp_v2->d_W_proj, gpu_ctx.d_x_sub,
+                                                 lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                            } else {
+                                be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                            }
+                        }
                         if (_gp_k2->d_bias)
                             be->compute.add(gpu_ctx.d_k, gpu_ctx.d_k, _gp_k2->d_bias, lkv_dim);
-                    } else
-                        be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
-                    if (_gp_v2 && _gp_v2->d_W_proj) {
-                        be->compute.gemv(gpu_ctx.d_v, (void *)_gp_v2->d_W_proj, gpu_ctx.d_x_sub,
-                                         lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
-                        if (_gp_v2->d_bias)
+                        if (_gp_v2 && _gp_v2->d_bias)
                             be->compute.add(gpu_ctx.d_v, gpu_ctx.d_v, _gp_v2->d_bias, lkv_dim);
                     } else
-                        be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                        be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, k_gpu_type);
+                    if (!(_gp_k2 && _gp_k2->d_W_proj)) {
+                        if (_gp_v2 && _gp_v2->d_W_proj) {
+                            be->compute.gemv(gpu_ctx.d_v, (void *)_gp_v2->d_W_proj, gpu_ctx.d_x_sub,
+                                             lkv_dim, _gp_k, axex_manifold_wp_is_q8() ? GGML_TYPE_Q8_0 : GGML_TYPE_F32);
+                            if (_gp_v2->d_bias)
+                                be->compute.add(gpu_ctx.d_v, gpu_ctx.d_v, _gp_v2->d_bias, lkv_dim);
+                        } else {
+                            be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, v_gpu_type);
+                        }
+                    }
                 } else {
                     /* Fast path: fused RMSNorm + triple GEMV eliminates d_xn write */
                     int used_triple = 0;
@@ -6772,9 +6798,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 const axex_manifold_weight_t *_gp_o = axex_get_manifold_layer(L, 4);
                 const uint16_t *_gp_dPt_o_f16 = axex_manifold_d_Pt_f16();
                 const float    *_gp_dPt_o     = axex_manifold_d_Pt();
-                const void     *_gp_o_Pt_ptr  = _gp_dPt_o_f16 ? (const void *)_gp_dPt_o_f16
+                const void     *_gp_dPt_o_q4  = axex_manifold_d_Pt_q4();
+                const void     *_gp_o_Pt_ptr  = _gp_dPt_o_q4  ? _gp_dPt_o_q4
+                                              : _gp_dPt_o_f16  ? (const void *)_gp_dPt_o_f16
                                                                 : (const void *)_gp_dPt_o;
-                ggml_type_t _gp_o_Pt_type = _gp_dPt_o_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
+                ggml_type_t _gp_o_Pt_type = _gp_dPt_o_q4  ? GGML_TYPE_Q4_0
+                                          : _gp_dPt_o_f16  ? GGML_TYPE_F16 : GGML_TYPE_F32;
                 int _gp_k_o = axex_manifold_k();
                 int _gp_n_o = axex_manifold_n();
                 if (_co_ && _co_->d_Vt) {
@@ -6913,9 +6942,12 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                 const axex_manifold_weight_t *_mg_gate = axex_get_manifold_layer(L, 6);
                 const uint16_t *_gp_dPt_ffn_f16 = axex_manifold_d_Pt_f16();
                 const float    *_gp_dPt_ffn     = axex_manifold_d_Pt();
-                const void     *_gp_ffn_Pt_ptr  = _gp_dPt_ffn_f16 ? (const void *)_gp_dPt_ffn_f16
+                const void     *_gp_dPt_ffn_q4  = axex_manifold_d_Pt_q4();
+                const void     *_gp_ffn_Pt_ptr  = _gp_dPt_ffn_q4  ? _gp_dPt_ffn_q4
+                                                : _gp_dPt_ffn_f16  ? (const void *)_gp_dPt_ffn_f16
                                                                     : (const void *)_gp_dPt_ffn;
-                ggml_type_t _gp_ffn_Pt_type = _gp_dPt_ffn_f16 ? GGML_TYPE_F16 : GGML_TYPE_F32;
+                ggml_type_t _gp_ffn_Pt_type = _gp_dPt_ffn_q4  ? GGML_TYPE_Q4_0
+                                            : _gp_dPt_ffn_f16  ? GGML_TYPE_F16 : GGML_TYPE_F32;
                 if (_mg_gate && _mg_gate->d_W_proj && _gp_dPt_ffn && _gp_k_ffn > 0 &&
                     layer->ffn_gate) {
                     /* d_xn is already set (FFN RMSNorm was applied just above) */

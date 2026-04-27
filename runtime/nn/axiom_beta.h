@@ -227,6 +227,12 @@ int axiom_beta_probe_layer_state(int token_id, int layer, float *out, int dim);
 int axiom_beta_probe_all_layer_states(int token_id, float *out_per_layer,
                                       int *out_valid, int n_layers, int dim);
 
+/* Probe FFN intermediate activations (SiLU(gate)⊙up) at every layer in one
+ * forward pass.  out_per_layer = float[n_layers * ff_dim], out_valid = int[n_layers].
+ * ff_dim must be model->ff_dim.  Returns 0 on success, -1 on error. */
+int axiom_beta_probe_all_ffn_states(int token_id, float *out_per_layer,
+                                    int *out_valid, int n_layers, int ff_dim);
+
 axiom_beta_status_t axiom_beta_write_json(const char *path,
                                           const axiom_beta_report_t *report,
                                           const axiom_beta_config_t *cfg);

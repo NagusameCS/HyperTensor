@@ -1976,11 +1976,26 @@ void axgeo_grc_insert(axgeo_grc_library_t *lib,
     lib->write_idx = (lib->write_idx + 1) % lib->cap;
     if (lib->count < lib->cap) lib->count++;
 
-    /* If this slot was occupied, decrement old bucket count */
+    /* If this slot was occupied, remove its contribution from the bucket centroid
+     * BEFORE overwriting q_bars, then decrement the count.
+     * Without this correction, every eviction leaves a ghost contribution in the
+     * centroid: after cap/n_buckets evictions all centroids drift and
+     * grc_nearest_bucket starts returning wrong buckets, reducing GRC recall. */
     if (lib->bucket_assign[slot] >= 0 && lib->count > 1) {
         int old_b = lib->bucket_assign[slot];
-        if (old_b < nb && lib->bucket_counts[old_b] > 0)
+        if (old_b < nb && lib->bucket_counts[old_b] > 1) {
+            /* Reverse the online mean: c_new = (c * cnt - q_old) / (cnt - 1) */
+            double *oc = lib->bucket_centroids + (uint64_t)old_b * k;
+            int cnt = lib->bucket_counts[old_b];
+            const double *q_old = lib->q_bars + (uint64_t)slot * k;
+            double scale_out = (double)cnt / (double)(cnt - 1);
+            double inv_rem   = 1.0  / (double)(cnt - 1);
+            for (int i = 0; i < k; i++)
+                oc[i] = oc[i] * scale_out - q_old[i] * inv_rem;
             lib->bucket_counts[old_b]--;
+        } else if (old_b < nb && lib->bucket_counts[old_b] == 1) {
+            lib->bucket_counts[old_b] = 0;  /* last record in bucket — centroid will be reseeded */
+        }
     }
 
     /* Store record */

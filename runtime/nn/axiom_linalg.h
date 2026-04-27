@@ -86,6 +86,34 @@ typedef struct {
 } axpca_t;
 
 axpca_t axpca_compute(const axmat_t *X, double min_explained_ratio);
+
+/* Fast truncated PCA: computes exactly k_max principal components using
+ * randomized SVD (Halko et al., 2011) when k_max < 0.65*min(n,d).
+ * Falls back to full Jacobi when near-full-rank.  Much faster than
+ * axpca_compute for k_max << min(n_samples, dim). */
+axpca_t axpca_compute_topk(const axmat_t *X, int k_max);
+
+/* Weighted randomized SVD of X under objective min||W(h - P^T P h)||²
+ * K is n×n symmetric PSD (typically K = Σᵢ Wᵢ^T Wᵢ for weights Wᵢ).
+ * Returns top-k eigenvectors of X^T X · K. */
+typedef void (*matvec_fn)(const float *in, float *out, int n, void *ctx);
+
+axpca_t axpca_compute_topk_weighted(
+    const axmat_t *X,         /* [n_samples, d] hidden states */
+    matvec_fn      K_apply,   /* computes y = K @ x, y[d] <- x[d] */
+    void          *K_ctx,     /* user ctx */
+    int            k_max);
+
+/* Pure weight-eigenvector basis: finds top-k eigenvectors of K (the weight
+ * gram matrix Σ Wᵢ^T Wᵢ) using matrix-free power iteration via K_apply.
+ * Does NOT use calibration data — optimal for maximising weight energy.
+ * Returns axpca_t with components = top-k eigenvectors as rows (k×d). */
+axpca_t axpca_compute_weight_topk(
+    matvec_fn  K_apply,  /* computes y = K @ x, y[d] <- x[d] */
+    void      *K_ctx,
+    int        d,        /* input dimension */
+    int        k_max);   /* number of eigenvectors to return */
+
 void    axpca_destroy(axpca_t *pca);
 
 /* Project a vector from full space to PCA subspace. */
