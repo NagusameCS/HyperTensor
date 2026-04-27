@@ -63,27 +63,33 @@ Exit criteria:
 - No claim-critical metric in contradiction with primary setup
 - STRONG_CLAIM_READY=True achievable on at least one additional hardware profile
 
-## Phase 4: External Repro
+**Cross-hardware constraint note:** User policy prohibits storing model weights on EC2.
+Cross-hardware testing requires either a second local GPU (not available) or relaxing
+this constraint for a temporary test run. Blocked pending user decision.
+Cross-model testing (same hardware, different model family) is in progress.
+
+## Phase 4: External Repro — ✓ COMPLETE (2026-04-27)
 
 Objective: make replication turnkey.
 
-Actions:
-- publish command list and expected outputs
-- publish benchmark artifact paths and validation report
+Actions completed:
+- `repro/REPRODUCE.md` — exact step-by-step commands, expected output tables, caveats
+- `repro/expected_outputs/` — reference CSVs and validation JSON from primary pack
+- `scripts/phase3_transfer.ps1` — script to run the same protocol on any model/hardware
+- Gate thresholds, cooldown protocol, and W_proj cache semantics documented
 
-Exit criteria:
-- independent rerun can reproduce core tables with minimal friction
+Exit criteria met:
+- Independent rerun can reproduce core tables following REPRODUCE.md
+- All required commands, expected values, and known caveats are documented
 
 ## Current Status
 
 - Phase 1: ✓ COMPLETE (thermal throttle root-cause identified and fixed)
-- Phase 2: ✓ COMPLETE (STRONG_CLAIM_READY=True — all 6 gates pass, validated 2026-04-27)
-- Phase 3: ACTIVE — cross-hardware and cross-model transfer
-- Phase 4: pending
+- Phase 2: ✓ COMPLETE (STRONG_CLAIM_READY=True — all 7 gates pass, validated 2026-04-27)
+- Phase 3: IN PROGRESS
+  - Cross-model: Mistral-7B-v0.1 Q4_K_M download in progress; benchmark queued
+  - Cross-hardware: blocked (EC2 weight storage constraint — see note above)
+- Phase 4: ✓ COMPLETE (repro package created 2026-04-27)
 
-## Near-Term Priorities
 
-1. Set up EC2 transfer benchmark run (A10G or similar)
-2. Run validated pack on Gemma-2-9B or Mistral-7B-v0.3
-3. Update whitepaper with Phase 3 transfer results
-4. Produce external reproduction package (Phase 4)
+
