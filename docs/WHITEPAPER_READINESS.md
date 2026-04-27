@@ -1,6 +1,6 @@
 # White Paper Readiness Assessment
 
-Date: 2026-04-27
+Date: 2026-04-26
 
 ## Scope
 
@@ -9,65 +9,62 @@ All performance figures are reported relative to the original baseline model pat
 
 ## Data Sources
 
-- Benchmark matrix (4 prompt types x 3 generation lengths x 2 modes = 24 runs):
-  - benchmarks/whitepaper_matrix_20260425_160512/matrix_results.csv
-  - benchmarks/whitepaper_matrix_20260425_160512/matrix_relative_to_baseline.csv
-- Repeatability check (3 reps, coding prompt, 256 tokens):
-  - benchmarks/whitepaper_matrix_20260425_160512/repeatability_256.csv
-- Perplexity checks (WikiText-2, 512 tokens):
-  - baseline PPL = 6.7902
-  - GRC k=2048 PPL = 7.3037
+- Finalized benchmark pack:
+  - benchmarks/whitepaper_pack_20260426_212526/rank_sweep_relative_to_baseline.csv
+  - benchmarks/whitepaper_pack_20260426_212526/rank_sweep_aggregate.csv
+  - benchmarks/whitepaper_pack_20260426_212526/ci_pack_summary.csv
+  - benchmarks/whitepaper_pack_20260426_212526/ci_ppl_5run.csv
 
 ## Relative-to-Baseline Performance Summary
 
-Across the 12 prompt/length cases:
+Across the completed rank sweep aggregate:
 
-- Mean decode speed: 82.34% of baseline
-- Mean overall throughput: 81.15% of baseline
-- Mean prefill time: 126.27% of baseline
-
-Best and worst cases:
-
-- Best decode retention: 84.93% (coding, 128 tokens)
-- Worst decode retention: 64.69% (coding, 256 tokens, matrix run)
-- Best overall retention: 84.18% (reasoning, 256 tokens)
-- Worst overall retention: 65.49% (coding, 256 tokens)
+- k=1024 mean decode speed: 106.51% of baseline
+- k=1536 mean decode speed: 79.21% of baseline
+- k=2048 mean decode speed: 82.04% of baseline
+- k=2048 mean prefill time: 163.14% of baseline
 
 Interpretation:
 
-- Typical decode/throughput retention clusters around ~82-85% of baseline.
-- There is one clear outlier case (coding/256) that needs investigation before publication claims about stable speed retention.
-- Prefill is consistently slower under GRC by about 26% on average.
+- k=1024 is healthy and above baseline throughput in this pack.
+- k=1536 and k=2048 decode retention remain below target gates for strong-claim publication.
+- k=2048 prefill remains above the <=150% gate.
 
 ## Relative-to-Baseline Quality Summary
 
 Perplexity (lower is better):
 
 - Baseline: 6.7902
-- GRC k=2048: 7.3037
-- Relative PPL: 107.56% of baseline (approximately +7.56%)
+- GRC k=2048: 7.6936
+- Relative PPL: 113.30% of baseline (approximately +13.30%)
 
 Interpretation:
 
-- Quality is near-baseline for this setup, but not parity.
-- The quality/speed tradeoff is now quantifiable and coherent.
+- Quality is currently outside the readiness target (+8% max delta).
+- Throughput and quality can both be measured reproducibly, but the gate set is not yet cleared.
 
-## Repeatability (3-run check)
+## Repeatability (5-run CI pack)
 
 Coding prompt, 256 tokens:
 
-- Baseline decode: 36.30 +/- 0.00 tok/s
-- GRC decode: 30.50 +/- 0.22 tok/s
-- GRC decode retention: 84.02% of baseline
+- Baseline decode: 34.14 +/- 1.34 tok/s
+- GRC decode: 31.68 +/- 3.33 tok/s
+- GRC decode retention: 92.79% of baseline
 
-- Baseline overall: 33.62 +/- 0.04 tok/s
-- GRC overall: 27.64 +/- 1.03 tok/s
-- GRC overall retention: 82.21% of baseline
+Reasoning prompt, 256 tokens:
+
+- Baseline decode: 34.84 +/- 0.25 tok/s
+- GRC decode: 31.54 +/- 3.54 tok/s
+- GRC decode retention: 90.53% of baseline
+
+Lower-95 decode retention from validator:
+
+- coding lower-95: 73.69%
+- reasoning lower-95: 70.59%
 
 Interpretation:
 
-- Baseline is very stable.
-- GRC has modest variance but remains in the expected low-80% retention band in this repeated test.
+- Means are improved, but lower-bound gates still fail the >=75% criterion.
 
 ## White Paper Readiness Verdict
 
@@ -75,21 +72,20 @@ Current state: Not ready for a proper white paper submission.
 
 Latest machine-validated gate status (paradigm shift validator):
 
-- Validation artifact: benchmarks/whitepaper_rank_complete_20260425_205838/paradigm_shift_validation.json
-- Validation artifact: benchmarks/whitepaper_pack_20260426_191201/paradigm_shift_validation.json
+- Validation artifact: benchmarks/whitepaper_pack_20260426_212526/paradigm_shift_validation.json
 - Strong-claim ready: False
 - Gate pass/fail:
-  - k1024 decode >=95%: fail (83.75%)
-  - k1536 decode >=85%: pass (87.07%)
-  - k2048 decode >=75%: fail (48.23%)
-  - k2048 prefill <=150%: fail (256.82%)
-  - CI lower-bound decode >=75%: fail (coding 63.29%, reasoning 42.98%)
-  - PPL delta <= +8%: pass (+7.56%)
+  - k1024 decode >=95%: pass (106.51%)
+  - k1536 decode >=85%: fail (79.21%)
+  - k2048 decode >=75%: pass (82.04%)
+  - k2048 prefill <=150%: fail (163.14%)
+  - CI lower-bound decode >=75%: fail (coding 73.69%, reasoning 70.59%)
+  - PPL delta <= +8%: fail (+13.30%)
 
 Interpretation:
 
-- The blocker is no longer a narrative judgment. It is now a hard gate failure under a reproducible validator.
-- PPL artifacts are now complete; remaining blockers are throughput and prefill gates.
+- The blocker is now a concrete 4-gate miss under a reproducible validator.
+- Remaining blockers are k1536 decode retention, k2048 prefill inflation, CI lower-bound retention, and PPL delta.
 
 What is complete:
 
@@ -105,31 +101,26 @@ Why this is not yet ready:
 
 Latest completed rank sweep aggregate (current run state):
 
-- k=1024: decode 83.75% of baseline, overall 81.71%, prefill 119.19%
-- k=1536: decode 87.07% of baseline, overall 85.81%, prefill 127.50%
-- k=2048: decode 48.23% of baseline, overall 47.12%, prefill 256.82%
+- k=1024: decode 106.51% of baseline, overall 106.14%, prefill 101.24%
+- k=1536: decode 79.21% of baseline, overall 76.11%, prefill 166.66%
+- k=2048: decode 82.04% of baseline, overall 78.82%, prefill 163.14%
 
 Interpretation:
 
-- The k=2048 path is currently regressed and does not match earlier retained-throughput claims.
-- This is now a primary engineering blocker for publication-facing claims at k=2048.
+- The catastrophic k=2048 collapse is no longer present, but the high-rank path still fails prefill and confidence-lower-bound gates.
+- Publication-facing claims remain blocked until the remaining gate set is cleared.
 
 ## Outlier Investigation Update (coding/256)
 
-Targeted repeated runs (6 reps each for coding and reasoning at 256 tokens) show similar retention collapse in both prompt classes under affected runs:
+Targeted repeated runs (6 reps each for coding and reasoning at 256 tokens) in this pack:
 
-- coding decode retention (6-run mean): 64.48%
-- reasoning decode retention (6-run mean): 52.32%
+- coding decode retention (6-run mean): 91.03%
+- reasoning decode retention (6-run mean): 89.04%
 
 Interpretation:
 
-- Both prompt classes degrade materially under compression in this branch, with reasoning currently worse than coding.
-- The stronger explanation remains a runtime/path instability issue rather than a coding-only effect.
-
-5-run confidence slices from the same dataset (reps 1-5) support the same picture:
-
-- Coding decode: baseline 29.88 +/- 12.00 tok/s, GRC 20.70 +/- 0.91 tok/s (69.28% of baseline)
-- Reasoning decode: baseline 35.36 +/- 0.95 tok/s, GRC 19.66 +/- 2.28 tok/s (55.60% of baseline)
+- Prior catastrophic outlier behavior did not reproduce under the fixed harness.
+- Remaining blockers are now gate-threshold margins and quality delta, not prompt-specific collapse.
 
 ## Coding Quality Note
 
@@ -138,13 +129,13 @@ The readiness decision is grounded in baseline-relative quantitative metrics (PP
 
 ## Minimum Work to Reach Proper White Paper State
 
-1. Root-cause and fix the k=2048 regression so retention is stable and reproducible.
-2. Re-run the full matrix and confidence slices after the fix using the same no-pipe harness.
-3. Add at least one additional model and one additional hardware profile.
-4. Expand repeatability to >= 5 runs per key scenario and report confidence intervals.
-5. Freeze a benchmark protocol appendix so all future results are reproducible and comparable.
+1. Raise k1536 decode retention from 79.21% to >=85% without worsening quality.
+2. Reduce k2048 prefill from 163.14% to <=150%.
+3. Lift CI lower-95 decode bounds from 73.69%/70.59% to >=75%.
+4. Reduce PPL delta from +13.30% to <=+8%.
+5. Re-run validator on a fresh pack and only then claim strong readiness.
 
 ## Claim Language Safe to Use Now
 
-- "On Llama-3.1-8B-Instruct-Q4_K_M, k=1536 remains the only rank that currently clears the decode-retention gate in this branch, while k=1024 and k=2048 require regression work."
-- "Quality remains near baseline at the reported PPL pair (6.7902 vs 7.3037), and speed claims are reported strictly as baseline-relative percentages under the current harness."
+- "On Llama-3.1-8B-Instruct-Q4_K_M under the current harness, k=1024 and k=2048 decode gates pass while k1536 decode, k2048 prefill, CI lower-bound retention, and PPL delta still fail strong-claim thresholds."
+- "Speed and quality claims are reported strictly as baseline-relative percentages from the latest validated pack (whitepaper_pack_20260426_212526)."

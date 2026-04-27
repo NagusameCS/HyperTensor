@@ -7,8 +7,8 @@ Date: 2026-04-27
 This document describes a working 8B-scale proof of concept for attention-weight compression in a GGUF inference runtime.
 The core method is a geometry-informed projection workflow implemented in the Geodessical runtime under the GRC path.
 
-At k=2048, on Meta-Llama-3.1-8B-Instruct-Q4_K_M, we retain near-baseline perplexity while halving the active attention weight footprint in the compressed path.
-The measured quality/speed tradeoff is explicit and normalized to baseline.
+At k=2048 request rank (currently executed through the capped manifold path), on Meta-Llama-3.1-8B-Instruct-Q4_K_M, the quality/speed tradeoff remains measurable but does not yet meet strong publication gates.
+The measured tradeoff is explicit and normalized to baseline.
 
 This is a technical report for reproducible engineering state, not a universal claim across all models or hardware.
 
@@ -98,16 +98,18 @@ $MODEL = "C:\path\to\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
 ### 5.1 Perplexity
 
-Measured on WikiText-2 (512 tokens):
+Measured on WikiText-2 (5-run pack in `benchmarks/whitepaper_pack_20260426_212526`):
 
 - Baseline PPL: 6.7902
-- GRC k=2048 PPL: 7.3037
+- GRC k=2048 PPL: 7.6936
 
 Relative quality view:
 
-- GRC PPL is 107.56% of baseline (about +7.56%)
+- GRC PPL is 113.30% of baseline (about +13.30%)
 
-This is close enough for practical proof-of-concept demonstration while remaining honest about the gap.
+Interpretation:
+
+- This currently fails the whitepaper strong-claim quality gate (target <= +8% delta).
 
 ### 5.2 Coding-output interpretation note
 
@@ -182,27 +184,28 @@ Latest 5-run PPL means:
 
 The baseline-normalized rank sweep is now complete for 1024, 1536, and 2048.
 
-Latest aggregate from the completed sweep:
+Latest aggregate from the completed sweep (`benchmarks/whitepaper_pack_20260426_212526/rank_sweep_aggregate.csv`):
 
-- k=1024: decode 83.75% of baseline, overall 81.71%, prefill 119.19%
-- k=1536: decode 87.07% of baseline, overall 85.81%, prefill 127.50%
-- k=2048: decode 48.23% of baseline, overall 47.12%, prefill 256.82%
+- k=1024: decode 106.51% of baseline, overall 106.14%, prefill 101.24%
+- k=1536: decode 79.21% of baseline, overall 76.11%, prefill 166.66%
+- k=2048: decode 82.04% of baseline, overall 78.82%, prefill 163.14%
 
 Interpretation:
 
-- k=1024 and k=1536 are in a plausible operating range for this setup.
-- k=2048 is currently regressed in the active code path and is the primary blocker for publication-grade speed claims.
+- k=1024 is strong and above baseline throughput in this run.
+- k=1536 and k=2048 decode retention improved vs earlier catastrophic regression, but both still violate at least one readiness gate.
+- Prefill inflation at k=1536/k=2048 remains a major blocker.
 
-Machine-gate status from `scripts/paradigm_shift_validate.ps1`:
+Machine-gate status from `scripts/paradigm_shift_validate.ps1` on `benchmarks/whitepaper_pack_20260426_212526`:
 
 - strong-claim ready: false
-- k1024 decode: 83.75%
-- k1536 decode: 87.07%
-- k2048 decode: 48.23%
-- k2048 prefill: 256.82%
-- coding lower-95 throughput retention: 63.29%
-- reasoning lower-95 throughput retention: 42.98%
-- PPL delta: +7.56%
+- k1024 decode: 106.51%
+- k1536 decode: 79.21%
+- k2048 decode: 82.04%
+- k2048 prefill: 163.14%
+- coding lower-95 throughput retention: 73.69%
+- reasoning lower-95 throughput retention: 70.59%
+- PPL delta: +13.30%
 
 ## 9. What Is Demonstrated Today
 
@@ -217,7 +220,7 @@ Not yet claimed as complete:
 
 - universal performance behavior across hardware classes
 - broad model-family generalization
-- root-caused and fixed k=2048 throughput regression in the current branch
+- full gate closure for paradigm-shift strong-claim readiness (decode lower-bounds, prefill, and PPL delta)
 
 ## 10. Current Research Interest
 
