@@ -16,22 +16,41 @@ function Run-Test {
     $out = "$OutDir/test_k${k}_${tokens}.txt"
     $prompt = "Write a Python function that returns prime numbers up to n."
     
-    $args = @($Model, "--axex-compress", "--axex-attn-only", "--axex-skip-o", "--axex-weight-pca", 
+    $args = @($Model, "--axex-compress", "--axex-attn-only", "--axex-skip-o", "--axex-weight-pca",
               "--axex-compress-rank", $k.ToString(), "--temp", "0", "-p", $prompt, "-n", $tokens.ToString())
     
     & $Exe @args > $out 2>&1
     
-    $raw = Get-Content $out -Raw
-    $m = [regex]::Match($raw, 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s')
-    if ($m.Success) {
-        return [double]$m.Groups[2].Value
+    $lines = Get-Content $out
+    $matches = @($lines | Select-String -Pattern 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s' -AllMatches)
+    if ($matches.Count -gt 0) {
+        $last = $matches[-1].Matches[-1]
+        return [double]$last.Groups[2].Value
+    }
+    return $null
+}
+
+function Run-Baseline {
+    param([int]$tokens)
+
+    $out = "$OutDir/test_baseline_${tokens}.txt"
+    $prompt = "Write a Python function that returns prime numbers up to n."
+    $args = @($Model, "--temp", "0", "-p", $prompt, "-n", $tokens.ToString())
+
+    & $Exe @args > $out 2>&1
+
+    $lines = Get-Content $out
+    $matches = @($lines | Select-String -Pattern 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s' -AllMatches)
+    if ($matches.Count -gt 0) {
+        $last = $matches[-1].Matches[-1]
+        return [double]$last.Groups[2].Value
     }
     return $null
 }
 
 # Quick gate tests
 Write-Host "Testing baseline (no compression)..."
-$b1024_128 = Run-Test -k 0 -tokens 128 # Will skip GP with k=0
+$b1024_128 = Run-Baseline -tokens 128
 Write-Host "  128 tokens: baseline reference (for normalization)"
 
 Write-Host "Testing k=1024 (should be 106% baseline, gate needs 95%)..."
