@@ -29,6 +29,7 @@ MathJax = {
 };
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>
@@ -440,7 +441,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ HERO ════════════════ -->
 <div id="hero">
-  <div class="hero-tag">Research Report · April 2026</div>
+  <div class="hero-tag">Paper &middot; Empirical &middot; April 2026</div>
   <h1 class="hero-title">HyperTensor / Geodesic Runtime Compression</h1>
   <p class="hero-subtitle">
     A calibration-free attention-weight compression scheme, and an unexpected
@@ -1422,37 +1423,171 @@ section { animation: fadeUp .4s ease both; }
   </p>
 
   <div class="figure">
-    <img src="../figures/spectra_attn_vs_ffn.png" alt="Singular value spectra: attention (red) vs FFN (blue) on log scale" style="max-width:100%; border-radius:8px;">
+    <div id="plot-spectra" style="width:100%;min-height:420px;"></div>
+    <noscript><img src="../figures/spectra_attn_vs_ffn.png" alt="Singular value spectra" style="max-width:100%;"></noscript>
     <div class="figure-caption">
-      <strong>Figure 8.1.</strong> Normalised singular value spectra (log scale) for layers
-      0, 7, 15, 23, 31. Red curves: attention $\mathbf{W}_Q$. Blue curves: FFN
-      $\mathbf{W}_{\text{down}}$. Vertical dashed lines mark $k/d=0.25$ ($k{=}1024$) and
-      $k/d=0.375$ ($k{=}1536$). Attention spectra fall ~3 orders of magnitude over the first
-      1024 components; FFN spectra remain within ~1 order of magnitude.
+      <strong>Figure 8.1.</strong> Normalised singular value spectra (log scale) for the
+      five sampled layers. Hover any point for the exact $(k, \sigma_k)$ value; click
+      legend entries to toggle individual slot/layer traces. Vertical guides mark
+      $k{=}1024$ and $k{=}1536$. Attention spectra fall $\sim$3 orders of magnitude over
+      the first 1,024 components; FFN spectra remain within $\sim$1 order of magnitude.
     </div>
   </div>
 
   <div class="figure">
-    <img src="../figures/energy_capture.png" alt="Cumulative spectral energy: attention vs FFN" style="max-width:100%; border-radius:8px;">
+    <div id="plot-energy" style="width:100%;min-height:420px;"></div>
+    <noscript><img src="../figures/energy_capture.png" alt="Cumulative spectral energy" style="max-width:100%;"></noscript>
     <div class="figure-caption">
       <strong>Figure 8.2.</strong> Cumulative fraction of $\|\mathbf{W}\|_F^2$ captured by the
-      top-$k$ singular components. Attention $\mathbf{W}_Q$ across all five layers (red bundle)
-      reaches &ge; 95% energy by $k\approx 635$&ndash;2155; FFN $\mathbf{W}_{\text{down}}$ (blue bundle)
-      requires $k\geq 3293$ &mdash; close to full rank. Source data:
+      top-$k$ singular components, all seven slots, all five sampled layers. Attention
+      slots reach $\geq 95\%$ energy by $k \approx 635$&ndash;2,342; FFN slots require
+      $k \geq 3{,}199$ &mdash; close to full rank. Click slot names in the legend to
+      isolate individual matrix types. Source:
       <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
     </div>
   </div>
 
   <div class="figure">
-    <img src="../figures/layerwise_rank_needed.png" alt="Per-layer rank needed for 95% energy" style="max-width:100%; border-radius:8px;">
+    <div id="plot-layerwise" style="width:100%;min-height:380px;"></div>
+    <noscript><img src="../figures/layerwise_rank_needed.png" alt="Per-layer rank needed for 95% energy" style="max-width:100%;"></noscript>
     <div class="figure-caption">
       <strong>Figure 8.3.</strong> Per-layer rank required to capture 95% of Frobenius energy
-      across the five sampled layers. Attention $\mathbf{W}_Q$ averages $k_{95}\approx 1682$
-      ($k/d \approx 0.41$); FFN $\mathbf{W}_{\text{down}}$ averages $k_{95}\approx 3345$
-      ($k/d \approx 0.82$). This $\sim 2\times$ gap is the structural reason GRC compresses
-      attention well and why we deliberately leave FFN at full rank.
+      across layers $\{0, 7, 15, 23, 31\}$. Attention $\mathbf{W}_Q$ averages
+      $k_{95} \approx 1{,}682$ ($k/d \approx 0.41$); FFN $\mathbf{W}_{\text{down}}$
+      averages $k_{95} \approx 3{,}345$ ($k/d \approx 0.82$). Hover for exact values.
+      This $\sim 2\times$ gap is the structural reason GRC compresses attention well and
+      why we deliberately leave FFN at full rank.
     </div>
   </div>
+
+  <script>
+  (function () {
+    if (typeof Plotly === "undefined") return;
+    var COLORS = {
+      Q: "#c0392b", K: "#e67e22", V: "#d35400", O: "#a93226",
+      gate: "#2d6be4", up: "#1a7a4a", down: "#16a085"
+    };
+    var ATTN = ["Q", "K", "V", "O"];
+    var FFN = ["gate", "up", "down"];
+    fetch("../figures/spectra_web.json").then(function (r) { return r.json(); }).then(function (d) {
+      // ── Figure 8.1: SV spectra (log-log) ──────────────────────────
+      var traces1 = [];
+      var layerStyles = { 0: 1, 7: 0.85, 15: 0.7, 23: 0.55, 31: 0.4 };
+      Object.keys(d.spectra.attn).forEach(function (L) {
+        ATTN.forEach(function (s) {
+          var t = d.spectra.attn[L][s];
+          if (!t) return;
+          // Normalize by sigma_0
+          var sig0 = t.sigma[0] || 1;
+          traces1.push({
+            x: t.k, y: t.sigma.map(function (v) { return v / sig0; }),
+            mode: "lines", type: "scattergl",
+            name: s + " L" + L,
+            legendgroup: s,
+            line: { color: COLORS[s], width: 1.4 },
+            opacity: layerStyles[L] || 0.6,
+            hovertemplate: "<b>" + s + "</b> layer " + L + "<br>k=%{x}<br>σ/σ₀=%{y:.3e}<extra></extra>"
+          });
+        });
+        FFN.forEach(function (s) {
+          var t = d.spectra.ffn[L][s];
+          if (!t) return;
+          var sig0 = t.sigma[0] || 1;
+          traces1.push({
+            x: t.k, y: t.sigma.map(function (v) { return v / sig0; }),
+            mode: "lines", type: "scattergl",
+            name: s + " L" + L,
+            legendgroup: s,
+            line: { color: COLORS[s], width: 1.4, dash: "dot" },
+            opacity: layerStyles[L] || 0.6,
+            hovertemplate: "<b>" + s + "</b> layer " + L + "<br>k=%{x}<br>σ/σ₀=%{y:.3e}<extra></extra>"
+          });
+        });
+      });
+      var darkBg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
+      var fg = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#1a1a1a";
+      var fgSoft = getComputedStyle(document.documentElement).getPropertyValue("--text-soft").trim() || "#5c5c5c";
+      var layoutCommon = {
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        font: { family: "Inter, system-ui, sans-serif", color: fg, size: 12 },
+        margin: { l: 60, r: 20, t: 30, b: 50 },
+        legend: { font: { size: 10 }, orientation: "v" },
+        hoverlabel: { bgcolor: darkBg, font: { color: fg } }
+      };
+      Plotly.newPlot("plot-spectra", traces1, Object.assign({}, layoutCommon, {
+        xaxis: { type: "log", title: "k (singular index)", gridcolor: fgSoft + "33" },
+        yaxis: { type: "log", title: "σ_k / σ_0 (normalised)", gridcolor: fgSoft + "33" },
+        shapes: [
+          { type: "line", x0: 1024, x1: 1024, y0: 1e-6, y1: 1, line: { dash: "dash", color: fgSoft, width: 1 } },
+          { type: "line", x0: 1536, x1: 1536, y0: 1e-6, y1: 1, line: { dash: "dash", color: fgSoft, width: 1 } }
+        ],
+        annotations: [
+          { x: Math.log10(1024), y: 1, xref: "x", yref: "paper", showarrow: false, text: "k=1024", font: { size: 10, color: fgSoft } },
+          { x: Math.log10(1536), y: 0.95, xref: "x", yref: "paper", showarrow: false, text: "k=1536", font: { size: 10, color: fgSoft } }
+        ]
+      }), { responsive: true, displaylogo: false });
+
+      // ── Figure 8.2: Cumulative energy ─────────────────────────────
+      var traces2 = [];
+      Object.keys(d.energy.attn).forEach(function (L) {
+        ATTN.forEach(function (s) {
+          var t = d.energy.attn[L][s];
+          if (!t) return;
+          traces2.push({
+            x: t.k, y: t.cum, mode: "lines", type: "scattergl",
+            name: s + " L" + L, legendgroup: s,
+            line: { color: COLORS[s], width: 1.4 },
+            opacity: layerStyles[L] || 0.6,
+            hovertemplate: "<b>" + s + "</b> layer " + L + "<br>k=%{x}<br>energy=%{y:.3f}<extra></extra>"
+          });
+        });
+        FFN.forEach(function (s) {
+          var t = d.energy.ffn[L][s];
+          if (!t) return;
+          traces2.push({
+            x: t.k, y: t.cum, mode: "lines", type: "scattergl",
+            name: s + " L" + L, legendgroup: s,
+            line: { color: COLORS[s], width: 1.4, dash: "dot" },
+            opacity: layerStyles[L] || 0.6,
+            hovertemplate: "<b>" + s + "</b> layer " + L + "<br>k=%{x}<br>energy=%{y:.3f}<extra></extra>"
+          });
+        });
+      });
+      Plotly.newPlot("plot-energy", traces2, Object.assign({}, layoutCommon, {
+        xaxis: { title: "k (top singular components)", gridcolor: fgSoft + "33" },
+        yaxis: { title: "Cumulative ‖W‖²_F captured", range: [0, 1.02], gridcolor: fgSoft + "33" },
+        shapes: [
+          { type: "line", x0: 0, x1: 4096, y0: 0.95, y1: 0.95, line: { dash: "dash", color: fgSoft, width: 1 } },
+          { type: "line", x0: 1024, x1: 1024, y0: 0, y1: 1, line: { dash: "dash", color: fgSoft, width: 1 } }
+        ]
+      }), { responsive: true, displaylogo: false });
+
+      // ── Figure 8.3: Per-layer k_95 bar/scatter ────────────────────
+      var traces3 = [];
+      ATTN.concat(FFN).forEach(function (s) {
+        var src = ATTN.indexOf(s) >= 0 ? d.rank95_per_layer.attn : d.rank95_per_layer.ffn;
+        traces3.push({
+          x: src.layers, y: src.by_slot[s],
+          mode: "lines+markers", type: "scatter", name: s,
+          line: { color: COLORS[s], width: 2, dash: ATTN.indexOf(s) >= 0 ? "solid" : "dot" },
+          marker: { size: 9, color: COLORS[s] },
+          hovertemplate: "<b>" + s + "</b><br>layer %{x}<br>k_{95}=%{y}<extra></extra>"
+        });
+      });
+      Plotly.newPlot("plot-layerwise", traces3, Object.assign({}, layoutCommon, {
+        xaxis: { title: "Transformer layer index", dtick: 1, gridcolor: fgSoft + "33" },
+        yaxis: { title: "k for 95% Frobenius energy", gridcolor: fgSoft + "33" },
+        shapes: [
+          { type: "line", x0: -0.5, x1: 31.5, y0: 1024, y1: 1024, line: { dash: "dash", color: fgSoft, width: 1 } }
+        ],
+        annotations: [
+          { x: 31, y: 1024, xref: "x", yref: "y", showarrow: false, text: "GRC k=1024", font: { size: 10, color: fgSoft }, xanchor: "right", yanchor: "bottom" }
+        ]
+      }), { responsive: true, displaylogo: false });
+    }).catch(function (e) { console.error("Failed to load spectra_web.json:", e); });
+  })();
+  </script>
 
   <h3>8.1 Quantitative summary</h3>
   <p>

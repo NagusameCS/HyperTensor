@@ -180,13 +180,6 @@ footer a:hover { text-decoration: underline; }
 <section id="papers">
   <span class="section-label">Papers</span>
   <h2>Four papers under the HyperTensor project.</h2>
-  <p style="color:var(--text-soft); max-width: 640px;">
-    They go from concrete to speculative. Paper&nbsp;1 is the empirical headline
-    result. Paper&nbsp;2 documents the production compression pipeline that the runtime
-    actually ships with. Paper&nbsp;3 looks at composition with speculative decoding and
-    Attention Residuals. Paper&nbsp;4 is the theoretical companion (simulation only,
-    no LLM weights).
-  </p>
 
   <div class="papers">
 
@@ -203,15 +196,11 @@ footer a:hover { text-decoration: underline; }
         vocabulary cheat-sheet. Read this first if any term in the four papers is
         unfamiliar.
       </p>
-      <div class="paper-meta">
-        <span><strong>Type:</strong> Article, not a research paper</span>
-        <span><strong>Length:</strong> ~30 minute read</span>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/01-attention-compression.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 1</span>
+        <span class="paper-num">Paper 1 &middot; Empirical</span>
         <span class="paper-title">Calibration-Free Low-Rank Attention Compression for Bandwidth-Bound LLM Decode</span>
       </div>
       <p class="paper-abstract">
@@ -221,15 +210,11 @@ footer a:hover { text-decoration: underline; }
         $p \approx 10^{-10}$. We argue (with caveats) that the speedup comes from
         the attention working set fitting in L2.
       </p>
-      <div class="paper-meta">
-        <span><strong>Model:</strong> Llama-3.1-8B-Instruct Q4_K_M</span>
-        <span><strong>GPU:</strong> RTX 4070 Laptop</span>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/02-geodesic-projection.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 2</span>
+        <span class="paper-num">Paper 2 &middot; Framework</span>
         <span class="paper-title">Geodesic Projection: A Production Compression Pipeline for LLM Inference</span>
       </div>
       <p class="paper-abstract">
@@ -237,17 +222,13 @@ footer a:hover { text-decoration: underline; }
         <code>geodessical</code> runtime ships with: per-layer PCA bases for $Q/K/V/O$,
         FFN up/gate, and a dedicated SVD path for FFN&nbsp;down. Includes the
         persistent geometry cache, the depth-sink shortcut, and the deployment
-        envelope on a single 8 GB GPU.
+        envelope on a single 8&nbsp;GB GPU.
       </p>
-      <div class="paper-meta">
-        <span><strong>Reference model:</strong> Llama-3.1-8B Q4_K_M</span>
-        <span><strong>Other models:</strong> design-validated only</span>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/03-speculative-decoding.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 3</span>
+        <span class="paper-num">Paper 3 &middot; Design</span>
         <span class="paper-title">Composing Compression: Geodesic Speculative Decoding and Attention Residuals</span>
       </div>
       <p class="paper-abstract">
@@ -256,27 +237,21 @@ footer a:hover { text-decoration: underline; }
         (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. Design and runtime
         implementation; end-to-end benchmarks are not yet conducted.
       </p>
-      <div class="paper-meta">
-        <span><strong>Cites:</strong> Kimi AttnRes (arXiv:2603.15031)</span>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/04-organic-training-theory.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 4</span>
+        <span class="paper-num">Paper 4 &middot; Theory</span>
         <span class="paper-title">Organic Training Theory and Geodesic Trajectory Caching</span>
       </div>
       <p class="paper-abstract">
-        A theoretical framework that motivates Papers 1\u20133 and proposes future
+        A theoretical framework that motivates Papers&nbsp;1&ndash;3 and proposes future
         directions: a Riemannian-manifold view of the trained latent space, an
         $\mathcal{O}(nk^2)$ geodesic forward pass, and Geodesic Trajectory Caching
         (GTC) &mdash; a self-improving library of inference paths corrected by Jacobi
-        fields. Validated only at simulation scale; the diffeomorphism construction is an
-        explicitly open problem.
+        fields. Validated only at simulation scale; the diffeomorphism construction
+        is an explicitly open problem.
       </p>
-      <div class="paper-meta">
-        <span><strong>Open problem:</strong> Diffeomorphism $\phi$</span>
-      </div>
     </a>
 
   </div>
