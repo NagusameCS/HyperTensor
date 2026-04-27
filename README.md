@@ -1,5 +1,9 @@
 # HyperTensor
 
+> **📄 Read the full research paper:** [legomaster378.github.io/HyperTensor](https://legomaster378.github.io/HyperTensor)
+> &nbsp;&nbsp;·&nbsp;&nbsp; **📘 Whitepaper:** [docs/WHITEPAPER.md](docs/WHITEPAPER.md)
+> &nbsp;&nbsp;·&nbsp;&nbsp; **🔁 Reproduce:** [repro/REPRODUCE.md](repro/REPRODUCE.md)
+
 HyperTensor is a C11 inference runtime and compression research codebase centered on one practical question:
 
 How far can we compress attention weights while keeping usable quality and predictable throughput on real hardware?
@@ -12,32 +16,31 @@ This repository currently has a working proof of concept for the 8B regime.
 - GRC pipeline: geometry-informed attention compression via weight-space PCA bases and projected weights
 - Evaluation tools: perplexity and benchmark scripts used to measure quality/speed tradeoffs
 
-## Current Proof-Of-Concept Status (8B)
+## Current Validated Status (8B, April 2026)
 
-Reference model:
+Reference model: **Meta-Llama-3.1-8B-Instruct-Q4_K_M**
 
-- Meta-Llama-3.1-8B-Instruct-Q4_K_M
+**Throughput** (vs uncompressed baseline, locked 30-second cooldown protocol):
 
-Quality (WikiText-2, 512-token eval):
+- k=1024: **106.27%** decode — *above baseline* (GPU L2 cache-fit effect)
+- k=1536: **97.55%** decode — near-lossless throughput
+- k=2048† decode: 101.04% (capped to k=1536 by `AXEX_MANIFOLD_K_MAX`)
+
+**Quality** (WikiText-2, 512-token eval, deterministic across 5 runs):
 
 - Baseline PPL: 6.7902
-- GRC PPL (k=2048): 7.1969
-- Relative PPL: 106.00% of baseline (about +6.00%)
+- GRC PPL k=1536: 7.6936  →  **+13.30%**
 
-Compression (attention path used in this setup):
+**Validation:** all 7 automated gates pass under the locked protocol.
+Pack: `benchmarks/whitepaper_pack_20260427_121815/`.
 
-- Q/K/V attention weights: 3072 MB -> 1536 MB (50% reduction)
+**Compression** (attention Q/K/V only):
 
-Speed note:
+- Disk W_proj cache: 1,093 MB (k=1536)
+- VRAM delta during decode: +36 MiB peak
 
-- Current completed rank sweep shows stable behavior at k=1024 and k=1536, while k=2048 is currently regressed in this branch.
-- Throughput must be measured without live terminal piping. Redirect to files for reliable numbers.
-
-## Important Interpretation Notes
-
-- Coding quality is tracked as an observation, not scored as a demerit in this phase.
-- In this repo state, coding outputs are useful for prototyping and demonstration workloads.
-- Whitepaper conclusions are benchmark-driven and normalized against baseline throughput and PPL.
+See [docs/WHITEPAPER.md](docs/WHITEPAPER.md) §6 for full results, §7 for the cache-fit analysis,
+§9 for the limitations table.
 
 ## Recommended Demo Command (k=2048)
 
