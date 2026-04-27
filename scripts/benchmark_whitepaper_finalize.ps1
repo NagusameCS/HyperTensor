@@ -4,7 +4,8 @@ param(
     [string]$OutDir = "",
     [switch]$ReuseLatestPack,
     [int]$RunTimeoutSec = 900,
-    [int]$PplTimeoutSec = 1200
+    [int]$PplTimeoutSec = 1200,
+    [int]$CooldownSec = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -117,15 +118,50 @@ function Invoke-GeodProcess {
         throw "Invoke-GeodProcess received an empty argument list"
     }
 
-    $proc = Start-Process -FilePath $Exe -ArgumentList $safeArgv -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -PassThru -NoNewWindow
-    $finished = $proc.WaitForExit([Math]::Max(1, $TimeoutSec) * 1000)
+    $exePath = $Exe
+    try {
+        $exePath = (Resolve-Path $Exe).Path
+    } catch {
+        throw "Executable not found: $Exe"
+    }
+    $cwdPath = (Get-Location).Path
+
+    $job = Start-Job -ScriptBlock {
+        param(
+            [string]$JobExe,
+            [string[]]$JobArgv,
+            [string]$JobStdout,
+            [string]$JobStderr,
+            [string]$JobCwd
+        )
+
+        Set-Location $JobCwd
+
+        & $JobExe @JobArgv 1> $JobStdout 2> $JobStderr
+        return $LASTEXITCODE
+    } -ArgumentList $exePath, $safeArgv, $StdoutPath, $StderrPath, $cwdPath
+
+    $finished = $null -ne (Wait-Job -Job $job -Timeout ([Math]::Max(1, $TimeoutSec)))
     if (-not $finished) {
-        try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+        try { Stop-Job -Job $job -Force -ErrorAction SilentlyContinue } catch {}
+        try { Remove-Job -Job $job -Force -ErrorAction SilentlyContinue } catch {}
         Stop-StaleGeod
+        try { [System.IO.File]::WriteAllText($StdoutPath, "") } catch {}
+        try { [System.IO.File]::WriteAllText($StderrPath, "TIMEOUT") } catch {}
         return [pscustomobject]@{ exit_code = 124; timed_out = $true }
     }
 
-    return [pscustomobject]@{ exit_code = $proc.ExitCode; timed_out = $false }
+    $exitCode = 1
+    try {
+        $result = Receive-Job -Job $job -ErrorAction SilentlyContinue
+        if ($null -ne $result) {
+            $exitCode = [int]$result
+        }
+    } finally {
+        try { Remove-Job -Job $job -Force -ErrorAction SilentlyContinue } catch {}
+    }
+
+    return [pscustomobject]@{ exit_code = $exitCode; timed_out = $false }
 }
 
 function Invoke-RunCase {
@@ -157,6 +193,11 @@ function Invoke-RunCase {
     }
 
     if ($needsRun) {
+        # Cooldown: let GPU temperature stabilise before each fresh run to prevent
+        # thermal throttling from biasing throughput measurements.
+        if ($CooldownSec -gt 0) {
+            Start-Sleep -Seconds $CooldownSec
+        }
         $ok = $false
         for ($attempt = 1; $attempt -le $Retries; $attempt++) {
             $runArgs = @($Model) + $ExtraArgs + @('-p', $Prompt, '-n', "$Tokens")
@@ -281,38 +322,8 @@ $reasonPrompt = "Explain why gradient clipping helps stabilize training in deep 
 $factualPrompt = "Summarize how TCP congestion control works in modern networks."
 $creativePrompt = "Write a short sci-fi paragraph about a city powered by ocean tides."
 
-# 1) Ensure outlier investigation exists (6 reps x 4 cases)
-$outlierRows = @()
-for ($i = 1; $i -le 6; $i++) {
-    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_baseline_coding_256" -Prompt $codingPrompt -Tokens 256 -ExtraArgs @('--temp', '0') -Rep $i
-    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_grc_coding_256_k2048" -Prompt $codingPrompt -Tokens 256 -ExtraArgs @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--temp', '0') -Rep $i
-    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_baseline_reasoning_256" -Prompt $reasonPrompt -Tokens 256 -ExtraArgs @('--temp', '0') -Rep $i
-    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_grc_reasoning_256_k2048" -Prompt $reasonPrompt -Tokens 256 -ExtraArgs @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--temp', '0') -Rep $i
-}
-$outlierCsv = Join-Path $outDir "outlier_investigation.csv"
-$outlierRows | Export-Csv -NoTypeInformation -Path $outlierCsv
-
-$ob = $outlierRows | Where-Object { $_.label -eq 'outlier_baseline_coding_256' }
-$og = $outlierRows | Where-Object { $_.label -eq 'outlier_grc_coding_256_k2048' }
-$rb = $outlierRows | Where-Object { $_.label -eq 'outlier_baseline_reasoning_256' }
-$rg = $outlierRows | Where-Object { $_.label -eq 'outlier_grc_reasoning_256_k2048' }
-
-$diag = [pscustomobject]@{
-    coding_baseline_decode_mean = Mean $ob.decode_tps
-    coding_grc_decode_mean = Mean $og.decode_tps
-    coding_decode_pct = 100.0 * (Mean $og.decode_tps) / (Mean $ob.decode_tps)
-    reasoning_baseline_decode_mean = Mean $rb.decode_tps
-    reasoning_grc_decode_mean = Mean $rg.decode_tps
-    reasoning_decode_pct = 100.0 * (Mean $rg.decode_tps) / (Mean $rb.decode_tps)
-    coding_baseline_generated_tokens_mean = Mean $ob.generated_tokens
-    coding_grc_generated_tokens_mean = Mean $og.generated_tokens
-    reasoning_baseline_generated_tokens_mean = Mean $rb.generated_tokens
-    reasoning_grc_generated_tokens_mean = Mean $rg.generated_tokens
-}
-$diagPath = Join-Path $outDir "outlier_diagnosis.json"
-$diag | ConvertTo-Json | Set-Content -Path $diagPath
-
-# 2) Rank sweep table normalized to baseline
+# 1) Rank sweep table normalized to baseline  [FIRST: run before outlier investigation
+#    to avoid measuring at throttled GPU clock after many consecutive GRC runs]
 $prompts = @(
     @{ name = 'coding'; text = $codingPrompt },
     @{ name = 'reasoning'; text = $reasonPrompt },
@@ -370,6 +381,37 @@ $rankAgg = $relativeRows | Group-Object rank | ForEach-Object {
 }
 $rankAggPath = Join-Path $outDir "rank_sweep_aggregate.csv"
 $rankAgg | Export-Csv -NoTypeInformation -Path $rankAggPath
+
+# 2) Outlier investigation exists (6 reps x 4 cases)  [SECOND: after rank sweep]
+$outlierRows = @()
+for ($i = 1; $i -le 6; $i++) {
+    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_baseline_coding_256" -Prompt $codingPrompt -Tokens 256 -ExtraArgs @('--temp', '0') -Rep $i
+    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_grc_coding_256_k2048" -Prompt $codingPrompt -Tokens 256 -ExtraArgs @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--temp', '0') -Rep $i
+    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_baseline_reasoning_256" -Prompt $reasonPrompt -Tokens 256 -ExtraArgs @('--temp', '0') -Rep $i
+    $outlierRows += Invoke-RunCase -OutDir $outDir -Label "outlier_grc_reasoning_256_k2048" -Prompt $reasonPrompt -Tokens 256 -ExtraArgs @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--temp', '0') -Rep $i
+}
+$outlierCsv = Join-Path $outDir "outlier_investigation.csv"
+$outlierRows | Export-Csv -NoTypeInformation -Path $outlierCsv
+
+$ob = $outlierRows | Where-Object { $_.label -eq 'outlier_baseline_coding_256' }
+$og = $outlierRows | Where-Object { $_.label -eq 'outlier_grc_coding_256_k2048' }
+$rb = $outlierRows | Where-Object { $_.label -eq 'outlier_baseline_reasoning_256' }
+$rg = $outlierRows | Where-Object { $_.label -eq 'outlier_grc_reasoning_256_k2048' }
+
+$diag = [pscustomobject]@{
+    coding_baseline_decode_mean = Mean $ob.decode_tps
+    coding_grc_decode_mean = Mean $og.decode_tps
+    coding_decode_pct = 100.0 * (Mean $og.decode_tps) / (Mean $ob.decode_tps)
+    reasoning_baseline_decode_mean = Mean $rb.decode_tps
+    reasoning_grc_decode_mean = Mean $rg.decode_tps
+    reasoning_decode_pct = 100.0 * (Mean $rg.decode_tps) / (Mean $rb.decode_tps)
+    coding_baseline_generated_tokens_mean = Mean $ob.generated_tokens
+    coding_grc_generated_tokens_mean = Mean $og.generated_tokens
+    reasoning_baseline_generated_tokens_mean = Mean $rb.generated_tokens
+    reasoning_grc_generated_tokens_mean = Mean $rg.generated_tokens
+}
+$diagPath = Join-Path $outDir "outlier_diagnosis.json"
+$diag | ConvertTo-Json | Set-Content -Path $diagPath
 
 # 3) 5-run CI pack for top whitepaper claims, sourced from first 5 outlier reps
 $ciRows = @()
