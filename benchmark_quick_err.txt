@@ -1,8 +1,0 @@
-zig.exe : runtime/nn/llm.c:10424:17: error: call to undeclared function 'kmemmove'; ISO C99 and later do not support 
-implicit function declarations [-Wimplicit-function-declaration]
-At C:\Users\legom\HyperTensor\build_host.ps1:97 char:1
-+ & zig @args_list 2>&1
-+ ~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (runtime/nn/llm....on-declaration]:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 

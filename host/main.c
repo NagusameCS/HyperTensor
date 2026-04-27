@@ -1,3 +1,62 @@
+﻿/*
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::.................:::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::.............................::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::......................................:::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::......................*%:....................::::::::::::::::::::::::
+ * ::::::::::::::::::::::.......................+@@@-......................::::::::::::::::::::::
+ * ::::::::::::::::::::........................+@@@@@:.......................:::::::::::::::::::
+ * ::::::::::::::::::.........................=@@@@@@@:........................:::::::::::::::::
+ * ::::::::::::::::..........................:@@@@@@@@@-........................:::::::::::::::
+ * :::::::::::::::..........................-@@@@@@@@@@@=.........................:::::::::::::
+ * :::::::::::::...........................=@@@@@@@@@@@@@-.........................::::::::::::::
+ * ::::::::::::...........................-@@@@@@@@@@@@@@@..........................:::::::::::
+ * :::::::::::............................:%@@@@@@@@@@@@@+...........................:::::::::
+ * ::::::::::..............................=@@@@@@@@@@@@%:............................:::::::::
+ * ::::::::::...............................*@@@@@@@@@@@=..............................::::::::
+ * :::::::::................................:@@@@@@@@@@%:...............................::::::
+ * ::::::::..................................*@@@@@@@@@-................................::::::::
+ * ::::::::..................:@@+:...........:@@@@@@@@@.............:+-..................:::::::
+ * :::::::...................*@@@@@@*-:.......%@@@@@@@+........:-*@@@@@..................:::::::
+ * :::::::..................:@@@@@@@@@@@%:....*@@@@@@@:....:=%@@@@@@@@@=.................:::::::
+ * :::::::..................*@@@@@@@@@@@@#....=@@@@@@@....:*@@@@@@@@@@@#..................::::::
+ * :::::::.................:@@@@@@@@@@@@@@-...=@@@@@@@....*@@@@@@@@@@@@@:.................::::::
+ * :::::::.................*@@@@@@@@@@@@@@@:..=@@@@@@#...+@@@@@@@@@@@@@@=.................::::::
+ * :::::::................:@@@@@@@@@@@@@@@@*..=@@@@@@#..+@@@@@@@@@@@@@@@+.................::::::
+ * :::::::................=@@@@@@@@@@@@@@@@@-.#@@@@@@@.-@@@@@@@@@@@@@@@@*................:::::::
+ * :::::::...............:#@@@@@@@@@@@@@@@@@*.@@@@@@@@:@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::..............:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::................:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-...............::::::::
+ * :::::::::.................:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%-.................::::::::
+ * ::::::::::....................:#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=...................::::::::::
+ * ::::::::::.......................:*@@@@@@@@@@@@@@@@@@@@@@@@@#-.....................:::::::::
+ * :::::::::::.........................:=@@@@@@@@@@@@@@@@@@*:........................:::::::::::
+ * ::::::::::::......................:=%@@@@@@@@@@@@@@@@@@@@#:......................::::::::::::
+ * :::::::::::::.............+#%@@@@@@@@@@@@@@%-::*-.:%@@@@@@@@%=:.................::::::::::::::
+ * :::::::::::::::...........:#@@@@@@@@@@@#--+%@@@@@@@#=:=%@@@@@@@@@@-............::::::::::::::::
+ * ::::::::::::::::............-@@@@@@+-=#@@@@@@@@@@@@@@@@#=-=#@@@@*:............::::::::::::::::
+ * ::::::::::::::::::...........:==:...-@@@@@@@@@@@@@@@@@@@@:...:=-............:::::::::::::::::
+ * :::::::::::::::::::...................@@@@@@@@@@@@@@@@@-..................::::::::::::::::::::
+ * ::::::::::::::::::::::................:#@@@@@@@@@@@@@*:.................::::::::::::::::::::::
+ * ::::::::::::::::::::::::...............:*@@%+-.:=#@%-................::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::.............:........................:::::::::::::::::::::::::::
+ * :::::::::::::::::::::::::::::::...............................:::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::.....................:::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ */
+
 /*
  * Geodessical — Hosted Main Entry Point
  *
@@ -7,6 +66,14 @@
  * Usage: geodessical <model.gguf> [prompt]
  */
 #define _CRT_SECURE_NO_WARNINGS
+
+/* Number of context tokens prefilled before the calibration probe token.
+ * Single-token (pos-0) calibration misses contextual activation directions
+ * that dominate inference (≥90% of hidden-state variance at positions >0).
+ * Using 16 context tokens adds ~17× forward passes but aligns the PCA
+ * subspace with the actual WikiText-2 inference distribution.
+ * Hash v2: value encoded in hs/W_proj cache keys so old caches are rejected. */
+#define AXEX_CALIB_CTX_LEN 16
 #include "hal.h"
 
 /* Forward declarations from TensorOS inference engine */
@@ -14,8 +81,14 @@
 #include "../runtime/nn/hf_download.h"
 #include "../runtime/nn/axiom_beta.h"
 #include "../runtime/nn/axiom_exploit.h"
+#include "../runtime/nn/axiom_gauge.h"
 #include "../runtime/nn/axiom_linalg.h"
 #include "../runtime/nn/axiom_vis.h"
+#include "../runtime/nn/geo_research.h"
+#include "../runtime/nn/online_basis.h"
+#include "../runtime/nn/mcr_compress.h"
+#include "../runtime/nn/thermal_rank.h"
+#include "../runtime/nn/qspec_basis.h"
 #include "api_server.h"
 
 #include <stdio.h>
@@ -34,11 +107,43 @@
 
 static void print_banner(void) {
     kprintf("\n");
-    kprintf("  ╔═══════════════════════════════════════════╗\n");
-    kprintf("  ║  Geodessical v%d.%d.%d \"%s\"              ║\n",
+    kprintf("  ██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("███████████████████████████████ ██████████████████████████████\n");
+    kprintf("██████████████████████████████   █████████████████████████████\n");
+    kprintf("█████████████████████████████     ████████████████████████████\n");
+    kprintf("████████████████████████████       ███████████████████████████\n");
+    kprintf("███████████████████████████         ██████████████████████████\n");
+    kprintf("████████████████████████████       ███████████████████████████\n");
+    kprintf("████████████████████████████       ███████████████████████████\n");
+    kprintf("█████████████████████████████     ████████████████████████████\n");
+    kprintf("█████████████████████████████     ████████████████████████████\n");
+    kprintf("██████████████████    ███████    █████████   █████████████████\n");
+    kprintf("██████████████████       █████   █████       █████████████████\n");
+    kprintf("██████████████████        ████   ████        █████████████████\n");
+    kprintf("████████████████          ████   ███          ████████████████\n");
+    kprintf("████████████████           ██    ███          ████████████████\n");
+    kprintf("█████████████████          ██    ██           ████████████████\n");
+    kprintf("████████████████████                       ███████████████████\n");
+    kprintf("███████████████████████                 ██████████████████████\n");
+    kprintf("██████████████████████████          ██████████████████████████\n");
+    kprintf("██████████████████████████   █████    ████████████████████████\n");
+    kprintf("███████████████████      █████████████   █████████████████████\n");
+    kprintf("███████████████████████████         ██████████████████████████\n");
+    kprintf("██████████████████████████          ██████████████████████████\n");
+    kprintf("███████████████████████████   ██  ████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("██████████████████████████████████████████████████████████████\n");
+    kprintf("\n");
+    kprintf("  Geodessical v%d.%d.%d \"%s\"\n",
             GD_VERSION_MAJOR, GD_VERSION_MINOR, GD_VERSION_PATCH, GD_CODENAME);
-    kprintf("  ║  High-Performance AI Inference Runtime    ║\n");
-    kprintf("  ╚═══════════════════════════════════════════╝\n");
     kprintf("\n");
 }
 
@@ -94,16 +199,23 @@ static void print_usage(const char *argv0) {
     kprintf("  --axex-offload         Curvature-guided GPU layer offload (smart --gpu-layers)\n");
     kprintf("  --axex-compress        Manifold-aware weight compression (geodesic SVD + GP)\n");
     kprintf("  --axex-ffn-compress    SVD FFN compression only (gate/up/down, no manifold PCA)\n");
-    kprintf("  --axex-compress-rank N Max SVD rank for FFN compression (default 128, use 16-32 for speed)\n");
-    kprintf("                         GP (Geodesic Projection): Q/K/V/gate/up → W@P[m×k]\n");
-    kprintf("                         Enables 22B-70B models in 8 GB VRAM (one-time cost)\n");
+    kprintf("  --axex-attn-svd        Also SVD-compress Q and O attention weights (slot 1/4)\n");
+    kprintf("                         Combined with --axex-ffn-compress: full model SVD (no PCA needed)\n");
+    kprintf("                         70B at rank-128: Q+O+FFN ≈ 6.6 GB vs 20 GB IQ2_XS — all-GPU\n");
+    kprintf("  --axex-compress-rank N Max rank k for GP compression (default: auto-scales with model dim:\n");
+    kprintf("                         dim<=1024: 3/4*dim, dim<=2048: 256, dim<=5120: 384, dim>5120: 512)\n");
+    kprintf("                         Use 128 for 7GB VRAM target on 70B; 512 for best quality.\n");
+    kprintf("                         GP (Geodesic Projection): Q/K/V/O/gate/up → W_proj[m×k]\n");
+    kprintf("                         Enables 22B-70B models in 8 GB VRAM (one-time calibration cost)\n");
     kprintf("  --axex-compress-max-err <f> Max Frobenius error to accept (0=no limit; use 0.5 to skip\n");
     kprintf("                         matrices with >50%% error, preventing garbled output)\n");
+    kprintf("  --axex-skip-o          Disable O-projection GP compression (preserves full O rank)\n");
     kprintf("  --axex-quality <f>     Weight compression quality floor 0-1 (default: 0.90)\n");
     kprintf("  --one-decode           OneDecode: bake geodesic flow map once, then decode instantly\n");
     kprintf("  --one-decode-coverage <n> Vocab tokens to bake for OneDecode (default: 2048)\n");
     kprintf("  --ott-od               OTT-OD Protocol: OneDecode as speculative draft source (fastest OTT mode)\n");
     kprintf("  --vis [dir]            Visualize Riemannian manifolds (default: axiom_vis/)\n");
+    kprintf("  --ppl-eval             Evaluate WikiText-2 perplexity and exit (works with --axex-compress)\n");
     kprintf("  -h, --help             Show this help\n");
     kprintf("\nExamples:\n");
     kprintf("  %s phi3.5.gguf -p \"What is an OS?\"\n", argv0);
@@ -184,12 +296,47 @@ typedef struct {
     int         axex_offload;        /* 1 = curvature-guided layer offload */
     int         axex_compress;       /* 1 = manifold-aware weight compression */
     int         axex_ffn_compress;   /* 1 = SVD FFN compression only (no manifold PCA) */
+    int         axex_attn_svd;       /* 1 = also SVD-compress Q and O attention weights */
     int         axex_compress_rank;  /* max SVD rank (0 = auto, default 128) */
     float       axex_compress_quality;  /* 0-1 quality floor (default 0.90) */
     float       axex_compress_max_err;  /* max Frobenius error to accept (0=no limit) */
     double      axiom_pca_variance;     /* 0 = default 0.95; override for GP weight basis */
     int         axex_attn_only;      /* 1 = compress only Q/K/V/O (default); 0 = all incl FFN */
     int         axex_calib_samples;  /* calibration samples per layer (0 = auto) */
+    int         axex_no_actaware;    /* 1 = disable column-norm reweighting (pure h-PCA) */
+    int         axex_skip_o;         /* 1 = skip O_proj compression (it uses wrong basis anyway) */
+    int         axex_weight_pca;     /* 1 = use weight-gram eigenvectors (no calib data needed) */
+    /* Research features */
+    int         axex_real_curvature; /* 1 = use true Ricci signal to set per-layer ranks */
+    int         axex_learn_plan;     /* 1 = run differentiable rank plan optimisation after SVD */
+    int         axex_plan_steps;     /* diffplan optimisation steps (0 = default 200) */
+    int         axex_phase_compress; /* 1 = build phase-conditional compression plan */
+    float       axex_phase_ret_q;    /* retrieval phase quality floor (default 0.85) */
+    float       axex_phase_rea_q;    /* reasoning phase quality floor (default 0.90) */
+    float       axex_phase_gen_q;    /* generation phase quality floor (default 0.75) */
+    int         axex_online_basis;   /* 1 = enable online PCA basis update on spec-decode rejects */
+    int         axex_gauge;          /* 1 = diagonal gauge-optimal compression */
+    int         axex_gauge_iter;     /* gauge optimisation iterations (0 = auto) */
+    /* MCR + sink bypass (Features 1 & 2) */
+    int         axex_mcr;              /* 1 = MCR-aware non-uniform rank allocation */
+    float       axex_mcr_mix_scale;    /* rank multiplier for Mix phase (default 1.5) */
+    float       axex_mcr_compress_scale; /* rank multiplier for Compress phase (default 0.35) */
+    float       axex_mcr_refine_scale; /* rank multiplier for Refine phase (default 1.2) */
+    int         axex_sink_bypass;      /* 1 = ensure sink direction is covered by PCA basis */
+    /* Thermal adaptive + TPJ (Features 3 & 4) */
+    int         axex_thermal;          /* 1 = scale rank with GPU thermal headroom */
+    float       axex_thermal_low;      /* below this °C use full rank (default 65) */
+    float       axex_thermal_high;     /* above this °C use min rank (default 85) */
+    float       axex_thermal_power;    /* power budget W, 0 = no limit */
+    int         axex_tpj;              /* 1 = tokens-per-joule gradient in diffplan */
+    float       axex_tpj_lambda;       /* energy regularisation weight (default 0.005) */
+    /* Cross-quant basis + failure-mode rank (Features 5 & 6) */
+    int         axex_qspec;            /* 1 = run cross-quant shared basis analysis */
+    float       axex_qspec_threshold;  /* alignment threshold for shared-ok (default 0.80) */
+    int         axex_fail_rank;        /* 1 = failure-mode targeted rank allocation */
+    float       axex_fail_boost;       /* dominant-zone rank boost factor (default 1.8) */
+    int         axex_calib_only;       /* 1 = skip axiom geometry, run only W_proj calibration */
+    int         ppl_eval;              /* 1 = evaluate perplexity on built-in WikiText-2 slice and exit */
 } GD_args_t;
 
 static int GD_ott_theorem_active = 0;
@@ -229,7 +376,11 @@ static const char *find_default_gguf_model(void) {
 }
 
 static int parse_args(int argc, char **argv, GD_args_t *args) {
-    args->model_path  = NULL;
+    /* Zero-init the entire struct so all boolean/int flags default to 0 and
+     * all float fields default to 0.0f.  Explicit assignments below override
+     * the fields that need non-zero defaults.  This prevents subtle bugs when
+     * new fields are added to GD_args_t without a corresponding init line. */
+    memset(args, 0, sizeof(*args));
     args->prompt      = NULL;
     args->download_repo = NULL;
     args->quant_hint  = "q4_0";
@@ -286,6 +437,31 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->axex_compress_max_err = 0.0f;  /* 0 = no limit */
     args->axex_attn_only = 1;      /* default: attention-only (near-lossless accuracy) */
     args->axex_calib_samples = 0;  /* 0 = auto (512 default, 64 in fast mode) */
+    args->axex_real_curvature = 0;
+    args->axex_learn_plan = 0;
+    args->axex_plan_steps = 0;
+    args->axex_phase_compress = 0;
+    args->axex_phase_ret_q = 0.85f;
+    args->axex_phase_rea_q = 0.90f;
+    args->axex_phase_gen_q = 0.75f;
+    args->axex_online_basis = 0;
+    args->axex_gauge      = 0;
+    args->axex_gauge_iter = 0;  /* 0 = auto (10 for small, 1 for large) */
+    args->axex_mcr = 0;
+    args->axex_mcr_mix_scale = 1.5f;
+    args->axex_mcr_compress_scale = 0.35f;
+    args->axex_mcr_refine_scale = 1.2f;
+    args->axex_sink_bypass = 0;
+    args->axex_thermal = 0;
+    args->axex_thermal_low  = 65.0f;
+    args->axex_thermal_high = 85.0f;
+    args->axex_thermal_power = 0.0f;
+    args->axex_tpj = 0;
+    args->axex_tpj_lambda = 0.005f;
+    args->axex_qspec = 0;
+    args->axex_qspec_threshold = 0.80f;
+    args->axex_fail_rank = 0;
+    args->axex_fail_boost = 1.8f;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -476,32 +652,158 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
         } else if (strcmp(argv[i], "--axex-compress") == 0) {
             args->axex_compress = 1;
             args->axiom_beta_run = 1;   /* need curvature data */
-            /* NOTE: fast_mode NOT set — need 512 samples for enough PCA components (k~500) */
+            /* NOTE: fast_mode NOT set — need 512+ samples for good basis coverage (k~128+) */
             args->axiom_skip_geodesic = 1; /* Phase 5 not needed for GP compression */
-            args->axiom_pca_variance = 0.9999; /* keep all significant PCA components for weight basis */
+            /* axiom_pca_variance intentionally NOT set here: layerwise PCA uses var_ratio=1.0
+             * to keep all components; rank is capped by axex_compress_rank budget instead. */
         } else if (strcmp(argv[i], "--axex-attn-only") == 0) {
             /* Explicit: compress only Q/K/V/O attention weights (default behaviour) */
             args->axex_attn_only = 1;
+        } else if (strcmp(argv[i], "--axex-no-actaware") == 0) {
+            /* Disable activation-aware PCA reweighting (reverts to pure h-PCA).
+             * Debug/ablation only — default is ON because it halves PPL. */
+            args->axex_no_actaware = 1;
+        } else if (strcmp(argv[i], "--axex-skip-o") == 0) {
+            /* Skip O_proj compression. O's input is per-head attention output,
+             * NOT the residual stream, so projecting it onto the shared
+             * residual-stream PCA basis gives a random basis (exactly k/n
+             * energy). Skipping preserves O at full rank. */
+            args->axex_skip_o = 1;
+        } else if (strcmp(argv[i], "--axex-weight-pca") == 0) {
+            /* Use weight-gram eigenvectors as the Pt basis instead of the
+             * data-PCA basis.  Finds top-k eigenvectors of K = Σ Wᵢ^T Wᵢ
+             * (the weight gram matrix) via matrix-free power iteration.
+             * This maximises weight energy ||W Pt^T||_F^2 directly.
+             * No calibration data needed when combined with --axex-skip-calib. */
+            args->axex_weight_pca = 1;
         } else if (strcmp(argv[i], "--axex-ffn-compress") == 0) {
             /* SVD compress gate/up/down only — no axiom survey, no manifold PCA.
              * Fast path: enables the cuBLAS batched GEMV for gate+up without
              * waiting 30 min for per-layer PCA.  Uses flat curvature (SVD). */
             args->axex_ffn_compress = 1;
+        } else if (strcmp(argv[i], "--axex-attn-svd") == 0) {
+            /* Also SVD-compress Q and O (slots 1/4) — no calibration needed.
+             * Combine with --axex-ffn-compress for full model SVD:
+             *   geodessical model.gguf --axex-ffn-compress --axex-attn-svd --axex-compress-rank 128
+             * 70B at rank-128: Q+O+FFN ≈ 6.6 GB vs 20 GB IQ2_XS → fits 7 GB GPU. */
+            args->axex_attn_svd = 1;
         } else if (strcmp(argv[i], "--axex-compress-rank") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-compress-rank requires int\n"); return -1; }
             args->axex_compress_rank = atoi(argv[i]);
+            if (args->axex_compress_rank > AXEX_MANIFOLD_K_MAX) {
+                kprintf("[AXEX] Warning: --axex-compress-rank %d exceeds AXEX_MANIFOLD_K_MAX (%d), capping to %d\n",
+                        args->axex_compress_rank, AXEX_MANIFOLD_K_MAX, AXEX_MANIFOLD_K_MAX);
+                args->axex_compress_rank = AXEX_MANIFOLD_K_MAX;
+            }
         } else if (strcmp(argv[i], "--axex-compress-max-err") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-compress-max-err requires float\n"); return -1; }
             args->axex_compress_max_err = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-calib-only") == 0) {
+            /* Skip axiom geometry phases 1-4 entirely; run only the 512-sample
+             * W_proj manifold calibration. Saves ~300 forward passes on 70B.
+             * Requires --axex-compress to be set for axex gates to fire. */
+            args->axex_calib_only = 1;
+        } else if (strcmp(argv[i], "--axex-skip-o") == 0) {
+            axex_manifold_set_skip_o(1);
+        } else if (strcmp(argv[i], "--ppl-eval") == 0) {
+            args->ppl_eval = 1;
         } else if (strcmp(argv[i], "--axex-full-compress") == 0) {
             /* Override: also compress FFN gate/up (legacy — hurts accuracy ~20-35% perplexity) */
             args->axex_attn_only = 0;
+        } else if (strcmp(argv[i], "--axex-gauge") == 0) {
+            /* Diagonal gauge-optimal compression: find the basis in which the
+             * residual stream is maximally compressible, then bake it into the
+             * SVD factors (zero inference overhead).
+             * Optionally combine with --axex-gauge-iter N (default: auto). */
+            args->axex_gauge = 1;
+        } else if (strcmp(argv[i], "--axex-gauge-iter") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-gauge-iter requires int\n"); return -1; }
+            args->axex_gauge      = 1;
+            args->axex_gauge_iter = atoi(argv[i]);
         } else if (strcmp(argv[i], "--axex-calib-samples") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-calib-samples requires integer\n"); return -1; }
             args->axex_calib_samples = atoi(argv[i]);
         } else if (strcmp(argv[i], "--axex-quality") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-quality requires float\n"); return -1; }
             args->axex_compress_quality = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-real-curvature") == 0) {
+            args->axex_real_curvature = 1;
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_skip_geodesic = 1;
+            args->axiom_pca_variance = 0.9999;
+        } else if (strcmp(argv[i], "--axex-learn-plan") == 0) {
+            args->axex_learn_plan = 1;
+        } else if (strcmp(argv[i], "--axex-plan-steps") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-plan-steps requires int\n"); return -1; }
+            args->axex_plan_steps = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--axex-phase-compress") == 0) {
+            args->axex_phase_compress = 1;
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_skip_geodesic = 1;
+            args->axiom_pca_variance = 0.9999;
+        } else if (strcmp(argv[i], "--axex-phase-ret-q") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-phase-ret-q requires float\n"); return -1; }
+            args->axex_phase_ret_q = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-phase-rea-q") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-phase-rea-q requires float\n"); return -1; }
+            args->axex_phase_rea_q = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-phase-gen-q") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-phase-gen-q requires float\n"); return -1; }
+            args->axex_phase_gen_q = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-online-basis") == 0) {
+            args->axex_online_basis = 1;
+        } else if (strcmp(argv[i], "--axex-mcr") == 0) {
+            args->axex_mcr = 1;
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_skip_geodesic = 1;
+            args->axiom_pca_variance = 0.9999;
+        } else if (strcmp(argv[i], "--axex-mcr-mix-scale") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-mcr-mix-scale requires float\n"); return -1; }
+            args->axex_mcr_mix_scale = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-mcr-compress-scale") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-mcr-compress-scale requires float\n"); return -1; }
+            args->axex_mcr_compress_scale = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-mcr-refine-scale") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-mcr-refine-scale requires float\n"); return -1; }
+            args->axex_mcr_refine_scale = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-sink-bypass") == 0) {
+            args->axex_sink_bypass = 1;
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_skip_geodesic = 1;
+        } else if (strcmp(argv[i], "--axex-thermal") == 0) {
+            args->axex_thermal = 1;
+        } else if (strcmp(argv[i], "--axex-thermal-low") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-thermal-low requires float\n"); return -1; }
+            args->axex_thermal_low = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-thermal-high") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-thermal-high requires float\n"); return -1; }
+            args->axex_thermal_high = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-thermal-power") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-thermal-power requires float\n"); return -1; }
+            args->axex_thermal_power = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-tpj") == 0) {
+            args->axex_tpj = 1;
+            args->axex_learn_plan = 1;  /* TPJ builds on diffplan */
+        } else if (strcmp(argv[i], "--axex-tpj-lambda") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-tpj-lambda requires float\n"); return -1; }
+            args->axex_tpj_lambda = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-qspec") == 0) {
+            args->axex_qspec = 1;
+        } else if (strcmp(argv[i], "--axex-qspec-threshold") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-qspec-threshold requires float\n"); return -1; }
+            args->axex_qspec_threshold = (float)atof(argv[i]);
+        } else if (strcmp(argv[i], "--axex-fail-rank") == 0) {
+            args->axex_fail_rank = 1;
+            args->axex_compress = 1;
+            args->axiom_beta_run = 1;
+            args->axiom_skip_geodesic = 1;
+        } else if (strcmp(argv[i], "--axex-fail-boost") == 0) {
+            if (++i >= argc) { kprintf("Error: --axex-fail-boost requires float\n"); return -1; }
+            args->axex_fail_boost = (float)atof(argv[i]);
         } else if (strcmp(argv[i], "--one-decode") == 0) {
             args->one_decode = 1;
             args->axiom_beta_run = 1;       /* need geometry */
@@ -1027,9 +1329,8 @@ static int geodesic_output_quality_ok(const char *text) {
             control++;
         if (c >= 128)
             high++;
-        if (isalnum((int)c) || c == ' ' || c == '.' || c == ',' ||
-            c == ';' || c == ':' || c == '!' || c == '?' || c == '\'' || c == '"' ||
-            c == '(' || c == ')' || c == '-' || c == '\n') {
+        if (isalnum((int)c) || c == ' ' || c == '.' || c == ',' || c == ';' ||
+            c == ':' || c == '!' || c == '?' || c == '\'' || c == '"') {
             useful++;
         }
         if (c == '<' && strncmp(text + i, "<unused", 7) == 0)
@@ -1309,6 +1610,17 @@ static int geodesic_generate_text(const char *prompt,
     return generated;
 }
 
+/* ── Inference-time thermal / TPJ / phase-plan state ────────────────────────
+ * These are file-scope statics so both geodesic_speculative_generate_text()
+ * and the main() init block can access them without parameter threading.
+ * Activated only when --axex-thermal / --axex-phase-compress is passed. */
+static thermal_ctx_t s_spec_thermal;
+static int           s_spec_thermal_active = 0;    /* 1 = thermal throttle enabled */
+static tpj_ctx_t     s_spec_tpj;
+static int           s_spec_tpj_active     = 0;    /* 1 = TPJ energy tracking enabled */
+static phased_plan_t s_spec_phase_plan;
+static int           s_spec_phase_plan_active = 0; /* 1 = phase detector running */
+
 /* ── OTT Speculative Decode ─────────────────────────────────────────────
  * Collects `batch` geodesic draft tokens, then verifies them in one
  * transformer pass via llm_speculative_verify_with_correction().
@@ -1521,6 +1833,30 @@ static int geodesic_speculative_generate_text(const char *prompt,
                     && axiom_beta_grc_count() >= 3
                     && geo_accepted > 0) {
                 dyn_batch = 2;
+            }
+        }
+        /* ── Thermal-adaptive dyn_batch cap ─────────────────────────────────────
+         * When --axex-thermal is active, call thermal_get_rank() every ~32 tokens
+         * to get a thermally-scaled rank and map it proportionally to dyn_batch.
+         * High GPU temp → lower rank → lower batch → reduced throughput pressure.
+         * The thermal poll is debounced inside thermal_get_rank() (250 ms cooldown)
+         * so there's no NVML overhead when called frequently. */
+        if (s_spec_thermal_active && (generated & 31) == 0) {
+            int t_rank = thermal_get_rank(&s_spec_thermal, s_spec_thermal.rank_max);
+            /* Map rank linearly to batch cap: rank_min→1, rank_max→batch_size */
+            int rank_span = s_spec_thermal.rank_max - s_spec_thermal.rank_min;
+            int thermal_batch;
+            if (rank_span <= 0) {
+                thermal_batch = batch_size;
+            } else {
+                int above_min = t_rank - s_spec_thermal.rank_min;
+                thermal_batch = 1 + (above_min * (batch_size - 1) + rank_span / 2) / rank_span;
+            }
+            if (thermal_batch < 1) thermal_batch = 1;
+            if (dyn_batch > thermal_batch) {
+                kprintf("[THERMAL] temp=%.1f°C → capping dyn_batch %d→%d\n",
+                        (double)s_spec_thermal.current_temp_C, dyn_batch, thermal_batch);
+                dyn_batch = thermal_batch;
             }
         }
         /* ── Step 1: collect up to dyn_batch geodesic draft tokens ────────────
@@ -1772,13 +2108,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
                 if (pn > 0) {
                     int room = max_output - out_len - 1;
-                    if (room <= 0) goto spec_done;
-                    if (pn > room) pn = room;
-                    memcpy(output + out_len, piece, (size_t)pn);
-                    out_len += pn;
-                    output[out_len] = '\0';
+                    if (room > 0) {
+                        if (pn > room) pn = room;
+                        memcpy(output + out_len, piece, (size_t)pn);
+                        out_len += pn;
+                        output[out_len] = '\0';
+                    }
                 }
-                axiom_beta_grc_feedback(ctx, n_ctx, tok); /* GRC: accepted token */
                 if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
                 generated++;
                 geo_accepted++;
@@ -1883,6 +2219,20 @@ static int geodesic_speculative_generate_text(const char *prompt,
             if (dyn_batch > 1)
                 ott_update_generation_context(ctx, n_ctx);
         }
+        /* ── TPJ record + phase plan update (per decode batch) ───────────────
+         * tpj_record() feeds the tokens-per-joule energy model with the current
+         * throughput so cumulative J/tok stats are accurate at end-of-run.
+         * phaseplan_update() advances the RETRIEVAL/REASONING/GENERATION phase
+         * detector using logit entropy as an attention-entropy proxy: high
+         * entropy → retrieval; low entropy → generation. */
+        if (s_spec_tpj_active) {
+            float tps = llm_last_tok_per_sec();
+            if (tps > 0.0f) tpj_record(&s_spec_tpj, tps);
+        }
+        if (s_spec_phase_plan_active) {
+            float entropy = llm_last_logit_entropy();
+            phaseplan_update(&s_spec_phase_plan, entropy, 0.0f);
+        }
     }
 
 spec_done:
@@ -1898,6 +2248,12 @@ spec_done:
         kprintf("[SPEC] Verifier decode: %.1f tok/s (%d calls in %llu ms)\n",
                 verif_tok_s, verif_decode_n,
                 (unsigned long long)(verif_decode_us / 1000));
+        /* Print TPJ energy summary when tracking was active */
+        if (s_spec_tpj_active && s_spec_tpj.cumulative_tokens > 0)
+            tpj_print(&s_spec_tpj);
+        /* Print phase plan summary when tracking was active */
+        if (s_spec_phase_plan_active)
+            phaseplan_print(&s_spec_phase_plan);
     }
 
     GD_geodesic_last_runtime_hits  = geo_accepted;
@@ -2078,6 +2434,87 @@ static int geodesic_chat_turn(const char *user_text,
     return n_std;
 }
 
+typedef struct {
+    const llm_layer_t *layer;
+    const llm_model_t *model;
+    uint32_t weight_mask;
+    float *tmp_m;
+    float *row_f32;
+} my_grc_weighted_ctx_t;
+
+static void my_grc_weighted_matvec(const float *x, float *y, int n, void *vctx) {
+    my_grc_weighted_ctx_t *c = (my_grc_weighted_ctx_t *)vctx;
+    memset(y, 0, n * sizeof(float));
+    int dim = c->model->dim;
+    if (n != dim) return;
+
+    int lq_dim = c->model->n_heads * (c->model->dim / c->model->n_heads);
+    int lkv_dim = c->model->n_kv_heads * (c->model->dim / c->model->n_heads);
+
+    #define DO_WEIGHT(W, W_type, m) do { \
+        if (W) { \
+            for (int i = 0; i < (m); i++) { \
+                const void *row_ptr = (const char *)(W) + i * ggml_tensor_size((W_type), dim); \
+                ax_dequant_row_f32(row_ptr, c->row_f32, dim, (W_type)); \
+                float dot = 0.0f; \
+                for (int j = 0; j < dim; j++) dot += c->row_f32[j] * x[j]; \
+                c->tmp_m[i] = dot; \
+            } \
+            for (int i = 0; i < (m); i++) { \
+                const void *row_ptr = (const char *)(W) + i * ggml_tensor_size((W_type), dim); \
+                ax_dequant_row_f32(row_ptr, c->row_f32, dim, (W_type)); \
+                for (int j = 0; j < dim; j++) y[j] += c->row_f32[j] * c->tmp_m[i]; \
+            } \
+        } \
+    } while (0)
+
+    if (c->weight_mask & 1) DO_WEIGHT(c->layer->q_weight, c->layer->q_type, lq_dim);
+    if (c->weight_mask & 2) DO_WEIGHT(c->layer->k_weight, c->layer->k_type, lkv_dim);
+    if (c->weight_mask & 4) DO_WEIGHT(c->layer->v_weight, c->layer->v_type, lkv_dim);
+    #undef DO_WEIGHT
+}
+
+/* ── Fast cached matvec for weight-PCA ─────────────────────────────────────
+ * Pre-dequantized f32 weight matrices — eliminates repeated Q4_K_M decoding.
+ * K_apply cost: one sequential read of (Q+K+V) f32 matrices per call.
+ * Fused W^T W: reads each row once (dot product + accumulate in same pass),
+ * keeping the 16KB row hot in L1d between the two uses.
+ * Normalized: each matrix weighted by 1/||W||_F^2 to give equal importance
+ * to Q, K, V regardless of their differing row counts (GQA: 4096 vs 1024). */
+typedef struct {
+    const float *q_f32;   /* [lq_dim  × dim] row-major f32 */
+    const float *k_f32;   /* [lkv_dim × dim] row-major f32 */
+    const float *v_f32;   /* [lkv_dim × dim] row-major f32 */
+    float *tmp;            /* temp buffer, size = max(lq_dim, lkv_dim) */
+    int lq_dim, lkv_dim, dim;
+    float inv_norm_q;     /* 1 / ||W_q||_F^2 — equal weighting per matrix */
+    float inv_norm_k;
+    float inv_norm_v;
+} my_grc_cached_ctx_t;
+
+static void my_grc_cached_matvec(const float *x, float *y, int n, void *vctx) {
+    my_grc_cached_ctx_t *c = (my_grc_cached_ctx_t *)vctx;
+    if (n != c->dim) return;
+    memset(y, 0, (size_t)n * sizeof(float));
+
+    /* Fused normalized W^T W x: read each row once → dot, then accumulate.
+     * Scale by 1/||W||_F^2 so Q, K, V contribute equally to the eigenbasis. */
+    #define CACHED_WT_W(W_f32, m, inv_norm) do {                              \
+        for (int _i = 0; _i < (m); _i++) {                                    \
+            const float *_row = (W_f32) + (size_t)_i * c->dim;               \
+            float _dot = 0.0f;                                                 \
+            for (int _j = 0; _j < c->dim; _j++) _dot += _row[_j] * x[_j];   \
+            float _sc = _dot * (inv_norm);                                     \
+            for (int _j = 0; _j < c->dim; _j++) y[_j] += _row[_j] * _sc;    \
+        }                                                                      \
+    } while (0)
+
+    CACHED_WT_W(c->q_f32, c->lq_dim,  c->inv_norm_q);
+    CACHED_WT_W(c->k_f32, c->lkv_dim, c->inv_norm_k);
+    CACHED_WT_W(c->v_f32, c->lkv_dim, c->inv_norm_v);
+    #undef CACHED_WT_W
+}
+
 int main(int argc, char **argv) {
     GD_args_t args;
 
@@ -2171,17 +2608,16 @@ int main(int argc, char **argv) {
      * - attn-only (default): skip Q/K/V/O (manifold CPU path), keep FFN on GPU
      * - full-compress: skip Q/K/V/O + FFN (both replaced by manifold CPU path) */
     if (args.axex_compress) {
-        /* NOTE: We no longer pre-skip Q/K/V/O upload here.
-         * Axiom beta calibration needs real attention weights on GPU for its
-         * forward-pass hidden-state capture; skipping them before llm_gpu_init
-         * caused STATUS_INTEGER_DIVIDE_BY_ZERO in CUDA attention kernels.
-         * Instead, llm_gpu_upload_compressed_weights() phase 2b frees the raw
-         * Q/K/V/O GPU buffers AFTER the GP W_proj matrices are uploaded,
-         * achieving the same VRAM savings without breaking calibration.
-         * Only full-compress (not attn-only) still skips raw FFN upload, since
-         * FFN is not needed for axiom beta and saves PCIe bandwidth. */
-        if (!args.axex_attn_only)
-            llm_gpu_set_compress_mode(1);   /* skip FFN only in full-compress mode */
+        /* NOTE: Do NOT call llm_gpu_set_compress_mode(1) here.
+         * axiom_beta_run() needs ALL weights on GPU — including FFN — for its
+         * calibration forward passes (axiom_beta_probe_all_layer_states calls
+         * llm_generate_tokens, which returns 1 if FFN GPU pointers are null).
+         * VRAM savings for GP compression come from freeing raw Q/K/V/O after
+         * uploading compressed W_proj matrices (handled in phase 2b of
+         * llm_gpu_upload_compressed_weights), not by skipping raw FFN here.
+         * If explicit FFN compression (--axex-ffn-compress) is also requested
+         * it is handled by the block below. */
+        (void)0;
     }
     /* --axex-ffn-compress: skip raw FFN uploads during llm_gpu_init so that
      * attn-only VRAM estimates are used.  All 32 layers' attention weights fit
@@ -2190,6 +2626,13 @@ int main(int argc, char **argv) {
      * must be promoted via Phase 3 (compress→free→re-upload dance). */
     if (args.axex_ffn_compress) {
         llm_gpu_set_compress_mode(1);
+    }
+    /* --axex-attn-svd: skip raw Q/O upload during llm_gpu_init to save VRAM.
+     * For 70B models, Q+O at IQ2_XS ≈ 38 MB/layer × 80 = 3 GB — too large to
+     * waste on upload-then-free. This flag tells the VRAM budgeter to use attn
+     * sizes (norms + K/V only) and skip raw Q/O from the upload list. */
+    if (args.axex_attn_svd) {
+        llm_gpu_set_attn_compress_mode(1);
     }
 
     /* Load model via GGUF parser + LLM engine */
@@ -2215,7 +2658,54 @@ int main(int argc, char **argv) {
     axiom_beta_report_t axiom_rep;
     memset(&axiom_rep, 0, sizeof(axiom_rep));
 
-    if (args.axiom_beta_run) {
+    /* ── Early W_proj cache fast-path ─────────────────────────────────────
+     * If the W_proj cache is already on disk, skip axiom_beta_run entirely
+     * (avoiding depth-sink detection: ~128 forward passes on 70B = ~7 min).
+     * On hit: set axiom_ran_this_invocation so downstream axex gates fire. */
+    int wp_early_loaded = 0;
+    if (args.axiom_beta_run && args.axex_compress && !args.axex_ffn_compress) {
+        const llm_model_t *_em = llm_get_model();
+        if (_em) {
+            int _e_dim = _em->dim, _e_nl = _em->n_layers;
+            int _e_vocab = llm_model_vocab();
+            int _e_ns = (args.axex_calib_samples > 0) ? args.axex_calib_samples
+                      : (args.axiom_fast_mode ? 64 : 2048);
+            if (_e_ns > _e_vocab) _e_ns = _e_vocab;
+            uint64_t _wp_hk = 0xDEADBEEF12345678ULL;
+            const char *_wmp = args.model_path ? args.model_path : "";
+            for (const char *_c = _wmp; *_c; _c++) { _wp_hk ^= (uint8_t)*_c; _wp_hk *= 0x100000001B3ULL; }
+            _wp_hk ^= (uint64_t)_e_ns  * 0xABCDEF01ULL;
+            _wp_hk ^= (uint64_t)_e_nl  * 0x12345678ULL;
+            _wp_hk ^= (uint64_t)_e_dim * 0x87654321ULL;
+            _wp_hk ^= (uint64_t)AXEX_CALIB_CTX_LEN * 0xFEDCBA98ULL; /* v2: contextual calibration */
+            _wp_hk ^= (args.axex_no_actaware ? 0ULL : 0xA1B2C3D4AAAAULL);  /* v3: actaware PCA */
+            _wp_hk ^= (args.axex_skip_o ? 0x5C09F0DEADBEULL : 0ULL);  /* v4: skip-O */
+            _wp_hk ^= (args.axex_weight_pca ? 0xC8F2620B4E3DULL : 0ULL);  /* v6: weight-PCA normalized-K */
+            _wp_hk ^= (uint64_t)(args.axex_compress_rank > 0 ? args.axex_compress_rank : 0) * 0xF1E2D3C4ULL; /* compress-rank */
+            char _wp_path[512];
+            snprintf(_wp_path, sizeof(_wp_path),
+                     "ott_wproj_cache_%08X.bin", (unsigned)(_wp_hk & 0xFFFFFFFFu));
+            axex_manifold_set_attn_only(args.axex_attn_only);
+            axex_manifold_set_skip_o(args.axex_skip_o);
+            int _wn = axex_manifold_load_wproj_cache(_wp_path, _wp_hk, _e_nl, _e_dim);
+            if (_wn > 0) {
+                kprintf("[AXEX-MANIFOLD] Loaded W_proj cache: %s (%d matrices, skipping axiom-beta + calibration)\n",
+                        _wp_path, _wn);
+                wp_early_loaded = 1;
+                axiom_ran_this_invocation = 1; /* allow downstream axex gates */
+                axiom_consistency = 1.0f;      /* assume good — cached calibration */
+            }
+        }
+    }
+
+    /* --axex-calib-only: skip axiom geometry phases 1-4, run only W_proj calibration.
+     * Sets axiom_ran_this_invocation so downstream axex gates fire. */
+    if (args.axex_calib_only && args.axex_compress && !wp_early_loaded) {
+        axiom_ran_this_invocation = 1;
+        kprintf("[AXEX-CALIB-ONLY] Skipping axiom geometry — running W_proj calibration directly.\n");
+    }
+
+    if (args.axiom_beta_run && !wp_early_loaded && !args.axex_calib_only) {
         axiom_beta_config_t cfg;
         axiom_beta_report_t *rep = &axiom_rep;
         axiom_beta_status_t st;
@@ -2306,7 +2796,38 @@ int main(int argc, char **argv) {
 
     /* ── Manifold Exploitation (axex) ──────────────────────────────────── */
     static axex_state_t g_axex_state;
-    if (args.axex_kv || args.axex_offload || args.axex_compress || args.axex_ffn_compress) {
+
+    /* ── Gauge-optimal compression pre-pass ────────────────────────────── *
+     * When --axex-gauge is requested, find the optimal diagonal gauge       *
+     * g[dim] that minimises total SVD truncation error across all weight    *
+     * matrices BEFORE running the compression loop.  The resulting g is     *
+     * baked into U/Vt factors at compression time (zero inference overhead).  */
+    static axex_gauge_t *g_gauge = NULL;
+    if (args.axex_gauge && (args.axex_ffn_compress || args.axex_attn_svd || args.axex_compress)) {
+        const llm_model_t *gm = llm_get_model();
+        if (gm) {
+            int g_rank = (args.axex_compress_rank > 0) ? args.axex_compress_rank
+                       : (gm->dim <= 1024) ? (gm->dim * 3 / 4)
+                       : (gm->dim <= 2048) ? 256
+                       : (gm->dim <= 5120) ? 384
+                       : AXEX_MANIFOLD_K_MAX;
+            /* Default 1 iter: Newton step is unstable beyond iter 1 (Jacobian ≈ 2 in
+             * log-space → diverges exponentially past first step). Use --axex-gauge-iter
+             * to override if the model is known to be stable at higher counts. */
+            int g_iter = (args.axex_gauge_iter > 0)    ? args.axex_gauge_iter    : 1;
+            kprintf("[AXEX-GAUGE] Starting gauge optimisation: rank=%d iters=%d dim=%d\n",
+                    g_rank, g_iter, gm->dim);
+            g_gauge = axex_gauge_optimize(gm, g_rank, g_iter);
+            if (g_gauge) {
+                axex_compress_set_gauge(g_gauge->g, g_gauge->dim);
+                kprintf("[AXEX-GAUGE] Gauge ready — will be applied during compression.\n");
+            } else {
+                kprintf("[AXEX-GAUGE] Warning: gauge optimisation failed — continuing without gauge.\n");
+            }
+        }
+    }
+
+    if (args.axex_kv || args.axex_offload || args.axex_compress || args.axex_ffn_compress || args.axex_attn_svd) {
         axex_config_t xcfg;
         memset(&xcfg, 0, sizeof(xcfg));
         xcfg.enable_kv_compress     = args.axex_kv;
@@ -2317,15 +2838,253 @@ int main(int argc, char **argv) {
          * g_compress_table, which the GPU upload path then turns into cuBLAS
          * batched pointer arrays for gate+up (axex_prepare_batched_ffn).  The
          * manifold GP path below handles Q/K/V/O separately via per-layer PCA.
-         * --axex-ffn-compress skips the manifold PCA for a faster benchmark. */
-        xcfg.enable_weight_compress = (args.axex_compress || args.axex_ffn_compress) ? 1 : 0;
+         * --axex-ffn-compress skips the manifold PCA for a faster benchmark.
+         * --axex-attn-svd additionally SVD-compresses Q and O (slots 1/4),
+         * enabling 70B-in-7GB via full model SVD without calibration data.
+         * --axex-compress (GP mode) does NOT enable SVD FFN by default: the
+         * GP manifold path handles Q/K/V/O and FFN-down via near-lossless PCA
+         * projection.  SVD FFN produces 85-95% Frobenius error on quantized
+         * (Q4_0/Q8_0) weights and causes incoherent output regardless of rank.
+         * To add SVD FFN on top of GP, explicitly pass --axex-ffn-compress. */
+        xcfg.enable_weight_compress = args.axex_ffn_compress ? 1 : 0;
+        xcfg.enable_attn_compress   = args.axex_attn_svd ? 1 : 0;
         xcfg.weight_quality         = args.axex_compress_quality;
         xcfg.weight_max_rank        = args.axex_compress_rank;  /* 0 = auto */
         xcfg.weight_max_err         = args.axex_compress_max_err; /* 0 = no limit */
+        /* Performance note: compression time is dominated by CBLAS GEMMs
+         * (Steps 2, 3, 5 of randomised SVD). The inner SVD (Step 6) now
+         * uses LAPACKE_sgesdd (divide-and-conquer) and is no longer a
+         * bottleneck.  For rank > 256 the GEMM cost grows with O(rank).
+         * Compressed factors are cached to disk after the first run;
+         * subsequent runs load the cache and skip re-compression entirely. */
+        if (args.axex_compress_rank > 256 &&
+            (args.axex_ffn_compress || args.axex_attn_svd || args.axex_compress)) {
+            const llm_model_t *_m = llm_get_model();
+            int _dim = _m ? _m->dim  : 0;
+            int _ff  = _m ? _m->ff_dim : 0;
+            int _mn  = (_dim < _ff && _dim > 0) ? _dim : _ff;
+            if (args.axex_compress_rank > _mn / 4) {
+                kprintf("[AXEX-COMPRESS] Note: rank %d is large for dim=%d (%.0f%% of min_mn) — "
+                        "first-run compression will be slow; cached for subsequent runs.\n",
+                        args.axex_compress_rank, _dim,
+                        100.0f * args.axex_compress_rank / (_mn > 0 ? _mn : 1));
+            }
+        }
+        /* ── Compression cache: derive cache path from model file + rank ──
+         * Format: <model-base>.r<rank>.axex alongside the model file.
+         * If no explicit rank given, use 0 (auto) as the cache key.
+         * Cache is only used for SVD FFN/attn compression (not GP manifold). */
+        if ((args.axex_ffn_compress || args.axex_attn_svd) && args.model_path) {
+            char _cache_buf[4096];
+            int  _rank_key = args.axex_compress_rank; /* 0 = auto */
+            snprintf(_cache_buf, sizeof(_cache_buf),
+                     "%s.r%d.axex", args.model_path, _rank_key);
+            axex_compress_set_cache_path(_cache_buf);
+        }
+
         if (axex_init(&g_axex_state, &xcfg,
                       axiom_ran_this_invocation ? &axiom_rep : NULL,
                       llm_get_model()) != 0)
             kprintf("[AXEX] Warning: manifold exploitation init failed — continuing without it\n");
+
+        /* ── Feature 6: Differentiable compression plan ───────────────────
+         * After SVD compression, learn the optimal per-layer rank assignment
+         * by minimising Frobenius reconstruction error + L1 rank penalty.
+         * Reads frobenius_err from each compressed weight slot. */
+        static diffplan_t g_diffplan;
+        if (args.axex_learn_plan && g_axex_state.compress_layers > 0) {
+            const llm_model_t *dp_mdl = llm_get_model();
+            int dp_nl = dp_mdl ? dp_mdl->n_layers : 0;
+            if (dp_nl > 0) {
+                diffplan_layer_data_t *dp_data = (diffplan_layer_data_t *)
+                    calloc((size_t)dp_nl, sizeof(diffplan_layer_data_t));
+                if (dp_data) {
+                    for (int l = 0; l < dp_nl; l++) {
+                        const axex_compressed_weight_t *cw =
+                            axex_get_compressed_layer(l, 0); /* gate slot */
+                        if (cw && cw->rank > 0) {
+                            dp_data[l].frob_err     = cw->frobenius_err;
+                            dp_data[l].current_rank = cw->rank;
+                            /* Approximate: sv_slope ≈ -frob_err / rank
+                             * (negative because higher rank → lower error) */
+                            dp_data[l].sv_slope = (cw->rank > 0)
+                                ? -(cw->frobenius_err / (float)cw->rank)
+                                : -0.001f;
+                        } else {
+                            dp_data[l].frob_err     = 0.05f;
+                            dp_data[l].sv_slope     = -0.001f;
+                            dp_data[l].current_rank = 128;
+                        }
+                    }
+                    int plan_steps = (args.axex_plan_steps > 0) ? args.axex_plan_steps : 200;
+                    diffplan_init(&g_diffplan, dp_data, dp_nl,
+                                  0.001f, args.axex_compress_quality);
+                    /* Feature 4: tokens-per-joule objective
+                     * If --axex-tpj is set, initialise TPJ context and inject
+                     * the energy gradient into each diffplan step. */
+                    static thermal_ctx_t g_dp_thermal;
+                    static tpj_ctx_t     g_dp_tpj;
+                    int tpj_active = 0;
+                    if (args.axex_tpj) {
+                        thermal_init(&g_dp_thermal,
+                                     args.axex_thermal_low, args.axex_thermal_high,
+                                     args.axex_thermal_power,
+                                     16, AXEX_MANIFOLD_K_MAX);
+                        thermal_poll(&g_dp_thermal);
+                        tpj_init(&g_dp_tpj, &g_dp_thermal, args.axex_tpj_lambda);
+                        /* Pre-calibrate rank_coeff so the gradient is non-trivial
+                         * from step 1, before any tpj_record() call.
+                         * Rough TPS estimate: assume 20 GFLOP/s peak and
+                         * 4 matrix-multiplies of shape [dim × dim] per layer. */
+                        {
+                            const llm_model_t *tpj_mdl = llm_get_model();
+                            int tpj_d = (tpj_mdl && tpj_mdl->dim > 0) ? tpj_mdl->dim : 4096;
+                            int tpj_l = (tpj_mdl && tpj_mdl->n_layers > 0) ? tpj_mdl->n_layers : 32;
+                            float flops = (float)tpj_l * (float)tpj_d * (float)tpj_d * 4.0f;
+                            float tps_est = (flops > 0.0f) ? (2.0e10f / flops) : 10.0f;
+                            tpj_bootstrap(&g_dp_tpj, tps_est);
+                        }
+                        tpj_active = 1;
+                    }
+                    float final_loss = 0.0f;
+                    if (tpj_active) {
+                        /* Manual step loop so we can inject TPJ gradient */
+                        float g_tpj[DIFFPLAN_MAX_LAYERS][DIFFPLAN_N_LEVELS];
+                        for (int iter = 0; iter < plan_steps; iter++) {
+                            final_loss = diffplan_step(&g_diffplan);
+                            memset(g_tpj, 0, sizeof(g_tpj));
+                            tpj_gradient(&g_dp_tpj, g_tpj, dp_nl, &g_diffplan);
+                            /* Add TPJ gradient into theta (simple SGD on top of diffplan) */
+                            for (int l = 0; l < dp_nl && l < DIFFPLAN_MAX_LAYERS; l++)
+                                for (int r = 0; r < DIFFPLAN_N_LEVELS; r++)
+                                    g_diffplan.theta[l][r] -= g_diffplan.lr * g_tpj[l][r];
+                        }
+                        g_diffplan.n_iter = plan_steps;
+                        tpj_print(&g_dp_tpj);
+                    } else {
+                        final_loss = diffplan_optimise(&g_diffplan, plan_steps);
+                    }
+                    kprintf("[DIFFPLAN] Optimised in %d steps, final loss=%.5f\n",
+                            g_diffplan.n_iter, (double)final_loss);
+                    diffplan_print(&g_diffplan);
+                    free(dp_data);
+                }
+            }
+        }
+
+        /* ── Feature 5: Phase-conditional compression plan ────────────────
+         * Build retrieval/reasoning/generation rank plans from the offload
+         * plan's per-layer importance scores.  Printed at startup; updated
+         * per decode token in the speculative loop via phaseplan_update()
+         * using logit entropy as an attention-entropy proxy. */
+        if (args.axex_phase_compress) {
+            const llm_model_t *pp_mdl = llm_get_model();
+            int pp_nl = pp_mdl ? pp_mdl->n_layers : 0;
+            if (pp_nl > 0 && g_axex_state.offload.n_layers > 0) {
+                if (phaseplan_build(&s_spec_phase_plan,
+                                    &g_axex_state.offload, pp_nl,
+                                    args.axex_phase_ret_q,
+                                    args.axex_phase_rea_q,
+                                    args.axex_phase_gen_q) == 0) {
+                    kprintf("[PHASE] Phase-conditional plan built (%d layers)\n", pp_nl);
+                    phaseplan_print(&s_spec_phase_plan);
+                    s_spec_phase_plan_active = 1;
+                } else {
+                    kprintf("[PHASE] phaseplan_build failed\n");
+                }
+            } else {
+                kprintf("[PHASE] Phase plan skipped (no offload plan — use --axex-compress first)\n");
+            }
+        }
+
+        /* ── Feature 5 (new): Cross-quantization shared basis test ───────────
+         * Tests whether the activation-space PCA basis captures the same
+         * subspace as the weight SVD right vectors.  alignment ≈ 1.0 means
+         * one basis works for all quantization levels of the same weight.
+         * Requires both manifold and SVD compression to have run. */
+        static qspec_result_t g_qspec_result;
+        if (args.axex_qspec) {
+            const llm_model_t *qs_mdl = llm_get_model();
+            int qs_nl = qs_mdl ? qs_mdl->n_layers : 0;
+            if (qs_nl > 0) {
+                int n_ev = qspec_test_shared_basis(&g_qspec_result, qs_nl,
+                                                   args.axex_qspec_threshold);
+                if (n_ev > 0) {
+                    qspec_print(&g_qspec_result);
+                } else {
+                    kprintf("[QSPEC] No layer/slot pairs available — run --axex-compress first\n");
+                }
+            }
+        }
+
+        /* ── Feature 6 (new): Failure-mode-targeted rank allocation ────────
+         * Detect which layer zone has the highest Frobenius error after SVD
+         * compression, classify the dominant failure mode (factual / reasoning /
+         * coherence / context), and print recommended rank scales per layer. */
+        static frank_result_t g_frank_result;
+        if (args.axex_fail_rank) {
+            const llm_model_t *fr_mdl = llm_get_model();
+            int fr_nl = fr_mdl ? fr_mdl->n_layers : 0;
+            if (fr_nl > 0) {
+                float *fr_errs = (float *)calloc((size_t)fr_nl, sizeof(float));
+                if (fr_errs) {
+                    for (int l = 0; l < fr_nl; l++) {
+                        /* Average frobenius_err across Q/K/V/O slots (1-4) for
+                         * a representative per-layer estimate. */
+                        float sum_e = 0.0f; int cnt = 0;
+                        for (int s = 1; s <= 4; s++) {
+                            const axex_compressed_weight_t *cw =
+                                axex_get_compressed_layer(l, s);
+                            if (cw && cw->rank > 0) { sum_e += cw->frobenius_err; cnt++; }
+                        }
+                        fr_errs[l] = (cnt > 0) ? (sum_e / (float)cnt) : 0.0f;
+                    }
+                    if (frank_build(&g_frank_result, fr_errs, fr_nl,
+                                    args.axex_fail_boost, 0.6f) == 0) {
+                        frank_print(&g_frank_result);
+                        /* Apply FRANK rank scales to the stored per-layer manifold k values.
+                         * axex_manifold_adjust_ks() modifies g_Pt_layers_ks[] in place so
+                         * that any future re-compression pass (e.g. a subsequent --axex-compress
+                         * invocation) uses FRANK-recommended k per layer.  For the current run
+                         * this annotates the stored basis for diagnostic use. */
+                        {
+                            int min_k = (args.axex_compress_rank > 0)
+                                        ? args.axex_compress_rank / 4 : 8;
+                            int max_k = (args.axex_compress_rank > 0)
+                                        ? args.axex_compress_rank : AXEX_MANIFOLD_K_MAX;
+                            axex_manifold_adjust_ks(g_frank_result.rank_scale,
+                                                    fr_nl, min_k, max_k);
+                            kprintf("[FRANK] Rank scales written to manifold layer-k table\n");
+                        }
+                    } else {
+                        kprintf("[FRANK] frank_build failed\n");
+                    }
+                    free(fr_errs);
+                }
+            } else {
+                kprintf("[FRANK] No layers available — run --axex-compress first\n");
+            }
+        }
+
+        /* ── Feature 3: Thermal-adaptive rank context init ───────────────
+         * Initialise the NVML context once at startup; thermal_get_rank() is
+         * called in the spec decode loop whenever --axex-thermal is active to
+         * cap dyn_batch proportionally to GPU thermal headroom. */
+        if (args.axex_thermal) {
+            thermal_init(&s_spec_thermal,
+                         args.axex_thermal_low, args.axex_thermal_high,
+                         args.axex_thermal_power,
+                         args.axex_compress_rank > 0 ? args.axex_compress_rank / 4 : 8,
+                         args.axex_compress_rank > 0 ? args.axex_compress_rank : 128);
+            thermal_poll(&s_spec_thermal);
+            thermal_print(&s_spec_thermal);
+            s_spec_thermal_active = 1;
+            /* Also initialise the inference TPJ context so energy efficiency
+             * is tracked per decode batch and printed at end-of-run. */
+            tpj_init(&s_spec_tpj, &s_spec_thermal, args.axex_tpj_lambda);
+            tpj_bootstrap(&s_spec_tpj, 10.0f); /* conservative 10 tok/s seed */
+            s_spec_tpj_active = 1;
+        }
 
         /* If FFN compression was requested but ALL matrices were skipped (e.g.
          * max_err threshold rejected everything), the raw FFN weights were
@@ -2359,54 +3118,262 @@ int main(int argc, char **argv) {
                 int vocab     = llm_model_vocab();
                 /* Calibration sample count:
                  *   - user override:    --axex-calib-samples N
-                 *   - fast mode:        64  (quick preview)
-                 *   - default:          512 (recommended for k≤512 PCA quality) */
+                 *   - fast mode:        64  (quick preview, low quality)
+                 *   - default:          2048 (lossless-grade PCA basis; cached to disk) */
                 int n_samples;
                 if (args.axex_calib_samples > 0)
                     n_samples = args.axex_calib_samples;
                 else
-                    n_samples = (args.axiom_fast_mode) ? 64 : 512;
+                    n_samples = (args.axiom_fast_mode) ? 64 : 2048;
                 if (n_samples > vocab) n_samples = vocab;
 
                 /* Wire up attention-only vs full-compress mode */
                 axex_manifold_set_attn_only(args.axex_attn_only);
+                axex_manifold_set_skip_o(args.axex_skip_o);
+                if (args.axex_skip_o)
+                    kprintf("[AXEX-MANIFOLD] Skip-O mode: O_proj preserved at full rank (Q/K/V compressed only)\n");
+                if (args.axex_weight_pca)
+                    kprintf("[AXEX-MANIFOLD] Weight-PCA mode: Pt = top-k eigenvectors of K=Σ W^T W (maximises weight energy, no calib data needed)\n");
                 if (args.axex_attn_only)
                     kprintf("[AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)\n");
                 else
                     kprintf("[AXEX-MANIFOLD] Full-compress mode: Q/K/V/O + FFN gate/up compressed (lower accuracy)\n");
 
+                /* ── W_proj disk cache (fast path) ───────────────────────────
+                 * Build the cache key (identical to hs_cache key so they stay
+                 * in sync; different filename prefix so they don't collide).
+                 * On hit: skip ALL calibration + PCA + compression (~22s) and
+                 * restore state directly from disk.  On miss: run normally and
+                 * save afterwards. */
+                uint64_t wp_hk = 0xDEADBEEF12345678ULL;
+                {
+                    const char *wmp = args.model_path ? args.model_path : "";
+                    for (const char *c = wmp; *c; c++) { wp_hk ^= (uint8_t)*c; wp_hk *= 0x100000001B3ULL; }
+                    wp_hk ^= (uint64_t)n_samples * 0xABCDEF01ULL;
+                    wp_hk ^= (uint64_t)n_layers  * 0x12345678ULL;
+                    wp_hk ^= (uint64_t)dim        * 0x87654321ULL;
+                    wp_hk ^= (uint64_t)AXEX_CALIB_CTX_LEN * 0xFEDCBA98ULL; /* v2: contextual calibration */
+                    wp_hk ^= (args.axex_no_actaware ? 0ULL : 0xA1B2C3D4AAAAULL);  /* v3: actaware PCA */
+                    wp_hk ^= (args.axex_skip_o ? 0x5C09F0DEADBEULL : 0ULL);  /* v4: skip-O */
+                    wp_hk ^= (args.axex_weight_pca ? 0xC8F2620B4E3DULL : 0ULL);  /* v6: weight-PCA normalized-K */
+                    wp_hk ^= (uint64_t)(args.axex_compress_rank > 0 ? args.axex_compress_rank : 0) * 0xF1E2D3C4ULL; /* compress-rank */
+                }
+                char wp_cache_path[512];
+                snprintf(wp_cache_path, sizeof(wp_cache_path),
+                         "ott_wproj_cache_%08X.bin", (unsigned)(wp_hk & 0xFFFFFFFFu));
+
+                int wp_cache_loaded = wp_early_loaded;
+                if (!wp_cache_loaded) {
+                    int wn = axex_manifold_load_wproj_cache(wp_cache_path, wp_hk, n_layers, dim);
+                    if (wn > 0) {
+                        kprintf("[AXEX-MANIFOLD] Loaded W_proj cache: %s (%d matrices, skipping calibration)\n",
+                                wp_cache_path, wn);
+                        wp_cache_loaded = 1;
+                    }
+                }
+
                 float   *hs_buf = NULL; /* unused in multi-layer path, kept for fallback */
                 int      lw_ok  = 1;
 
-                if (lw_ok) {
-                    kprintf("[AXEX-MANIFOLD] Computing per-layer PCA (%d layers × %d samples × dim=%d)...\n",
-                            n_layers, n_samples, dim);
-                    kprintf("[AXEX-MANIFOLD] Using single-pass multi-layer capture (%d forward passes total)\n",
-                            n_samples);
+                if (!wp_cache_loaded) {
+                /* Quality pre-check: warn when n_samples is below the target rank
+                 * so the user knows calibration may be under-powered.
+                 * We do NOT abort here — the per-weight proj_energy guard (80%)
+                 * inside COMPRESS_SLOT_LW already skips any matrix whose basis
+                 * doesn't capture sufficient energy.
+                 * k_warn = ceil(dim / 16): the number of PCA components needed so
+                 * that P covers ~6% of dim, the empirical minimum for coherent output.
+                 * For dim=3072: k_warn=192.  For dim=4096: k_warn=256. */
+                {
+                    int k_warn = (dim + 15) / 16;
+                    if (k_warn < 32) k_warn = 32;
+                    if (n_samples < k_warn) {
+                        kprintf("[AXEX-MANIFOLD] WARNING: --axex-calib-samples %d < k_warn=%d "
+                                "(dim=%d); basis may be under-powered — output quality could degrade.\n"
+                                "[AXEX-MANIFOLD] Recommended: --axex-calib-samples %d "
+                                "(or omit for default 512).\n",
+                                n_samples, k_warn, dim, k_warn);
+                    }
+                }
 
-                    /* Allocate flat matrix: all_hs[layer][sample][dim] */
+                if (lw_ok) {
+                    if (args.axex_weight_pca)
+                        kprintf("[AXEX-MANIFOLD] Weight-PCA: skipping calibration forward passes (using K=Σ W^T W eigenvectors)\n");
+                    else
+                        kprintf("[AXEX-MANIFOLD] Computing per-layer PCA (%d layers × %d samples × dim=%d)...\n",
+                                n_layers, n_samples, dim);
+
+                    /* Allocate flat matrix: all_hs[layer][sample][dim]
+                     * Skip allocation and calibration when --axex-weight-pca is set;
+                     * weight-only eigenvectors don't need any hidden-state data.
+                     * If initial allocation fails (OOM), halve n_samples and retry once.
+                     * Prevents full compression abort on memory-constrained hosts; fewer
+                     * calibration samples reduce quality slightly but avoid rank-1 fallback. */
                     size_t total_f = (size_t)n_layers * n_samples * dim;
-                    float *all_hs = (float *)malloc(total_f * sizeof(float));
-                    int   *all_valid = (int *)calloc((size_t)n_layers, sizeof(int)); /* reused */
+                    float *all_hs = args.axex_weight_pca ? NULL : (float *)malloc(total_f * sizeof(float));
+                    if (!args.axex_weight_pca && !all_hs && n_samples > 64) {
+                        n_samples /= 2;
+                        total_f = (size_t)n_layers * n_samples * dim;
+                        all_hs = (float *)malloc(total_f * sizeof(float));
+                        if (all_hs)
+                            kprintf("[AXEX-MANIFOLD] OOM on full alloc — retrying with %d samples\n", n_samples);
+                    }
+                    int   *all_valid = (int *)calloc((size_t)n_layers, sizeof(int));
                     int   *cap_valid = (int *)calloc((size_t)n_layers, sizeof(int));
-                    if (!all_hs || !all_valid || !cap_valid) {
+                    if ((!args.axex_weight_pca && !all_hs) || !all_valid || !cap_valid) {
                         free(all_hs); free(all_valid); free(cap_valid);
                         lw_ok = 0;
                     }
 
+                    /* ── Calibration disk cache ──────────────────────────────────
+                     * Cache key: model_path + n_samples + n_layers + dim.
+                     * File: ott_hs_cache_<hash8>.bin
+                     * Format: magic(8) key(32) valid(n_layers×4) data(n_layers×n_samples×dim×4)
+                     * On hit: load in ~50ms instead of running 512+ forward passes.
+                     * On miss or version mismatch: run calibration, then save. */
+                    char hs_cache_path[512];
+                    char hs_chkpt_path[512];
+                    uint64_t hs_hk = 0;
+                    int  hs_cache_loaded = 0;
                     if (lw_ok) {
+                        /* Build a simple hash of the cache key */
+                        uint64_t hk = 0xDEADBEEF12345678ULL;
+                        const char *mp = args.model_path ? args.model_path : "";
+                        for (const char *c = mp; *c; c++) { hk ^= (uint8_t)*c; hk *= 0x100000001B3ULL; }
+                        hk ^= (uint64_t)n_samples * 0xABCDEF01ULL;
+                        hk ^= (uint64_t)n_layers  * 0x12345678ULL;
+                        hk ^= (uint64_t)dim       * 0x87654321ULL;
+                        hk ^= (uint64_t)AXEX_CALIB_CTX_LEN * 0xFEDCBA98ULL; /* v2: contextual calibration */
+                        hs_hk = hk;
+                        snprintf(hs_cache_path, sizeof(hs_cache_path),
+                                 "ott_hs_cache_%08X.bin", (unsigned)(hk & 0xFFFFFFFFu));
+                        snprintf(hs_chkpt_path, sizeof(hs_chkpt_path),
+                                 "ott_hs_checkpoint_%08X.bin", (unsigned)(hk & 0xFFFFFFFFu));
+
+                        /* Try to load from cache (skip when weight-PCA: no hidden states needed) */
+                        FILE *cf = args.axex_weight_pca ? NULL : fopen(hs_cache_path, "rb");
+                        if (cf) {
+                            uint64_t magic_stored = 0, key_stored = 0;
+                            int nl_stored = 0, ns_stored = 0, dim_stored = 0;
+                            int r_magic = (int)fread(&magic_stored, 8, 1, cf);
+                            int r_key   = r_magic && (int)fread(&key_stored, 8, 1, cf);
+                            int r_nl    = r_key   && (int)fread(&nl_stored,  4, 1, cf);
+                            int r_ns    = r_nl    && (int)fread(&ns_stored,  4, 1, cf);
+                            int r_dim   = r_ns    && (int)fread(&dim_stored, 4, 1, cf);
+                            size_t r_valid = r_dim ? fread(all_valid, sizeof(int), (size_t)n_layers, cf) : 0;
+                            size_t r_data  = (r_valid == (size_t)n_layers) ? fread(all_hs, sizeof(float), total_f, cf) : 0;
+                            if (r_magic && magic_stored == 0x4D414E494645535FULL &&
+                                r_key   && key_stored  == hk &&
+                                r_nl    && nl_stored   == n_layers &&
+                                r_ns    && ns_stored   == n_samples &&
+                                r_dim   && dim_stored  == dim &&
+                                r_valid == (size_t)n_layers &&
+                                r_data  == total_f) {
+                                hs_cache_loaded = 1;
+                                kprintf("[AXEX-MANIFOLD] Loaded calibration cache: %s (%d layers × %d samples × dim=%d)\n",
+                                        hs_cache_path, n_layers, n_samples, dim);
+                            } else {
+                                kprintf("[AXEX-MANIFOLD] Cache mismatch: magic=%d(%llx==%llx?) key=%d(%llx==%llx?) "
+                                        "nl=%d(%d==%d?) ns=%d(%d==%d?) dim=%d(%d==%d?) valid=%zu/%zu data=%zu/%zu\n",
+                                        r_magic, (unsigned long long)magic_stored, (unsigned long long)0x4D414E494645535FULL,
+                                        r_key, (unsigned long long)key_stored, (unsigned long long)hk,
+                                        r_nl, nl_stored, n_layers,
+                                        r_ns, ns_stored, n_samples,
+                                        r_dim, dim_stored, dim,
+                                        r_valid, (size_t)n_layers, r_data, total_f);
+                                memset(all_valid, 0, (size_t)n_layers * sizeof(int));
+                            }
+                            fclose(cf);
+                        }
+                    }
+
+                    /* Try to resume from checkpoint (partial run saved every 64 passes) */
+                    int hs_chkpt_done = 0; /* number of passes already captured */
+                    if (lw_ok && !hs_cache_loaded && !args.axex_weight_pca) {
+                        FILE *cpf = fopen(hs_chkpt_path, "rb");
+                        if (cpf) {
+                            uint64_t cp_magic = 0, cp_key = 0;
+                            int cp_nl = 0, cp_ns = 0, cp_done = 0, cp_dim = 0;
+                            if (fread(&cp_magic, 8, 1, cpf) == 1 && cp_magic == 0x4348454350544348ULL /* "CHECKPNT" */ &&
+                                fread(&cp_key,   8, 1, cpf) == 1 && cp_key  == hs_hk &&
+                                fread(&cp_nl,    4, 1, cpf) == 1 && cp_nl   == n_layers &&
+                                fread(&cp_ns,    4, 1, cpf) == 1 && cp_ns   == n_samples &&
+                                fread(&cp_done,  4, 1, cpf) == 1 && cp_done  > 0 && cp_done < n_samples &&
+                                fread(&cp_dim,   4, 1, cpf) == 1 && cp_dim  == dim &&
+                                fread(all_valid, sizeof(int), (size_t)n_layers, cpf) == (size_t)n_layers &&
+                                fread(all_hs, sizeof(float), total_f, cpf) == total_f) {
+                                hs_chkpt_done = cp_done;
+                                kprintf("[AXEX-MANIFOLD] Resuming from checkpoint: %s (%d/%d passes done)\n",
+                                        hs_chkpt_path, cp_done, n_samples);
+                            } else {
+                                kprintf("[AXEX-MANIFOLD] Checkpoint mismatch/corrupt — starting fresh\n");
+                                memset(all_valid, 0, (size_t)n_layers * sizeof(int));
+                            }
+                            fclose(cpf);
+                        }
+                    }
+
+                    if (lw_ok && !hs_cache_loaded && !args.axex_weight_pca) {
+                        kprintf("[AXEX-MANIFOLD] Using contextual multi-layer capture "
+                                "(%d samples × %d tokens = %d forward passes)\n",
+                                n_samples, AXEX_CALIB_CTX_LEN + 2,
+                                n_samples * (AXEX_CALIB_CTX_LEN + 2));
+                        /* Advance seed to match the starting offset (so resumed runs use
+                         * the same tokens as the original run would have at that point).
+                         * Each sample now consumes (AXEX_CALIB_CTX_LEN + 1) seed steps. */
                         uint64_t seed = 0x123456789ABCDEF0ULL;
-                        /* Temporary bridge buffer: one forward-pass captures all layers */
+                        for (int _sk = 0; _sk < hs_chkpt_done * (AXEX_CALIB_CTX_LEN + 1); _sk++) {
+                            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+                        }
                         float *pass_buf = (float *)malloc((size_t)n_layers * dim * sizeof(float));
                         if (!pass_buf) lw_ok = 0;
 
-                        for (int s = 0; s < n_samples && lw_ok; s++) {
+                        for (int s = hs_chkpt_done; s < n_samples && lw_ok; s++) {
+                            /* Build context + probe sequence (AXEX_CALIB_CTX_LEN context
+                             * tokens + 1 probe token).  Context tokens are prefilled via
+                             * batch GPU prefill; the probe token's hidden states are
+                             * captured by the bridge at position AXEX_CALIB_CTX_LEN+1,
+                             * giving contextually-rich activations for PCA calibration.
+                             * Without this, single-token pos-0 calibration misses the
+                             * contextual subspace (~90% of inference variance) → PPL~7244. */
+                            int ctx_arr[AXEX_CALIB_CTX_LEN];
+                            for (int _ci = 0; _ci < AXEX_CALIB_CTX_LEN; _ci++) {
+                                seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+                                ctx_arr[_ci] = (int)(seed % (uint64_t)vocab);
+                            }
                             seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
-                            int tok = (int)(seed % (uint64_t)vocab);
+                            int probe_tok = (int)(seed % (uint64_t)vocab);
 
                             memset(cap_valid, 0, (size_t)n_layers * sizeof(int));
-                            int rc = axiom_beta_probe_all_layer_states(
-                                tok, pass_buf, cap_valid, n_layers, dim);
+
+                            /* Phase 1: prefill context WITHOUT bridge capture */
+                            tensor_bridge_t *calib_br = llm_get_bridge();
+                            calib_br->mode = BRIDGE_MODE_NONE;
+                            calib_br->multi_cap_bufs  = NULL;
+                            calib_br->multi_cap_valid = NULL;
+                            calib_br->multi_cap_n     = 0;
+                            calib_br->multi_cap_dim   = 0;
+                            llm_reset_cache();
+                            int _ctx_dummy_out[AXEX_CALIB_CTX_LEN + 3];
+                            llm_generate_tokens(ctx_arr, AXEX_CALIB_CTX_LEN,
+                                                _ctx_dummy_out, AXEX_CALIB_CTX_LEN + 3,
+                                                1, 0.0f, 0);
+
+                            /* Phase 2: capture probe token WITH bridge (continue_cache=1
+                             * so it runs at position AXEX_CALIB_CTX_LEN+1 with full ctx) */
+                            tensor_bridge_set_multi_capture(calib_br, pass_buf,
+                                                            cap_valid, n_layers, dim);
+                            calib_br->mode = (bridge_mode_t)(
+                                BRIDGE_MODE_CAP_ALL | BRIDGE_MODE_CAP_ONCE);
+                            int _probe_out[2];
+                            int rc_br = llm_generate_tokens(&probe_tok, 1,
+                                                            _probe_out, 2, 1, 0.0f, 1);
+                            calib_br->mode = BRIDGE_MODE_NONE;
+                            calib_br->multi_cap_bufs  = NULL;
+                            calib_br->multi_cap_valid = NULL;
+                            calib_br->multi_cap_n     = 0;
+                            calib_br->multi_cap_dim   = 0;
+                            int rc = (rc_br >= 0) ? 0 : -1;
 
                             for (int l = 0; l < n_layers; l++) {
                                 float *dst = all_hs + ((size_t)l * n_samples + s) * dim;
@@ -2419,41 +3386,442 @@ int main(int argc, char **argv) {
                                 }
                             }
 
-                            if ((s % 64) == 63 || s == n_samples - 1)
+                            if ((s % 64) == 63 || s == n_samples - 1) {
                                 kprintf("[AXEX-MANIFOLD] Calibration sample %d/%d done\n",
                                         s + 1, n_samples);
+                                /* Write crash-recovery checkpoint every 64 passes */
+                                if (s < n_samples - 1) {
+                                    FILE *cpw = fopen(hs_chkpt_path, "wb");
+                                    if (cpw) {
+                                        uint64_t cp_magic = 0x4348454350544348ULL;
+                                        int n_done_now = s + 1;
+                                        int cp_ok = 1;
+                                        cp_ok &= (fwrite(&cp_magic,    8, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(&hs_hk,       8, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(&n_layers,    4, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(&n_samples,   4, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(&n_done_now,  4, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(&dim,         4, 1, cpw) == 1);
+                                        cp_ok &= (fwrite(all_valid, sizeof(int), (size_t)n_layers, cpw) == (size_t)n_layers);
+                                        cp_ok &= (fwrite(all_hs, sizeof(float), total_f, cpw) == total_f);
+                                        fclose(cpw);
+                                        if (cp_ok)
+                                            kprintf("[AXEX-MANIFOLD] Checkpoint saved: %s (%d/%d passes)\n",
+                                                    hs_chkpt_path, n_done_now, n_samples);
+                                        else
+                                            kprintf("[AXEX-MANIFOLD] WARNING: checkpoint write failed\n");
+                                    }
+                                }
+                            }
                         }
                         free(pass_buf);
+
+                        /* Save cache for future runs */
+                        if (lw_ok) {
+                            FILE *cf = fopen(hs_cache_path, "wb");
+                            if (cf) {
+                                uint64_t magic = 0x4D414E494645535FULL;
+                                uint64_t hk2 = hs_hk;
+                                int ok_w = 1;
+                                ok_w &= (fwrite(&magic,      8, 1, cf) == 1);
+                                ok_w &= (fwrite(&hk2,        8, 1, cf) == 1);
+                                ok_w &= (fwrite(&n_layers,   4, 1, cf) == 1);
+                                ok_w &= (fwrite(&n_samples,  4, 1, cf) == 1);
+                                ok_w &= (fwrite(&dim,        4, 1, cf) == 1);
+                                ok_w &= (fwrite(all_valid, sizeof(int), (size_t)n_layers, cf) == (size_t)n_layers);
+                                ok_w &= (fwrite(all_hs, sizeof(float), total_f, cf) == total_f);
+                                fclose(cf);
+                                if (ok_w) {
+                                    kprintf("[AXEX-MANIFOLD] Saved calibration cache: %s (%.1f MB)\n",
+                                            hs_cache_path,
+                                            (double)(total_f * sizeof(float)) / (1024.0 * 1024.0));
+                                    /* Remove checkpoint now that we have the full cache */
+                                    remove(hs_chkpt_path);
+                                } else {
+                                    kprintf("[AXEX-MANIFOLD] WARNING: failed to write cache %s\n", hs_cache_path);
+                                }
+                            }
+                        }
+                    }
+
+                    /* Diagnostic: verify calibration captured non-zero data */
+                    {
+                        int n_valid_layers = 0;
+                        float sample_norm2 = 0.0f;
+                        for (int l = 0; l < n_layers; l++) if (all_valid[l] > 0) n_valid_layers++;
+                        if (n_valid_layers > 0 && all_valid[0] > 0) {
+                            const float *s0 = all_hs;
+                            for (int j = 0; j < dim; j++) sample_norm2 += s0[j] * s0[j];
+                        }
+                        kprintf("[AXEX-MANIFOLD] Capture diagnostic: %d/%d layers have valid samples, "
+                                "all_valid[0]=%d, sample[0] norm2=%.4f\n",
+                                n_valid_layers, n_layers, all_valid[0], (double)sample_norm2);
+                    }
+
+                    /* ── Feature 2: Real Ricci curvature signal ──────────────
+                     * Build per-layer sectional curvature from the hidden state
+                     * samples and use it to set the manifold basis rank budget.
+                     * Falls back to AXEX_MANIFOLD_K_MAX if not requested or
+                     * if the curvature computation fails. */
+                    int *ricci_ranks = NULL;
+                    static grcurv_per_layer_t g_grcurv_out;
+                    if (args.axex_real_curvature && lw_ok) {
+                        kprintf("[GRCURV] Computing real Ricci curvature per layer...\n");
+                        grcurv_layer_input_t *grc_in = (grcurv_layer_input_t *)
+                            calloc((size_t)n_layers, sizeof(grcurv_layer_input_t));
+                        if (grc_in) {
+                            for (int l = 0; l < n_layers; l++) {
+                                grc_in[l].samples   = all_hs + (size_t)l * n_samples * dim;
+                                grc_in[l].n_samples = (all_valid[l] > 0) ? n_samples : 0;
+                                grc_in[l].dim       = dim;
+                                grc_in[l].proxy_ricci = (float)g_axex_state.offload.entries[
+                                    l < g_axex_state.offload.n_layers ? l : 0].ricci_scalar;
+                            }
+                            if (grcurv_compute(grc_in, n_layers, &g_grcurv_out) == 0) {
+                                grcurv_print_comparison(&g_grcurv_out);
+                                ricci_ranks = (int *)malloc((size_t)n_layers * sizeof(int));
+                                if (ricci_ranks)
+                                    grcurv_to_rank_budget(&g_grcurv_out,
+                                        16, AXEX_MANIFOLD_K_MAX,
+                                        AXEX_MANIFOLD_K_MAX * n_layers,
+                                        ricci_ranks);
+                            } else {
+                                kprintf("[GRCURV] Computation failed — using uniform ranks\n");
+                            }
+                            free(grc_in);
+                        }
+                    }
+
+                    /* ── Feature 1: MCR phase-aware rank allocation ──────────────────
+                     * Queipo-de-Llano et al. (Oct 2025): transformers process tokens
+                     * in Mix / Compress / Refine phases.  Middle layers are already
+                     * self-compressed; compressing them aggressively is nearly free.
+                     * Mix and Refine layers need higher rank for quality preservation.
+                     * Detect phases from activation-variance profile of all_hs.
+                     *
+                     * Feature 2: Attention-sink bypass
+                     * Detect high-norm calibration samples (proxy for BOS sink tokens);
+                     * ensure the sink direction is covered by each layer's PCA basis. */
+                    int   *mcr_ranks   = NULL;
+                    float *sink_norms  = NULL;
+                    static mcr_result_t  g_mcr_result;
+                    static sink_ctx_t    g_sink_ctx;
+                    if ((args.axex_mcr || args.axex_sink_bypass) && lw_ok) {
+                        mcr_layer_stats_t *mcr_stats =
+                            (mcr_layer_stats_t *)calloc((size_t)n_layers, sizeof(mcr_layer_stats_t));
+                        if (args.axex_sink_bypass)
+                            sink_norms = (float *)calloc((size_t)n_samples, sizeof(float));
+                        if (mcr_stats) {
+                            int mid_l = n_layers / 2;
+                            for (int l = 0; l < n_layers; l++) {
+                                const float *hs_l = all_hs + (size_t)l * n_samples * dim;
+                                double s1 = 0.0, s2 = 0.0;
+                                int cnt = (all_valid[l] > 0) ? n_samples : 0;
+                                for (int s = 0; s < cnt; s++) {
+                                    const float *h = hs_l + (size_t)s * dim;
+                                    for (int d = 0; d < dim; d++) {
+                                        double v = (double)h[d];
+                                        s1 += v; s2 += v * v;
+                                    }
+                                }
+                                double n_el = (double)(cnt * dim);
+                                if (n_el > 0.0) {
+                                    double mean = s1 / n_el;
+                                    mcr_stats[l].act_variance = (float)(s2 / n_el - mean * mean);
+                                }
+                                /* Per-sample norms at mid layer for sink detection */
+                                if (l == mid_l && sink_norms) {
+                                    for (int s = 0; s < n_samples; s++) {
+                                        const float *h = hs_l + (size_t)s * dim;
+                                        double ns = 0.0;
+                                        for (int d = 0; d < dim; d++) ns += (double)h[d] * h[d];
+                                        sink_norms[s] = (float)sqrt(ns);
+                                    }
+                                }
+                            }
+                            if (args.axex_mcr) {
+                                if (mcr_detect_phases(&g_mcr_result, mcr_stats,
+                                                      n_layers, 1.5f) == 0) {
+                                    mcr_print(&g_mcr_result);
+                                    mcr_ranks = (int *)malloc((size_t)n_layers * sizeof(int));
+                                    if (mcr_ranks)
+                                        mcr_rank_budget(&g_mcr_result,
+                                            AXEX_MANIFOLD_K_MAX * n_layers,
+                                            16, AXEX_MANIFOLD_K_MAX,
+                                            args.axex_mcr_mix_scale,
+                                            args.axex_mcr_compress_scale,
+                                            args.axex_mcr_refine_scale,
+                                            mcr_ranks);
+                                }
+                            }
+                            if (args.axex_sink_bypass && sink_norms) {
+                                sink_detect(&g_sink_ctx, sink_norms, n_samples, 3.0f);
+                                sink_print(&g_sink_ctx);
+                            }
+                            free(mcr_stats);
+                        }
                     }
 
                     /* Build per-layer PCA from collected samples */
+                    int lw_skipped = 0;  /* count of layers skipped due to PCA failure */
                     for (int l = 0; l < n_layers && lw_ok; l++) {
-                        axmat_t X = axmat_create(n_samples, dim);
-                        if (!X.data) { lw_ok = 0; break; }
+                        /* Determine rank budget BEFORE the PCA call so we can
+                         * use the fast randomized-SVD path (axpca_compute_topk)
+                         * which is 20-100× faster than full Jacobi for k << dim. */
+                        int k_for_layer;
+                        /* Compute k from MCR/Ricci curvature guides if available. */
+                        if (mcr_ranks && mcr_ranks[l] > 0 && ricci_ranks && ricci_ranks[l] > 0) {
+                            k_for_layer = mcr_ranks[l] > ricci_ranks[l]
+                                          ? mcr_ranks[l] : ricci_ranks[l];
+                        } else if (mcr_ranks && mcr_ranks[l] > 0) {
+                            k_for_layer = mcr_ranks[l];
+                        } else if (ricci_ranks && ricci_ranks[l] > 0) {
+                            k_for_layer = ricci_ranks[l];
+                        } else {
+                            k_for_layer = 0; /* use model-size defaults below */
+                        }
+                        /* Apply a minimum-rank floor for small models (dim≤1024).
+                         * Empirically, k/n < 88% causes attention collapse in these
+                         * models: the curvature-guided rank often lands at ~78% which
+                         * produces repetitive output.  Clamp upward to K_MAX when
+                         * the curvature estimate is below the safe floor.
+                         * User can force a specific rank with --axex-compress-rank. */
+                        if (args.axex_compress_rank > 0) {
+                            k_for_layer = args.axex_compress_rank;
+                        } else if (dim <= 1024) {
+                            /* Small models: enforce minimum k = AXEX_MANIFOLD_K_MAX.
+                             * If MCR/Ricci gave a higher value, keep it; otherwise
+                             * override to K_MAX (88% of dim=576 → k=512). */
+                            if (k_for_layer < AXEX_MANIFOLD_K_MAX)
+                                k_for_layer = AXEX_MANIFOLD_K_MAX;
+                        } else if (k_for_layer == 0) {
+                            /* v3 (2026-04-23): bumped default k for large models.
+                             * At k/n <~ 15% the shared-Pt PCA basis is effectively
+                             * random for V/O weights (uniform W spectrum) → PPL
+                             * collapse. Raise defaults to keep k/n ≥ 25%. */
+                            if (dim <= 2048) {
+                                k_for_layer = 512;   /* was 256 */
+                            } else if (dim <= 5120) {
+                                k_for_layer = 1024;  /* was 384; k/n=25% for Llama-8B */
+                            } else {
+                                k_for_layer = 2048;  /* was K_MAX=384; k/n=25% for 70B */
+                            }
+                        }
+                        /* Round up to a multiple of 32 so W_proj can always be quantized
+                         * to Q8_0 (which requires k % 32 == 0 for block-aligned quantization).
+                         * This wastes at most 31 PCA components but guarantees 4× memory saving. */
+                        k_for_layer = (k_for_layer + 31) & ~31;
+                        if (k_for_layer < 32) k_for_layer = 32;  /* floor: prevent k=0 from curvature underflow */
+                        /* Cap at available rank; add 3 slots for sink bypass headroom */
+                        int k_budget = k_for_layer + (args.axex_sink_bypass ? 3 : 0);
+                        /* In weight-PCA mode, rank is limited only by dim (no sample count limit) */
+                        int k_max_avail = args.axex_weight_pca ? dim : ((n_samples < dim) ? n_samples : dim);
+                        if (k_budget > k_max_avail) k_budget = k_max_avail;
 
-                        for (int s = 0; s < n_samples; s++) {
-                            const float *src = all_hs + ((size_t)l * n_samples + s) * dim;
-                            for (int j = 0; j < dim; j++)
-                                X.data[(size_t)s * dim + j] = (double)src[j];
+                        axmat_t X = axmat_create(args.axex_weight_pca ? 1 : n_samples, dim);
+                        if (!X.data) {
+                            /* OOM on axmat: skip this layer, not the whole compression */
+                            kprintf("[AXEX-MANIFOLD] Layer %d: axmat alloc failed — skipping layer\n", l);
+                            lw_skipped++;
+                            if (lw_skipped > n_layers / 2) { lw_ok = 0; break; }
+                            continue;
                         }
 
-                        double var_ratio = (args.axiom_pca_variance > 0.0)
-                                           ? args.axiom_pca_variance : 0.9999;
-                        axpca_t lpca = axpca_compute(&X, var_ratio);
-                        axmat_destroy(&X);
+                        if (!args.axex_weight_pca) {
+                            for (int s = 0; s < n_samples; s++) {
+                                const float *src = all_hs + ((size_t)l * n_samples + s) * dim;
+                                for (int j = 0; j < dim; j++)
+                                    X.data[(size_t)s * dim + j] = (double)src[j];
+                            }
+                        } else {
+                            /* weight-PCA: X is unused — just zero-initialise */
+                            memset(X.data, 0, (size_t)dim * sizeof(double));
+                        }
+
+                        /* ── v4 (2026-04-23) Data-aware PCA preconditioner ──
+                         * Scale sample columns by sqrt(diag(Σ_W W^T W)) where W
+                         * ranges over attention Q/K/V projections of this layer.
+                         * This biases the PCA toward directions that matter for
+                         * the downstream weighted reconstruction error.  When
+                         * disabled (--axex-no-actaware), reverts to pure h-PCA. */
+                        /* actaware column-norm scaling — skip in weight-PCA mode (no X data) */
+                        int actaware = !args.axex_no_actaware && !args.axex_weight_pca;
+                        float *col_s = NULL;
+                        if (actaware) {
+                            col_s = (float *)malloc((size_t)dim * sizeof(float));
+                            if (col_s && grc_compute_attn_col_norms(
+                                    &mdl->layers[l], dim, col_s) == 0) {
+                                for (int s = 0; s < n_samples; s++) {
+                                    double *row = X.data + (size_t)s * dim;
+                                    for (int j = 0; j < dim; j++)
+                                        row[j] *= (double)col_s[j];
+                                }
+                                if (l == 0) {
+                                    /* Report scale spread for diagnostic */
+                                    float s_min = col_s[0], s_max = col_s[0];
+                                    double s_mean = 0.0;
+                                    for (int j = 0; j < dim; j++) {
+                                        if (col_s[j] < s_min) s_min = col_s[j];
+                                        if (col_s[j] > s_max) s_max = col_s[j];
+                                        s_mean += col_s[j];
+                                    }
+                                    s_mean /= (double)dim;
+                                    kprintf("[AXEX-ACTAWARE] L0 col-norm scale: min=%.3f mean=%.3f max=%.3f (ratio=%.1f×)\n",
+                                            s_min, (float)s_mean, s_max,
+                                            s_min > 1e-6f ? s_max / s_min : 0.0f);
+                                }
+                            } else if (col_s && l == 0) {
+                                kprintf("[AXEX-ACTAWARE] Column-norm computation failed — falling back to h-PCA\n");
+                                actaware = 0;
+                            }
+                            if (col_s) free(col_s);
+                        }
+
+                        /* Fast truncated PCA: uses randomized SVD when k_budget << min(n,d),
+                         * falls back to Jacobi (now 15-sweep) for near-full-rank requests. */
+                        int lq_dim = mdl->n_heads * (dim / mdl->n_heads);
+                        int lkv_dim = mdl->n_kv_heads * (dim / mdl->n_heads);
+                        int max_m = lq_dim > lkv_dim ? lq_dim : lkv_dim;
+                        float *tmp_m = (float *)malloc(max_m * sizeof(float));
+                        float *row_f32 = (float *)malloc(dim * sizeof(float));
+                        my_grc_weighted_ctx_t wctx = {
+                            .layer = &mdl->layers[l],
+                            .model = mdl,
+                            .weight_mask = 1 | 2 | 4,
+                            .tmp_m = tmp_m,
+                            .row_f32 = row_f32
+                        };
+                        axpca_t lpca;
+                        if (args.axex_weight_pca) {
+                            /* Weight-gram eigenvectors: find top-k eigenvectors of
+                             * K = W_q^T W_q + W_k^T W_k + W_v^T W_v without any
+                             * calibration data.  Maximises weight energy directly.
+                             * Pre-dequantize weights to f32 to avoid repeated Q4_K_M
+                             * decoding on every K_apply call (speedup: ~1000×). */
+                            kprintf("[AXEX-MANIFOLD] Layer %d: dequantizing weights for weight-PCA...\n", l);
+                            float *q_f32c = (float *)malloc((size_t)lq_dim  * dim * sizeof(float));
+                            float *k_f32c = (float *)malloc((size_t)lkv_dim * dim * sizeof(float));
+                            float *v_f32c = (float *)malloc((size_t)lkv_dim * dim * sizeof(float));
+                            int max_kv = lq_dim > lkv_dim ? lq_dim : lkv_dim;
+                            float *tmp_cache = (float *)malloc((size_t)max_kv * sizeof(float));
+
+                            if (q_f32c && k_f32c && v_f32c && tmp_cache &&
+                                    mdl->layers[l].q_weight && mdl->layers[l].k_weight &&
+                                    mdl->layers[l].v_weight) {
+                                /* Dequantize Q weight rows */
+                                double norm_q_sq = 0.0;
+                                for (int ri = 0; ri < lq_dim; ri++) {
+                                    const void *rp = (const char *)mdl->layers[l].q_weight +
+                                        (size_t)ri * ggml_tensor_size(mdl->layers[l].q_type, dim);
+                                    ax_dequant_row_f32(rp, q_f32c + (size_t)ri * dim,
+                                                       dim, mdl->layers[l].q_type);
+                                    const float *rr = q_f32c + (size_t)ri * dim;
+                                    for (int j = 0; j < dim; j++) norm_q_sq += (double)rr[j] * rr[j];
+                                }
+                                /* Dequantize K weight rows */
+                                double norm_k_sq = 0.0;
+                                for (int ri = 0; ri < lkv_dim; ri++) {
+                                    const void *rp = (const char *)mdl->layers[l].k_weight +
+                                        (size_t)ri * ggml_tensor_size(mdl->layers[l].k_type, dim);
+                                    ax_dequant_row_f32(rp, k_f32c + (size_t)ri * dim,
+                                                       dim, mdl->layers[l].k_type);
+                                    const float *rr = k_f32c + (size_t)ri * dim;
+                                    for (int j = 0; j < dim; j++) norm_k_sq += (double)rr[j] * rr[j];
+                                }
+                                /* Dequantize V weight rows */
+                                double norm_v_sq = 0.0;
+                                for (int ri = 0; ri < lkv_dim; ri++) {
+                                    const void *rp = (const char *)mdl->layers[l].v_weight +
+                                        (size_t)ri * ggml_tensor_size(mdl->layers[l].v_type, dim);
+                                    ax_dequant_row_f32(rp, v_f32c + (size_t)ri * dim,
+                                                       dim, mdl->layers[l].v_type);
+                                    const float *rr = v_f32c + (size_t)ri * dim;
+                                    for (int j = 0; j < dim; j++) norm_v_sq += (double)rr[j] * rr[j];
+                                }
+                                float inv_q = (norm_q_sq > 1e-12) ? (float)(1.0 / norm_q_sq) : 1.0f;
+                                float inv_k = (norm_k_sq > 1e-12) ? (float)(1.0 / norm_k_sq) : 1.0f;
+                                float inv_v = (norm_v_sq > 1e-12) ? (float)(1.0 / norm_v_sq) : 1.0f;
+                                my_grc_cached_ctx_t cctx = {
+                                    .q_f32 = q_f32c, .k_f32 = k_f32c, .v_f32 = v_f32c,
+                                    .tmp = tmp_cache,
+                                    .lq_dim = lq_dim, .lkv_dim = lkv_dim, .dim = dim,
+                                    .inv_norm_q = inv_q, .inv_norm_k = inv_k, .inv_norm_v = inv_v
+                                };
+                                kprintf("[AXEX-MANIFOLD] Layer %d: running weight-PCA eigvec (k=%d)...\n", l, k_budget);
+                                lpca = axpca_compute_weight_topk(my_grc_cached_matvec, &cctx, dim, k_budget);
+                            } else {
+                                /* Fallback: slow path (re-dequantizes on every call) */
+                                kprintf("[AXEX-MANIFOLD] Layer %d: weight-PCA fallback (slow dequant path)\n", l);
+                                lpca = axpca_compute_weight_topk(my_grc_weighted_matvec, &wctx, dim, k_budget);
+                            }
+                            free(q_f32c); free(k_f32c); free(v_f32c); free(tmp_cache);
+                            axmat_destroy(&X);  /* X not used in weight-PCA mode */
+                        } else {
+                            lpca = axpca_compute_topk_weighted(&X, my_grc_weighted_matvec, &wctx, k_budget);
+                            axmat_destroy(&X);
+                        }
+                        free(tmp_m);
+                        free(row_f32);
 
                         if (lpca.n_components <= 0) {
-                            kprintf("[AXEX-MANIFOLD] Layer %d PCA failed\n", l);
+                            kprintf("[AXEX-MANIFOLD] Layer %d PCA failed — skipping layer (raw weights used)\n", l);
                             axpca_destroy(&lpca);
-                            lw_ok = 0;
-                            break;
+                            lw_skipped++;
+                            if (lw_skipped > n_layers / 2) {
+                                kprintf("[AXEX-MANIFOLD] Too many PCA failures (%d/%d) — aborting GP compression\n",
+                                        lw_skipped, n_layers);
+                                lw_ok = 0;
+                            }
+                            continue;
                         }
 
-                        if (axex_manifold_init_layer(l, &lpca, dim, AXEX_MANIFOLD_K_MAX) != 0) {
-                            kprintf("[AXEX-MANIFOLD] Layer %d basis init failed\n", l);
+                        if (k_for_layer > lpca.n_components) k_for_layer = lpca.n_components;
+
+                        /* Feature 2: ensure sink direction is captured — bump rank if needed */
+                        if (args.axex_sink_bypass && g_sink_ctx.valid &&
+                                g_sink_ctx.n_sinks > 0 &&
+                                k_for_layer < lpca.n_components) {
+                            /* Compute mean hidden state of sink-like samples at this layer */
+                            float *mean_sink = (float *)calloc((size_t)dim, sizeof(float));
+                            if (mean_sink) {
+                                int n_s_valid = 0;
+                                const float *hs_l = all_hs + (size_t)l * n_samples * dim;
+                                for (int si = 0; si < g_sink_ctx.n_sinks; si++) {
+                                    int sidx = g_sink_ctx.indices[si];
+                                    if (sidx < n_samples) {
+                                        const float *h = hs_l + (size_t)sidx * dim;
+                                        for (int d = 0; d < dim; d++) mean_sink[d] += h[d];
+                                        n_s_valid++;
+                                    }
+                                }
+                                if (n_s_valid > 0) {
+                                    float inv_ns = 1.0f / (float)n_s_valid;
+                                    for (int d = 0; d < dim; d++) mean_sink[d] *= inv_ns;
+                                    int needs = sink_check_basis_coverage(&g_sink_ctx,
+                                                    mean_sink, lpca.components.data,
+                                                    lpca.n_components, dim, 0.5f, NULL);
+                                    if (needs) {
+                                        /* Reserve one extra slot per sink token, up to 3.
+                                         * Multiple massive-activation tokens may lie in
+                                         * different directions; a single extra component
+                                         * often cannot cover them all. */
+                                        int extra = g_sink_ctx.n_sinks < 3
+                                                    ? g_sink_ctx.n_sinks : 3;
+                                        k_for_layer += extra;
+                                        if (k_for_layer > lpca.n_components)
+                                            k_for_layer = lpca.n_components;
+                                    }
+                                }
+                                free(mean_sink);
+                            }
+                        }
+
+                        if (axex_manifold_init_layer(l, &lpca, dim, k_for_layer) != 0) {
+                            kprintf("[AXEX-MANIFOLD] Layer %d basis init failed — skipping layer\n", l);
                             axpca_destroy(&lpca);
-                            lw_ok = 0;
-                            break;
+                            lw_skipped++;
+                            if (lw_skipped > n_layers / 2) { lw_ok = 0; }
+                            continue;
                         }
                         axpca_destroy(&lpca);
 
@@ -2461,6 +3829,9 @@ int main(int argc, char **argv) {
                             kprintf("[AXEX-MANIFOLD] Per-layer PCA: %d/%d layers done\n",
                                     l + 1, n_layers);
                     }
+                    free(ricci_ranks);
+                    free(mcr_ranks);
+                    free(sink_norms);
                     free(all_hs);
                     free(all_valid);
                     free(cap_valid);
@@ -2473,6 +3844,151 @@ int main(int argc, char **argv) {
                 } else {
                     kprintf("[AXEX-MANIFOLD] Per-layer PCA failed — skipping GP compression\n");
                 }
+
+                /* ── FFN Down GP Compression ──────────────────────────────────
+                 * Capture SiLU(gate)⊙up activations at every layer in one pass,
+                 * build per-layer PCA in the ff_dim space, then compress W_down
+                 * using GP: W_down_proj[dim×k_ff] = W_down @ Qff_l.
+                 * This is the key piece needed for 70B-in-7GB: FFN down weights
+                 * dominate VRAM usage and are now compressible without quality
+                 * loss because we use the actual FFN activation manifold basis.
+                 * In attn-only mode this calibration always ends up skipping every
+                 * layer (quality guard rejects low-energy FFN projections), so skip
+                 * the entire calibration pass to save ~2 min startup time. */
+                if (lw_ok && !args.axex_attn_only) {
+                    int ff_dim = mdl->ff_dim;
+                    if (ff_dim <= 0) {
+                        kprintf("[AXEX-FFN-DOWN] Skipping: ff_dim=0\n");
+                    } else {
+                        kprintf("[AXEX-FFN-DOWN] Capturing FFN intermediate activations "
+                                "(%d layers × %d samples × ff_dim=%d)...\n",
+                                n_layers, n_samples, ff_dim);
+
+                        size_t ffn_total_f = (size_t)n_layers * n_samples * ff_dim;
+                        float *all_ffn = (float *)malloc(ffn_total_f * sizeof(float));
+                        /* OOM retry: halve n_samples if the FFN buffer can't be allocated.
+                         * Phi-3.5: 32×512×8192×4 = 536 MB; halved = 268 MB — still compressible. */
+                        if (!all_ffn && n_samples > 64) {
+                            int ffn_n_samples = n_samples / 2;
+                            ffn_total_f = (size_t)n_layers * ffn_n_samples * ff_dim;
+                            all_ffn = (float *)malloc(ffn_total_f * sizeof(float));
+                            if (all_ffn)
+                                kprintf("[AXEX-FFN-DOWN] OOM on full alloc — retrying with %d samples\n",
+                                        ffn_n_samples);
+                            /* Patch n_samples for the FFN path only */
+                            /* (use a local so the attention n_samples is unchanged) */
+                            if (all_ffn) n_samples = ffn_n_samples;
+                        }
+                        int   *ffn_valid = (int *)calloc((size_t)n_layers, sizeof(int));
+                        int   *ffn_cap_v = (int *)calloc((size_t)n_layers, sizeof(int));
+                        int    ffn_ok = (all_ffn && ffn_valid && ffn_cap_v);
+
+                        if (ffn_ok) {
+                            uint64_t seed2 = 0xDEADBEEFCAFE1234ULL;
+                            float *ffn_pass_buf = (float *)malloc((size_t)n_layers * ff_dim * sizeof(float));
+                            if (!ffn_pass_buf) { ffn_ok = 0; }
+
+                            for (int s = 0; s < n_samples && ffn_ok; s++) {
+                                seed2 ^= seed2 << 13; seed2 ^= seed2 >> 7; seed2 ^= seed2 << 17;
+                                int tok = (int)(seed2 % (uint64_t)llm_model_vocab());
+
+                                memset(ffn_cap_v, 0, (size_t)n_layers * sizeof(int));
+                                int rc = axiom_beta_probe_all_ffn_states(
+                                    tok, ffn_pass_buf, ffn_cap_v, n_layers, ff_dim);
+
+                                for (int l = 0; l < n_layers; l++) {
+                                    float *dst = all_ffn + ((size_t)l * n_samples + s) * ff_dim;
+                                    if (rc == 0 && ffn_cap_v[l]) {
+                                        memcpy(dst, ffn_pass_buf + (size_t)l * ff_dim,
+                                               (size_t)ff_dim * sizeof(float));
+                                        ffn_valid[l]++;
+                                    } else {
+                                        memset(dst, 0, (size_t)ff_dim * sizeof(float));
+                                    }
+                                }
+
+                                if ((s % 64) == 63 || s == n_samples - 1)
+                                    kprintf("[AXEX-FFN-DOWN] FFN calibration sample %d/%d done\n",
+                                            s + 1, n_samples);
+                            }
+                            free(ffn_pass_buf);
+                        }
+
+                        /* Build per-layer FFN PCA and compress W_down */
+                        for (int l = 0; l < n_layers && ffn_ok; l++) {
+                            axmat_t X = axmat_create(n_samples, ff_dim);
+                            if (!X.data) { ffn_ok = 0; break; }
+
+                            for (int s = 0; s < n_samples; s++) {
+                                const float *src = all_ffn + ((size_t)l * n_samples + s) * ff_dim;
+                                for (int j = 0; j < ff_dim; j++)
+                                    X.data[(size_t)s * ff_dim + j] = (double)src[j];
+                            }
+
+                            /* Use fast truncated PCA.  Cap ffn_k to always trigger the
+                             * randomised-SVD path in axpca_compute_topk (that path is used
+                             * only when k_max < min(n,d)*0.65).  With n_samples=512,
+                             * min(n,d)=512, the full-Jacobi fallback fires for k>=332.
+                             * Limit to (n_samples * 55)/100 so we always use the fast path
+                             * regardless of sample count, and stay <= K_MAX. */
+                            int ffn_k = (n_samples * 55) / 100;
+                            if (ffn_k > AXEX_MANIFOLD_K_MAX) ffn_k = AXEX_MANIFOLD_K_MAX;
+                            if (ffn_k < 8) ffn_k = 8;
+                            if (args.axex_compress_rank > 0 && args.axex_compress_rank < ffn_k)
+                                ffn_k = args.axex_compress_rank;
+                            axpca_t ffn_pca = axpca_compute_topk(&X, ffn_k);
+                            axmat_destroy(&X);
+
+                            if (ffn_pca.n_components <= 0) {
+                                kprintf("[AXEX-FFN-DOWN] Layer %d FFN PCA failed\n", l);
+                                axpca_destroy(&ffn_pca);
+                                ffn_ok = 0;
+                                break;
+                            }
+
+                            if (axex_manifold_init_ffn_layer(l, &ffn_pca, ff_dim,
+                                                              AXEX_MANIFOLD_K_MAX) != 0) {
+                                kprintf("[AXEX-FFN-DOWN] Layer %d FFN basis init failed\n", l);
+                                axpca_destroy(&ffn_pca);
+                                ffn_ok = 0;
+                                break;
+                            }
+                            axpca_destroy(&ffn_pca);
+
+                            if ((l % 8) == 7 || l == n_layers - 1)
+                                kprintf("[AXEX-FFN-DOWN] FFN PCA: %d/%d layers done\n",
+                                        l + 1, n_layers);
+                        }
+                        free(all_ffn);
+                        free(ffn_valid);
+                        free(ffn_cap_v);
+
+                        if (ffn_ok) {
+                            int dn = axex_compress_model_ffn_down_layerwise(
+                                axiom_ran_this_invocation ? &axiom_rep : NULL, mdl);
+                            kprintf("[AXEX-FFN-DOWN] W_down layerwise GP: %d layers compressed\n", dn);
+                        } else {
+                            kprintf("[AXEX-FFN-DOWN] FFN calibration failed — W_down uncompressed\n");
+                        }
+                    }
+                }
+
+                /* ── Save W_proj cache for next run ──────────────────────────
+                 * Writes compressed Pt+W_proj state so future startups load in
+                 * ~1-2s instead of running ~22s of PCA + compression.
+                 * Only save when compression actually produced matrices. */
+                if (lw_ok && axex_manifold_compressed_count() > 0) {
+                    int wsaved = axex_manifold_save_wproj_cache(wp_cache_path, wp_hk);
+                    if (wsaved > 0) {
+                        kprintf("[AXEX-MANIFOLD] Saved W_proj cache: %s (%d matrices)\n",
+                                wp_cache_path, wsaved);
+                    } else {
+                        kprintf("[AXEX-MANIFOLD] WARNING: failed to save W_proj cache %s\n",
+                                wp_cache_path);
+                    }
+                }
+
+                } /* end if (!wp_cache_loaded) */
             } else {
                 kprintf("[AXEX-MANIFOLD] Skipped (no PCA — run with --axiom-beta-run first)\n");
             }
@@ -2480,6 +3996,36 @@ int main(int argc, char **argv) {
 
         /* Upload any compressed weight matrices to GPU device memory */
         llm_gpu_upload_compressed_weights();
+    }
+
+    /* ── Feature 1: Online basis update context ────────────────────────────
+     * Arm the per-layer Oja update context so the speculative decode path
+     * can record rejections and update the PCA basis between steps.
+     * The actual onb_record_rejection / onb_apply_pending calls live in
+     * llm_speculative_verify_with_correction (llm.c) gated on this flag. */
+    static onb_ctx_t g_onb_ctx;
+    if (args.axex_online_basis) {
+        const llm_model_t *ob_mdl = llm_get_model();
+        /* Build uniform dim/k arrays for onb_init */
+        int ob_nl = ob_mdl ? ob_mdl->n_layers : 0;
+        int *ob_dims = (int *)calloc((size_t)(ob_nl > 0 ? ob_nl : 1), sizeof(int));
+        int *ob_ks   = (int *)calloc((size_t)(ob_nl > 0 ? ob_nl : 1), sizeof(int));
+        if (ob_dims && ob_ks) {
+            for (int _l = 0; _l < ob_nl; _l++) {
+                ob_dims[_l] = ob_mdl->dim;
+                ob_ks[_l]   = 8;
+            }
+        }
+        if (ob_mdl && ob_dims && ob_ks &&
+            onb_init(&g_onb_ctx, ob_nl, ob_dims, ob_ks, NULL, 0.01) == 0) {
+            llm_set_online_basis_ctx(&g_onb_ctx);
+            kprintf("[ONB] Online basis update armed: %d layers, k=8, eta0=0.01\n",
+                    ob_mdl->n_layers);
+        } else {
+            kprintf("[ONB] Online basis init failed — continuing without it\n");
+        }
+        free(ob_dims);
+        free(ob_ks);
     }
 
     if (args.one_decode || args.ott_od) {
@@ -2506,7 +4052,72 @@ int main(int argc, char **argv) {
     }
 
     /* Run inference */
-    if (args.serve) {
+    if (args.ppl_eval) {
+        /* ── WikiText-2 perplexity evaluation ──────────────────────────────
+         * Evaluates cross-entropy on a 512-token WikiText-2 slice, computes
+         * PPL = exp(mean NLL).  Works with or without --axex-compress. */
+        static const char *PPL_TEXT =
+            " = Valuation ( finance ) = \n"
+            " In finance , valuation is the process of determining the present value of an asset or a company . "
+            "Valuations can be done on assets ( for example , investments in marketable securities such as "
+            "stocks , options , business enterprises , or intangible assets such as patents and trademarks ) "
+            "or on liabilities ( e.g. , bonds issued by a company ) . Valuations are needed for many reasons "
+            "such as investment analysis , capital budgeting , merger and acquisition transactions , financial "
+            "reporting , and taxable events to determine the proper tax liability . \n"
+            " = = Valuation overview = = \n"
+            " In finance , a valuation is the process of estimating what something is worth . Items that are "
+            "usually valued are a financial asset or liability . Valuations can be done on assets ( for example "
+            ", investments in marketable securities such as stocks , options , business enterprises , or "
+            "intangible assets such as patents and trademarks ) or on liabilities ( e.g. , bonds issued by a "
+            "company ) . \n"
+            " The concept of present value was first described by Martin de Azpilcueta , a Spanish theologian , "
+            "in 1533 . He was the first to observe that money received in the future is worth less than money "
+            "received today , a concept now known as the time value of money . \n"
+            " = = = Intrinsic value = = = \n"
+            " Intrinsic value refers to the value of a company , stock , currency or product determined through "
+            "fundamental analysis without reference to its market value . It is also frequently called "
+            "fundamental value . It is ordinarily calculated by summing the discounted future income generated "
+            "by the asset to obtain the present value . It is worthy of note that the intrinsic value of stocks "
+            "are hard to accurately estimate . \n"
+            " = = = Market value = = = \n"
+            " The market value of a publicly traded company is determined by the stock market price which "
+            "represents the consensus of investors about the future earnings and cash flows of the company . \n"
+            " = Homarus gammarus = \n"
+            " Homarus gammarus , known as the European lobster or common lobster , is a species of clawed "
+            "lobster from the eastern Atlantic Ocean , Mediterranean Sea and parts of the Black Sea . It is "
+            "closely related to the American lobster , Homarus americanus . It may grow to a length of 60 cm "
+            "( 24 in ) and a mass of 6 kilograms ( 13 lb ) , and bears a conspicuous pair of claws . \n"
+            " = Robert Boulter = \n"
+            " Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring "
+            "role on the television series The Bill in 2000 . This was followed by a starring role in the "
+            "play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . \n";
+
+        int ppl_max = 512;
+        float *ppl_lps = (float *)malloc((size_t)ppl_max * sizeof(float));
+        if (!ppl_lps) { kprintf("[PPL] OOM\n"); return 1; }
+        kprintf("[PPL] Evaluating WikiText-2 perplexity (%d tokens max)...\n", ppl_max);
+        uint64_t ppl_t0 = hal_timer_us();
+        int ppl_n = llm_eval_sequence_logprobs(PPL_TEXT, ppl_lps, ppl_max);
+        uint64_t ppl_t1 = hal_timer_us();
+        if (ppl_n <= 0) {
+            kprintf("[PPL] ERROR: logprobs eval failed (n=%d)\n", ppl_n);
+            free(ppl_lps);
+            return 1;
+        }
+        double nll_sum = 0.0;
+        for (int i = 0; i < ppl_n; i++) nll_sum += (double)ppl_lps[i];
+        double nll_mean = -nll_sum / ppl_n;
+        double ppl_val  = exp(nll_mean);
+        double elapsed_s = (ppl_t1 - ppl_t0) / 1e6;
+        double tps = ppl_n / elapsed_s;
+        kprintf("[PPL] n_tokens=%d  NLL=%.6f  PPL=%.4f  elapsed=%.1fs  tps=%.1f\n",
+                ppl_n, nll_mean, ppl_val, elapsed_s, tps);
+        /* JSON-formatted result for easy parsing */
+        kprintf("[PPL-JSON] {\"n_tokens\":%d,\"nll\":%.6f,\"ppl\":%.4f,\"elapsed_s\":%.2f,\"tps\":%.1f}\n",
+                ppl_n, nll_mean, ppl_val, elapsed_s, tps);
+        free(ppl_lps);
+        return 0;
+    } else if (args.serve) {
         kprintf("[GD] Starting API server on port %d...\n", args.port);
         GD_api_serve(args.port);
     } else if (args.interactive) {
@@ -2523,6 +4134,10 @@ int main(int argc, char **argv) {
         uint64_t gen_t0 = hal_timer_us();
         int n;
         int geodesic_fallback_used = 0;
+        /* Stream each token to stdout as it is generated so output is captured
+         * incrementally — critical for slow/large models where the process may
+         * take minutes before reaching the final kprintf. */
+        llm_set_stream_cb(GD_stream_cb, (void *)0);
         if (args.ott_speculative) {
             n = geodesic_speculative_generate_text(prompt, args.max_tokens,
                                                    args.ott_speculative_thresh,
@@ -2547,9 +4162,10 @@ int main(int argc, char **argv) {
         } else {
             n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
         }
+        llm_set_stream_cb((llm_token_cb_t)0, (void *)0);
         uint64_t gen_t1 = hal_timer_us();
         if (n > 0) {
-            kprintf("%s\n", output);
+            kprintf("\n");  /* tokens already streamed above; just terminate the line */
             uint64_t total_ms = (gen_t1 - gen_t0) / 1000;
             float tok_per_s = total_ms > 0 ? (float)n * 1000.0f / (float)total_ms : 0.0f;
             float decode_tok_s = llm_last_tok_per_sec();

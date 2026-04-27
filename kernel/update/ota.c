@@ -1,3 +1,62 @@
+﻿/*
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::.................:::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::.............................::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::......................................:::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::......................*%:....................::::::::::::::::::::::::
+ * ::::::::::::::::::::::.......................+@@@-......................::::::::::::::::::::::
+ * ::::::::::::::::::::........................+@@@@@:.......................:::::::::::::::::::
+ * ::::::::::::::::::.........................=@@@@@@@:........................:::::::::::::::::
+ * ::::::::::::::::..........................:@@@@@@@@@-........................:::::::::::::::
+ * :::::::::::::::..........................-@@@@@@@@@@@=.........................:::::::::::::
+ * :::::::::::::...........................=@@@@@@@@@@@@@-.........................::::::::::::::
+ * ::::::::::::...........................-@@@@@@@@@@@@@@@..........................:::::::::::
+ * :::::::::::............................:%@@@@@@@@@@@@@+...........................:::::::::
+ * ::::::::::..............................=@@@@@@@@@@@@%:............................:::::::::
+ * ::::::::::...............................*@@@@@@@@@@@=..............................::::::::
+ * :::::::::................................:@@@@@@@@@@%:...............................::::::
+ * ::::::::..................................*@@@@@@@@@-................................::::::::
+ * ::::::::..................:@@+:...........:@@@@@@@@@.............:+-..................:::::::
+ * :::::::...................*@@@@@@*-:.......%@@@@@@@+........:-*@@@@@..................:::::::
+ * :::::::..................:@@@@@@@@@@@%:....*@@@@@@@:....:=%@@@@@@@@@=.................:::::::
+ * :::::::..................*@@@@@@@@@@@@#....=@@@@@@@....:*@@@@@@@@@@@#..................::::::
+ * :::::::.................:@@@@@@@@@@@@@@-...=@@@@@@@....*@@@@@@@@@@@@@:.................::::::
+ * :::::::.................*@@@@@@@@@@@@@@@:..=@@@@@@#...+@@@@@@@@@@@@@@=.................::::::
+ * :::::::................:@@@@@@@@@@@@@@@@*..=@@@@@@#..+@@@@@@@@@@@@@@@+.................::::::
+ * :::::::................=@@@@@@@@@@@@@@@@@-.#@@@@@@@.-@@@@@@@@@@@@@@@@*................:::::::
+ * :::::::...............:#@@@@@@@@@@@@@@@@@*.@@@@@@@@:@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::..............:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::................:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-...............::::::::
+ * :::::::::.................:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%-.................::::::::
+ * ::::::::::....................:#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=...................::::::::::
+ * ::::::::::.......................:*@@@@@@@@@@@@@@@@@@@@@@@@@#-.....................:::::::::
+ * :::::::::::.........................:=@@@@@@@@@@@@@@@@@@*:........................:::::::::::
+ * ::::::::::::......................:=%@@@@@@@@@@@@@@@@@@@@#:......................::::::::::::
+ * :::::::::::::.............+#%@@@@@@@@@@@@@@%-::*-.:%@@@@@@@@%=:.................::::::::::::::
+ * :::::::::::::::...........:#@@@@@@@@@@@#--+%@@@@@@@#=:=%@@@@@@@@@@-............::::::::::::::::
+ * ::::::::::::::::............-@@@@@@+-=#@@@@@@@@@@@@@@@@#=-=#@@@@*:............::::::::::::::::
+ * ::::::::::::::::::...........:==:...-@@@@@@@@@@@@@@@@@@@@:...:=-............:::::::::::::::::
+ * :::::::::::::::::::...................@@@@@@@@@@@@@@@@@-..................::::::::::::::::::::
+ * ::::::::::::::::::::::................:#@@@@@@@@@@@@@*:.................::::::::::::::::::::::
+ * ::::::::::::::::::::::::...............:*@@%+-.:=#@%-................::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::.............:........................:::::::::::::::::::::::::::
+ * :::::::::::::::::::::::::::::::...............................:::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::.....................:::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ */
+
 /* =============================================================================
  * TensorOS — OTA Update Protocol Implementation
  *
@@ -524,9 +583,461 @@ int ota_receive_and_flash(void)
     while (1) __asm__ volatile ("wfi");  /* Wait for reset */
 }
 
-#else /* x86 stubs */
+#else /* x86 — COM1 serial OTA + ATA PIO flash */
 
-int ota_receive_and_chainload(void) { kprintf("[OTA] Not available on x86\n"); return -1; }
-int ota_receive_and_flash(void)     { kprintf("[OTA] Not available on x86\n"); return -1; }
+/* =============================================================================
+ * x86 COM1 serial helpers (38400 8N1, mirroring klib.c serial_init)
+ * =============================================================================*/
+#define X86_COM1 0x3F8
+
+static void x86_ota_serial_init(void)
+{
+    outb(X86_COM1 + 1, 0x00); /* Disable interrupts */
+    outb(X86_COM1 + 3, 0x80); /* Enable DLAB */
+    outb(X86_COM1 + 0, 0x03); /* 38400 baud divisor = 3 */
+    outb(X86_COM1 + 1, 0x00);
+    outb(X86_COM1 + 3, 0x03); /* 8N1 */
+    outb(X86_COM1 + 2, 0xC7); /* Enable FIFO */
+    outb(X86_COM1 + 4, 0x0B); /* RTS/DSR */
+}
+
+static int x86_ota_has_data(void)
+{
+    return (inb(X86_COM1 + 5) & 0x01) != 0;
+}
+
+static uint8_t x86_ota_getc(void)
+{
+    while (!x86_ota_has_data())
+        ;
+    return inb(X86_COM1);
+}
+
+static void x86_ota_putc(char c)
+{
+    while (!(inb(X86_COM1 + 5) & 0x20))
+        ;
+    outb(X86_COM1, (uint8_t)c);
+    outb(0xE9, (uint8_t)c); /* QEMU debug port */
+}
+
+static void x86_ota_puts(const char *s)
+{
+    while (*s) x86_ota_putc(*s++);
+}
+
+/* =============================================================================
+ * TSC-based timeout helpers
+ * =============================================================================*/
+static uint64_t x86_rdtsc(void)
+{
+    uint32_t lo, hi;
+    __asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+/* Return TSC ticks per millisecond.  Uses PIT channel 2 for calibration if
+ * possible; falls back to 3 GHz assumption. */
+static uint64_t x86_tsc_ticks_per_ms(void)
+{
+    /* Try PIT calibration: gate channel 2 for ~1 ms (PIT freq = 1193182 Hz,
+     * 1 ms ≈ 1193 counts) */
+    outb(0x61, (inb(0x61) & 0xFC) | 0x01); /* gate on, speaker off */
+    outb(0x43, 0xB0);                       /* ch2, lobyte/hibyte, one-shot */
+    outb(0x42, 0xA9); outb(0x42, 0x04);     /* reload = 0x04A9 = 1193 ≈ 1 ms */
+    outb(0x61, inb(0x61) | 0x01);           /* start */
+    uint64_t t0 = x86_rdtsc();
+    while (inb(0x61) & 0x20)               /* wait for OUT2 to go high */
+        ;
+    uint64_t ticks = x86_rdtsc() - t0;
+    outb(0x61, inb(0x61) & 0xFC);          /* gate off */
+    /* Sanity: must be between 0.5 GHz and 8 GHz */
+    if (ticks < 500000ULL || ticks > 8000000ULL)
+        ticks = 3000000ULL; /* fallback: 3 GHz assumed */
+    return ticks;
+}
+
+/* Read exactly `len` bytes from COM1 with a per-read timeout.
+ * `timeout_ms` is the maximum wait for each individual byte. */
+static int x86_ota_read_exact(uint8_t *buf, uint32_t len,
+                               uint32_t timeout_ms, uint64_t ticks_per_ms)
+{
+    uint64_t timeout_ticks = (uint64_t)timeout_ms * ticks_per_ms;
+    for (uint32_t i = 0; i < len; i++) {
+        uint64_t deadline = x86_rdtsc() + timeout_ticks;
+        while (!x86_ota_has_data()) {
+            if (x86_rdtsc() > deadline) return -1; /* timeout */
+        }
+        buf[i] = inb(X86_COM1);
+    }
+    return 0;
+}
+
+/* =============================================================================
+ * CRC-32 (IEEE 802.3, same polynomial as ARM64 path)
+ * =============================================================================*/
+static uint32_t x86_crc32(uint32_t crc, const uint8_t *buf, uint32_t len)
+{
+    crc = ~crc;
+    for (uint32_t i = 0; i < len; i++) {
+        crc ^= buf[i];
+        for (int j = 0; j < 8; j++)
+            crc = (crc >> 1) ^ (0xEDB88320u & -(crc & 1));
+    }
+    return ~crc;
+}
+
+/* =============================================================================
+ * Receive kernel binary over COM1
+ * Protocol: "OTA!" + uint32_le size + data + uint32_le crc32
+ * =============================================================================*/
+#define X86_OTA_RECV_ADDR  ((uint8_t *)0x4000000UL)  /* 64 MB — above kernel */
+#define X86_OTA_MAX_SIZE   (64u * 1024u * 1024u)
+
+static int x86_ota_receive(uint32_t *out_size, uint64_t ticks_per_ms)
+{
+    x86_ota_puts("RDY\n");
+    kprintf("[OTA/x86] Waiting for kernel binary on COM1 (38400 8N1)...\n");
+
+    uint8_t magic[4];
+    if (x86_ota_read_exact(magic, 4, 60000, ticks_per_ms) != 0) {
+        x86_ota_puts("ERR:timeout waiting for magic\n"); return -1;
+    }
+    if (magic[0] != 'O' || magic[1] != 'T' || magic[2] != 'A' || magic[3] != '!') {
+        x86_ota_puts("ERR:bad magic\n"); return -2;
+    }
+
+    uint8_t szb[4];
+    if (x86_ota_read_exact(szb, 4, 5000, ticks_per_ms) != 0) {
+        x86_ota_puts("ERR:timeout reading size\n"); return -3;
+    }
+    uint32_t size = szb[0] | ((uint32_t)szb[1] << 8)
+                  | ((uint32_t)szb[2] << 16) | ((uint32_t)szb[3] << 24);
+    if (size == 0 || size > X86_OTA_MAX_SIZE) {
+        x86_ota_puts("ERR:invalid size\n"); return -4;
+    }
+
+    kprintf("[OTA/x86] Receiving %u bytes", size);
+
+    uint8_t  *recv = X86_OTA_RECV_ADDR;
+    uint32_t  received = 0, last_pct = 0;
+    while (received < size) {
+        uint32_t chunk = size - received;
+        if (chunk > 4096) chunk = 4096;
+        if (x86_ota_read_exact(recv + received, chunk, 30000, ticks_per_ms) != 0) {
+            kprintf("\n");
+            x86_ota_puts("ERR:timeout during transfer\n"); return -5;
+        }
+        received += chunk;
+        uint32_t pct = (received * 100) / size;
+        if (pct / 10 > last_pct / 10) { kprintf("."); last_pct = pct; }
+    }
+    kprintf(" done\n");
+
+    uint8_t crcb[4];
+    if (x86_ota_read_exact(crcb, 4, 5000, ticks_per_ms) != 0) {
+        x86_ota_puts("ERR:timeout reading crc\n"); return -6;
+    }
+    uint32_t exp_crc = crcb[0] | ((uint32_t)crcb[1] << 8)
+                     | ((uint32_t)crcb[2] << 16) | ((uint32_t)crcb[3] << 24);
+    uint32_t act_crc = x86_crc32(0, recv, size);
+    if (act_crc != exp_crc) {
+        kprintf("[OTA/x86] CRC mismatch: exp=0x%x got=0x%x\n", exp_crc, act_crc);
+        x86_ota_puts("ERR:crc mismatch\n"); return -7;
+    }
+
+    kprintf("[OTA/x86] CRC OK (0x%x), %u bytes verified\n", act_crc, size);
+    x86_ota_puts("OK!\n");
+    *out_size = size;
+    return 0;
+}
+
+/* =============================================================================
+ * Chain-load: copy to 2 MB and jump (flat binary, not PE)
+ * =============================================================================*/
+#define X86_OTA_LOAD_ADDR 0x200000UL
+
+static void __attribute__((noinline, noreturn))
+x86_ota_chainload(const uint8_t *src, uint32_t size)
+{
+    uint8_t *dst = (uint8_t *)X86_OTA_LOAD_ADDR;
+    for (uint32_t i = 0; i < size; i++) dst[i] = src[i];
+    /* Flush write-back caches, then jump */
+    __asm__ volatile (
+        "wbinvd\n"
+        "cli\n"
+        "jmp *%0\n"
+        :: "r"((uintptr_t)X86_OTA_LOAD_ADDR) : "memory"
+    );
+    __builtin_unreachable();
+}
+
+/* =============================================================================
+ * ATA PIO sector read/write (primary controller, LBA28, master drive)
+ * =============================================================================*/
+#define ATA_DATA    0x1F0
+#define ATA_FEAT    0x1F1
+#define ATA_COUNT   0x1F2
+#define ATA_LBA_LO  0x1F3
+#define ATA_LBA_MID 0x1F4
+#define ATA_LBA_HI  0x1F5
+#define ATA_DRIVE   0x1F6
+#define ATA_CMD     0x1F7
+#define ATA_ALT_ST  0x3F6   /* alternate status (no interrupt clear) */
+#define ATA_BSY     0x80
+#define ATA_DRQ     0x08
+#define ATA_ERR     0x01
+
+static int x86_ata_wait_ready(void)
+{
+    /* 400 ns delay: 4 reads from alternate-status */
+    inb(ATA_ALT_ST); inb(ATA_ALT_ST); inb(ATA_ALT_ST); inb(ATA_ALT_ST);
+    uint32_t n = 0x7FFFFF;
+    while (inb(ATA_CMD) & ATA_BSY) { if (!--n) return -1; }
+    return 0;
+}
+
+static int x86_ata_read_sector(uint32_t lba, uint8_t *buf)
+{
+    if (x86_ata_wait_ready() != 0) return -1;
+    outb(ATA_DRIVE, 0xE0u | ((lba >> 24) & 0x0Fu)); /* LBA master */
+    outb(ATA_FEAT,  0x00);
+    outb(ATA_COUNT, 1);
+    outb(ATA_LBA_LO,  (uint8_t)(lba));
+    outb(ATA_LBA_MID, (uint8_t)(lba >>  8));
+    outb(ATA_LBA_HI,  (uint8_t)(lba >> 16));
+    outb(ATA_CMD,  0x20);   /* READ SECTORS */
+    if (x86_ata_wait_ready() != 0) return -1;
+    if (inb(ATA_CMD) & ATA_ERR) return -2;
+    uint16_t *words = (uint16_t *)buf;
+    for (int i = 0; i < 256; i++) words[i] = inw(ATA_DATA);
+    return 0;
+}
+
+static int x86_ata_write_sector(uint32_t lba, const uint8_t *buf)
+{
+    if (x86_ata_wait_ready() != 0) return -1;
+    outb(ATA_DRIVE, 0xE0u | ((lba >> 24) & 0x0Fu));
+    outb(ATA_FEAT,  0x00);
+    outb(ATA_COUNT, 1);
+    outb(ATA_LBA_LO,  (uint8_t)(lba));
+    outb(ATA_LBA_MID, (uint8_t)(lba >>  8));
+    outb(ATA_LBA_HI,  (uint8_t)(lba >> 16));
+    outb(ATA_CMD,  0x30);   /* WRITE SECTORS */
+    if (x86_ata_wait_ready() != 0) return -1;
+    if (inb(ATA_CMD) & ATA_ERR) return -2;
+    const uint16_t *words = (const uint16_t *)buf;
+    for (int i = 0; i < 256; i++) outw(ATA_DATA, words[i]);
+    outb(ATA_CMD, 0xE7);    /* FLUSH CACHE */
+    x86_ata_wait_ready();
+    return 0;
+}
+
+/* =============================================================================
+ * FAT32 minimal writer — find "GEODSS  EFI" (EFI\BOOT\geodss.efi) and
+ * overwrite its cluster chain with the new binary.
+ * =============================================================================*/
+typedef struct {
+    uint8_t  status;
+    uint8_t  chs_first[3];
+    uint8_t  type;
+    uint8_t  chs_last[3];
+    uint32_t lba_start;
+    uint32_t sectors;
+} __attribute__((packed)) x86_mbr_part_t;
+
+typedef struct {
+    uint8_t  jmp[3];
+    char     oem[8];
+    uint16_t bytes_per_sector;
+    uint8_t  sectors_per_cluster;
+    uint16_t reserved_sectors;
+    uint8_t  num_fats;
+    uint16_t root_entry_count;
+    uint16_t total_sectors_16;
+    uint8_t  media_type;
+    uint16_t fat_size_16;
+    uint16_t sectors_per_track;
+    uint16_t num_heads;
+    uint32_t hidden_sectors;
+    uint32_t total_sectors_32;
+    uint32_t fat_size_32;
+    uint16_t ext_flags;
+    uint16_t fs_version;
+    uint32_t root_cluster;
+} __attribute__((packed)) x86_fat32_bpb_t;
+
+typedef struct {
+    char     name[11];
+    uint8_t  attr;
+    uint8_t  nt_reserved;
+    uint8_t  create_time_10th;
+    uint16_t create_time, create_date, access_date;
+    uint16_t cluster_hi;
+    uint16_t mod_time, mod_date;
+    uint16_t cluster_lo;
+    uint32_t file_size;
+} __attribute__((packed)) x86_fat32_dirent_t;
+
+static int x86_fat32_namecmp(const char *a, const char *b)
+{
+    for (int i = 0; i < 11; i++) if (a[i] != b[i]) return 1;
+    return 0;
+}
+
+static int x86_ota_flash_to_disk(const uint8_t *data, uint32_t size)
+{
+    uint8_t sector[512];
+
+    if (x86_ata_read_sector(0, sector) != 0) {
+        kprintf("[OTA/x86] ATA: failed to read MBR\n"); return -1;
+    }
+    if (sector[510] != 0x55 || sector[511] != 0xAA) {
+        kprintf("[OTA/x86] ATA: invalid MBR signature\n"); return -2;
+    }
+
+    /* Find first FAT32 partition (type 0x0B or 0x0C) */
+    x86_mbr_part_t *parts = (x86_mbr_part_t *)(sector + 446);
+    uint32_t part_lba = 0;
+    for (int i = 0; i < 4; i++) {
+        if (parts[i].type == 0x0B || parts[i].type == 0x0C) {
+            part_lba = parts[i].lba_start; break;
+        }
+    }
+    if (part_lba == 0) { kprintf("[OTA/x86] No FAT32 partition\n"); return -3; }
+
+    if (x86_ata_read_sector(part_lba, sector) != 0) {
+        kprintf("[OTA/x86] ATA: failed to read BPB\n"); return -4;
+    }
+    x86_fat32_bpb_t *bpb = (x86_fat32_bpb_t *)sector;
+    uint32_t spc       = bpb->sectors_per_cluster;
+    uint32_t fat_start = part_lba + bpb->reserved_sectors;
+    uint32_t fat_size  = bpb->fat_size_32;
+    uint32_t data_start = fat_start + bpb->num_fats * fat_size;
+    uint32_t root_cluster = bpb->root_cluster;
+
+    /* Search root dir for "GEODSS  EFI" (8.3, space-padded) */
+    const char target[11] = {'G','E','O','D','S','S',' ',' ','E','F','I'};
+    uint32_t cluster = root_cluster;
+    int found = 0;
+    uint32_t found_cl = 0, found_size = 0, dir_sector = 0;
+    int dir_entry_idx = 0;
+
+    for (int chain = 0; chain < 64 && !found; chain++) {
+        uint32_t cl_lba = data_start + (cluster - 2) * spc;
+        for (uint32_t s = 0; s < spc && !found; s++) {
+            if (x86_ata_read_sector(cl_lba + s, sector) != 0) break;
+            x86_fat32_dirent_t *ents = (x86_fat32_dirent_t *)sector;
+            for (int e = 0; e < 16; e++) {
+                if (ents[e].name[0] == 0x00) goto dir_end;
+                if ((uint8_t)ents[e].name[0] == 0xE5) continue;
+                if (ents[e].attr & 0x08) continue;
+                if ((ents[e].attr & 0x0F) == 0x0F) continue; /* LFN */
+                if (x86_fat32_namecmp(ents[e].name, target) == 0) {
+                    found_cl  = ents[e].cluster_lo | ((uint32_t)ents[e].cluster_hi << 16);
+                    found_size = ents[e].file_size;
+                    dir_sector = cl_lba + s;
+                    dir_entry_idx = e;
+                    found = 1; break;
+                }
+            }
+        }
+        /* Follow FAT chain */
+        uint32_t fi = cluster / 128;
+        if (x86_ata_read_sector(fat_start + fi, sector) != 0) break;
+        uint32_t next = ((uint32_t *)sector)[cluster % 128] & 0x0FFFFFFFu;
+        if (next >= 0x0FFFFFF8u) break;
+        cluster = next;
+    }
+dir_end:
+    if (!found) {
+        kprintf("[OTA/x86] geodss.efi not found on EFI partition\n"); return -5;
+    }
+    kprintf("[OTA/x86] Found geodss.efi: cluster=%u size=%u\n", found_cl, found_size);
+
+    /* Write data following the cluster chain */
+    cluster = found_cl;
+    uint32_t written = 0;
+    while (written < size) {
+        uint32_t cl_lba = data_start + (cluster - 2) * spc;
+        for (uint32_t s = 0; s < spc && written < size; s++) {
+            uint8_t wbuf[512];
+            uint32_t remain = size - written;
+            uint32_t copy = remain > 512 ? 512 : remain;
+            for (uint32_t i = 0; i < copy; i++) wbuf[i] = data[written + i];
+            for (uint32_t i = copy; i < 512; i++) wbuf[i] = 0;
+            if (x86_ata_write_sector(cl_lba + s, wbuf) != 0) {
+                kprintf("[OTA/x86] ATA write error at LBA %u\n", cl_lba + s);
+                return -7;
+            }
+            written += 512;
+        }
+        kprintf("[OTA/x86] Written %u / %u bytes\r",
+                written > size ? size : written, size);
+
+        uint32_t fi = cluster / 128;
+        if (x86_ata_read_sector(fat_start + fi, sector) != 0) {
+            kprintf("\n[OTA/x86] FAT read error\n"); return -8;
+        }
+        uint32_t next = ((uint32_t *)sector)[cluster % 128] & 0x0FFFFFFFu;
+        if (next >= 0x0FFFFFF8u) break;
+        cluster = next;
+    }
+    kprintf("\n");
+
+    /* Update directory entry file size */
+    if (x86_ata_read_sector(dir_sector, sector) != 0) return -9;
+    ((x86_fat32_dirent_t *)sector)[dir_entry_idx].file_size = size;
+    if (x86_ata_write_sector(dir_sector, sector) != 0) return -10;
+
+    kprintf("[OTA/x86] geodss.efi updated: %u -> %u bytes\n", found_size, size);
+    return 0;
+}
+
+/* =============================================================================
+ * Public API
+ * =============================================================================*/
+int ota_receive_and_chainload(void)
+{
+    x86_ota_serial_init();
+    uint64_t tpm = x86_tsc_ticks_per_ms();
+    uint32_t size = 0;
+    int r = x86_ota_receive(&size, tpm);
+    if (r != 0) return r;
+
+    kprintf("[OTA/x86] Chain-loading %u bytes to 0x%lx...\n",
+            size, (unsigned long)X86_OTA_LOAD_ADDR);
+    x86_ota_puts("BOOT\n");
+    /* Drain TX FIFO */
+    for (int i = 0; i < 1000000; i++) __asm__ volatile ("pause");
+
+    x86_ota_chainload(X86_OTA_RECV_ADDR, size);
+    /* Does not return */
+}
+
+int ota_receive_and_flash(void)
+{
+    x86_ota_serial_init();
+    uint64_t tpm = x86_tsc_ticks_per_ms();
+    uint32_t size = 0;
+    int r = x86_ota_receive(&size, tpm);
+    if (r != 0) return r;
+
+    kprintf("[OTA/x86] Writing geodss.efi to EFI system partition...\n");
+    r = x86_ota_flash_to_disk(X86_OTA_RECV_ADDR, size);
+    if (r != 0) {
+        kprintf("[OTA/x86] Disk flash failed (%d) — falling back to chain-load\n", r);
+        x86_ota_puts("WARN:flash_fail,chainloading\n");
+        x86_ota_chainload(X86_OTA_RECV_ADDR, size);
+    }
+
+    x86_ota_puts("BOOT\n");
+    kprintf("[OTA/x86] Flash complete. Rebooting via ACPI reset...\n");
+    /* ACPI reset (port 0xCF9, value 6 = hard reset) */
+    outb(0xCF9, 0x06);
+    /* Fallback: triple-fault reset */
+    __asm__ volatile ("cli; lidt 0; int3" ::: "memory");
+    __builtin_unreachable();
+}
 
 #endif

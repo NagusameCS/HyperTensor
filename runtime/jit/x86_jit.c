@@ -1,3 +1,62 @@
+﻿/*
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::.................:::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::.............................::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::......................................:::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::......................*%:....................::::::::::::::::::::::::
+ * ::::::::::::::::::::::.......................+@@@-......................::::::::::::::::::::::
+ * ::::::::::::::::::::........................+@@@@@:.......................:::::::::::::::::::
+ * ::::::::::::::::::.........................=@@@@@@@:........................:::::::::::::::::
+ * ::::::::::::::::..........................:@@@@@@@@@-........................:::::::::::::::
+ * :::::::::::::::..........................-@@@@@@@@@@@=.........................:::::::::::::
+ * :::::::::::::...........................=@@@@@@@@@@@@@-.........................::::::::::::::
+ * ::::::::::::...........................-@@@@@@@@@@@@@@@..........................:::::::::::
+ * :::::::::::............................:%@@@@@@@@@@@@@+...........................:::::::::
+ * ::::::::::..............................=@@@@@@@@@@@@%:............................:::::::::
+ * ::::::::::...............................*@@@@@@@@@@@=..............................::::::::
+ * :::::::::................................:@@@@@@@@@@%:...............................::::::
+ * ::::::::..................................*@@@@@@@@@-................................::::::::
+ * ::::::::..................:@@+:...........:@@@@@@@@@.............:+-..................:::::::
+ * :::::::...................*@@@@@@*-:.......%@@@@@@@+........:-*@@@@@..................:::::::
+ * :::::::..................:@@@@@@@@@@@%:....*@@@@@@@:....:=%@@@@@@@@@=.................:::::::
+ * :::::::..................*@@@@@@@@@@@@#....=@@@@@@@....:*@@@@@@@@@@@#..................::::::
+ * :::::::.................:@@@@@@@@@@@@@@-...=@@@@@@@....*@@@@@@@@@@@@@:.................::::::
+ * :::::::.................*@@@@@@@@@@@@@@@:..=@@@@@@#...+@@@@@@@@@@@@@@=.................::::::
+ * :::::::................:@@@@@@@@@@@@@@@@*..=@@@@@@#..+@@@@@@@@@@@@@@@+.................::::::
+ * :::::::................=@@@@@@@@@@@@@@@@@-.#@@@@@@@.-@@@@@@@@@@@@@@@@*................:::::::
+ * :::::::...............:#@@@@@@@@@@@@@@@@@*.@@@@@@@@:@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::..............:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::................:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-...............::::::::
+ * :::::::::.................:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%-.................::::::::
+ * ::::::::::....................:#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=...................::::::::::
+ * ::::::::::.......................:*@@@@@@@@@@@@@@@@@@@@@@@@@#-.....................:::::::::
+ * :::::::::::.........................:=@@@@@@@@@@@@@@@@@@*:........................:::::::::::
+ * ::::::::::::......................:=%@@@@@@@@@@@@@@@@@@@@#:......................::::::::::::
+ * :::::::::::::.............+#%@@@@@@@@@@@@@@%-::*-.:%@@@@@@@@%=:.................::::::::::::::
+ * :::::::::::::::...........:#@@@@@@@@@@@#--+%@@@@@@@#=:=%@@@@@@@@@@-............::::::::::::::::
+ * ::::::::::::::::............-@@@@@@+-=#@@@@@@@@@@@@@@@@#=-=#@@@@*:............::::::::::::::::
+ * ::::::::::::::::::...........:==:...-@@@@@@@@@@@@@@@@@@@@:...:=-............:::::::::::::::::
+ * :::::::::::::::::::...................@@@@@@@@@@@@@@@@@-..................::::::::::::::::::::
+ * ::::::::::::::::::::::................:#@@@@@@@@@@@@@*:.................::::::::::::::::::::::
+ * ::::::::::::::::::::::::...............:*@@%+-.:=#@%-................::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::.............:........................:::::::::::::::::::::::::::
+ * :::::::::::::::::::::::::::::::...............................:::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::.....................:::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ */
+
 /* =============================================================================
  * TensorOS - x86_64 JIT Compiler Implementation
  *
@@ -2382,6 +2441,431 @@ jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int rows, int cols)
     return fn;
 }
 
+/* =============================================================================
+ * AVX-512 EVEX Prefix Emission
+ *
+ * EVEX is 4 bytes: 0x62 P0 P1 P2
+ *   P0: RXBR' mmmmm (R,X,B inverted; R' for zmm16-31; mmmmm=01 for 0F)
+ *   P1: W vvvv 1pp (W=0 for float; vvvv inverted; pp=00 for none)
+ *   P2: z L'L b V' aaa (L'L=10 for 512-bit; V' inverted for src2 ext)
+ * =============================================================================*/
+
+/* Emit EVEX prefix for 512-bit operations: reg/rm with optional vvvv src */
+static void emit_evex_512(jit_buf_t *b, int reg, int rm, int vvvv)
+{
+    uint8_t p0 = 0xF1;  /* ~R=1, ~X=1, ~B=1, ~R'=1, mmmmm=01 (0F): all regs start as 0-7 */
+    /* Invariant: clear the inverted bit for registers >= 8/16 */
+    if (reg >= 8) p0 &= ~0x80;  /* R inverted */
+    if (rm  >= 8) p0 &= ~0x20;  /* B inverted */
+    if (reg >= 16) p0 &= ~0x10; /* R' inverted */
+
+    uint8_t p1 = 0x04;  /* W=0, vvvv inverted, 1, pp=00 */
+    p1 |= ((~vvvv & 0x0F) << 3);
+
+    uint8_t p2 = 0x48;  /* z=0, L'L=10 (512-bit), b=0, V'=1, aaa=000 */
+    if (vvvv >= 16) p2 &= ~0x08; /* V' inverted */
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+}
+
+/* vmovups zmm, [mem]: EVEX.512.0F.W0 10 /r */
+static void jit_vmovups_load512(jit_buf_t *b, int zmm, int base, int32_t disp)
+{
+    emit_evex_512(b, zmm, base, 0);
+    jit_emit8(b, 0x10);
+    emit_modrm_disp(b, zmm & 7, base & 7, disp);
+}
+
+/* vmovups [mem], zmm: EVEX.512.0F.W0 11 /r */
+static void jit_vmovups_store512(jit_buf_t *b, int base, int32_t disp, int zmm)
+{
+    emit_evex_512(b, zmm, base, 0);
+    jit_emit8(b, 0x11);
+    emit_modrm_disp(b, zmm & 7, base & 7, disp);
+}
+
+/* vaddps zmm, zmm, zmm: EVEX.512.0F.W0 58 /r */
+static void jit_vaddps512(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_evex_512(b, dst, src2, src1);
+    jit_emit8(b, 0x58);
+    emit_modrm(b, 3, dst & 7, src2 & 7);
+}
+
+/* vmulps zmm, zmm, zmm: EVEX.512.0F.W0 59 /r */
+static void jit_vmulps512(jit_buf_t *b, int dst, int src1, int src2)
+{
+    emit_evex_512(b, dst, src2, src1);
+    jit_emit8(b, 0x59);
+    emit_modrm(b, 3, dst & 7, src2 & 7);
+}
+
+/* EVEX prefix for 512-bit FMA: map 0F38 */
+static void emit_evex_512_0f38(jit_buf_t *b, int reg, int rm, int vvvv)
+{
+    uint8_t p0 = 0xF2;  /* ~R=1, ~X=1, ~B=1, ~R'=1, mmmmm=02 (0F38) */
+    if (reg >= 8)  p0 &= ~0x80;
+    if (rm  >= 8)  p0 &= ~0x20;
+    if (reg >= 16) p0 &= ~0x10;
+
+    uint8_t p1 = 0x04;  /* W=0, 1, pp=00 */
+    p1 |= ((~vvvv & 0x0F) << 3);
+
+    uint8_t p2 = 0x48;  /* L'L=10 (512-bit) */
+    if (vvvv >= 16) p2 &= ~0x08;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+}
+
+/* vfmadd231ps zmm, zmm, zmm: EVEX.512.66.0F38.W0 B8 /r */
+static void jit_vfmadd231ps512(jit_buf_t *b, int dst, int src1, int src2)
+{
+    /* EVEX.512.66.0F38.W0 — map 02, pp=01 */
+    uint8_t p0 = 0xF2;
+    if (dst >= 8)  p0 &= ~0x80;
+    if (src2 >= 8) p0 &= ~0x20;
+    if (dst >= 16) p0 &= ~0x10;
+
+    uint8_t p1 = 0x05;  /* W=0, 1, pp=01 (66) */
+    p1 |= ((~src1 & 0x0F) << 3);
+
+    uint8_t p2 = 0x48;
+    if (src1 >= 16) p2 &= ~0x08;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+    jit_emit8(b, 0xB8);
+    emit_modrm(b, 3, dst & 7, src2 & 7);
+}
+
+/* vpxord zmm, zmm, zmm: EVEX.512.66.0F.W0 EF /r (zero register) */
+static void jit_vpxord512(jit_buf_t *b, int dst, int src1, int src2)
+{
+    /* EVEX.512.66.0F.W0 — map 01, pp=01 */
+    uint8_t p0 = 0xF1;
+    if (dst >= 8)  p0 &= ~0x80;
+    if (src2 >= 8) p0 &= ~0x20;
+    if (dst >= 16) p0 &= ~0x10;
+
+    uint8_t p1 = 0x05;  /* pp=01 (66) */
+    p1 |= ((~src1 & 0x0F) << 3);
+
+    uint8_t p2 = 0x48;
+    if (src1 >= 16) p2 &= ~0x08;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+    jit_emit8(b, 0xEF);
+    emit_modrm(b, 3, dst & 7, src2 & 7);
+}
+
+/* vpmovsxbd zmm, [mem+16]: load 16 int8 -> 16 int32 */
+static void jit_vpmovsxbd512(jit_buf_t *b, int zmm, int base, int32_t disp)
+{
+    /* EVEX.512.66.0F38.WIG 21 /r — map 02, pp=01 */
+    uint8_t p0 = 0xF2;
+    if (zmm >= 8)  p0 &= ~0x80;
+    if (base >= 8) p0 &= ~0x20;
+    if (zmm >= 16) p0 &= ~0x10;
+
+    uint8_t p1 = 0x7D;  /* W=0, vvvv=1111, 1, pp=01 (66) */
+    uint8_t p2 = 0x48;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+    jit_emit8(b, 0x21);
+    emit_modrm_disp(b, zmm & 7, base & 7, disp);
+}
+
+/* vcvtdq2ps zmm, zmm: convert 16 int32 to 16 float32 */
+static void jit_vcvtdq2ps512(jit_buf_t *b, int dst, int src)
+{
+    /* EVEX.512.0F.W0 5B /r */
+    emit_evex_512(b, dst, src, 0);
+    jit_emit8(b, 0x5B);
+    emit_modrm(b, 3, dst & 7, src & 7);
+}
+
+/* vbroadcastss zmm, xmm: broadcast single float to all 16 lanes */
+static void jit_vbroadcastss512(jit_buf_t *b, int zmm, int xmm_src)
+{
+    /* EVEX.512.66.0F38.W0 18 /r — map 02, pp=01 */
+    uint8_t p0 = 0xF2;
+    if (zmm >= 8)     p0 &= ~0x80;
+    if (xmm_src >= 8) p0 &= ~0x20;
+    if (zmm >= 16)    p0 &= ~0x10;
+
+    uint8_t p1 = 0x7D;  /* vvvv=1111, pp=01 */
+    uint8_t p2 = 0x48;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+    jit_emit8(b, 0x18);
+    emit_modrm(b, 3, zmm & 7, xmm_src & 7);
+}
+
+/* Horizontal sum of zmm to single float, store to memory */
+static void emit_avx512_hsum_store(jit_buf_t *b, int zmm_acc, int tmp_ymm,
+                                    int tmp_xmm, int base, int32_t disp)
+{
+    /* Extract high 256 bits and add to low 256 bits */
+    /* vextractf32x8 ymm, zmm, 1: EVEX.512.66.0F3A.W0 1B /r imm8 — map 03, pp=01 */
+    uint8_t p0 = 0xF3;
+    if (tmp_ymm >= 8) p0 &= ~0x80;
+    if (zmm_acc >= 8) p0 &= ~0x20;
+    if (tmp_ymm >= 16) p0 &= ~0x10;
+
+    uint8_t p1 = 0x7D;
+    uint8_t p2 = 0x48;
+
+    jit_emit8(b, 0x62);
+    jit_emit8(b, p0);
+    jit_emit8(b, p1);
+    jit_emit8(b, p2);
+    jit_emit8(b, 0x1B);  /* vextractf32x8 */
+    emit_modrm(b, 3, tmp_ymm & 7, zmm_acc & 7);
+    jit_emit8(b, 1);     /* imm8=1 (high half) */
+
+    /* vaddps ymm, zmm_lo, ymm */
+    jit_vaddps256(b, tmp_ymm, zmm_acc, tmp_ymm);
+
+    /* Now reduce 256-bit to scalar */
+    jit_vextractf128(b, tmp_xmm, tmp_ymm, 1);
+    jit_vaddps128(b, tmp_xmm, tmp_ymm, tmp_xmm);
+    jit_vhaddps128(b, tmp_xmm, tmp_xmm, tmp_xmm);
+    jit_vhaddps128(b, tmp_xmm, tmp_xmm, tmp_xmm);
+    jit_vmovss_store_vex(b, base, disp, tmp_xmm);
+}
+
+/* =============================================================================
+ * AVX-512 Q8_0 GEMV Kernel Compiler
+ *
+ * Generates: void gemv(float *out, const void *weight, const float *x,
+ *                      int rows, int cols)  [rows/cols baked in]
+ *
+ * Processes 64 weights per block (vs 32 for AVX2):
+ *  - ZMM0-3: x data (64 floats)
+ *  - ZMM4-7: weights (64 int8 -> float32)
+ *  - ZMM8-11: 4 row accumulators
+ *  - ZMM12: scale broadcast
+ * =============================================================================*/
+
+#define JIT_MAX_GEMV_AVX512 16
+static struct {
+    int rows, cols;
+    jit_gemv_q8_fn fn;
+} jit_gemv_avx512_cache[JIT_MAX_GEMV_AVX512];
+static int jit_num_gemv_avx512 = 0;
+
+/* Emit AVX-512 row block processing (64 weights per block) */
+static void emit_avx512_gemv_row_block(jit_buf_t *b, int stack_off, int zmm_acc)
+{
+    /* Load row base from stack, add block byte offset (in RAX) */
+    jit_mov_reg_mem(b, RDI, RSP, stack_off);
+    jit_add_reg_reg(b, RDI, RAX);
+
+    /* FP16 -> FP32 scale (branchless) */
+    jit_emit8(b, 0x0F); jit_emit8(b, 0xB7);
+    emit_modrm_disp(b, RDX, RDI, 0);
+
+    jit_mov_reg_reg(b, RSI, RDX);
+    jit_and_reg_imm32(b, RDX, 0x7FFF);
+    jit_shl_reg_imm(b, RDX, 13);
+    jit_add_reg_imm32(b, RDX, 0x38000000);
+    jit_and_reg_imm32(b, RSI, 0x8000);
+    jit_shl_reg_imm(b, RSI, 16);
+    jit_or_reg_reg(b, RDX, RSI);
+
+    jit_vmovd_to_xmm_vex(b, XMM12, RDX);
+    jit_vbroadcastss512(b, ZMM12, XMM12);
+
+    /* vpmovsxbd: 16 int8 -> 16 int32, 4 times for 64 weights */
+    jit_vpmovsxbd512(b, ZMM4, RDI, 2);
+    jit_vpmovsxbd512(b, ZMM5, RDI, 18);
+    jit_vpmovsxbd512(b, ZMM6, RDI, 34);
+    jit_vpmovsxbd512(b, ZMM7, RDI, 50);
+
+    jit_vcvtdq2ps512(b, ZMM4, ZMM4);
+    jit_vcvtdq2ps512(b, ZMM5, ZMM5);
+    jit_vcvtdq2ps512(b, ZMM6, ZMM6);
+    jit_vcvtdq2ps512(b, ZMM7, ZMM7);
+
+    /* weight * x */
+    jit_vmulps512(b, ZMM4, ZMM4, ZMM0);
+    jit_vmulps512(b, ZMM5, ZMM5, ZMM1);
+    jit_vmulps512(b, ZMM6, ZMM6, ZMM2);
+    jit_vmulps512(b, ZMM7, ZMM7, ZMM3);
+
+    /* Reduce 4 products -> 1 */
+    jit_vaddps512(b, ZMM4, ZMM4, ZMM5);
+    jit_vaddps512(b, ZMM6, ZMM6, ZMM7);
+    jit_vaddps512(b, ZMM4, ZMM4, ZMM6);
+
+    /* FMA: acc += product * scale */
+    jit_vfmadd231ps512(b, zmm_acc, ZMM4, ZMM12);
+}
+
+jit_gemv_q8_fn jit_compile_q8_gemv_avx512(int rows, int cols)
+{
+    /* Check cache first */
+    for (int i = 0; i < jit_num_gemv_avx512; i++) {
+        if (jit_gemv_avx512_cache[i].rows == rows &&
+            jit_gemv_avx512_cache[i].cols == cols)
+            return jit_gemv_avx512_cache[i].fn;
+    }
+
+    /* Q8_0: 64 weights per block (scale:2 + 64 int8 = 66 bytes) */
+    int nb = cols / 64;
+    if (nb < 1) return NULL;  /* Fall back to AVX2 for small cols */
+    int row_bytes = nb * 66;
+
+    jit_buf_t *buf = jit_create(4096);
+    if (!buf) return NULL;
+
+    jit_prologue(buf);
+    jit_sub_reg_imm32(buf, RSP, 32);
+
+    jit_mov_reg_reg(buf, R12, RDI);  /* out */
+    jit_mov_reg_reg(buf, R13, RSI);  /* weight */
+    jit_mov_reg_reg(buf, R14, RDX);  /* x */
+
+    /* === 4-row batched main loop === */
+    jit_xor_reg_reg(buf, R15, R15);
+    int row4_top = buf->len;
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_add_reg_imm32(buf, RAX, 3);
+    jit_cmp_reg_imm32(buf, RAX, rows);
+    int row4_exit = jit_jge_fwd(buf);
+
+    /* 4 row base pointers on stack */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_imul_imm32(buf, RAX, RAX, row_bytes);
+    jit_add_reg_reg(buf, RAX, R13);
+    jit_mov_mem_reg(buf, RSP, 0, RAX);
+    jit_lea(buf, RCX, RAX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 8, RCX);
+    jit_lea(buf, RCX, RCX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 16, RCX);
+    jit_lea(buf, RCX, RCX, row_bytes);
+    jit_mov_mem_reg(buf, RSP, 24, RCX);
+
+    /* Zero accumulators (512-bit) */
+    jit_vpxord512(buf, ZMM8,  ZMM8,  ZMM8);
+    jit_vpxord512(buf, ZMM9,  ZMM9,  ZMM9);
+    jit_vpxord512(buf, ZMM10, ZMM10, ZMM10);
+    jit_vpxord512(buf, ZMM11, ZMM11, ZMM11);
+
+    /* Block loop */
+    jit_xor_reg_reg(buf, RBX, RBX);
+    int blk_top = buf->len;
+
+    jit_imul_imm32(buf, RAX, RBX, 66);  /* block byte offset */
+
+    /* Load x[b*64..+63] shared across 4 rows (4 ZMM registers = 64 floats) */
+    jit_imul_imm32(buf, RCX, RBX, 256);  /* 64 floats * 4 bytes */
+    jit_add_reg_reg(buf, RCX, R14);
+    jit_vmovups_load512(buf, ZMM0, RCX, 0);
+    jit_vmovups_load512(buf, ZMM1, RCX, 64);
+    jit_vmovups_load512(buf, ZMM2, RCX, 128);
+    jit_vmovups_load512(buf, ZMM3, RCX, 192);
+
+    emit_avx512_gemv_row_block(buf, 0,  ZMM8);
+    emit_avx512_gemv_row_block(buf, 8,  ZMM9);
+    emit_avx512_gemv_row_block(buf, 16, ZMM10);
+    emit_avx512_gemv_row_block(buf, 24, ZMM11);
+
+    jit_inc_reg(buf, RBX);
+    jit_cmp_reg_imm32(buf, RBX, nb);
+    jit_jl_back(buf, blk_top);
+
+    /* Horizontal reduce + store 4 results */
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_shl_reg_imm(buf, RAX, 2);
+    jit_add_reg_reg(buf, RAX, R12);
+
+    emit_avx512_hsum_store(buf, ZMM8,  YMM13, XMM14, RAX, 0);
+    emit_avx512_hsum_store(buf, ZMM9,  YMM13, XMM14, RAX, 4);
+    emit_avx512_hsum_store(buf, ZMM10, YMM13, XMM14, RAX, 8);
+    emit_avx512_hsum_store(buf, ZMM11, YMM13, XMM14, RAX, 12);
+
+    jit_add_reg_imm32(buf, R15, 4);
+    jit_jmp_back(buf, row4_top);
+
+    /* === Tail: single rows === */
+    jit_patch_jump(buf, row4_exit);
+
+    int tail_top = buf->len;
+    jit_cmp_reg_imm32(buf, R15, rows);
+    int tail_exit = jit_jge_fwd(buf);
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_imul_imm32(buf, RAX, RAX, row_bytes);
+    jit_add_reg_reg(buf, RAX, R13);
+    jit_mov_mem_reg(buf, RSP, 0, RAX);
+
+    jit_vpxord512(buf, ZMM8, ZMM8, ZMM8);
+
+    jit_xor_reg_reg(buf, RBX, RBX);
+    int tail_blk_top = buf->len;
+
+    jit_imul_imm32(buf, RAX, RBX, 66);
+    jit_imul_imm32(buf, RCX, RBX, 256);
+    jit_add_reg_reg(buf, RCX, R14);
+    jit_vmovups_load512(buf, ZMM0, RCX, 0);
+    jit_vmovups_load512(buf, ZMM1, RCX, 64);
+    jit_vmovups_load512(buf, ZMM2, RCX, 128);
+    jit_vmovups_load512(buf, ZMM3, RCX, 192);
+
+    emit_avx512_gemv_row_block(buf, 0, ZMM8);
+
+    jit_inc_reg(buf, RBX);
+    jit_cmp_reg_imm32(buf, RBX, nb);
+    jit_jl_back(buf, tail_blk_top);
+
+    jit_mov_reg_reg(buf, RAX, R15);
+    jit_shl_reg_imm(buf, RAX, 2);
+    jit_add_reg_reg(buf, RAX, R12);
+    emit_avx512_hsum_store(buf, ZMM8, YMM13, XMM14, RAX, 0);
+
+    jit_inc_reg(buf, R15);
+    jit_jmp_back(buf, tail_top);
+
+    jit_patch_jump(buf, tail_exit);
+
+    jit_vzeroupper(buf);
+    jit_add_reg_imm32(buf, RSP, 32);
+    jit_epilogue(buf);
+
+    vmm_mark_rx(buf->code, buf->cap);
+    jit_gemv_q8_fn fn = (jit_gemv_q8_fn)(void *)buf->code;
+    if (jit_num_gemv_avx512 < JIT_MAX_GEMV_AVX512) {
+        jit_gemv_avx512_cache[jit_num_gemv_avx512].rows = rows;
+        jit_gemv_avx512_cache[jit_num_gemv_avx512].cols = cols;
+        jit_gemv_avx512_cache[jit_num_gemv_avx512].fn = fn;
+        jit_num_gemv_avx512++;
+    }
+    jit_total_bytes += buf->len;
+    jit_num_kernels++;
+
+    kprintf("[JIT] AVX-512 Q8 GEMV %dx%d compiled (%d bytes)\n", rows, cols, buf->len);
+    return fn;
+}
+
 #else /* __aarch64__ */
 
 /* ARM64: JIT stubs — JIT not available, runtime uses interpreter path */
@@ -2398,6 +2882,7 @@ int  jit_selftest(void) { return 0; }
 jit_gemv_q8_fn jit_compile_q8_gemv(int r, int c) { (void)r; (void)c; return NULL; }
 jit_gemv_q8_fn jit_compile_q8_gemv_avx2(int r, int c) { (void)r; (void)c; return NULL; }
 jit_gemv_q8_fn jit_compile_q4_q8_gemv_avx2(int r, int c) { (void)r; (void)c; return NULL; }
+jit_gemv_q8_fn jit_compile_q8_gemv_avx512(int r, int c) { (void)r; (void)c; return NULL; }
 jit_silu_fn jit_compile_silu_kernel(int n) { (void)n; return NULL; }
 int jit_kernel_count(void) { return 0; }
 int jit_code_bytes(void) { return 0; }

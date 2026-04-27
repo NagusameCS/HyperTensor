@@ -5,6 +5,36 @@ The focus here is code and measured behavior, not release-note marketing.
 
 ---
 
+## [0.6.1] — 2026-04-25 — "GRC 8B Milestone"
+
+### Summary
+
+This release records the first single-digit perplexity result for GRC on Llama-3.1-8B-Instruct-Q4_K_M while compressing attention weights by 50%.
+
+### Verified Results
+
+| Metric | Value |
+|---|---:|
+| Baseline PPL (WikiText-2, 512 tok) | 6.79 |
+| GRC PPL (k=1024) | 10.6869 |
+| GRC PPL (k=2048) | 7.1969 |
+| Attention compression | 3072 MB -> 1536 MB |
+
+### Key Technical Changes
+
+- Added Frobenius-normalized weight-PCA accumulation for Q/K/V to avoid Q-dominance.
+- Kept power iteration count at 3 (5 iterations was measurably worse on PPL).
+- Enforced skip-O in practical runs for this path due to structural GQA mismatch.
+- Added `axex_compress_rank` to W_proj cache hash to prevent stale cache reuse between k values.
+
+### Notes
+
+- Quality is now demo-ready for the 8B path.
+- Throughput at k=2048 remains an optimization target.
+- This is still a research milestone, not a production guarantee across all model families.
+
+---
+
 ## [0.6.0] — 2026-04-18 — "Synapse"
 
 ### Summary

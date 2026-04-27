@@ -1,4 +1,0 @@
-cd /root/HyperTensor
-gcc -std=gnu11 -O2 -msse2 -mavx2 -mfma -DGEODESSICAL_HOSTED=1 -DGEODESSICAL_LINUX=1 -DENABLE_CUDA -D_GNU_SOURCE -Ihost/shims -I. -Ihost -Wno-unused-function -Wno-unused-variable -Wno-missing-braces -I/opt/cuda/targets/x86_64-linux/include host/main.c runtime/nn/llm.c runtime/nn/axiom_beta.c runtime/nn/axiom_exploit.c runtime/nn/axiom_linalg.c runtime/nn/axiom_geo.c runtime/nn/axiom_vis.c runtime/nn/flash_attn.c runtime/nn/gguf.c runtime/nn/hf_download.c runtime/nn/backend.c runtime/nn/backend_cuda.c runtime/nn/model_meta.c runtime/nn/tensor_bridge.c runtime/jit/x86_jit.c runtime/jit/llm_jit.c host/hal.c host/api_server.c host/mcp_server.c -lm -lpthread -ldl -lcblas -L/opt/cuda/targets/x86_64-linux/lib -lcudart -Wl,-rpath,/opt/cuda/targets/x86_64-linux/lib -o /root/geodessical 2>&1 | grep "undefined reference" | sort -u | tee /tmp/undef.txt
-echo "BUILD_RC=$?"
-ls -lh /root/geodessical 2>/dev/null

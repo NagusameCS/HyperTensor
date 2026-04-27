@@ -1,3 +1,62 @@
+﻿/*
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::.................:::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::.............................::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::......................................:::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::......................*%:....................::::::::::::::::::::::::
+ * ::::::::::::::::::::::.......................+@@@-......................::::::::::::::::::::::
+ * ::::::::::::::::::::........................+@@@@@:.......................:::::::::::::::::::
+ * ::::::::::::::::::.........................=@@@@@@@:........................:::::::::::::::::
+ * ::::::::::::::::..........................:@@@@@@@@@-........................:::::::::::::::
+ * :::::::::::::::..........................-@@@@@@@@@@@=.........................:::::::::::::
+ * :::::::::::::...........................=@@@@@@@@@@@@@-.........................::::::::::::::
+ * ::::::::::::...........................-@@@@@@@@@@@@@@@..........................:::::::::::
+ * :::::::::::............................:%@@@@@@@@@@@@@+...........................:::::::::
+ * ::::::::::..............................=@@@@@@@@@@@@%:............................:::::::::
+ * ::::::::::...............................*@@@@@@@@@@@=..............................::::::::
+ * :::::::::................................:@@@@@@@@@@%:...............................::::::
+ * ::::::::..................................*@@@@@@@@@-................................::::::::
+ * ::::::::..................:@@+:...........:@@@@@@@@@.............:+-..................:::::::
+ * :::::::...................*@@@@@@*-:.......%@@@@@@@+........:-*@@@@@..................:::::::
+ * :::::::..................:@@@@@@@@@@@%:....*@@@@@@@:....:=%@@@@@@@@@=.................:::::::
+ * :::::::..................*@@@@@@@@@@@@#....=@@@@@@@....:*@@@@@@@@@@@#..................::::::
+ * :::::::.................:@@@@@@@@@@@@@@-...=@@@@@@@....*@@@@@@@@@@@@@:.................::::::
+ * :::::::.................*@@@@@@@@@@@@@@@:..=@@@@@@#...+@@@@@@@@@@@@@@=.................::::::
+ * :::::::................:@@@@@@@@@@@@@@@@*..=@@@@@@#..+@@@@@@@@@@@@@@@+.................::::::
+ * :::::::................=@@@@@@@@@@@@@@@@@-.#@@@@@@@.-@@@@@@@@@@@@@@@@*................:::::::
+ * :::::::...............:#@@@@@@@@@@@@@@@@@*.@@@@@@@@:@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::..............:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:...............:::::::
+ * ::::::::................:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-...............::::::::
+ * :::::::::.................:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%-.................::::::::
+ * ::::::::::....................:#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=...................::::::::::
+ * ::::::::::.......................:*@@@@@@@@@@@@@@@@@@@@@@@@@#-.....................:::::::::
+ * :::::::::::.........................:=@@@@@@@@@@@@@@@@@@*:........................:::::::::::
+ * ::::::::::::......................:=%@@@@@@@@@@@@@@@@@@@@#:......................::::::::::::
+ * :::::::::::::.............+#%@@@@@@@@@@@@@@%-::*-.:%@@@@@@@@%=:.................::::::::::::::
+ * :::::::::::::::...........:#@@@@@@@@@@@#--+%@@@@@@@#=:=%@@@@@@@@@@-............::::::::::::::::
+ * ::::::::::::::::............-@@@@@@+-=#@@@@@@@@@@@@@@@@#=-=#@@@@*:............::::::::::::::::
+ * ::::::::::::::::::...........:==:...-@@@@@@@@@@@@@@@@@@@@:...:=-............:::::::::::::::::
+ * :::::::::::::::::::...................@@@@@@@@@@@@@@@@@-..................::::::::::::::::::::
+ * ::::::::::::::::::::::................:#@@@@@@@@@@@@@*:.................::::::::::::::::::::::
+ * ::::::::::::::::::::::::...............:*@@%+-.:=#@%-................::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::.............:........................:::::::::::::::::::::::::::
+ * :::::::::::::::::::::::::::::::...............................:::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::.....................:::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ * ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ */
+
 /*
  * TensorOS CUDA Backend — Dynamic Loading
  *
@@ -29,6 +88,7 @@ typedef void *lib_handle_t;
 #ifdef GEODESSICAL_HOSTED
 #include "hal.h"
 #include <stdlib.h>
+#include <math.h>
 #else
 #include "kernel/core/kernel.h"
 #endif
@@ -78,6 +138,8 @@ typedef void     (*fn_rmsnorm_add)(float *, const float *, const float *, int, f
 typedef void     (*fn_gelu_mul)(float *, const float *, int);
 typedef void     (*fn_gemv_dual_q4_0)(float *, float *, const void *, const void *,
                                        const float *, int, int);
+typedef void     (*fn_gemv_dual_q8_0)(float *, float *, const void *, const void *,
+                                       const float *, int, int);
 typedef void     (*fn_gemv_triple_q4_0)(float *, float *, float *,
                                          const void *, const void *, const void *,
                                          const float *, int, int, int, int);
@@ -106,6 +168,7 @@ typedef void     (*fn_prefill_attn_batched)(float *, const float *, const float 
 typedef void     (*fn_sgemm_batched_f32)(int, int,
                                           const float * const *, const float * const *,
                                           float * const *, int);
+typedef void     (*fn_l2_persist)(const void *, size_t);
 
 /* ─── Dynamic dispatch table ─── */
 static struct {
@@ -152,6 +215,7 @@ static struct {
     fn_rmsnorm_add  rmsnorm_add;
     fn_gelu_mul     gelu_mul;
     fn_gemv_dual_q4_0              gemv_dual_q4_0;
+    fn_gemv_dual_q8_0              gemv_dual_q8_0;
     fn_gemv_triple_q4_0            gemv_triple_q4_0;
     fn_fused_rmsnorm_triple_q4_0   fused_rmsnorm_triple_q4_0;
     fn_graph_op     graph_begin_capture;
@@ -172,6 +236,8 @@ static struct {
     fn_prefill_attn_batched     prefill_attn_batched;
     /* cuBLAS batched GEMV — optional, soft-loaded */
     fn_sgemm_batched_f32        sgemm_batched_f32;
+    /* L2 persistent cache pinning — optional, soft-loaded */
+    fn_l2_persist               l2_persist;
 } ck;
 
 /* Load a symbol, return 0 on success */
@@ -267,6 +333,7 @@ static int cuda_load_library(void) {
     ck.rmsnorm_add = (fn_rmsnorm_add)LIB_SYM(ck.lib, "ck_rmsnorm_add");
     ck.gelu_mul    = (fn_gelu_mul)LIB_SYM(ck.lib, "ck_gelu_mul");
     ck.gemv_dual_q4_0              = (fn_gemv_dual_q4_0)LIB_SYM(ck.lib, "ck_gemv_dual_q4_0");
+    ck.gemv_dual_q8_0              = (fn_gemv_dual_q8_0)LIB_SYM(ck.lib, "ck_gemv_dual_q8_0");
     ck.gemv_triple_q4_0            = (fn_gemv_triple_q4_0)LIB_SYM(ck.lib, "ck_gemv_triple_q4_0");
     ck.fused_rmsnorm_triple_q4_0   = (fn_fused_rmsnorm_triple_q4_0)LIB_SYM(ck.lib, "ck_fused_rmsnorm_triple_q4_0");
     ck.graph_begin_capture = (fn_graph_op)LIB_SYM(ck.lib, "ck_graph_begin_capture");
@@ -287,6 +354,8 @@ static int cuda_load_library(void) {
     ck.prefill_attn_batched     = (fn_prefill_attn_batched)LIB_SYM(ck.lib, "ck_prefill_attn_batched");
     /* cuBLAS batched GEMV — soft-load (only present when built with -lcublas) */
     ck.sgemm_batched_f32 = (fn_sgemm_batched_f32)LIB_SYM(ck.lib, "ck_sgemm_batched_f32");
+    /* L2 persistent cache — soft-load */
+    ck.l2_persist = (fn_l2_persist)LIB_SYM(ck.lib, "ck_l2_persist");
     return 0;
 }
 
@@ -471,6 +540,16 @@ int cuda_gemv_dual_q4_0(float *out_a, float *out_b,
     return 0;
 }
 
+int cuda_gemv_dual_q8_0(float *out_a, float *out_b,
+                         const void *W_a, const void *W_b,
+                         const float *x, int out_dim, int in_dim) {
+    if (ck.gemv_dual_q8_0) {
+        ck.gemv_dual_q8_0(out_a, out_b, W_a, W_b, x, out_dim, in_dim);
+        return 1;
+    }
+    return 0;
+}
+
 int cuda_gemv_triple_q4_0(float *out_q, float *out_k, float *out_v,
                             const void *W_q, const void *W_k, const void *W_v,
                             const float *x,
@@ -569,6 +648,10 @@ int cuda_have_batch_attn(void) {
     return (ck.prefill_attn_batched != NULL) ? 1 : 0;
 }
 
+int cuda_have_sgemm_batched_f32(void) {
+    return (ck.sgemm_batched_f32 != NULL) ? 1 : 0;
+}
+
 /* ─── Batch Prefill wrappers ─── */
 void cuda_prefill_batch_presized(int max_batch, int max_dim) {
     if (ck.prefill_batch_presized) ck.prefill_batch_presized(max_batch, max_dim);
@@ -604,6 +687,53 @@ void cuda_stream_sync_transfer(void) {
 
 void cuda_stream_sync_compute(void) {
     ck.stream_sync_compute();
+}
+
+void cuda_l2_persist(const void *ptr, size_t bytes) {
+    if (ck.l2_persist) ck.l2_persist(ptr, bytes);
+}
+
+/* CPU fallback implementations for tensor operations */
+static void cpu_gemv(float *out, const float *matrix, const float *vector, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        out[i] = 0.0f;
+        for (int j = 0; j < cols; j++) {
+            out[i] += matrix[i * cols + j] * vector[j];
+        }
+    }
+}
+
+static void cpu_rmsnorm(float *out, const float *input, const float *gamma, int dim, float epsilon) {
+    float mean = 0.0f, variance = 0.0f;
+    for (int i = 0; i < dim; i++) {
+        mean += input[i];
+    }
+    mean /= dim;
+    for (int i = 0; i < dim; i++) {
+        float diff = input[i] - mean;
+        variance += diff * diff;
+    }
+    variance = sqrtf(variance / dim + epsilon);
+    for (int i = 0; i < dim; i++) {
+        out[i] = gamma[i] * (input[i] - mean) / variance;
+    }
+}
+
+/* Modify dispatch logic to use CPU fallbacks when GPU is unavailable */
+static void dispatch_gemv(float *out, const float *matrix, const float *vector, int rows, int cols) {
+    if (ck.gemv) {
+        ck.gemv(out, matrix, vector, rows, cols, 0);
+    } else {
+        cpu_gemv(out, matrix, vector, rows, cols);
+    }
+}
+
+static void dispatch_rmsnorm(float *out, const float *input, const float *gamma, int dim, float epsilon) {
+    if (ck.rmsnorm) {
+        ck.rmsnorm(out, input, gamma, dim, epsilon);
+    } else {
+        cpu_rmsnorm(out, input, gamma, dim, epsilon);
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

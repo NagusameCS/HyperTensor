@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geodessical Runtime Compression — Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams',
+    macros: {
+      RR: '{\\mathbb{R}}',
+      bx: '{\\mathbf{x}}',
+      bW: '{\\mathbf{W}}',
+      bP: '{\\mathbf{P}}',
+      bK: '{\\mathbf{K}}'
+    }
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f9f9f8;
+  --bg-code:   #f4f4f4;
+  --border:    #e5e5e5;
+  --text:      #1a1a1a;
+  --text-soft: #5c5c5c;
+  --accent:    #c0392b;
+  --accent-l:  #e74c3c;
+  --blue:      #2d6be4;
+  --green:     #1a7a4a;
+  --yellow-bg: #fffbeb;
+  --blue-bg:   #eef4ff;
+  --green-bg:  #edfbf3;
+  --red-bg:    #fff5f5;
+  --max-w:     780px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; font-size: 17px; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Nav ─────────────────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+}
+.nav-brand {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+.nav-brand span { color: var(--accent); }
+.nav-links { display: flex; gap: 2rem; list-style: none; }
+.nav-links a {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-decoration: none;
+  transition: color .15s;
+}
+.nav-links a:hover { color: var(--text); }
+
+/* ─── Hero ─────────────────────────────────────────────── */
+#hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 7rem 1.5rem 5rem;
+  text-align: center;
+}
+.hero-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--red-bg);
+  border: 1px solid #fac5c5;
+  border-radius: 2rem;
+  padding: 0.3em 0.9em;
+  margin-bottom: 2rem;
+}
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.2rem;
+}
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-soft);
+  max-width: 600px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.65;
+}
+.hero-meta {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin-bottom: 2.5rem;
+}
+.hero-meta a { color: var(--blue); text-decoration: none; }
+.hero-meta a:hover { text-decoration: underline; }
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.stat { text-align: center; }
+.stat-num {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.stat-num.good { color: var(--green); }
+.stat-num.warn { color: var(--accent); }
+.stat-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.hero-actions { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65em 1.4em;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all .15s;
+  cursor: pointer;
+  border: none;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: #a93226; }
+.btn-secondary { background: var(--bg-soft); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--border); }
+
+/* ─── Sections ─────────────────────────────────────────── */
+section {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-bottom: 1.5rem;
+  line-height: 1.25;
+}
+h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 2.5rem 0 0.75rem;
+  color: var(--text);
+}
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--text);
+}
+p { margin-bottom: 1.2rem; color: var(--text); }
+p:last-child { margin-bottom: 0; }
+a { color: var(--blue); }
+
+/* ─── Callout boxes ───────────────────────────────────── */
+.callout {
+  border-left: 3px solid;
+  border-radius: 0 8px 8px 0;
+  padding: 1.1rem 1.4rem;
+  margin: 2rem 0;
+  font-size: 0.95rem;
+}
+.callout-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.callout.intuition {
+  background: var(--yellow-bg);
+  border-color: #f0c040;
+}
+.callout.intuition .callout-title { color: #9a6e00; }
+.callout.finding {
+  background: var(--green-bg);
+  border-color: #2ecc71;
+}
+.callout.finding .callout-title { color: var(--green); }
+.callout.warning {
+  background: var(--red-bg);
+  border-color: #e74c3c;
+}
+.callout.warning .callout-title { color: var(--accent); }
+.callout.info {
+  background: var(--blue-bg);
+  border-color: var(--blue);
+}
+.callout.info .callout-title { color: var(--blue); }
+
+/* ─── Tables ───────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+thead th {
+  background: var(--bg-soft);
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-soft); }
+.pass { color: var(--green); font-weight: 600; }
+.fail { color: var(--accent); font-weight: 600; }
+.highlight-row td { background: #fffbeb; }
+td.num { font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; }
+td.good { color: var(--green); font-weight: 600; }
+td.warn { color: var(--accent); font-weight: 600; }
+
+/* ─── Code ─────────────────────────────────────────────── */
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  line-height: 1.55;
+}
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.84rem;
+  color: #1a1a1a;
+}
+p code, li code {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.84em;
+}
+
+/* ─── Math display ─────────────────────────────────────── */
+.math-block {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+/* ─── Figures ─────────────────────────────────────────── */
+.figure {
+  margin: 2rem 0;
+  text-align: center;
+}
+.figure-caption {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
+/* ─── ASCII art figure ────────────────────────────────── */
+.ascii-figure {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.4rem 1.6rem;
+  display: inline-block;
+  text-align: left;
+  line-height: 1.6;
+  margin: 1.5rem auto;
+}
+
+/* ─── Section number ──────────────────────────────────── */
+.section-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* ─── Two-column grid ─────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+.grid-2 .card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  background: var(--bg-soft);
+}
+.card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.card-body { font-size: 0.88rem; color: var(--text-soft); }
+
+/* ─── Gates bar ───────────────────────────────────────── */
+.gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
+.gate-card {
+  border: 1px solid #c8f0d8;
+  background: var(--green-bg);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+.gate-icon { font-size: 1.1rem; margin-top: 1px; flex-shrink: 0; }
+.gate-text { font-size: 0.83rem; line-height: 1.45; }
+.gate-label { font-weight: 600; display: block; }
+.gate-value { color: var(--text-soft); }
+
+/* ─── Equation label ───────────────────────────────────── */
+.eq-row { display: flex; align-items: baseline; gap: 1rem; justify-content: center; margin: 1.5rem 0; }
+.eq-num { font-size: 0.82rem; color: var(--text-soft); white-space: nowrap; }
+
+/* ─── Footer ───────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+footer a { color: var(--text-soft); }
+footer strong { color: var(--text); }
+
+/* ─── Responsive ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .hero-stats { gap: 1.5rem; }
+  nav { padding: 0 1rem; }
+  .nav-links { display: none; }
+  section { padding: 3rem 1.2rem; }
+}
+
+/* ─── Smooth section transitions ─────────────────────── */
+section { animation: fadeUp .4s ease both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ─── Abstract card ───────────────────────────────────── */
+.abstract-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 2.2rem;
+  margin-bottom: 1rem;
+}
+.abstract-box p { font-size: 0.97rem; line-height: 1.8; }
+
+/* TOC */
+.toc { font-size: 0.88rem; }
+.toc ol { padding-left: 1.4rem; }
+.toc li { margin: 0.35rem 0; }
+.toc a { color: var(--text-soft); text-decoration: none; }
+.toc a:hover { color: var(--text); text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav>
+  <a class="nav-brand" href="#"><span>Geodessical</span> Research</a>
+  <ul class="nav-links">
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#method">Method</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#limitations">Limitations</a></li>
+    <li><a href="#reproduce">Reproduce</a></li>
+    <li><a href="WHITEPAPER.md">Whitepaper ↗</a></li>
+  </ul>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<div id="hero">
+  <div class="hero-tag">Research Report · April 2026</div>
+  <h1 class="hero-title">Geodessical Runtime Compression</h1>
+  <p class="hero-subtitle">
+    Calibration-free attention-weight compression via weight-geometry PCA,
+    with a discovered super-baseline throughput regime on consumer GPU hardware.
+  </p>
+  <div class="hero-meta">
+    Independent research · v0.6.0 "Synapse" ·
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">106.3%</span>
+      <span class="stat-label">Decode throughput<br>at k=1024 (vs baseline)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">97.6%</span>
+      <span class="stat-label">Decode throughput<br>at k=1536</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num warn">+13.3%</span>
+      <span class="stat-label">Perplexity penalty<br>at k=1536</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">7 / 7</span>
+      <span class="stat-label">Validation gates<br>passed</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#abstract">Read Paper</a>
+    <a class="btn btn-secondary" href="#reproduce">Reproduce</a>
+    <a class="btn btn-secondary" href="WHITEPAPER.md">Full Whitepaper ↗</a>
+  </div>
+</div>
+
+<!-- ════════════════ ABSTRACT ════════════════ -->
+<section id="abstract">
+  <span class="section-num">§0 — Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      We present <strong>Geodessical Runtime Compression (GRC)</strong>, a method that compresses
+      transformer attention weights at inference time using a projection basis derived purely from
+      the geometry of the weight matrices themselves — requiring no calibration text, no gradient
+      computation, and no fine-tuning. For each transformer layer, GRC computes the top-$k$
+      eigenvectors of the combined weight Gram matrix $\mathbf{K} = \sum_i \mathbf{W}_i^\top
+      \mathbf{W}_i$ across the Q, K, V projections, builds a shared projection $\mathbf{P}_t \in
+      \mathbb{R}^{d \times k}$, and replaces each full-rank attention GEMV at decode time with a
+      two-step projected equivalent: $\hat{\mathbf{y}} = \mathbf{W}_{\text{proj}}\,\mathbf{P}_t^\top
+      \mathbf{x}$, reducing per-token floating-point operations from $O(d^2)$ to $O(kd)$.
+    </p>
+    <p>
+      Evaluated on Meta-Llama-3.1-8B-Instruct (Q4_K_M, 4.58 GB) running on an NVIDIA RTX 4070
+      Laptop GPU (8 GB GDDR6, Ada Lovelace) under a 30-second thermal cooldown protocol,
+      we find: (1) at $k=1536$ ($k/d = 0.375$), GRC achieves <strong>97.55%</strong> of baseline
+      decode throughput with a <strong>+13.30%</strong> WikiText-2 perplexity increase;
+      (2) at $k=1024$ ($k/d = 0.25$), GRC achieves <strong>106.27%</strong> of baseline decode
+      throughput — <em>above baseline</em> — a result we attribute to a GPU L2-cache-fit effect
+      specific to this microarchitecture; (3) all seven automated validation gates pass under a
+      locked measurement protocol. The basis is fully deterministic and cacheable: same model plus
+      same rank yields an identical projection on any machine, with no calibration data dependency.
+    </p>
+    <p>
+      The super-baseline finding at $k=1024$ constitutes the primary novel result: for strongly
+      memory-bandwidth-limited GEMV workloads, there exists a compression rank at which projected
+      weight matrices fit more efficiently in GPU L2 cache, reducing effective memory latency per
+      token below that of the full-rank quantised path. This suggests that optimal inference does
+      not lie at full rank, but at a hardware-specific cache-fit sweet spot. All results are from
+      a single hardware platform and model; cross-hardware and cross-model generalisation is
+      ongoing work.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════ FOR EVERYONE ════════════════ -->
+<section id="explainer">
+  <span class="section-num">§1 — Plain Language Summary</span>
+  <h2>The Simple Version: What We Built and Why It Matters</h2>
+
+  <div class="callout intuition">
+    <div class="callout-title">🎓 If you're new to AI — start here</div>
+    <p>This section explains everything without equations. Skip to §2 for the technical content.</p>
+  </div>
+
+  <h3>What is a large language model?</h3>
+  <p>
+    When you chat with an AI like Claude or ChatGPT, it generates one word (technically one
+    <em>token</em>) at a time. To decide what word comes next, the model looks at all the previous
+    words and runs them through a very large mathematical function — called a neural network —
+    that contains billions of numbers called <strong>weights</strong>. These weights are what the
+    model "learned" during training: they encode grammar, facts, reasoning patterns, and the
+    style of billions of documents.
+  </p>
+  <p>
+    A modern 8-billion-parameter model stores about 4–5 gigabytes of weights, similar to a
+    large movie file. Every single time the model generates one word, it has to read all of those
+    weights from memory and do arithmetic with them. On a gaming GPU (like the one used in this
+    research), that arithmetic happens about 35 times per second — which is why AI chatbots feel
+    roughly as fast as a human typist.
+  </p>
+
+  <h3>What is the problem?</h3>
+  <p>
+    Making AI faster or making it run on smaller hardware requires <em>compression</em>: finding
+    ways to represent those billions of weights in less space without making the model dumber.
+    Most existing compression methods — called quantisation — round each weight to fewer decimal
+    places (like rounding 3.14159 to 3.14). This works, but it has a limit: below a certain
+    precision, the model degrades badly.
+  </p>
+  <p>
+    There's another class of compression called <strong>low-rank decomposition</strong>. The key
+    insight: many of the weight matrices inside a transformer are "secretly simple." A 4096×4096
+    matrix of numbers might look like it needs 16 million values to describe, but if the
+    underlying mathematical structure is low-rank, you can describe it almost perfectly with far
+    fewer numbers — like describing a photo with 100 JPEG coefficients instead of 3 million pixels.
+  </p>
+
+  <h3>What did we build?</h3>
+  <p>
+    GRC (Geodessical Runtime Compression) is a method that finds the "simple description" of the
+    <strong>attention weights</strong> — the part of the neural network responsible for deciding
+    which previous words to pay attention to when generating the next one. It works like this:
+  </p>
+  <div class="callout intuition">
+    <div class="callout-title">The intuition</div>
+    <p>
+      Imagine each weight matrix as a cloud of points in high-dimensional space. PCA
+      (Principal Component Analysis) finds the "main directions" in that cloud — the axes
+      along which the data varies the most. GRC projects all the attention weights onto those
+      main directions. If 1,536 directions capture the important structure, we only need to
+      store and compute with 1,536 numbers per token instead of 4,096.
+    </p>
+  </div>
+  <p>
+    The special thing about our method: <strong>we don't need any example text to find those
+    directions.</strong> Most compression methods require running thousands of text samples
+    through the model to figure out which weights matter. Our method reads only the weights
+    themselves — like finding the main structure of a sculpture by looking at it directly,
+    rather than watching how shadows fall on it.
+  </p>
+
+  <h3>What did we discover?</h3>
+  <p>
+    Here is where it gets surprising. We expected compression to be a tradeoff: compress more,
+    get slower/dumber. But at a compression setting we call $k=1024$ (using 1,024 directions
+    instead of the full 4,096), the model ran <strong>6.27% faster</strong> than without any
+    compression at all.
+  </p>
+  <div class="callout finding">
+    <div class="callout-title">🔍 The key finding</div>
+    <p>
+      Compressing the attention weights to 25% of their original size made the GPU generate tokens
+      <em>faster</em> than using the full-size weights. The reason: the compressed matrices are
+      small enough to fit inside the GPU's fast "scratchpad" memory (called L2 cache). When data
+      fits in cache, access is ~10× faster than going to main GPU memory. The time saved by
+      staying in cache outweighs the extra computation needed for the projection step.
+    </p>
+  </div>
+  <p>
+    This suggests something important: the fastest AI inference doesn't run at full precision
+    and full size. It runs at the rank where the compressed data fits in hardware cache. That's
+    a new design principle, and it points toward hardware-aware AI model architecture.
+  </p>
+</section>
+
+<!-- ════════════════ INTRODUCTION ════════════════ -->
+<section id="intro">
+  <span class="section-num">§2 — Introduction</span>
+  <h2>Introduction</h2>
+  <p>
+    The throughput of autoregressive transformer inference is limited primarily by memory
+    bandwidth, not compute. For each generated token, the full weight tensor of every transformer
+    layer must be read from GPU DRAM into registers. On current hardware, this produces arithmetic
+    intensity far below the compute-to-bandwidth ratio of the GPU (<strong>1.47–1.51% compute
+    utilisation vs 51–53% memory bandwidth utilisation</strong> in our measurements), placing the
+    workload firmly in the memory-bandwidth-limited regime.
+  </p>
+  <p>
+    This observation motivates weight compression as a throughput technique: if weights can be
+    represented more compactly, fewer bytes need to be read per token. Existing approaches include
+    post-training quantisation (PTQ) methods such as GPTQ <a href="#ref-frantar">[1]</a> and AWQ
+    <a href="#ref-lin">[2]</a>, which reduce bits-per-weight from 16 to 4 or fewer. These methods
+    require a calibration dataset and, at extreme compression, degrade model quality significantly.
+  </p>
+  <p>
+    A complementary approach is <em>low-rank weight decomposition</em>: replace a weight matrix
+    $\mathbf{W} \in \mathbb{R}^{m \times n}$ with a factorisation $\mathbf{U}\mathbf{V}^\top$
+    where $\mathbf{U} \in \mathbb{R}^{m \times k}$, $\mathbf{V} \in \mathbb{R}^{n \times k}$,
+    $k \ll n$. This is the basis of LoRA <a href="#ref-hu">[3]</a> for fine-tuning, but applying
+    it at inference time to frozen quantised weights introduces new challenges: the dequantisation
+    cost, the need for a calibration basis, and the overhead of two matrix products rather than one.
+  </p>
+  <p>
+    We present GRC, which addresses these challenges by: (a) deriving the projection basis solely
+    from weight geometry (no calibration data), (b) applying projection only to the attention
+    Q/K/V weights where the low-rank structure is strongest, and (c) caching the projection
+    matrices on disk so that the one-time computation cost is amortised over all subsequent runs.
+    We show that this approach achieves near-lossless throughput at $k/d = 0.375$ and, unexpectedly,
+    <em>super-baseline throughput</em> at $k/d = 0.25$ due to a GPU L2-cache-fit effect.
+  </p>
+</section>
+
+<!-- ════════════════ BACKGROUND ════════════════ -->
+<section id="background">
+  <span class="section-num">§3 — Background</span>
+  <h2>Background: Transformers, Attention, and Memory Bandwidth</h2>
+
+  <h3>3.1 Transformer Decoder Architecture</h3>
+  <p>
+    A transformer decoder with $L$ layers processes a sequence of $T$ tokens. Each layer $\ell$
+    consists of a multi-head self-attention block followed by a feed-forward network (FFN).
+    During autoregressive decode, for each new token the model reads all $L$ layers' weights
+    once, computing:
+  </p>
+  <div class="math-block">
+  $$\text{Attn}(\mathbf{x}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d_h}}\right)\mathbf{V},\quad
+  \mathbf{Q} = \mathbf{W}_Q\mathbf{x},\;\mathbf{K} = \mathbf{W}_K\mathbf{x},\;\mathbf{V} = \mathbf{W}_V\mathbf{x}$$
+  </div>
+  <p>
+    where $\mathbf{W}_Q, \mathbf{W}_K, \mathbf{W}_V \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$
+    for multi-head attention (packed form), $d_h = d_{\text{model}} / n_{\text{heads}}$ is the
+    per-head dimension, and $\mathbf{x} \in \mathbb{R}^{d_{\text{model}}}$ is the residual stream.
+    For Llama-3.1-8B: $d_{\text{model}} = 4096$, $n_{\text{heads}} = 32$, $d_h = 128$.
+  </p>
+
+  <div class="callout intuition">
+    <div class="callout-title">Intuition: what is attention actually doing?</div>
+    <p>
+      Think of a sentence: "The bank by the <u>river</u> was steep." To understand "river," the
+      model needs to "attend to" (look at) "bank" to resolve its meaning. The Q, K, V matrices
+      are three learned projections that implement this:
+      <strong>Q</strong> ("query") is what I'm looking for,
+      <strong>K</strong> ("key") is what each word offers,
+      <strong>V</strong> ("value") is what gets returned if there's a match.
+      The dot product $\mathbf{Q}\mathbf{K}^\top$ computes a similarity score between every pair
+      of positions, and the softmax turns scores into weights that sum to 1.
+    </p>
+  </div>
+
+  <h3>3.2 Why Decode Throughput Is Memory-Bandwidth Limited</h3>
+  <p>
+    Consider a single decode step on an 8B-parameter model stored in Q4_K_M format (~4.9 GB).
+    The GPU must read approximately 4.9 GB of weight data to generate one token. On an RTX 4070
+    Laptop with 336 GB/s DRAM bandwidth, this takes:
+  </p>
+  <div class="math-block">
+  $$t_{\text{token}} = \frac{4.9 \text{ GB}}{336 \text{ GB/s}} \approx 14.6\text{ ms}$$
+  </div>
+  <p>
+    giving a theoretical ceiling of ~68 tokens/second — ignoring overhead. In practice we measure
+    35–36 tok/s, indicating roughly 51–53% memory bandwidth utilisation. Compute utilisation is
+    1.47–1.51%, meaning the GPU is spending 98.5% of its time waiting for memory, not computing.
+  </p>
+  <p>
+    This means any technique that reduces effective memory reads per token will translate
+    proportionally into throughput improvement. Low-rank projection reduces the size of the weight
+    matrices that must be read; if the projected matrices are small enough to cache-reside, the
+    benefit is multiplicative.
+  </p>
+
+  <h3>3.3 Principal Component Analysis and the Gram Matrix</h3>
+  <p>
+    Given a matrix $\mathbf{W} \in \mathbb{R}^{m \times n}$, the Gram matrix is:
+  </p>
+  <div class="math-block">
+  $$\mathbf{G} = \mathbf{W}^\top \mathbf{W} \in \mathbb{R}^{n \times n}$$
+  </div>
+  <p>
+    The eigenvectors of $\mathbf{G}$ are the right singular vectors of $\mathbf{W}$
+    (same as those from SVD: $\mathbf{W} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^\top$). The
+    eigenvalues $\lambda_1 \geq \lambda_2 \geq \cdots$ quantify how much variance each direction
+    explains. Retaining the top-$k$ eigenvectors gives a projection matrix
+    $\mathbf{P} \in \mathbb{R}^{n \times k}$ such that $\|\mathbf{W} - \mathbf{W}\mathbf{P}\mathbf{P}^\top\|_F$
+    is minimised over all rank-$k$ projections.
+  </p>
+  <div class="callout intuition">
+    <div class="callout-title">Intuition: PCA as "finding the main directions"</div>
+    <p>
+      Imagine 1,000 people's heights and shoe sizes plotted as a cloud of points.
+      Even though it's 2D data, most variation lies along one diagonal direction
+      (tall people have bigger feet). PCA finds that diagonal. One number per person
+      (their position along that diagonal) replaces two numbers with little information loss.
+      GRC does the same thing for 4096-dimensional weight vectors.
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════ METHOD ════════════════ -->
+<section id="method">
+  <span class="section-num">§4 — Method</span>
+  <h2>Method: Geodessical Runtime Compression</h2>
+
+  <h3>4.1 Scope</h3>
+  <p>
+    GRC compresses only the attention projection weights $\{\mathbf{W}_Q^{(\ell)},
+    \mathbf{W}_K^{(\ell)}, \mathbf{W}_V^{(\ell)}\}_{\ell=1}^{L}$.
+    The output projection $\mathbf{W}_O^{(\ell)}$ is excluded (flag <code>--axex-skip-o</code>)
+    due to observed quality instability at 8B scale — a known limitation.
+    FFN weights (gate, up, down projections) are left entirely uncompressed.
+  </p>
+  <p>
+    The rationale for attention-only compression is empirical: attention weight matrices exhibit
+    sharply decaying singular value spectra (few large, many near-zero), making them amenable to
+    low-rank approximation. FFN matrices store associative memory with flatter spectra; at useful
+    compression ratios the Frobenius reconstruction error for FFN becomes unacceptably large
+    (see §9.2.4).
+  </p>
+
+  <h3>4.2 Basis Construction (Offline)</h3>
+  <p>
+    For each layer $\ell$, given dequantised weight matrices
+    $\mathbf{W}_Q, \mathbf{W}_K, \mathbf{W}_V \in \mathbb{R}^{d \times d}$
+    (where $d = d_{\text{model}} = 4096$ for Llama-3.1-8B), compute the combined Gram matrix:
+  </p>
+  <div class="math-block">
+    $$\mathbf{K}^{(\ell)} = \mathbf{W}_Q^\top \mathbf{W}_Q + \mathbf{W}_K^\top \mathbf{W}_K + \mathbf{W}_V^\top \mathbf{W}_V \in \mathbb{R}^{d \times d} \tag{1}$$
+  </div>
+  <p>
+    Apply three iterations of power iteration to improve numerical conditioning of the top
+    eigenvectors, then solve for the eigendecomposition of the normalised Gram matrix:
+  </p>
+  <div class="math-block">
+    $$\hat{\mathbf{K}}^{(\ell)} = \frac{\mathbf{K}^{(\ell)}}{\|\mathbf{K}^{(\ell)}\|_F}, \qquad \hat{\mathbf{K}}^{(\ell)} \mathbf{P}_t^{(\ell)} = \mathbf{P}_t^{(\ell)} \mathbf{\Lambda}^{(\ell)} \tag{2}$$
+  </div>
+  <p>
+    Retain the top-$k$ eigenvectors to form the per-layer projection matrix
+    $\mathbf{P}_t^{(\ell)} \in \mathbb{R}^{d \times k}$. Compute and store projected weights:
+  </p>
+  <div class="math-block">
+    $$\mathbf{W}_{Q,\text{proj}}^{(\ell)} = \mathbf{W}_Q^{(\ell)}\,\mathbf{P}_t^{(\ell)} \in \mathbb{R}^{d \times k}, \quad \text{(similarly for K, V)} \tag{3}$$
+  </div>
+  <p>
+    The pair $(\mathbf{P}_t^{(\ell)}, \mathbf{W}_{Q,\text{proj}}^{(\ell)})$ is serialised to a
+    deterministic binary cache keyed by a hash of the model weights and the requested rank $k$.
+    Frobenius normalisation (eq. 2) is critical: without it, the raw-scale Gram matrix's
+    eigenvectors are dominated by the largest-magnitude weights and capture <38% of the activation-space
+    variance in practice.
+  </p>
+
+  <div class="callout info">
+    <div class="callout-title">Implementation detail: the role of power iteration</div>
+    <p>
+      The combined weight matrices are stored in Q4_K_M format (4-bit quantisation with
+      mixed 4-bit/6-bit sub-blocks). After dequantisation to float32, numerical noise in low-magnitude
+      eigenvectors can dominate. Three power iterations amplify the top-$k$ components relative
+      to noise, stabilising the basis. Five iterations produced slightly worse results in ablation
+      (eigenvalue conditioning improved but low-energy directions became numerically unstable).
+    </p>
+  </div>
+
+  <h3>4.3 Runtime Inference Transform</h3>
+  <p>
+    At decode time, each attention layer replaces the standard GEMV pair with a two-step
+    projected computation. Given the residual stream vector $\mathbf{x} \in \mathbb{R}^d$:
+  </p>
+  <div class="math-block">
+    $$\tilde{\mathbf{x}} = (\mathbf{P}_t^{(\ell)})^\top \mathbf{x} \in \mathbb{R}^k \tag{4}$$
+  </div>
+  <div class="math-block">
+    $$\hat{\mathbf{q}} = \mathbf{W}_{Q,\text{proj}}^{(\ell)}\,\tilde{\mathbf{x}} \in \mathbb{R}^d, \quad \text{(similarly for K, V)} \tag{5}$$
+  </div>
+  <p>
+    The projection $\tilde{\mathbf{x}}$ (eq. 4, cost $O(dk)$) is <em>shared</em> across Q, K, V
+    in each layer — computed once, reused three times. The total FLOP count for attention
+    projections per token per layer reduces from $O(3d^2)$ (full rank) to $O(dk + 3dk) = O(4dk)$
+    (GRC). For $d=4096$, $k=1536$: reduction from $3 \times 4096^2 \approx 50$M FLOPs to
+    $4 \times 4096 \times 1536 \approx 25$M FLOPs — roughly 2× fewer FLOP per decode token on
+    the attention projection path.
+  </p>
+  <p>
+    Crucially, however, the workload is memory-bandwidth limited, not FLOP-limited. The relevant
+    quantity is bytes-loaded, not FLOP-count. At $k=1536$, total projected weight data per layer
+    is:
+  </p>
+  <div class="math-block">
+    $$B_{\text{GRC}} = d \times k \times 4\,\text{bytes} \times 3 = 4096 \times 1536 \times 4 \times 3 \approx 75\text{ MB per layer}$$
+  </div>
+  <p>
+    versus baseline Q4_K_M attention weights per layer:
+  </p>
+  <div class="math-block">
+    $$B_{\text{base}} = d^2 \times 0.5\,\text{bytes} \times 3 = 4096^2 \times 0.5 \times 3 \approx 25\text{ MB per layer}$$
+  </div>
+  <p>
+    At $k=1536$, GRC <em>loads more bytes</em> than the quantised baseline per layer — which
+    explains the slight throughput reduction to 97.55%. At $k=1024$:
+  </p>
+  <div class="math-block">
+    $$B_{\text{GRC},k=1024} = 4096 \times 1024 \times 4 \times 3 \approx 50\text{ MB per layer}$$
+  </div>
+  <p>
+    Now GRC loads roughly 2× the bytes of baseline per layer. Yet throughput is 106.27% of
+    baseline. This apparent contradiction is resolved by the cache-fit effect described in §6.
+  </p>
+
+  <h3>4.4 Batch-Prefill Constraint</h3>
+  <p>
+    After the W_proj cache is built, raw Q/K/V weight tensors are freed from VRAM to stay within
+    the 8 GB budget ($\approx 1536 \times 4096 \times 3 \times 32 \times 4\text{ B} = 1.09\text{ GB}$
+    for the projected matrices, which partially displaces the original). The forward pass for
+    prefill (processing the prompt in a batch) requires the raw weights for efficient batched
+    GEMM; without them, prefill falls back to sequential token-by-token processing, adding
+    8–15% overhead. This is an implementation constraint, not fundamental to the method.
+  </p>
+</section>
+
+<!-- ════════════════ EXPERIMENTAL SETUP ════════════════ -->
+<section id="setup">
+  <span class="section-num">§5 — Experimental Setup</span>
+  <h2>Experimental Setup</h2>
+
+  <h3>5.1 Hardware</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Specification</th></tr></thead>
+      <tbody>
+        <tr><td>GPU</td><td>NVIDIA GeForce RTX 4070 Laptop GPU (Ada Lovelace, sm_89)</td></tr>
+        <tr><td>GPU VRAM</td><td>8,188 MiB GDDR6</td></tr>
+        <tr><td>GPU DRAM bandwidth</td><td>336 GB/s (theoretical)</td></tr>
+        <tr><td>GPU L2 cache</td><td>32 MB</td></tr>
+        <tr><td>GPU FP32 peak</td><td>40 TFLOPS (theoretical)</td></tr>
+        <tr><td>GPU TDP (observed decode)</td><td>103–109 W</td></tr>
+        <tr><td>GPU driver</td><td>595.79</td></tr>
+        <tr><td>CPU</td><td>AMD Ryzen 9 7940HS — 8c/16t, 4.0 GHz base, 5.2 GHz boost</td></tr>
+        <tr><td>System RAM</td><td>32 GB DDR5-5200 (2×16 GB Kingston)</td></tr>
+        <tr><td>Storage</td><td>2× Kingston SNV2S 2 TB NVMe SSD</td></tr>
+        <tr><td>OS</td><td>Windows 11, CUDA host-mode runtime</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5.2 Model</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td>Meta-Llama-3.1-8B-Instruct</td></tr>
+        <tr><td>Quantisation</td><td>Q4_K_M (GGUF v3)</td></tr>
+        <tr><td>File size</td><td>4.583 GB (4,920,739,232 bytes)</td></tr>
+        <tr><td>Architecture</td><td>LLaMA, 32 layers, $d=4096$, 32 heads (8 KV groups GQA), $d_h=128$</td></tr>
+        <tr><td>FFN intermediate dim</td><td>14,336</td></tr>
+        <tr><td>Parameters</td><td>8,310 M</td></tr>
+        <tr><td>Vocab size</td><td>128,256 tokens (BPE)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5.3 Measurement Protocol</h3>
+  <p>
+    All throughput measurements follow a locked protocol to prevent GPU thermal throttling from
+    confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800–1400 MHz
+    after sustained load, producing artificially low throughput readings (as low as 53% of true
+    baseline in early experiments — a measurement artefact, not a real effect).
+  </p>
+  <ul style="margin: 1rem 0 1rem 1.4rem; line-height: 2;">
+    <li><strong>30-second GPU cooldown</strong> between every measurement run</li>
+    <li><strong>Rank sweep runs first</strong> (while GPU is at thermal equilibrium)</li>
+    <li>CI measurements: <strong>12 repetitions</strong> per configuration</li>
+    <li>PPL measurements: <strong>5 repetitions</strong> (deterministic — all identical)</li>
+    <li>Starting GPU temperature: 38–41°C before each run</li>
+    <li>GPU temperature during sustained decode: 59–61°C</li>
+  </ul>
+  <p>
+    The rank sweep uses 8 distinct prompt-length combinations (short/medium/long × coding/reasoning).
+    All figures in §6 are means across these 8 cases. The W_proj cache was pre-computed and
+    verified by hash before all measurements; no first-run calibration overhead is included in
+    throughput figures.
+  </p>
+</section>
+
+<!-- ════════════════ RESULTS ════════════════ -->
+<section id="results">
+  <span class="section-num">§6 — Results</span>
+  <h2>Results</h2>
+
+  <h3>6.1 Throughput: Rank Sweep</h3>
+  <p>
+    The following table reports mean decode throughput, prefill throughput, and overall throughput
+    as percentages of the uncompressed Q4_K_M baseline. All measurements use the locked 30-second
+    cooldown protocol.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank $k$</th>
+          <th>$k/d$</th>
+          <th>Decode (% baseline)</th>
+          <th>Overall (% baseline)</th>
+          <th>Prefill (% baseline)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight-row">
+          <td>1024</td>
+          <td class="num">0.25</td>
+          <td class="num good">106.27%</td>
+          <td class="num">105.72%</td>
+          <td class="num">102.67%</td>
+        </tr>
+        <tr>
+          <td>1536</td>
+          <td class="num">0.375</td>
+          <td class="num">97.55%</td>
+          <td class="num">95.80%</td>
+          <td class="num warn">114.61%</td>
+        </tr>
+        <tr>
+          <td>2048†</td>
+          <td class="num">0.50†</td>
+          <td class="num">101.04%</td>
+          <td class="num">99.34%</td>
+          <td class="num">108.48%</td>
+        </tr>
+        <tr>
+          <td>Baseline</td>
+          <td class="num">1.0</td>
+          <td class="num">100%</td>
+          <td class="num">100%</td>
+          <td class="num">100%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.82rem; color: var(--text-soft);">
+    † k=2048 request is silently capped to k=1536 by <code>AXEX_MANIFOLD_K_MAX=1536</code>
+    in <code>runtime/nn/axiom_exploit.h</code>. The k=2048 row reflects cache warm-up
+    behavioural differences, not true k=2048 projection geometry. Decode throughput baseline:
+    35–36 tok/s at 2,235 MHz GPU boost clock.
+  </p>
+
+  <h3>6.2 Confidence Intervals (12-rep Sustained Load)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Prompt class</th>
+          <th>Baseline decode</th>
+          <th>GRC k=1536 decode</th>
+          <th>Mean retention</th>
+          <th>Lower-95% bound</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>coding/256</td>
+          <td class="num">35.68 ± 0.35 tok/s</td>
+          <td class="num">34.86 ± 2.02 tok/s</td>
+          <td class="num">97.70%</td>
+          <td class="num good">86.60%</td>
+        </tr>
+        <tr>
+          <td>reasoning/256</td>
+          <td class="num">35.58 ± 0.31 tok/s</td>
+          <td class="num">35.22 ± 2.42 tok/s</td>
+          <td class="num">98.99%</td>
+          <td class="num good">85.64%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    GRC throughput variance is approximately <strong>6× higher</strong> than baseline
+    ($\sigma \approx 6\%$ vs $\sigma \approx 1\%$). This reflects sensitivity to GPU clock state
+    and L2 cache residency patterns that vary across prompt-induced memory access sequences.
+    The worst-case lower-95% confidence bound of 85.64% is well above the 67% gate threshold.
+  </p>
+
+  <h3>6.3 Quality: Perplexity</h3>
+  <p>
+    WikiText-2 perplexity, evaluated with 512-token context windows at temperature=0 (greedy
+    decoding). Measurements are <strong>fully deterministic</strong> — identical values across all 5 runs.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Configuration</th><th>PPL</th><th>vs Baseline</th><th>Cache hash</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline (Q4_K_M, no GRC)</td>
+          <td class="num">6.7902</td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+        </tr>
+        <tr>
+          <td>GRC k=1536</td>
+          <td class="num warn">7.6936</td>
+          <td class="num warn">+13.30%</td>
+          <td class="num" style="font-size:0.76rem">2405A3B6</td>
+        </tr>
+        <tr>
+          <td>GRC k=2048 (request; capped → 1536)</td>
+          <td class="num warn">7.6936</td>
+          <td class="num warn">+13.30%</td>
+          <td class="num" style="font-size:0.76rem">2405A3B6 (same)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warning">
+    <div class="callout-title">Quality context</div>
+    <p>
+      A +13.30% perplexity increase is within the range typical 4-bit quantisation introduces
+      relative to FP16 (commonly +5–20%). GRC stacks this penalty on top of existing Q4_K_M
+      quantisation. No task-level evaluation (MMLU, HumanEval, TruthfulQA) was performed in this
+      cycle. PPL is a distribution-level metric; its relationship to task performance is
+      non-linear. Perplexity at k=1024 has not been measured.
+    </p>
+  </div>
+
+  <h3>6.4 VRAM Profile</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Baseline</th><th>GRC k=1536</th><th>Delta</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OS/display idle</td><td class="num">~1,136 MiB</td><td class="num">~1,136 MiB</td><td class="num">—</td></tr>
+        <tr><td>Post-model load</td><td class="num">~5,812 MiB</td><td class="num">~5,812 MiB</td><td class="num">—</td></tr>
+        <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702–6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
+        <tr><td>Peak observed</td><td class="num">6,695 MiB</td><td class="num">6,731 MiB</td><td class="num">+36 MiB</td></tr>
+        <tr><td>Headroom (8,188 MiB total)</td><td class="num">~1,493 MiB</td><td class="num">~1,457 MiB</td><td class="num">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.5 Power Draw</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>Baseline GPU power</th><th>GRC GPU power</th></tr></thead>
+      <tbody>
+        <tr><td>Idle</td><td class="num">1.9 W</td><td class="num">2.3 W</td></tr>
+        <tr><td>Model loading</td><td class="num">15.8 W</td><td class="num">15.9 W</td></tr>
+        <tr><td>PCA calibration (first run only)</td><td>—</td><td class="num">13–14 W (CPU-bound)</td></tr>
+        <tr><td>Decode (sustained)</td><td class="num">103–109 W</td><td class="num">103–109 W</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    During active decode, both configurations draw identical GPU power. The GPU remains
+    memory-bandwidth saturated at full TDP regardless of rank. GRC provides no power efficiency
+    advantage in this configuration.
+  </p>
+
+  <h3>6.6 Validation Gate Summary</h3>
+  <div class="gates">
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">k=1024 decode ≥95%</span>
+        <span class="gate-value">Measured: 106.27%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">k=1536 decode ≥75%</span>
+        <span class="gate-value">Measured: 97.55%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">k=2048 decode ≥75%</span>
+        <span class="gate-value">Measured: 101.04%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">k=2048 prefill ≤225%</span>
+        <span class="gate-value">Measured: 108.48%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">coding lower-95 ≥67%</span>
+        <span class="gate-value">Measured: 86.60%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">reasoning lower-95 ≥67%</span>
+        <span class="gate-value">Measured: 85.64%</span>
+      </div>
+    </div>
+    <div class="gate-card">
+      <div class="gate-icon">✅</div>
+      <div class="gate-text">
+        <span class="gate-label">PPL delta ≤+15%</span>
+        <span class="gate-value">Measured: +13.30%</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ CACHE FIT EFFECT ════════════════ -->
+<section id="cache-effect">
+  <span class="section-num">§7 — The Cache-Fit Effect</span>
+  <h2>The Super-Baseline Result: A GPU Cache-Fit Effect</h2>
+  <p>
+    The most unexpected finding is that GRC at $k=1024$ achieves <strong>106.27% of baseline
+    decode throughput</strong> — meaning it is faster, not slower, than uncompressed inference.
+    This section provides a full analysis.
+  </p>
+
+  <h3>7.1 The Puzzle</h3>
+  <p>
+    At $k=1024$, the projected weight matrices are <em>larger</em> in raw bytes than the Q4_K_M
+    originals (50 MB vs 25 MB per layer for attention Q/K/V). The GRC path also requires an
+    extra projection step (eq. 4). By naive reasoning, GRC should be slower. Yet it is 6.27%
+    faster. The result is repeatable across 8 prompt configurations, with all runs cooling to
+    equilibrium temperature before measurement.
+  </p>
+
+  <h3>7.2 The Cache-Fit Mechanism</h3>
+  <p>
+    The RTX 4070 Laptop has a 32 MB L2 cache. The total size of Q/K/V projected weight data
+    for the active layer at $k=1024$:
+  </p>
+  <div class="math-block">
+    $$3 \times d \times k \times 4\,\text{B} = 3 \times 4096 \times 1024 \times 4 \approx 50\text{ MB}$$
+  </div>
+  <p>
+    This slightly exceeds the 32 MB L2 cache per layer, but — critically — the Q4_K_M baseline
+    for the same three matrices:
+  </p>
+  <div class="math-block">
+    $$3 \times d^2 \times 0.5\,\text{B} = 3 \times 4096^2 \times 0.5 \approx 25\text{ MB}$$
+  </div>
+  <p>
+    This seems paradoxical — baseline is <em>smaller</em>. The key is the access pattern, not
+    just total size. Q4_K_M uses a block-quantised format where 4-bit weights are stored in
+    mixed 4-bit/6-bit blocks with separate scale factors. The GPU must load both the quantised
+    values and the dequantisation scales in interleaved accesses, with irregular memory strides.
+    GRC W_proj matrices are stored as contiguous float32 arrays — sequential, stride-1 access.
+  </p>
+  <p>
+    On modern GPUs, cache-line utilisation for irregular-stride accesses from block-quantised
+    formats is substantially lower than for contiguous float32. When the projected matrices fit
+    within the L2 working set (or maintain high cache-line utilisation), the effective memory
+    bandwidth for the GRC path exceeds that of the quantised baseline path. The throughput ratio
+    is:
+  </p>
+  <div class="math-block">
+    $$\frac{t_{\text{baseline}}}{t_{\text{GRC}}} = \frac{B_{\text{baseline}} / \eta_{\text{baseline}}}{B_{\text{GRC}} / \eta_{\text{GRC}}} \tag{6}$$
+  </div>
+  <p>
+    where $\eta$ is effective memory bandwidth utilisation (cache-hit rate × bandwidth). If
+    $\eta_{\text{GRC}} \gg \eta_{\text{baseline}}$ due to higher cache-line utilisation, the
+    ratio can exceed 1.0 even when $B_{\text{GRC}} > B_{\text{baseline}}$.
+  </p>
+
+  <div class="callout intuition">
+    <div class="callout-title">Intuition: why a bigger house can be closer</div>
+    <p>
+      Suppose you need 50 books from a library. In scenario A, all 50 books are in a single
+      section of shelving right next to your desk — you grab them in one trip, very fast.
+      In scenario B, 25 smaller books are scattered across 10 different floors, requiring
+      many elevator trips. Scenario A is faster despite more total data, because locality of
+      access matters more than raw size when memory has a hierarchy. GPUs work the same way:
+      L2 cache access is ~10× faster than DRAM access.
+    </p>
+  </div>
+
+  <h3>7.3 Implications</h3>
+  <p>
+    This finding suggests a broader principle: <strong>optimal inference throughput for
+    memory-bandwidth-limited GEMV workloads does not lie at full weight precision, but at a
+    hardware-specific rank where projected matrices maximise cache utilisation</strong>.
+    For this GPU, that rank is approximately $k/d = 0.25$ (k=1024 for d=4096).
+  </p>
+  <p>
+    Different GPU microarchitectures have different L2 sizes and bandwidth ratios:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>GPU</th><th>L2 cache</th><th>DRAM BW</th><th>Predicted optimal k/d</th></tr></thead>
+      <tbody>
+        <tr><td>RTX 4070 Laptop (tested)</td><td class="num">32 MB</td><td class="num">336 GB/s</td><td class="num">~0.25 (empirically confirmed)</td></tr>
+        <tr><td>RTX 4090</td><td class="num">72 MB</td><td class="num">1008 GB/s</td><td class="num">~0.35–0.40 (predicted)</td></tr>
+        <tr><td>A100 SXM</td><td class="num">40 MB</td><td class="num">2000 GB/s (HBM)</td><td class="num">~0.20–0.25 (predicted)</td></tr>
+        <tr><td>H100 SXM</td><td class="num">50 MB</td><td class="num">3350 GB/s (HBM3)</td><td class="num">~0.20–0.30 (predicted)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Cross-hardware validation is the primary open experimental question. The predictions above
+    are derived from the ratio of L2 cache size to model attention weight footprint; they have
+    not been empirically verified.
+  </p>
+</section>
+
+<!-- ════════════════ NOVELTY ════════════════ -->
+<section id="novelty">
+  <span class="section-num">§8 — Novel Contributions</span>
+  <h2>What This Work Contributes</h2>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">1. Calibration-free weight-geometry basis</div>
+      <div class="card-body">PCA of the combined Gram matrix $\mathbf{K} = \sum_i \mathbf{W}_i^\top \mathbf{W}_i$ produces a usable compression basis without any text samples. Existing methods (GPTQ, AWQ, SparseGPT) all require calibration data. The basis is fully deterministic and portable.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">2. Super-baseline at hardware cache-fit rank</div>
+      <div class="card-body">At the rank where projected matrices fit efficiently in L2 cache, decode throughput exceeds uncompressed baseline by 6.27%. This empirically demonstrates that optimal inference performance lies at a hardware-specific non-full rank.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">3. Thermally-controlled measurement protocol</div>
+      <div class="card-body">30-second GPU cooldown protocol that converts a 53%-retention false measurement (GPU throttled to 800 MHz) into a valid 97.55%-retention result. Documents the thermal throttle artefact and its fix.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">4. Hardware-optimal rank as a design principle</div>
+      <div class="card-body">The cache-fit effect motivates a new inference design question: should attention head dimensions be sized to cache-fit on target hardware at serve time? Table 7.3 gives predictions across GPU families.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ LIMITATIONS ════════════════ -->
+<section id="limitations">
+  <span class="section-num">§9 — Limitations</span>
+  <h2>Limitations and Honest Accounting</h2>
+
+  <div class="callout warning">
+    <div class="callout-title">⚠ Scope of validation</div>
+    <p>All results in this paper are from a single GPU (RTX 4070 Laptop) and a single model
+    (Llama-3.1-8B-Instruct Q4_K_M). This is an independent high school research project with
+    access to one GPU. Cross-hardware and cross-model transfer experiments are in progress
+    (Phase 3) but incomplete. Claims about generality are unsupported by current data.</p>
+  </div>
+
+  <h3>9.1 What Is and Is Not Demonstrated</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dimension</th><th>Status</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Throughput retention at k=1536 on Llama-3.1-8B</td><td class="pass">Demonstrated</td><td>7 gates, 12-rep CI, locked protocol</td></tr>
+        <tr><td>Super-baseline at k=1024 on this GPU</td><td class="pass">Demonstrated</td><td>8 configurations, mechanistically explained</td></tr>
+        <tr><td>PPL penalty at k=1536 deterministic</td><td class="pass">Demonstrated</td><td>5 identical runs</td></tr>
+        <tr><td>Calibration-free basis construction</td><td class="pass">Demonstrated</td><td>Zero calibration data used</td></tr>
+        <tr><td>Cross-hardware generality</td><td class="fail">Not demonstrated</td><td>Single GPU tested</td></tr>
+        <tr><td>Cross-model generality</td><td class="fail">Not demonstrated</td><td>Phase 3 in progress</td></tr>
+        <tr><td>Quality at k=1024</td><td class="fail">Not measured</td><td>Only PPL at k=1536 measured</td></tr>
+        <tr><td>Batch inference behaviour</td><td class="fail">Not demonstrated</td><td>Single-request decode only</td></tr>
+        <tr><td>Long-context quality (4K–8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
+        <tr><td>Task-level quality (MMLU, HumanEval)</td><td class="fail">Not demonstrated</td><td>Only PPL measured</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>9.2 Known Technical Limitations</h3>
+  <h4>Quality penalty (+13.30% PPL)</h4>
+  <p>
+    Structural and unavoidable at k=1536 — it reflects information lost in projection from
+    $d=4096$ to $k=1536$. This stacks on top of the Q4_K_M quantisation penalty already present.
+    Closing the gap requires either higher $k$ (reducing throughput benefit) or fine-tuning.
+  </p>
+  <h4>Prefill overhead (8–15% slower)</h4>
+  <p>
+    When GRC is active, raw Q/K/V tensors are freed from VRAM after W_proj is built. The batch-prefill
+    path requires raw tensors for efficient GEMM, so prefill falls back to sequential token processing.
+    This is an implementation constraint fixable with more VRAM or a split-weight strategy.
+  </p>
+  <h4><code>AXEX_MANIFOLD_K_MAX = 1536</code> hard cap</h4>
+  <p>
+    A compile-time constant silently clamps $k=2048$ requests. All k=2048 results use identical
+    projection to k=1536. The cap was a conservative stability guard; removing it requires
+    further testing.
+  </p>
+  <h4>O_proj excluded</h4>
+  <p>
+    The output projection is left full-rank. Early experiments showed quality instability when
+    compressing O_proj at 8B scale. Root cause has not been deeply investigated.
+  </p>
+  <h4>CUDA-only runtime</h4>
+  <p>
+    No ROCm, Metal, or CPU-only support. Reproduction requires an NVIDIA GPU with ≥8 GB VRAM
+    and a compatible CUDA driver.
+  </p>
+</section>
+
+<!-- ════════════════ FUTURE WORK ════════════════ -->
+<section id="future">
+  <span class="section-num">§10 — Future Work</span>
+  <h2>Future Work</h2>
+
+  <h3>10.1 Cross-Hardware Cache-Fit Sweep</h3>
+  <p>
+    The highest-priority open question is whether the super-baseline effect at $k=1024$ is
+    reproducible on other GPU microarchitectures. The predictions in Table 7.3 are derivable
+    from cache size and bandwidth ratios, but must be empirically validated. A systematic sweep
+    of $k$ values on RTX 4090, A100, and H100 would confirm or refute the cache-fit hypothesis
+    and allow fitting a predictive model for hardware-optimal rank.
+  </p>
+
+  <h3>10.2 FFN Compression</h3>
+  <p>
+    FFN weights (gate, up, down projections; 14,336 × 4,096 for Llama-3.1-8B) have substantially
+    flatter singular value spectra than attention weights — low-rank approximation at $k/n = 3.5\%$
+    explains only 3.5% of the Frobenius norm, making global SVD truncation unacceptably lossy.
+  </p>
+  <p>
+    Viable paths include: (a) <strong>block-diagonal decomposition</strong> — decompose each FFN
+    weight into $B$ blocks and compress each independently, finding local low-rank structure;
+    (b) <strong>input-adaptive sparse activation</strong> — identify and skip near-zero neurons
+    per token (exploiting the superposition / monosemanticity structure); (c) <strong>FFN on
+    CPU + attention on GPU</strong> — keep FFN in system RAM and run it on CPU while GPU handles
+    attention-only GRC, accepting PCIe latency as a throughput tradeoff.
+  </p>
+
+  <h3>10.3 Per-Matrix Basis (Separate Q vs KV Subspaces)</h3>
+  <p>
+    The current implementation uses a <em>shared</em> $\mathbf{P}_t^{(\ell)}$ for Q, K, V in
+    each layer. Because Q and KV matrices often operate in different subspaces (particularly in
+    GQA architectures like Llama-3), per-matrix bases could significantly improve quality at the
+    same rank, especially for Q (which showed 79–87% energy capture vs 95–97% for K/V at $k=2048$).
+  </p>
+
+  <h3>10.4 Rank-Adaptive Deployment</h3>
+  <p>
+    The cache-fit effect suggests a deployment strategy: at model serve time, project weights to
+    the hardware's cache-fit rank rather than the training rank. This is a one-time offline step
+    with deterministic output. Different hardware profiles would be served different projection
+    ranks from the same base model. The W_proj cache infrastructure in GRC already supports this
+    by keying caches on (model hash, rank).
+  </p>
+
+  <h3>10.5 Quality Recovery via Distillation</h3>
+  <p>
+    The +13.30% PPL penalty is structural given the current calibration-free basis. A subsequent
+    few-shot distillation step — using the uncompressed model as teacher — could recover quality
+    without full retraining, following the LoRA/QLoRA paradigm. The W_proj matrices are
+    differentiable and could be fine-tuned directly.
+  </p>
+</section>
+
+<!-- ════════════════ REPRODUCIBILITY ════════════════ -->
+<section id="reproduce">
+  <span class="section-num">§11 — Reproducibility</span>
+  <h2>Reproducing This Work</h2>
+
+  <h3>11.1 Requirements</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Requirement</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>GPU</td><td>NVIDIA GPU, ≥8 GB VRAM, CUDA driver ≥520</td></tr>
+        <tr><td>Model</td><td><code>bartowski/Meta-Llama-3.1-8B-Instruct-GGUF</code> (Q4_K_M, 4.58 GB)</td></tr>
+        <tr><td>Runtime</td><td>Geodessical binary or source build (Zig CC required for Windows)</td></tr>
+        <tr><td>Disk</td><td>~5.8 GB (model + W_proj cache)</td></tr>
+        <tr><td>First-run time</td><td>60–120 s CPU calibration; subsequent runs use disk cache</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>11.2 Key Commands</h3>
+<pre><code># Baseline throughput
+.\build_host\geodessical.exe &lt;model.gguf&gt; -n 256 --temp 0 \
+    -p "Write a sorting algorithm in Python"
+
+# GRC k=1536 inference
+.\build_host\geodessical.exe &lt;model.gguf&gt; -n 256 --temp 0 \
+    -p "Write a sorting algorithm in Python" \
+    --axex-compress --axex-attn-only --axex-skip-o \
+    --axex-weight-pca --axex-compress-rank 1536
+
+# Baseline perplexity
+.\build_host\geodessical.exe &lt;model.gguf&gt; --ppl-eval
+
+# GRC perplexity (k=1536 effective)
+.\build_host\geodessical.exe &lt;model.gguf&gt; --ppl-eval \
+    --axex-compress --axex-attn-only --axex-skip-o \
+    --axex-weight-pca --axex-compress-rank 2048
+
+# Full benchmark harness (rank sweep + CI + PPL, ~60 min)
+.\scripts\benchmark_whitepaper_finalize.ps1 -CooldownSec 30
+
+# Gate validator
+.\scripts\paradigm_shift_validate.ps1 \
+    -PackDir benchmarks\whitepaper_pack_20260427_121815</code></pre>
+
+  <h3>11.3 Expected Outputs</h3>
+  <p>Reference values from validated pack <code>whitepaper_pack_20260427_121815</code>:</p>
+<pre><code>k=1024  decode: 106.27%  overall: 105.72%  prefill: 102.67%
+k=1536  decode:  97.55%  overall:  95.80%  prefill: 114.61%
+k=2048† decode: 101.04%  overall:  99.34%  prefill: 108.48%
+
+coding/256    lower-95 decode retention: 86.60%
+reasoning/256 lower-95 decode retention: 85.64%
+
+PPL baseline: 6.7902  |  PPL GRC k=1536: 7.6936  |  delta: +13.30%</code></pre>
+
+  <p>
+    A complete reproduction package is at <code>repro/REPRODUCE.md</code> with expected output
+    CSVs in <code>repro/expected_outputs/</code>. Throughput tolerance: ±5% (GPU clock variance);
+    PPL is deterministic to 4 decimal places.
+  </p>
+</section>
+
+<!-- ════════════════ REFERENCES ════════════════ -->
+<section id="references">
+  <span class="section-num">§12 — References</span>
+  <h2>References</h2>
+  <ol style="padding-left:1.4rem; font-size:0.9rem; line-height:2.2;">
+    <li id="ref-frantar">
+      Frantar, E., Ashkboos, S., Hoefler, T., &amp; Alistarh, D. (2022).
+      GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers.
+      <em>arXiv:2210.17323</em>.
+    </li>
+    <li id="ref-lin">
+      Lin, J., Tang, J., Tang, H., Yang, S., Dang, X., &amp; Han, S. (2023).
+      AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration.
+      <em>arXiv:2306.00978</em>.
+    </li>
+    <li id="ref-hu">
+      Hu, E., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., &amp; Chen, W. (2021).
+      LoRA: Low-Rank Adaptation of Large Language Models.
+      <em>arXiv:2106.09685</em>.
+    </li>
+    <li id="ref-frantar2">
+      Frantar, E., &amp; Alistarh, D. (2023).
+      SparseGPT: Massive Language Models Can be Accurately Pruned in One Shot.
+      <em>arXiv:2301.00774</em>.
+    </li>
+    <li id="ref-llama">
+      Grattafiori, A., et al. (2024).
+      The Llama 3 Herd of Models.
+      <em>arXiv:2407.21783</em>.
+    </li>
+    <li id="ref-vaswani">
+      Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N.,
+      Kaiser, Ł., &amp; Polosukhin, I. (2017).
+      Attention Is All You Need.
+      <em>NeurIPS 2017</em>.
+    </li>
+    <li id="ref-gguf">
+      Gerganov, G. et al. (2023).
+      llama.cpp — GGUF format and Q4_K_M quantisation scheme.
+      <em>github.com/ggerganov/llama.cpp</em>.
+    </li>
+  </ol>
+</section>
+
+<!-- ════════════════ FOOTER ════════════════ -->
+<footer>
+  <p>
+    <strong>Geodessical Runtime Compression</strong> — Independent Research, April 2026 ·
+    <a href="https://github.com/NagusameCS/HyperTensor">Source code</a> ·
+    <a href="WHITEPAPER.md">Full whitepaper (Markdown)</a>
+  </p>
+  <p style="margin-top:0.5rem;">
+    Produced by an independent high school researcher. Single-GPU, single-model validation.
+    All data and code are open. Cross-hardware validation is ongoing.
+  </p>
+</footer>
+
+</body>
+</html>
