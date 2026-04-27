@@ -257,9 +257,10 @@ footer a { color: var(--blue); text-decoration: none; }
       <strong>What it is not:</strong> a guarantee that <em>weight</em>-space PCA of the
       individual $Q/K/V/O$ matrices captures this same intrinsic dimension. Activation-space
       intrinsic dim is necessary for the premise but not sufficient for the GP construction.
-      The actual weight-space evidence (singular-value spectra of the seven slots on the
-      one model where we measured them, Llama-3.1-8B) is in §<a href="#spectra">3</a>, and
-      that evidence is much weaker for FFN than for attention.
+      The actual weight-space evidence (singular-value spectra of all seven slots on
+      Llama-3.1-8B) is in §<a href="#spectra">3</a>: it strongly supports the GP construction
+      for the four attention slots and quantitatively contradicts it for the three FFN
+      slots, which is exactly the asymmetry Paper&nbsp;1 leans on.
     </p>
   </div>
 </section>
@@ -271,11 +272,21 @@ footer a { color: var(--blue); text-decoration: none; }
     The seven compressible matrices in a Llama-style transformer block, with shapes for
     Llama-3.1-8B ($d = 4{,}096$, $d_\text{ffn} = 14{,}336$, $h = 32$ heads):
   </p>
-  <pre><code>Attention   Q, K, V    : [d, d]            =  [4096, 4096]
+  <pre><code>Attention   Q          : [d, d]            =  [4096, 4096]
+            K, V       : [d_kv, d]         =  [1024, 4096]   (GQA: 8 KV heads x 128)
             O          : [d, d]            =  [4096, 4096]
-FFN         W_up       : [d, d_ffn]        =  [4096, 14336]
-            W_gate     : [d, d_ffn]        =  [4096, 14336]
-            W_down     : [d_ffn, d]        =  [14336, 4096]</code></pre>
+FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
+            W_gate     : [d_ffn, d]        =  [14336, 4096]
+            W_down     : [d, d_ffn]        =  [4096, 14336]</code></pre>
+  <p style="font-size:0.92em;color:var(--text-soft);">
+    Note: Llama-3.1-8B uses
+    <a class="term" href="https://arxiv.org/abs/2305.13245" target="_blank" rel="noopener">grouped-query attention</a>,
+    so $K$ and $V$ have only $d_\text{kv} = 1{,}024$ output rows (not $d = 4{,}096$).
+    This is one reason rank&nbsp;$k = 1{,}024$ is a particularly natural Pareto knee:
+    on $K$ and $V$ the projection becomes lossless (you cannot have more singular
+    values than the smaller matrix dimension), so the only quality cost at $k = 1{,}024$
+    comes from $Q$ and (when included) $O$.
+  </p>
   <p>
     The attention slots, plus $W_\text{up}$ and $W_\text{gate}$, are <em>tall</em> in
     the same direction (fewer rows than columns is allowed too; what matters is that the
@@ -300,17 +311,67 @@ FFN         W_up       : [d, d_ffn]        =  [4096, 14336]
     when the user judges the FFN penalty to be the dominant quality cost. Paper&nbsp;1
     runs in exactly this configuration.
   </p>
-  <h3>3.1 What we measured directly, and what we infer</h3>
+  <h3>3.1 Per-slot spectra on Llama-3.1-8B (measured)</h3>
   <p>
-    The spectra for $Q$, $K$, $V$ and $W_\text{down}$ on Llama-3.1-8B are measured
-    directly and live at
+    Singular-value spectra for all seven slots, computed by full SVD on the
+    dequantised Q4_K_M weights at layers $\{0, 7, 15, 23, 31\}$ — see
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/analysis/compute_spectra.py">scripts/analysis/compute_spectra.py</a>
+    and the JSON output at
     <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
-    The spectra for $O$, $W_\text{up}$, $W_\text{gate}$ on Llama-3.1-8B and the spectra
-    for any slot on the other three models are <em>not</em> measured at the time of this
-    paper. The cross-model evidence from §<a href="#manifold">2</a> is for the activation
-    manifold, not for the per-slot weight spectra. This is the most important caveat in
-    this paper.
+    All values are layer-means; ranges across the five layers are given where they are
+    informative.
   </p>
+  <div class="table-wrap">
+  <table class="compare">
+    <thead><tr>
+      <th>Slot</th>
+      <th>Shape</th>
+      <th>Rank for 95% energy<br><span style="font-weight:400;color:var(--text-soft);">(layer-mean, range)</span></th>
+      <th>Rank for 99%<br>(layer-mean)</th>
+      <th>Energy retained at $k=1{,}024$<br>(layer-mean)</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>$Q$</td><td>[4096, 4096]</td><td class="num">1,682&nbsp;<span style="color:var(--text-soft);">(635&ndash;2,155)</span></td><td class="num">2,434</td><td class="num">0.836</td></tr>
+      <tr><td>$K$</td><td>[1024, 4096]</td><td class="num">605&nbsp;<span style="color:var(--text-soft);">(253&ndash;724)</span></td><td class="num">802</td><td class="num">1.000 <span style="color:var(--text-soft);">(GQA, dim&nbsp;cap)</span></td></tr>
+      <tr><td>$V$</td><td>[1024, 4096]</td><td class="num">809&nbsp;<span style="color:var(--text-soft);">(783&ndash;835)</span></td><td class="num">954</td><td class="num">1.000 <span style="color:var(--text-soft);">(GQA, dim&nbsp;cap)</span></td></tr>
+      <tr><td>$O$</td><td>[4096, 4096]</td><td class="num">2,118&nbsp;<span style="color:var(--text-soft);">(1,947&ndash;2,342)</span></td><td class="num">2,868</td><td class="num">0.743</td></tr>
+      <tr><td>$W_\text{gate}$</td><td>[14336, 4096]</td><td class="num">3,271&nbsp;<span style="color:var(--text-soft);">(3,199&ndash;3,304)</span></td><td class="num">3,840</td><td class="num">0.539</td></tr>
+      <tr><td>$W_\text{up}$</td><td>[14336, 4096]</td><td class="num">3,360&nbsp;<span style="color:var(--text-soft);">(3,304&ndash;3,408)</span></td><td class="num">3,873</td><td class="num">0.492</td></tr>
+      <tr><td>$W_\text{down}$</td><td>[4096, 14336]</td><td class="num">3,345&nbsp;<span style="color:var(--text-soft);">(3,293&ndash;3,407)</span></td><td class="num">3,863</td><td class="num">0.490</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout finding">
+    <div class="callout-title">What this table actually says</div>
+    <p>
+      The four <strong>attention</strong> slots are highly compressible: 95% of their
+      Frobenius energy lives in $\sim 1{,}600$&ndash;$2{,}100$ of $4{,}096$ singular
+      directions ($\sim 41\%$&ndash;$52\%$ of full rank), and at the production setting
+      $k = 1{,}024$ they retain $74\%$&ndash;$84\%$ of their energy ($Q$, $O$) or
+      $100\%$ ($K$, $V$, where GQA already caps the rank at $1{,}024$).
+    </p>
+    <p>
+      The three <strong>FFN</strong> slots are not. 95% of their energy needs $\sim 3{,}300$
+      of $4{,}096$ ($\sim 80\%$ of full rank), and truncating to $k = 1{,}024$ drops
+      $\sim 50\%$ of their Frobenius energy on every layer measured. This is the
+      quantitative version of the qualitative claim in Paper&nbsp;1 ("FFN is flat"):
+      the FFN slots' rank-for-95%-energy is roughly
+      $\mathbf{2\times}$ that of the attention slots, and their retained energy at
+      $k = 1{,}024$ is $\mathbf{\sim 0.5}$ vs $\mathbf{\sim 0.8}$ for attention.
+      $W_\text{down}$ behaves like $W_\text{up}$ and $W_\text{gate}$
+      (mean rank 3,345 / energy retained 0.490), which is why the runtime gives
+      $W_\text{down}$ the dedicated SVD path: not because its spectrum is qualitatively
+      different from the other FFN slots, but because the Gram-matrix construction is
+      numerically wasteful when the spectrum is approximately flat.
+    </p>
+    <p>
+      <strong>Caveat preserved:</strong> these spectra are weight-space, single model
+      (Llama-3.1-8B), single quantisation (Q4_K_M dequantised). The cross-model
+      activation-manifold evidence in §<a href="#manifold">2</a> is independent of and
+      does not extend to per-slot weight spectra on the other three models. We have
+      not measured those.
+    </p>
+  </div>
 </section>
 
 <section id="rank-selection">
@@ -510,7 +571,9 @@ FFN         W_up       : [d, d_ffn]        =  [4096, 14336]
         (SmolLM2, Gemma-4-E2B, Phi-3.5-mini, plus 70B).</li>
     <li>FFN-included sweep on Llama-3.1-8B at fixed total parameter budget.</li>
     <li>MCR vs shared-rank A/B at matched mean-$k$.</li>
-    <li>Per-slot spectra for $O$, $W_\text{up}$, $W_\text{gate}$ on Llama-3.1-8B.</li>
+    <li>Per-slot spectra on the other three reference models (SmolLM2-135M,
+        Gemma-4-E2B, Phi-3.5-mini); only Llama-3.1-8B is measured today
+        (see §<a href="#spectra">3.1</a>).</li>
     <li>Cache-rebuild timing on 70B (currently extrapolated, not measured).</li>
   </ol>
   <p>

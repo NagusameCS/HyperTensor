@@ -1437,8 +1437,8 @@ section { animation: fadeUp .4s ease both; }
     <div class="figure-caption">
       <strong>Figure 8.2.</strong> Cumulative fraction of $\|\mathbf{W}\|_F^2$ captured by the
       top-$k$ singular components. Attention $\mathbf{W}_Q$ across all five layers (red bundle)
-      reaches ≥ 95% energy by $k\approx 800$–1900; FFN $\mathbf{W}_{\text{down}}$ (blue bundle)
-      requires $k\geq 3400$ — close to full rank. Source data:
+      reaches &ge; 95% energy by $k\approx 635$&ndash;2155; FFN $\mathbf{W}_{\text{down}}$ (blue bundle)
+      requires $k\geq 3293$ &mdash; close to full rank. Source data:
       <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
     </div>
   </div>
@@ -1447,9 +1447,9 @@ section { animation: fadeUp .4s ease both; }
     <img src="../figures/layerwise_rank_needed.png" alt="Per-layer rank needed for 95% energy" style="max-width:100%; border-radius:8px;">
     <div class="figure-caption">
       <strong>Figure 8.3.</strong> Per-layer rank required to capture 95% of Frobenius energy
-      across the five sampled layers. Attention $\mathbf{W}_Q$ averages $k_{95}\approx 1300$
-      ($k/d \approx 0.32$); FFN $\mathbf{W}_{\text{down}}$ averages $k_{95}\approx 3400$
-      ($k/d \approx 0.83$). This $\sim 2.6\times$ gap is the structural reason GRC compresses
+      across the five sampled layers. Attention $\mathbf{W}_Q$ averages $k_{95}\approx 1682$
+      ($k/d \approx 0.41$); FFN $\mathbf{W}_{\text{down}}$ averages $k_{95}\approx 3345$
+      ($k/d \approx 0.82$). This $\sim 2\times$ gap is the structural reason GRC compresses
       attention well and why we deliberately leave FFN at full rank.
     </div>
   </div>
@@ -1463,13 +1463,13 @@ section { animation: fadeUp .4s ease both; }
     <table>
       <thead><tr><th>Matrix</th><th>$k_{95}$ range</th><th>Mean $k/d$</th><th>Relative to GRC $k=1024$</th></tr></thead>
       <tbody>
-        <tr><td>$\mathbf{W}_Q$ (attention)</td><td class="num">635 – 1947</td><td class="num">0.32</td><td class="pass">Within target rank</td></tr>
-        <tr><td>$\mathbf{W}_K$ (attention)</td><td class="num">253 – 783</td><td class="num">~0.13</td><td class="pass">Well within target rank</td></tr>
-        <tr><td>$\mathbf{W}_V$ (attention)</td><td class="num">663 – 800</td><td class="num">~0.18</td><td class="pass">Within target rank</td></tr>
-        <tr><td>$\mathbf{W}_O$ (attention)</td><td class="num">1536 – 2104</td><td class="num">~0.45</td><td class="warn">Marginal at $k=1024$</td></tr>
-        <tr><td>FFN $\mathbf{W}_{\text{gate}}$</td><td class="num">3263 – 3475</td><td class="num">~0.83</td><td class="fail">Far exceeds GRC rank</td></tr>
-        <tr><td>FFN $\mathbf{W}_{\text{up}}$</td><td class="num">3398 – 3510</td><td class="num">~0.85</td><td class="fail">Far exceeds GRC rank</td></tr>
-        <tr><td>FFN $\mathbf{W}_{\text{down}}$</td><td class="num">3407 – 3525</td><td class="num">~0.85</td><td class="fail">Far exceeds GRC rank</td></tr>
+        <tr><td>$\mathbf{W}_Q$ (attention)</td><td class="num">635 &ndash; 2155</td><td class="num">0.41</td><td class="pass">Within target rank</td></tr>
+        <tr><td>$\mathbf{W}_K$ (attention)</td><td class="num">253 &ndash; 724</td><td class="num">0.15</td><td class="pass">Well within target rank (GQA: $d_\text{kv}{=}1024$)</td></tr>
+        <tr><td>$\mathbf{W}_V$ (attention)</td><td class="num">783 &ndash; 835</td><td class="num">0.20</td><td class="pass">Within target rank (GQA: $d_\text{kv}{=}1024$)</td></tr>
+        <tr><td>$\mathbf{W}_O$ (attention)</td><td class="num">1947 &ndash; 2342</td><td class="num">0.52</td><td class="warn">Marginal at $k=1024$</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{gate}}$</td><td class="num">3199 &ndash; 3304</td><td class="num">0.80</td><td class="fail">Far exceeds GRC rank</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{up}}$</td><td class="num">3304 &ndash; 3408</td><td class="num">0.82</td><td class="fail">Far exceeds GRC rank</td></tr>
+        <tr><td>FFN $\mathbf{W}_{\text{down}}$</td><td class="num">3293 &ndash; 3407</td><td class="num">0.82</td><td class="fail">Far exceeds GRC rank</td></tr>
       </tbody>
     </table>
   </div>
