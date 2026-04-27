@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -78,13 +78,13 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="framing">
   <div class="callout warning">
-    <div class="callout-title">Read this first \u2014 framing of this paper</div>
+    <div class="callout-title">Read this first — framing of this paper</div>
     <p>
       Papers&nbsp;1, 2, and 3 are <em>empirical</em>. They report measurements on real
       hardware running real LLMs. This paper is different. It is a
       <strong>theoretical framework</strong> with a 25-test simulation suite and
       <strong>no LLM-scale validation</strong>. Where it claims a speedup figure (e.g.
-      4800\u00d7 at $n{=}32{,}768$), that figure is conditional on solving an open
+      4800× at $n{=}32{,}768$), that figure is conditional on solving an open
       problem (the diffeomorphism $\phi$ that absorbs softmax and LayerNorm into
       Christoffel curvature). We flag the open problem at the front rather than the
       back so the reader is not surprised. This paper exists to motivate the empirical
@@ -95,11 +95,11 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="abstract">
-  <span class="section-num">\u00a70 \u2014 Abstract</span>
+  <span class="section-num">§0 — Abstract</span>
   <h2>One paragraph</h2>
   <p>
     We treat the trained latent space of a transformer as a Riemannian manifold
-    $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30\u201350$, equipped with a
+    $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$, equipped with a
     Fisher-information metric. Under this view, inference is approximately the solution
     of the geodesic equation, with cost $\mathcal{O}(nk^2)$ rather than the standard
     $\mathcal{O}(n^2 d L)$. We further propose <strong>Geodesic Trajectory Caching
@@ -114,11 +114,11 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="renaming">
-  <span class="section-num">\u00a70.5 \u2014 Naming</span>
+  <span class="section-num">§0.5 — Naming</span>
   <h2>"GRC" disambiguation</h2>
   <p>
     The earlier draft of this paper used "GRC" for Geodesic Resonance Caching. Paper&nbsp;1
-    on this site uses "GRC" for Geodesic Runtime Compression \u2014 a different,
+    on this site uses "GRC" for Geodesic Runtime Compression — a different,
     implemented thing. To remove the collision, the trajectory-library idea is renamed
     in this paper to <strong>Geodesic Trajectory Caching (GTC)</strong>. The
     "resonance" terminology was always slightly metaphorical; the substantive content
@@ -128,7 +128,7 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="ott">
-  <span class="section-num">\u00a71 \u2014 Organic Training Theory</span>
+  <span class="section-num">§1 — Organic Training Theory</span>
   <h2>The manifold view</h2>
   <p>
     Let $\theta \in \mathbb{R}^P$ be the trained weights. Define
@@ -138,7 +138,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </div>
   <p>
     with metric approximated by the Fisher Information matrix. Empirical intrinsic
-    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30\u201350$
+    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30–50$
     for current LLMs despite $d \in \{4096, 8192\}$. Inference under this view solves
     the geodesic equation with cost $\mathcal{O}(nk^2)$.
   </p>
@@ -150,13 +150,13 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="gtc">
-  <span class="section-num">\u00a72 \u2014 Geodesic Trajectory Caching</span>
+  <span class="section-num">§2 — Geodesic Trajectory Caching</span>
   <h2>Storing geodesics, correcting cheaply</h2>
   <p>
     Each completed inference produces a full geodesic trajectory, not just an answer.
-    We propose storing these trajectories \u2014 the embedding, contextual velocity,
+    We propose storing these trajectories — the embedding, contextual velocity,
     waypoint sequence, Jacobi propagator $J(\lambda) \in \mathbb{R}^{k \times k}$, an
-    injectivity radius estimate, and the terminal logits \u2014 in a library indexed by
+    injectivity radius estimate, and the terminal logits — in a library indexed by
     nearest-neighbour search. New queries within the validity radius are served by a
     single $\mathcal{O}(k^2)$ matrix-vector product:
   </p>
@@ -165,7 +165,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </div>
   <p>
     The Jacobi equation is linear, so a batch of similar queries can be corrected in a
-    single matmul \u2014 a "resonance" effect where throughput rises rather than falls
+    single matmul — a "resonance" effect where throughput rises rather than falls
     under load. The simulation suite verifies linearity (err $7.3 \times 10^{-13}$),
     superposition ($1.6 \times 10^{-17}$), and exactness in flat regions ($5.6 \times
     10^{-17}$). On a synthetic mixture-of-Gaussians query distribution, the library
@@ -174,7 +174,7 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="attnres">
-  <span class="section-num">\u00a73 \u2014 Connection to Attention Residuals</span>
+  <span class="section-num">§3 — Connection to Attention Residuals</span>
   <h2>AttnRes as depth-wise geodesic segment selection</h2>
   <p>
     Block AttnRes (Kimi&nbsp;Team, arXiv:2603.15031) replaces fixed PreNorm residual
@@ -195,7 +195,7 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="open">
-  <span class="section-num">\u00a74 \u2014 Open problems</span>
+  <span class="section-num">§4 — Open problems</span>
   <h2>What is missing</h2>
   <ol>
     <li>
@@ -244,7 +244,7 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <footer>
   <p>
-    <a href="../index.html">\u2190 Back to all papers</a> &middot;
+    <a href="../index.html">← Back to all papers</a> &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
   </p>
 </footer>

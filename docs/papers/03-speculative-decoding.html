@@ -427,6 +427,63 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
 </section>
 
+<section id="onedecode">
+  <span class="section-num">§6.5 — OneDecode, OTT-OD, and OTT-SWARM</span>
+  <h2>Three drafter modes shipped in the runtime but absent from earlier drafts</h2>
+  <p>
+    Earlier drafts of this paper described only the geodesic-projection drafter
+    of §2. The runtime in <code>host/main.c</code> ships three additional draft
+    modes that compose with that pipeline. They are documented here so that the
+    flag set on the binary matches the flag set described in this paper. None of
+    the three has the closed-form throughput model of §3 yet; they are listed as
+    <em>implemented, not measured</em>.
+  </p>
+  <h3>OneDecode (<code>--one-decode</code>)</h3>
+  <p>
+    OneDecode bakes a geodesic flow map once over a vocabulary slice (default
+    $V_{\text{bake}}=2048$ tokens, settable with
+    <code>--one-decode-coverage&nbsp;N</code>) and persists it to
+    <code>ott_one_decode.bin</code>. At decode time, a hit on the table returns
+    <em>(token, confidence)</em> in $O(1)$ — the model forward is skipped. The
+    intuition is the same as Paper 4 §2 (geodesic trajectory caching), but
+    here it is exposed as a runtime drafter rather than a research artifact.
+    On a miss, the runtime falls back to the geodesic drafter of §2 and then
+    the verifier.
+  </p>
+  <h3>OTT-OD (<code>--ott-od</code>)</h3>
+  <p>
+    OTT-OD wires OneDecode in as the <em>draft</em> source for speculative
+    decoding. The OneDecode lookup proposes a token; the verifier decides. This
+    keeps the verifier (and therefore the acceptance distribution) identical to
+    standard speculative decoding while letting the drafter cost go to zero on a
+    table hit. <code>--ott-od</code> implies <code>--one-decode</code> so the
+    bake step always runs.
+  </p>
+  <h3>OTT-SWARM (<code>--ott-swarm K</code>)</h3>
+  <p>
+    OTT-SWARM fans out $K$ candidate tokens per draft slot from the OneDecode
+    table (or, on a miss, from the geodesic drafter), and submits all $K$ to
+    the verifier in a single batched forward. This is structurally similar to
+    Medusa-style multi-head drafting, except the candidates come from a baked
+    flow map rather than learned auxiliary heads.
+  </p>
+  <p>
+    A reader looking at the source can verify that all three modes are real and
+    composed from the same primitives:
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c#L807">host/main.c §args parser</a>,
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c#L1109"><code>geodesic_ensure_one_decode</code></a>,
+    and the swarm fan-out around <code>main.c:1924</code>. The bake/save/load
+    primitives live in <code>runtime/nn/axiom_beta.c</code> alongside the rest
+    of the geometry-cache code.
+  </p>
+  <p>
+    Why these are listed as design rather than result: the bake step is
+    deterministic and the table format is stable, but we have no published
+    acceptance-rate or end-to-end tok/s measurement for any of the three modes.
+    They are part of the §8 status list (item&nbsp;1).
+  </p>
+</section>
+
 <section id="related">
   <span class="section-num">§7 — Related work</span>
   <h2>Lineage</h2>

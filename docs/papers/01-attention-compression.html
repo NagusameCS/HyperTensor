@@ -683,7 +683,7 @@ section { animation: fadeUp .4s ease both; }
     matrices on disk so the one-time computation cost is amortised over all subsequent runs.
     The empirical result is near-lossless throughput at $k/d = 0.375$ and, less expectedly,
     <em>super-baseline throughput</em> at $k/d = 0.25$. We attribute the latter to a GPU
-    L2-cache-fit effect, with the caveats discussed in \u00a7<a href="#cache-fit">7</a>.
+    L2-cache-fit effect, with the caveats discussed in §<a href="#cache-fit">7</a>.
   </p>
 </section>
 
@@ -799,7 +799,7 @@ section { animation: fadeUp .4s ease both; }
     ASVD<a href="#ref-asvd"><sup>[3]</sup></a> is a training-free SVD scheme that uses
     activation-aware weighting (so it is calibration-based by construction); FWSVD<a href="#ref-fwsvd"><sup>[4]</sup></a>
     extends this with Fisher-information weights. GRC's contribution relative to this line is
-    not a new decomposition\u2014it is the deliberate stripping out of calibration to ask
+    not a new decomposition—it is the deliberate stripping out of calibration to ask
     whether the weight geometry alone is enough.
   </p>
   <p>
@@ -844,8 +844,8 @@ section { animation: fadeUp .4s ease both; }
     <div class="callout-title">In one sentence</div>
     <p>
       GRC is a deliberately minimal post-training low-rank scheme: shared basis, attention only,
-      no calibration. The point of the report is not the decomposition itself \u2014 that line of
-      work is mature \u2014 but the empirical observation that on a single consumer GPU there
+      no calibration. The point of the report is not the decomposition itself — that line of
+      work is mature — but the empirical observation that on a single consumer GPU there
       exists a rank where compressed inference is faster than uncompressed.
     </p>
   </div>
@@ -1195,21 +1195,21 @@ section { animation: fadeUp .4s ease both; }
       reports approximate WikiText-2 PPL deltas relative to fp16 of:
     </p>
     <ul style="margin-top:0.5rem;">
-      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1\u20133%.</li>
-      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1\u20132%.</li>
-      <li>SliceGPT 25\u201330% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
-        ~+5\u20139% on WikiText-2 (calibration-based).</li>
+      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1–3%.</li>
+      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1–2%.</li>
+      <li>SliceGPT 25–30% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
+        ~+5–9% on WikiText-2 (calibration-based).</li>
       <li>ASVD 20% rank reduction on Llama-7B<a href="#ref-asvd"><sup>[3]</sup></a>:
-        ~+10\u201315% (activation-aware, calibration-based).</li>
+        ~+10–15% (activation-aware, calibration-based).</li>
       <li>Q4_K_M alone vs fp16 (the baseline GRC sits on)<a href="#ref-kquants"><sup>[13]</sup></a>:
-        ~+1\u20133%.</li>
+        ~+1–3%.</li>
     </ul>
     <p>
-      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10\u201312% vs fp16,
+      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10–12% vs fp16,
       comparable to ASVD's published numbers despite using no calibration data. PPL is a
       distribution-level metric; its relationship to task performance is non-linear. Task-level
       evaluations (MMLU, HumanEval, TruthfulQA) were not performed in this cycle, and
-      <strong>perplexity at $k=1024$ \u2014 the throughput-optimal setting \u2014 has not been
+      <strong>perplexity at $k=1024$ — the throughput-optimal setting — has not been
       measured</strong>. We flag this prominently because the headline 106.27% throughput
       number does not have a quality number attached to it.
     </p>
@@ -1848,7 +1848,7 @@ section { animation: fadeUp .4s ease both; }
   <p>
     If counter measurement attributes the speedup to register pressure, scheduler effects, or
     avoided dequantisation arithmetic rather than L2 fit, the practical recipe (low-rank
-    attention compression at deployment time) still works \u2014 it just becomes another
+    attention compression at deployment time) still works — it just becomes another
     instance of "format overhead matters" rather than a cache-architecture story. The
     calibration-free part remains useful in either case.
   </p>
