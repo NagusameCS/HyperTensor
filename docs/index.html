@@ -181,7 +181,7 @@ footer a:hover { text-decoration: underline; }
   <span class="section-label">Papers</span>
   <h2>Four papers under the HyperTensor project.</h2>
   <p style="color:var(--text-soft); max-width: 640px;">
-    They go from concrete to speculative. Paper&nbsp;1 is the published empirical
+    They go from concrete to speculative. Paper&nbsp;1 is the empirical headline
     result. Paper&nbsp;2 documents the production compression pipeline that the runtime
     actually ships with. Paper&nbsp;3 looks at composition with speculative decoding and
     Attention Residuals. Paper&nbsp;4 is the theoretical companion (simulation only,
@@ -194,7 +194,6 @@ footer a:hover { text-decoration: underline; }
       <div class="paper-head">
         <span class="paper-num">Paper 1</span>
         <span class="paper-title">Calibration-Free Low-Rank Attention Compression for Bandwidth-Bound LLM Decode</span>
-        <span class="badge published">Published</span>
       </div>
       <p class="paper-abstract">
         A weight-geometry-only PCA basis reduces attention $Q/K/V$ rank from
@@ -206,7 +205,6 @@ footer a:hover { text-decoration: underline; }
       <div class="paper-meta">
         <span><strong>Model:</strong> Llama-3.1-8B-Instruct Q4_K_M</span>
         <span><strong>GPU:</strong> RTX 4070 Laptop</span>
-        <span><strong>Status:</strong> Empirical, peer-review-ready</span>
       </div>
     </a>
 
@@ -214,19 +212,17 @@ footer a:hover { text-decoration: underline; }
       <div class="paper-head">
         <span class="paper-num">Paper 2</span>
         <span class="paper-title">Geodesic Projection: A Production Compression Pipeline for LLM Inference</span>
-        <span class="badge draft">Draft</span>
       </div>
       <p class="paper-abstract">
-        The full 7-slot Geodesic Projection (GP) compression scheme that the
+        The full multi-slot Geodesic Projection (GP) compression scheme that the
         <code>geodessical</code> runtime ships with: per-layer PCA bases for $Q/K/V/O$,
         FFN up/gate, and a dedicated SVD path for FFN&nbsp;down. Includes the
-        persistent geometry cache, the depth-sink shortcut, and end-to-end results across
-        SmolLM2-135M, Phi-3.5-mini, Llama-3.1-8B, and a 70B target.
+        persistent geometry cache, the depth-sink shortcut, and the deployment
+        envelope on a single 8 GB GPU.
       </p>
       <div class="paper-meta">
-        <span><strong>Models:</strong> 135M / 3.8B / 8B / 70B</span>
-        <span><strong>Status:</strong> Drafting; numbers exist</span>
-        <span><strong>Origin:</strong> Builds on TensorOS axiom discovery</span>
+        <span><strong>Reference model:</strong> Llama-3.1-8B Q4_K_M</span>
+        <span><strong>Other models:</strong> design-validated only</span>
       </div>
     </a>
 
@@ -234,18 +230,15 @@ footer a:hover { text-decoration: underline; }
       <div class="paper-head">
         <span class="paper-num">Paper 3</span>
         <span class="paper-title">Composing Compression: Geodesic Speculative Decoding and Attention Residuals</span>
-        <span class="badge draft">Draft</span>
       </div>
       <p class="paper-abstract">
         How a compressed-manifold model serves as a draft generator for speculative
         decoding against the full-precision transformer, and how Attention Residuals
-        (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. Reports throughput,
-        acceptance rates, and quality deltas. Independently implements AttnRes in the
-        same runtime.
+        (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. Design and runtime
+        implementation; end-to-end benchmarks are not yet conducted.
       </p>
       <div class="paper-meta">
-        <span><strong>Status:</strong> Drafting; benchmarks pending</span>
-        <span><strong>Cites:</strong> Kimi AttnRes</span>
+        <span><strong>Cites:</strong> Kimi AttnRes (arXiv:2603.15031)</span>
       </div>
     </a>
 
@@ -253,7 +246,6 @@ footer a:hover { text-decoration: underline; }
       <div class="paper-head">
         <span class="paper-num">Paper 4</span>
         <span class="paper-title">Organic Training Theory and Geodesic Trajectory Caching</span>
-        <span class="badge theory">Theory</span>
       </div>
       <p class="paper-abstract">
         A theoretical framework that motivates Papers 1\u20133 and proposes future
@@ -264,7 +256,6 @@ footer a:hover { text-decoration: underline; }
         explicitly open problem.
       </p>
       <div class="paper-meta">
-        <span><strong>Status:</strong> Theory + simulation</span>
         <span><strong>Open problem:</strong> Diffeomorphism $\phi$</span>
       </div>
     </a>

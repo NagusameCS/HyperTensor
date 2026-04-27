@@ -447,7 +447,7 @@ section { animation: fadeUp .4s ease both; }
     on a single consumer GPU.
   </p>
   <div class="hero-meta">
-    By <strong>William Ken Ohara Stewart</strong> (NagusameCS), single researcher ·
+    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) ·
     v0.6.0 ·
     <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
   </div>
@@ -484,7 +484,7 @@ section { animation: fadeUp .4s ease both; }
     <p>
       Decode throughput on consumer GPUs is bound almost entirely by memory bandwidth,
       not by arithmetic. The headline finding of this report is empirical and slightly
-      uncomfortable: on an RTX 4070 Laptop, a low-rank projection of the attention
+      uncomfortable: on an RTX 4070 Laptop, a <a class="term" href="https://en.wikipedia.org/wiki/Low-rank_approximation" target="_blank" rel="noopener" title="Approximating a matrix by one of lower rank.">low-rank</a> projection of the attention
       weight matrices runs <strong>faster than the uncompressed model</strong> at one
       specific rank ($k=1024$, $k/d=0.25$) — 106.27% of baseline decode throughput,
       paired across 8 thermally-controlled runs ($t = 53.9$, $p \approx 10^{-10}$).
@@ -520,6 +520,39 @@ section { animation: fadeUp .4s ease both; }
       (MMLU, HumanEval, GSM8K) are open work for groups with access to the right
       infrastructure.
     </p>
+  </div>
+</section>
+
+<!-- ════════════════ GLOSSARY ════════════════ -->
+<section id="glossary">
+  <span class="section-num">§0.5 — Glossary</span>
+  <h2>Terms used in this report</h2>
+  <p style="color:var(--text-soft);">
+    Each term below is hyperlinked at first use. External links go to Wikipedia for
+    definitions; in-house terms are defined here.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Attention $Q/K/V$</strong></td><td>The three projections inside a transformer attention block: Query, Key, Value. See <a href="https://en.wikipedia.org/wiki/Attention_(machine_learning)" target="_blank" rel="noopener">attention</a>.</td></tr>
+        <tr><td><strong>KV cache</strong></td><td>Per-token Key/Value vectors stored across decode steps so attention does not recompute them. Distinct from the weight cache discussed in §7.</td></tr>
+        <tr><td><strong>Decode (vs prefill)</strong></td><td>Decode = the autoregressive token-at-a-time phase. Prefill = the one-shot batched processing of the input prompt.</td></tr>
+        <tr><td><strong>Perplexity</strong></td><td>$\exp(\text{cross-entropy loss})$ on held-out text. Lower is better. See <a href="https://en.wikipedia.org/wiki/Perplexity" target="_blank" rel="noopener">perplexity</a>.</td></tr>
+        <tr><td><strong>PCA</strong></td><td><a href="https://en.wikipedia.org/wiki/Principal_component_analysis" target="_blank" rel="noopener">Principal component analysis</a>; here, eigendecomposition of a Gram matrix to obtain a low-rank basis.</td></tr>
+        <tr><td><strong>Eckart&ndash;Young theorem</strong></td><td>Optimality result for low-rank approximation under the Frobenius norm. See <a href="https://en.wikipedia.org/wiki/Low-rank_approximation#Basic_low-rank_approximation_problem" target="_blank" rel="noopener">low-rank approximation</a>.</td></tr>
+        <tr><td><strong>Frobenius norm</strong></td><td>The matrix $\ell_2$ norm: $\|A\|_F = \sqrt{\sum_{i,j} a_{ij}^2}$. See <a href="https://en.wikipedia.org/wiki/Matrix_norm#Frobenius_norm" target="_blank" rel="noopener">Frobenius norm</a>.</td></tr>
+        <tr><td><strong>Roofline model</strong></td><td>A simple performance model bounding throughput by either memory bandwidth or peak compute. See <a href="https://en.wikipedia.org/wiki/Roofline_model" target="_blank" rel="noopener">roofline model</a>.</td></tr>
+        <tr><td><strong>Q4_K_M</strong></td><td>The mixed 4-bit / 6-bit "K-quant Medium" weight format from llama.cpp / GGUF. Per-block superblock dequantisation in CUDA kernels. See ref&nbsp;[13].</td></tr>
+        <tr><td><strong>GGUF</strong></td><td>The on-disk model format used by llama.cpp and this runtime. See <a href="https://github.com/ggerganov/ggml/blob/master/docs/gguf.md" target="_blank" rel="noopener">GGUF spec</a>.</td></tr>
+        <tr><td><strong>L2 cache</strong></td><td>Last-level on-die GPU cache (32 MB on AD106 / RTX 4070 Laptop). See <a href="https://en.wikipedia.org/wiki/CPU_cache#Multi-level_caches" target="_blank" rel="noopener">CPU/GPU cache</a>.</td></tr>
+        <tr><td><strong>Bootstrap CI</strong></td><td>Confidence interval estimated by resampling the data with replacement. See <a href="https://en.wikipedia.org/wiki/Bootstrapping_(statistics)" target="_blank" rel="noopener">bootstrap (statistics)</a>.</td></tr>
+        <tr><td><strong>Wilcoxon signed-rank</strong></td><td>Non-parametric paired test, robust to non-Gaussian distributions. See <a href="https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test" target="_blank" rel="noopener">Wilcoxon signed-rank test</a>.</td></tr>
+        <tr><td><strong>GRC</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>Geodesic Runtime Compression. The implemented low-rank attention-weight scheme of this paper. Distinct from GTC (Paper&nbsp;4).</td></tr>
+        <tr><td><strong>$W_\text{proj}$</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>The projected weight cache. For each layer $\ell$ and slot $s \in \{Q,K,V\}$: $W_\text{proj}^{(\ell,s)} = W^{(\ell,s)} U^{(\ell)} \in \mathbb{R}^{d \times k}$. Materialised on disk; mapped into VRAM at load time.</td></tr>
+        <tr><td><strong>AXEX</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>The runtime flag prefix for the compression machinery (<code>--axex-compress</code>, <code>--axex-attn-only</code>, <code>--axex-skip-o</code>, etc.). Implemented in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.c">runtime/nn/axiom_exploit.c</a>.</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
@@ -942,7 +975,7 @@ section { animation: fadeUp .4s ease both; }
     are Q4_K_M (super-block dequantisation in-kernel)<a href="#ref-kquants"><sup>[13]</sup></a>.
     A genuinely apples-to-apples comparison would store $\mathbf{W}_{\text{proj}}$ in Q8_0 or fp16
     and re-measure; we have not done that yet, and the super-baseline result therefore reflects
-    <em>both</em> low-rank benefit and Q4_K_M format overhead. We discuss this honestly in
+    <em>both</em> low-rank benefit and Q4_K_M format overhead. We discuss this in
     §6 / §12.3.
   </p>
 
@@ -1077,7 +1110,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
   <p style="font-size:0.82rem; color: var(--text-soft);">
     † k=2048 request is silently capped to k=1536 by <code>AXEX_MANIFOLD_K_MAX=1536</code>
-    in <code>runtime/nn/axiom_exploit.h</code>. The k=2048 row reflects cache warm-up
+    in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>. The k=2048 row reflects cache warm-up
     behavioural differences, not true k=2048 projection geometry. Decode throughput baseline:
     35–36 tok/s at 2,235 MHz GPU boost clock.
   </p>
@@ -1276,8 +1309,8 @@ section { animation: fadeUp .4s ease both; }
     The most surprising finding in this report is that GRC at $k=1024$ measures 106.27% of
     baseline decode throughput. The result is statistically robust ($p \approx 10^{-10}$ across
     8 paired runs, §<a href="#statistics">9</a>) and survives the locked thermal protocol.
-    What we owe the reader is a careful account of <em>what we know</em> about why, and
-    <em>what is still hypothesis</em>.
+    The rest of this section separates what we know about the mechanism from what is still
+    hypothesis.
   </p>
 
   <h3>7.1 The Puzzle</h3>
@@ -1325,7 +1358,7 @@ section { animation: fadeUp .4s ease both; }
 
   <h3>7.3 The fp32-vs-Q4_K_M Caveat</h3>
   <p>
-    There is a second honest concern. The current $\mathbf{W}_{\text{proj}}$ is stored as fp32
+    There is a second concern. The current $\mathbf{W}_{\text{proj}}$ is stored as fp32
     with no per-block scales, while the baseline path uses Q4_K_M
     super-blocks<a href="#ref-kquants"><sup>[13]</sup></a>. Even at $k=1024$ this means the
     GRC path reads $\sim 2\times$ as many bytes per layer as baseline yet still wins on
@@ -1405,7 +1438,7 @@ section { animation: fadeUp .4s ease both; }
       top-$k$ singular components. Attention $\mathbf{W}_Q$ across all five layers (red bundle)
       reaches ≥ 95% energy by $k\approx 800$–1900; FFN $\mathbf{W}_{\text{down}}$ (blue bundle)
       requires $k\geq 3400$ — close to full rank. Source data:
-      <code>docs/figures/spectra_summary.json</code>.
+      <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
     </div>
   </div>
 
@@ -1462,9 +1495,9 @@ section { animation: fadeUp .4s ease both; }
       ($10^4$ resamples, seed=42).</li>
   </ul>
   <p>
-    Source data: <code>benchmarks/whitepaper_pack_20260427_121815/rank_sweep_relative_to_baseline.csv</code>
+    Source data: <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/benchmarks/whitepaper_pack_20260427_121815/rank_sweep_relative_to_baseline.csv">benchmarks/whitepaper_pack_20260427_121815/rank_sweep_relative_to_baseline.csv</a>
     and <code>ci_pack_raw.csv</code>. Full numerical output in
-    <code>docs/figures/statistical_tests.json</code>.
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/statistical_tests.json">docs/figures/statistical_tests.json</a>.
   </p>
 
   <div class="figure">
@@ -1562,7 +1595,7 @@ section { animation: fadeUp .4s ease both; }
     For each (layer, rank, matrix) triple we compute (a) the Eckart–Young rel-F² lower bound
     and (b) the actual GRC rel-F² error using the same shared projection used by the runtime
     kernel (3-iteration power-stabilised eigendecomposition of $\mathbf{K}/\|\mathbf{K}\|_F$).
-    Full data: <code>docs/figures/eckart_young_bound.json</code>.
+    Full data: <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/eckart_young_bound.json">docs/figures/eckart_young_bound.json</a>.
   </p>
 
   <div class="table-wrap">
@@ -1684,7 +1717,7 @@ section { animation: fadeUp .4s ease both; }
     calibration-free part remains useful in either case.
   </p>
 
-  <h3>11.5.3 Honest scope of the implications</h3>
+  <h3>11.5.3 Scope of the implications</h3>
   <p>
     This report does not claim a new state of the art on any benchmark leaderboard, and
     the head-to-head comparisons that would be needed to make such a claim (see
@@ -1700,7 +1733,7 @@ section { animation: fadeUp .4s ease both; }
 <!-- ════════════════ LIMITATIONS ════════════════ -->
 <section id="limitations">
   <span class="section-num">§12 — Limitations</span>
-  <h2>Limitations and Honest Accounting</h2>
+  <h2>Limitations</h2>
 
   <div class="callout warning">
     <div class="callout-title">Scope of validation</div>
@@ -1925,8 +1958,8 @@ reasoning/256 lower-95 decode retention: 85.64%
 PPL baseline: 6.7902  |  PPL GRC k=1536: 7.6936  |  delta: +13.30%</code></pre>
 
   <p>
-    A complete reproduction package is at <code>repro/REPRODUCE.md</code> with expected output
-    CSVs in <code>repro/expected_outputs/</code>. Throughput tolerance: ±5% (GPU clock variance);
+    A complete reproduction package is at <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md">repro/REPRODUCE.md</a> with expected output
+    CSVs in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/tree/main/repro/expected_outputs/">repro/expected_outputs/</a>. Throughput tolerance: ±5% (GPU clock variance);
     PPL is deterministic to 4 decimal places.
   </p>
 </section>
