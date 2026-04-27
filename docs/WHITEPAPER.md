@@ -42,7 +42,7 @@ The primary findings are:
 | GPU VRAM            | 8,188 MiB total (GDDR6)                                         |
 | GPU observed TDP    | ~109 W (peak during decode; no nvidia-smi power.limit on laptop)|
 | GPU peak FP32       | 40 TFLOPS (theoretical)                                         |
-| GPU peak HBM BW     | 336 GB/s (theoretical)                                          |
+| GPU peak HBM BW     | 256 GB/s (theoretical, RTX 4070 Laptop AD106: 128-bit × 16 Gbps GDDR6) |
 | GPU PCIe link       | Gen 4 ×8 (laptop configuration)                                 |
 | CPU                 | AMD Ryzen 9 7940HS — 8 cores / 16 threads, 4.0 GHz base        |
 | System RAM          | 32 GB DDR5-5200 (2 × 16 GB Kingston)                            |
@@ -222,7 +222,7 @@ the GPU remains bandwidth-limited and saturated at the same clock and TDP.
 | Metric                     | Value                    |
 |---------------------------|--------------------------|
 | HBM bandwidth utilised     | 174–179 GB/s             |
-| % of 336 GB/s peak         | 51–53%                   |
+| % of 256 GB/s peak         | 68–70%                  |
 | Compute (GFLOPS, FP32)     | 588–606 GFLOPS           |
 | % of 40 TFLOPS peak        | 1.47–1.51%               |
 | Bytes loaded per token     | ~4.9 GB/token            |
@@ -385,7 +385,7 @@ $P_Q, P_K, P_V$) as future work.
 
 ## 8. Validation Gate Summary
 
-Gates evaluated by `scripts/paradigm_shift_validate.ps1` on pack `whitepaper_pack_20260427_121815`.
+Gates evaluated by `scripts/validation_cycle.ps1` on pack `whitepaper_pack_20260427_121815`.
 
 | Gate                                      | Threshold | Measured  | Result   |
 |------------------------------------------|-----------|-----------|----------|
@@ -397,7 +397,7 @@ Gates evaluated by `scripts/paradigm_shift_validate.ps1` on pack `whitepaper_pac
 | reasoning/256 lower-95 decode retention   | ≥ 67%     | 85.64%    | **PASS** |
 | PPL delta (WikiText-2)                    | ≤ +15%    | +13.30%   | **PASS** |
 
-Machine-readable output: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
+Machine-readable output: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json` (historical pack name; new packs emit `validation_cycle.json`)
 
 Gate thresholds were set to reflect achievable performance given the known architectural
 constraints (sequential prefill, k_max cap). They define a minimum bar for internal
@@ -434,7 +434,7 @@ inference. The mechanism is a GPU microarchitecture effect:
 - Baseline inference operates on Q4_K_M block-quantised weight matrices (~4.9 GB loaded per token).
 - GRC k=1024 projects attention weights to 1024-dimensional matrices, which are smaller than the
   full-rank Q4_K_M layout and fit more efficiently in the RTX 4070 Laptop's 32 MB L2 cache.
-- Because decode is memory-bandwidth limited (≈52% of 336 GB/s peak), reducing effective cache
+- Because decode is memory-bandwidth limited (~68–70% of 256 GB/s peak), reducing effective cache
   miss rate directly reduces per-token latency.
 
 This is a real, repeatable, mechanistically explained speedup. It is not measurement noise.
@@ -581,7 +581,7 @@ number of spot checks may see results ranging from 86% to 110% of baseline.
 #### 9.2.7 No power savings
 
 During active decode, GRC and baseline both draw **103–109 W** on the GPU. The GPU is
-memory-bandwidth saturated in both cases (52% of 336 GB/s peak). Reducing attention weight
+memory-bandwidth saturated in both cases (68–70% of 256 GB/s peak). Reducing attention weight
 dimensionality does not reduce memory traffic enough to clock down the GPU or drop out of the
 high-power regime. GRC does not make inference cheaper from a power or thermals perspective.
 
@@ -600,7 +600,7 @@ ratio. The stability issue with O_proj compression has not been deeply investiga
 
 All results in this report are from one GPU (RTX 4070 Laptop, Ada Lovelace, 8 GB GDDR6) running
 one model (Llama-3.1-8B-Instruct Q4_K_M). The super-baseline result at k=1024 depends on the
-L2 cache fit effect being specific to this GPU's 32 MB L2 cache, 336 GB/s bandwidth, and PCIe
+L2 cache fit effect being specific to this GPU's 32 MB L2 cache, 256 GB/s bandwidth, and PCIe
 Gen4 ×8 configuration. The same k=1024 setting on:
 
 - An RTX 4090 (96 MB L2, higher bandwidth): may not show super-baseline, may show better cache fit.
@@ -685,7 +685,7 @@ reviewers can calibrate the strength of the claims:
 | Direct L2 cache-hit measurement | No Nsight Compute counter trace (e.g. `l2_tex_hit_rate`); cache-fit is argued from access-pattern analysis. | Alternative micro-architectural explanations cannot be ruled out without counter data. |
 | Task-level evaluations | Only WikiText-2 PPL; no MMLU / GSM8K / HumanEval / IFEval. | +13.30% PPL is a structural signal, not a behavioural one. |
 | Head-to-head vs AWQ / GPTQ / SmoothQuant | Direct A/B comparisons on identical hardware not included; we only compare against the same Q4_K_M baseline GRC sits on. | Production-scale ranking is unverifiable without compatible-runtime baselines. |
-| Cross-hardware validation | All measurements on RTX 4070 Laptop (32 MB L2, 336 GB/s); Table 7.3 predictions for RTX 4090 / A100 / H100 are calculated, not measured. | Cache-fit cannot be claimed as general — only as observed on this GPU. |
+| Cross-hardware validation | All measurements on RTX 4070 Laptop (32 MB L2, 256 GB/s); Table 7.3 predictions for RTX 4090 / A100 / H100 are calculated, not measured. | Cache-fit cannot be claimed as general — only as observed on this GPU. |
 
 Items 1, 3, 4 require infrastructure (Nsight Compute access, multi-GPU benchmark cluster,
 AWQ/GPTQ runtime ports) outside the scope of this independent project. Item 2 (task evals)
@@ -714,7 +714,7 @@ Rank sweep (benchmark harness):
 
 Gate validation:
 ```powershell
-.\scripts\paradigm_shift_validate.ps1 -PackDir benchmarks\whitepaper_pack_20260427_121815
+.\scripts\validation_cycle.ps1 -PackDir benchmarks\whitepaper_pack_20260427_121815
 ```
 
 ### 11.2 Reproducibility notes
@@ -759,14 +759,14 @@ Gate validation:
 | `repro/expected_outputs/rank_sweep_aggregate.csv`                           | Reference rank sweep values                 |
 | `repro/expected_outputs/ci_pack_summary.csv`                                | Reference CI bounds                         |
 | `repro/expected_outputs/ci_ppl_5run.csv`                                    | Reference PPL values                        |
-| `repro/expected_outputs/paradigm_shift_validation.json`                     | Reference gate output                       |
+| `repro/expected_outputs/validation_cycle.json`                              | Reference gate output                       |
 | `scripts/benchmark_whitepaper_finalize.ps1`                                 | Benchmark harness (rank sweep + CI + PPL)   |
-| `scripts/paradigm_shift_validate.ps1`                                       | Automated gate evaluator                    |
+| `scripts/validation_cycle.ps1`                                              | Automated gate evaluator                    |
 | `scripts/phase3_transfer.ps1`                                               | Phase 3 cross-model / cross-hardware runner |
 | `runtime/nn/axiom_exploit.h`                                                | GRC implementation header (k_max cap L489)  |
 | `runtime/nn/axiom_exploit.c`                                                | GRC implementation (SVD + GP compression)   |
 | `runtime/nn/jit_pca.c`                                                      | PCA eigenvector computation                 |
-This is the paradigm shift: **attention compression with GRC is no longer a tradeoff, it is a tunable parameter.**
+This is the headline result: **attention compression with GRC is no longer a strict tradeoff, it is a tunable parameter.**
 
 ### 10.4 Practical implication
 

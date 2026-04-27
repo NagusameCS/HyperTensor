@@ -21,7 +21,7 @@ uncompressed baseline on the same hardware. See `docs/WHITEPAPER.md` for the ful
 | GPU              | NVIDIA RTX 4070 Laptop, 8,188 MiB VRAM, driver 595.79   |
 | CPU              | AMD Ryzen 9 7940HS — 8c/16t, DDR5-5200, 32 GB           |
 | Storage          | 2 × Kingston SNV2S 2 TB NVMe SSD                         |
-| GPU peak HBM BW  | 336 GB/s (theoretical); 174–179 GB/s observed (~52%)     |
+| GPU peak HBM BW  | 256 GB/s (theoretical, RTX 4070 Laptop AD106); 174–179 GB/s observed (~68–70%) |
 | GPU peak compute | 40 TFLOPS FP32 (theoretical); 0.59 TFLOPS observed (<2%) |
 
 Inference is memory-bandwidth limited, not compute limited.
@@ -73,7 +73,7 @@ Inference is memory-bandwidth limited, not compute limited.
 
 † k=2048 request is internally capped to k=1536. Both use the same W_proj cache.
 
-Validator: `scripts/paradigm_shift_validate.ps1`
+Validator: `scripts/validation_cycle.ps1`
 Machine output: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
 
 ---

@@ -48,7 +48,7 @@ A claim package must include all of:
 
 ## Pass/Fail Readiness Gates
 
-Use `scripts/paradigm_shift_validate.ps1` to generate a machine-readable readiness report.
+Use `scripts/validation_cycle.ps1` to generate a machine-readable readiness report.
 
 A package is "strong-claim ready" only if all gates pass:
 

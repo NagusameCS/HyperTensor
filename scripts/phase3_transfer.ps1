@@ -62,7 +62,7 @@
 
 .DESCRIPTION
     Wraps benchmark_whitepaper_finalize.ps1 with a model-labelled output pack,
-    then auto-runs paradigm_shift_validate.ps1 on the result.
+    then auto-runs validation_cycle.ps1 on the result.
     Designed to be run on any GPU/model to test transfer of Phase 2 findings.
 
 .PARAMETER Model
@@ -154,7 +154,7 @@ Write-Host ""
 Write-Host "--- Running gate validation ---"
 Write-Host ""
 
-$validateScript = ".\scripts\paradigm_shift_validate.ps1"
+$validateScript = ".\scripts\validation_cycle.ps1"
 & $validateScript -PackDir $packDir
 
 Write-Host ""

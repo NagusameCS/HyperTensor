@@ -74,7 +74,7 @@ This creates a timestamped pack directory under `benchmarks/`.
 
 ```powershell
 $PACK = "benchmarks\<pack_dir_from_step_4>"
-.\scripts\paradigm_shift_validate.ps1 -PackDir $PACK
+.\scripts\validation_cycle.ps1 -PackDir $PACK
 ```
 
 Expected terminal output:
@@ -160,7 +160,7 @@ repro/expected_outputs/
   rank_sweep_aggregate.csv
   ci_pack_summary.csv
   ci_ppl_5run.csv
-  paradigm_shift_validation.json
+  validation_cycle.json
 ```
 
 ---

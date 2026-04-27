@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to TensorOS are documented in this file.
+All notable changes to HyperTensor are documented in this file.
 The focus here is code and measured behavior, not release-note marketing.
 
 ---

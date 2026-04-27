@@ -26,6 +26,9 @@ Reference model: **Meta-Llama-3.1-8B-Instruct-Q4_K_M**
 - k=1536: **97.55%** decode — near-lossless throughput
 - k=2048† decode: 101.04% (capped to k=1536 by `AXEX_MANIFOLD_K_MAX`)
 
+> Quality (perplexity) is measured at **k=1536**, not at the throughput-optimal
+> k=1024. PPL at k=1024 has not been measured in this cycle.
+
 **Quality** (WikiText-2, 512-token eval, deterministic across 5 runs):
 
 - Baseline PPL: 6.7902
@@ -83,6 +86,18 @@ What is still research:
 - broad cross-model generalization claims
 - full FFN compression with baseline-level quality retention
 - publication-grade multi-hardware validation
+
+## Repository Layout
+
+- `host/`, `runtime/` — the C11 inference runtime that `build_host.ps1` builds.
+- `docs/` — research papers, whitepaper, readiness notes.
+- `scripts/`, `repro/`, `tests/`, `tools/` — benchmarks, reproduction recipe, tests, helpers.
+- `runtime/nn/axiom_*.c`, `runtime/nn/axiom_*.h` — the manifold / axiom-discovery code
+  (PCA, Christoffel symbols, geodesic projection bases). These are part of the runtime;
+  they implement the compression pipeline described in the whitepaper.
+- `legacy/` — freestanding-OS code (boot, kernel, virt, userland, axiom_vis dumps,
+  kernel Makefile) preserved from the project's TensorOS origin. Not built by
+  `build_host.ps1` and not required at runtime. See [legacy/README.md](legacy/README.md).
 
 ## License
 

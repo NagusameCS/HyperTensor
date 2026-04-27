@@ -1,9 +1,9 @@
-# Paradigm-Shift Cycle (Execution Plan)
+# Validation Cycle (Execution Plan)
 
 Date: 2026-04-27
 Current Phase: **Phase 3 — Transfer**
 
-## What "Paradigm Shift" Means Here
+## What "Validation" Means Here
 
 For this repository, it means:
 
@@ -46,7 +46,7 @@ Exit criteria met (all 6 gates pass — STRONG_CLAIM_READY=True):
 - CI lower-95 reasoning ≥67%: 85.64% ✓
 - PPL delta ≤15%: +13.30% ✓
 
-Validation artifact: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
+Validation artifact: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json` (historical pack; new packs use `validation_cycle.json`)
 
 ## Phase 3: Transfer — ACTIVE
 
@@ -56,7 +56,7 @@ Actions:
 - Run the same validated pack on at least one additional GPU profile (EC2 A-series or A10G recommended)
 - Run on at least one additional ≤8B model family (Gemma-2-9B or Mistral-7B-v0.3 recommended)
 - Record rank sweep aggregate, CI pack, and PPL delta for each new profile
-- Run paradigm_shift_validate.ps1 on each new profile
+- Run validation_cycle.ps1 on each new profile
 
 Exit criteria:
 - Same qualitative rank-tradeoff ordering on second hardware: k=1024 fastest, k=1536/2048 within 15% of baseline

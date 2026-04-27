@@ -181,7 +181,7 @@ $result = [pscustomobject]@{
     strong_claim_ready = $allPassed
 }
 
-$outJson = Join-Path $PackDir "paradigm_shift_validation.json"
+$outJson = Join-Path $PackDir "validation_cycle.json"
 $result | ConvertTo-Json -Depth 6 | Set-Content -Path $outJson
 
 Write-Host "VALIDATION_JSON=$outJson"
