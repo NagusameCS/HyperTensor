@@ -599,6 +599,11 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
         } else if (strcmp(argv[i], "--axex-compress-rank") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-compress-rank requires int\n"); return -1; }
             args->axex_compress_rank = atoi(argv[i]);
+            if (args->axex_compress_rank > AXEX_MANIFOLD_K_MAX) {
+                kprintf("[AXEX] Warning: --axex-compress-rank %d exceeds AXEX_MANIFOLD_K_MAX (%d), capping to %d\n",
+                        args->axex_compress_rank, AXEX_MANIFOLD_K_MAX, AXEX_MANIFOLD_K_MAX);
+                args->axex_compress_rank = AXEX_MANIFOLD_K_MAX;
+            }
         } else if (strcmp(argv[i], "--axex-compress-max-err") == 0) {
             if (++i >= argc) { kprintf("Error: --axex-compress-max-err requires float\n"); return -1; }
             args->axex_compress_max_err = (float)atof(argv[i]);

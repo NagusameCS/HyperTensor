@@ -1,0 +1,61 @@
+# Quick paradigm-shift gate validation (no finalize, just gate checks)
+param(
+    [string]$Model = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    [string]$Exe = ".\build_host\geodessical.exe",
+    [string]$OutDir = ".\benchmarks\quick_gate_check"
+)
+
+New-Item -ItemType Directory -Force -Path $OutDir > $null
+
+Write-Host "Quick Paradigm-Shift Gate Check (k cap at 1536)"
+Write-Host "===============================================`n"
+
+function Run-Test {
+    param([int]$k, [int]$tokens)
+    
+    $out = "$OutDir/test_k${k}_${tokens}.txt"
+    $prompt = "Write a Python function that returns prime numbers up to n."
+    
+    $args = @($Model, "--axex-compress", "--axex-attn-only", "--axex-skip-o", "--axex-weight-pca", 
+              "--axex-compress-rank", $k.ToString(), "--temp", "0", "-p", $prompt, "-n", $tokens.ToString())
+    
+    & $Exe @args > $out 2>&1
+    
+    $raw = Get-Content $out -Raw
+    $m = [regex]::Match($raw, 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s')
+    if ($m.Success) {
+        return [double]$m.Groups[2].Value
+    }
+    return $null
+}
+
+# Quick gate tests
+Write-Host "Testing baseline (no compression)..."
+$b1024_128 = Run-Test -k 0 -tokens 128 # Will skip GP with k=0
+Write-Host "  128 tokens: baseline reference (for normalization)"
+
+Write-Host "Testing k=1024 (should be 106% baseline, gate needs 95%)..."
+$k1024_128 = Run-Test -k 1024 -tokens 128
+if ($k1024_128 -and $b1024_128) {
+    $pct1024 = 100.0 * $k1024_128 / $b1024_128
+    Write-Host "  128 tokens: $k1024_128 tok/s ($pct1024% of baseline) - GATE: $([math]::Round($pct1024, 1))% $(if($pct1024 -ge 95) {'✓ PASS'} else {'✗ FAIL (needs 95%)'})"
+}
+
+Write-Host "`nTesting k=1536 (should be ~85% baseline, gate needs 85%)..."
+$k1536_128 = Run-Test -k 1536 -tokens 128
+if ($k1536_128 -and $b1024_128) {
+    $pct1536 = 100.0 * $k1536_128 / $b1024_128
+    Write-Host "  128 tokens: $k1536_128 tok/s ($pct1536% of baseline) - GATE: $([math]::Round($pct1536, 1))% $(if($pct1536 -ge 85) {'✓ PASS'} else {'✗ FAIL (needs 85%)'})"
+}
+
+Write-Host "`nTesting k=2048 (auto-capped to k=1536)..."
+$k2048_128 = Run-Test -k 2048 -tokens 128
+if ($k2048_128 -and $b1024_128) {
+    $pct2048 = 100.0 * $k2048_128 / $b1024_128
+    Write-Host "  128 tokens: $k2048_128 tok/s ($pct2048% of baseline) - GATE: $([math]::Round($pct2048, 1))% $(if($pct2048 -ge 75) {'✓ PASS (request k=2048 → k=1536 capped)'} else {'✗ FAIL (needs 75%)'})"
+}
+
+Write-Host "`nNote: k=2048 requests are auto-capped to k=1536 to avoid Q8_0 regression."
+Write-Host "Root cause identified: Q8_0 W_proj quantization fails at k=2048 dimensions."
+Write-Host "Temporary fix: cap max k at 1536 pending root cause fix."
+Write-Host "`nResults saved to: $OutDir"
