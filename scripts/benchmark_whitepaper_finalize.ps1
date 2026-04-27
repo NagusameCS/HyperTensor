@@ -2,7 +2,9 @@ param(
     [string]$Model = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
     [string]$Exe = ".\\build_host\\geodessical.exe",
     [string]$OutDir = "",
-    [switch]$ReuseLatestPack
+    [switch]$ReuseLatestPack,
+    [int]$RunTimeoutSec = 900,
+    [int]$PplTimeoutSec = 1200
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,6 +92,42 @@ function Parse-PPL([string]$stdoutPath) {
     return $null
 }
 
+function Stop-StaleGeod {
+    $procs = Get-Process geodessical -ErrorAction SilentlyContinue
+    foreach ($p in $procs) {
+        try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+    }
+}
+
+function Invoke-GeodProcess {
+    param(
+        [string[]]$Argv,
+        [string]$StdoutPath,
+        [string]$StderrPath,
+        [int]$TimeoutSec
+    )
+
+    Stop-StaleGeod
+
+    if (Test-Path $StdoutPath) { Remove-Item -ErrorAction SilentlyContinue $StdoutPath }
+    if (Test-Path $StderrPath) { Remove-Item -ErrorAction SilentlyContinue $StderrPath }
+
+    $safeArgv = @($Argv | Where-Object { $_ -ne $null -and $_.ToString().Length -gt 0 })
+    if ($safeArgv.Count -eq 0) {
+        throw "Invoke-GeodProcess received an empty argument list"
+    }
+
+    $proc = Start-Process -FilePath $Exe -ArgumentList $safeArgv -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath -PassThru -NoNewWindow
+    $finished = $proc.WaitForExit([Math]::Max(1, $TimeoutSec) * 1000)
+    if (-not $finished) {
+        try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+        Stop-StaleGeod
+        return [pscustomobject]@{ exit_code = 124; timed_out = $true }
+    }
+
+    return [pscustomobject]@{ exit_code = $proc.ExitCode; timed_out = $false }
+}
+
 function Invoke-RunCase {
     param(
         [string]$OutDir,
@@ -98,7 +136,7 @@ function Invoke-RunCase {
         [int]$Tokens,
         [string[]]$ExtraArgs,
         [int]$Rep = 1,
-        [int]$Retries = 3
+        [int]$Retries = 5
     )
 
     $safe = ($Label -replace '[^a-zA-Z0-9_\-]', '_')
@@ -121,11 +159,27 @@ function Invoke-RunCase {
     if ($needsRun) {
         $ok = $false
         for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-            & $Exe $Model @ExtraArgs -p $Prompt -n $Tokens 1> $out 2> $err
-            if ($LASTEXITCODE -eq 0) {
+            $runArgs = @($Model) + $ExtraArgs + @('-p', $Prompt, '-n', "$Tokens")
+            $run = Invoke-GeodProcess -Argv $runArgs -StdoutPath $out -StderrPath $err -TimeoutSec $RunTimeoutSec
+            try {
+                if (Test-Path $out) {
+                    $null = Parse-Run $out
+                    $ok = $true
+                    break
+                }
+            } catch {
+                # Keep retrying if output is incomplete or unparseable.
+            }
+            if ($run.exit_code -eq 0) {
                 $ok = $true
                 break
             }
+        }
+        if (-not $ok) {
+            try {
+                $null = Parse-Run $out
+                $ok = $true
+            } catch {}
         }
         if (-not $ok) {
             $detail = Get-RunFailureDetail -StdoutPath $out -StderrPath $err
@@ -152,8 +206,8 @@ function Invoke-PPLCase {
     param(
         [string]$OutPath,
         [string]$ErrPath,
-        [string[]]$Args,
-        [int]$Retries = 3
+        [string[]]$ExtraArgs,
+        [int]$Retries = 5
     )
 
     $needsRun = $true
@@ -170,10 +224,22 @@ function Invoke-PPLCase {
     if ($needsRun) {
         $ok = $false
         for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-            & $Exe $Model @Args 1> $OutPath 2> $ErrPath
-            if ($LASTEXITCODE -eq 0) {
+            $allArgs = @($Model) + $ExtraArgs
+            $run = Invoke-GeodProcess -Argv $allArgs -StdoutPath $OutPath -StderrPath $ErrPath -TimeoutSec $PplTimeoutSec
+            $parsed = Parse-PPL $OutPath
+            if ($null -ne $parsed) {
                 $ok = $true
                 break
+            }
+            if ($run.exit_code -eq 0) {
+                $ok = $true
+                break
+            }
+        }
+        if (-not $ok) {
+            $parsed = Parse-PPL $OutPath
+            if ($null -ne $parsed) {
+                $ok = $true
             }
         }
         if (-not $ok) {
@@ -358,12 +424,12 @@ $pplRows = @()
 for ($i = 1; $i -le 5; $i++) {
     $bo = Join-Path $outDir ("ci_ppl_baseline_rep${i}.txt")
     $be = Join-Path $outDir ("ci_ppl_baseline_rep${i}_err.txt")
-    $bp = Invoke-PPLCase -OutPath $bo -ErrPath $be -Args @('--ppl-eval')
+    $bp = Invoke-PPLCase -OutPath $bo -ErrPath $be -ExtraArgs @('--ppl-eval')
     $pplRows += [pscustomobject]@{ rep = $i; mode = 'baseline'; ppl = $bp; stdout = $bo; stderr = $be }
 
     $go = Join-Path $outDir ("ci_ppl_grc2048_rep${i}.txt")
     $ge = Join-Path $outDir ("ci_ppl_grc2048_rep${i}_err.txt")
-    $gp = Invoke-PPLCase -OutPath $go -ErrPath $ge -Args @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--ppl-eval')
+    $gp = Invoke-PPLCase -OutPath $go -ErrPath $ge -ExtraArgs @('--axex-compress', '--axex-attn-only', '--axex-skip-o', '--axex-weight-pca', '--axex-compress-rank', '2048', '--ppl-eval')
     $pplRows += [pscustomobject]@{ rep = $i; mode = 'grc_k2048'; ppl = $gp; stdout = $go; stderr = $ge }
 }
 $pplCsv = Join-Path $outDir "ci_ppl_5run.csv"

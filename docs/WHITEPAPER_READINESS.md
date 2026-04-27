@@ -1,6 +1,6 @@
 # White Paper Readiness Assessment
 
-Date: 2026-04-26
+Date: 2026-04-27
 
 ## Scope
 
@@ -16,7 +16,7 @@ All performance figures are reported relative to the original baseline model pat
   - benchmarks/whitepaper_matrix_20260425_160512/repeatability_256.csv
 - Perplexity checks (WikiText-2, 512 tokens):
   - baseline PPL = 6.7902
-  - GRC k=2048 PPL = 7.1969
+  - GRC k=2048 PPL = 7.3037
 
 ## Relative-to-Baseline Performance Summary
 
@@ -44,8 +44,8 @@ Interpretation:
 Perplexity (lower is better):
 
 - Baseline: 6.7902
-- GRC k=2048: 7.1969
-- Relative PPL: 106.00% of baseline (approximately +6.00%)
+- GRC k=2048: 7.3037
+- Relative PPL: 107.56% of baseline (approximately +7.56%)
 
 Interpretation:
 
@@ -76,23 +76,24 @@ Current state: Not ready for a proper white paper submission.
 Latest machine-validated gate status (paradigm shift validator):
 
 - Validation artifact: benchmarks/whitepaper_rank_complete_20260425_205838/paradigm_shift_validation.json
+- Validation artifact: benchmarks/whitepaper_pack_20260426_191201/paradigm_shift_validation.json
 - Strong-claim ready: False
 - Gate pass/fail:
-  - k1024 decode >=95%: pass (103.27%)
-  - k1536 decode >=85%: pass (89.02%)
-  - k2048 decode >=75%: fail (46.22%)
-  - k2048 prefill <=150%: fail (244.48%)
-  - CI lower-bound decode >=75%: fail (coding 30.92%, reasoning 21.52%)
-  - PPL delta <= +8%: fail (missing 5-run PPL artifact)
+  - k1024 decode >=95%: fail (83.75%)
+  - k1536 decode >=85%: pass (87.07%)
+  - k2048 decode >=75%: fail (48.23%)
+  - k2048 prefill <=150%: fail (256.82%)
+  - CI lower-bound decode >=75%: fail (coding 63.29%, reasoning 42.98%)
+  - PPL delta <= +8%: pass (+7.56%)
 
 Interpretation:
 
 - The blocker is no longer a narrative judgment. It is now a hard gate failure under a reproducible validator.
-- A complete 5-run PPL file (`ci_ppl_5run.csv`) is still missing from the active CI pack, so quality-gate closure is not yet possible.
+- PPL artifacts are now complete; remaining blockers are throughput and prefill gates.
 
 What is complete:
 
-- Relative quality degradation is measured and moderate (+6% PPL).
+- Relative quality degradation is measured and moderate (+7.56% PPL).
 - Relative speed tradeoff is measured across multiple prompts and lengths.
 - Rank sweep table (1024/1536/2048) is now completed and normalized to baseline.
 
@@ -104,9 +105,9 @@ Why this is not yet ready:
 
 Latest completed rank sweep aggregate (current run state):
 
-- k=1024: decode 103.27% of baseline, overall 101.32%, prefill 104.91%
-- k=1536: decode 89.02% of baseline, overall 88.10%, prefill 119.21%
-- k=2048: decode 46.22% of baseline, overall 45.81%, prefill 244.48%
+- k=1024: decode 83.75% of baseline, overall 81.71%, prefill 119.19%
+- k=1536: decode 87.07% of baseline, overall 85.81%, prefill 127.50%
+- k=2048: decode 48.23% of baseline, overall 47.12%, prefill 256.82%
 
 Interpretation:
 
@@ -117,18 +118,18 @@ Interpretation:
 
 Targeted repeated runs (6 reps each for coding and reasoning at 256 tokens) show similar retention collapse in both prompt classes under affected runs:
 
-- coding decode retention (6-run mean): 39.32%
-- reasoning decode retention (6-run mean): 38.61%
+- coding decode retention (6-run mean): 64.48%
+- reasoning decode retention (6-run mean): 52.32%
 
 Interpretation:
 
-- The gap between coding and reasoning retention is small, so the observed collapse is not coding-specific.
-- The stronger explanation is run-condition instability in those sessions (process-state / warmup / long-run environment effects), not a coding-quality penalty.
+- Both prompt classes degrade materially under compression in this branch, with reasoning currently worse than coding.
+- The stronger explanation remains a runtime/path instability issue rather than a coding-only effect.
 
 5-run confidence slices from the same dataset (reps 1-5) support the same picture:
 
-- Coding decode: baseline 34.10 +/- 3.68 tok/s, GRC 13.24 +/- 1.38 tok/s (38.83% of baseline)
-- Reasoning decode: baseline 32.50 +/- 6.81 tok/s, GRC 12.32 +/- 2.72 tok/s (37.91% of baseline)
+- Coding decode: baseline 29.88 +/- 12.00 tok/s, GRC 20.70 +/- 0.91 tok/s (69.28% of baseline)
+- Reasoning decode: baseline 35.36 +/- 0.95 tok/s, GRC 19.66 +/- 2.28 tok/s (55.60% of baseline)
 
 ## Coding Quality Note
 
@@ -145,5 +146,5 @@ The readiness decision is grounded in baseline-relative quantitative metrics (PP
 
 ## Claim Language Safe to Use Now
 
-- "At k=1024 and k=1536 on Llama-3.1-8B-Instruct-Q4_K_M, current runs show strong baseline-relative throughput retention, while k=2048 is currently regressed and under active investigation."
-- "Quality remains near baseline at the reported PPL pair (6.7902 vs 7.1969), and speed claims are reported strictly as baseline-relative percentages under the current harness."
+- "On Llama-3.1-8B-Instruct-Q4_K_M, k=1536 remains the only rank that currently clears the decode-retention gate in this branch, while k=1024 and k=2048 require regression work."
+- "Quality remains near baseline at the reported PPL pair (6.7902 vs 7.3037), and speed claims are reported strictly as baseline-relative percentages under the current harness."

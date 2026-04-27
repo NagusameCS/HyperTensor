@@ -1,7 +1,11 @@
+param(
+  [string]$OutDir = '.\benchmarks\whitepaper_pack_20260426_191201'
+)
+
 $ErrorActionPreference = 'Stop'
 $MODEL = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 $EXE = ".\build_host\geodessical.exe"
-$OUTDIR = ".\benchmarks\whitepaper_rank_complete_20260425_205838"
+$OUTDIR = $OutDir
 
 function Parse-Run([string]$stdoutPath){
   $raw = Get-Content -Raw -Path $stdoutPath
@@ -15,6 +19,14 @@ function Parse-Run([string]$stdoutPath){
   }
 }
 
+function Resolve-RunPath([string]$baseDir, [string]$label) {
+  $p1 = Join-Path $baseDir ("{0}.txt" -f $label)
+  if (Test-Path $p1) { return $p1 }
+  $p2 = Join-Path $baseDir ("{0}_rep1.txt" -f $label)
+  if (Test-Path $p2) { return $p2 }
+  throw "missing output for label: $label"
+}
+
 $prompts = @(
   @{name='coding'; text='Write a Python function that returns prime numbers up to n.'},
   @{name='reasoning'; text='Explain why gradient clipping helps stabilize training in deep networks.'},
@@ -26,7 +38,7 @@ $tokenList = @(128,256)
 foreach($p in $prompts){
   foreach($t in $tokenList){
     $label = "grc_k2048_{0}_{1}" -f $p.name,$t
-    $out = Join-Path $OUTDIR ("{0}.txt" -f $label)
+    $out = Join-Path $OUTDIR ("{0}_rep1.txt" -f $label)
     $err = Join-Path $OUTDIR ("{0}_err.txt" -f $label)
     Write-Host "Re-running $label"
     & $EXE $MODEL --axex-compress --axex-attn-only --axex-skip-o --axex-weight-pca --axex-compress-rank 2048 --temp 0 -p $p.text -n $t 1> $out 2> $err
@@ -42,13 +54,13 @@ $ranks = @(1024,1536,2048)
 foreach($p in $prompts){
   foreach($t in $tokenList){
     $bLabel = "baseline_{0}_{1}" -f $p.name,$t
-    $bOut = Join-Path $OUTDIR ("{0}.txt" -f $bLabel)
+    $bOut = Resolve-RunPath -baseDir $OUTDIR -label $bLabel
     $b = Parse-Run $bOut
     $rows += [pscustomobject]@{label=$bLabel;prompt=$p.name;tokens=$t;rank=$null;decode_tps=$b.decode_tps;overall_tps=$b.overall_tps;prefill_ms=$b.prefill_ms;generated_tokens=$b.generated_tokens}
 
     foreach($r in $ranks){
       $gLabel = "grc_k{0}_{1}_{2}" -f $r,$p.name,$t
-      $gOut = Join-Path $OUTDIR ("{0}.txt" -f $gLabel)
+      $gOut = Resolve-RunPath -baseDir $OUTDIR -label $gLabel
       $g = Parse-Run $gOut
       $rows += [pscustomobject]@{label=$gLabel;prompt=$p.name;tokens=$t;rank=$r;decode_tps=$g.decode_tps;overall_tps=$g.overall_tps;prefill_ms=$g.prefill_ms;generated_tokens=$g.generated_tokens}
     }

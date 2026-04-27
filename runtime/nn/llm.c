@@ -176,6 +176,28 @@ static int llm_emit_benchmark_debug(void) {
     return enabled;
 }
 
+static int llm_disable_pt_q4(void) {
+    static int initialized = 0;
+    static int disabled = 0;
+    if (!initialized) {
+        const char *env = getenv("AXEX_DISABLE_PT_Q4");
+        disabled = (env && env[0] && env[0] != '0') ? 1 : 0;
+        initialized = 1;
+    }
+    return disabled;
+}
+
+static int llm_disable_fused_kv(void) {
+    static int initialized = 0;
+    static int disabled = 0;
+    if (!initialized) {
+        const char *env = getenv("AXEX_DISABLE_FUSED_KV");
+        disabled = (env && env[0] && env[0] != '0') ? 1 : 0;
+        initialized = 1;
+    }
+    return disabled;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Static Allocations                                                         */
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -206,6 +228,7 @@ static llm_backend_t  llm_backend        = LLM_BACKEND_CPU;
 static int            llm_last_vram_mb   = 0;
 static float          llm_last_prefill_ms_val = 0.0f;
 static float          llm_last_tok_per_sec_val = 0.0f;
+static int            g_logged_dual_q8_kv = 0;
 static uint64_t       g_kv_snap_lookups = 0;  /* total restore attempts */
 static uint64_t       g_kv_snap_hits    = 0;  /* successful restore hits */
 static float          g_last_logit_entropy = 0.0f; /* Shannon entropy of last softmax */
@@ -6608,10 +6631,11 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
             const uint16_t *_gp_dPt_f16 = axex_manifold_d_Pt_f16();
             /* Prefer Q4_0 Pt (2.8x less bandwidth vs F16); fall back to F16 then F32 */
             const void     *_gp_dPt_q4  = axex_manifold_d_Pt_q4();
-            const void *_gp_Pt_ptr  = _gp_dPt_q4  ? _gp_dPt_q4
+            int _disable_pt_q4 = llm_disable_pt_q4();
+            const void *_gp_Pt_ptr  = (!_disable_pt_q4 && _gp_dPt_q4) ? _gp_dPt_q4
                                     : _gp_dPt_f16  ? (const void *)_gp_dPt_f16
                                                    : (const void *)_gp_dPt;
-            ggml_type_t _gp_Pt_type = _gp_dPt_q4  ? GGML_TYPE_Q4_0
+            ggml_type_t _gp_Pt_type = (!_disable_pt_q4 && _gp_dPt_q4) ? GGML_TYPE_Q4_0
                                     : _gp_dPt_f16  ? GGML_TYPE_F16 : GGML_TYPE_F32;
             int  _gp_k  = axex_manifold_k();
             int  _gp_n  = axex_manifold_n();
@@ -6653,6 +6677,10 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
                                 gpu_ctx.d_k, gpu_ctx.d_v,
                                 (void *)_gp_k2->d_W_proj, (void *)_gp_v2->d_W_proj,
                                 gpu_ctx.d_x_sub, lkv_dim, _gp_k);
+                            if (kv_fused && !g_logged_dual_q8_kv) {
+                                kprintf("[GP] fused dual-Q8 K/V GEMV active (layer=%d, k=%d)\n", L, _gp_k);
+                                g_logged_dual_q8_kv = 1;
+                            }
                         }
                         if (!kv_fused) {
                             be->compute.gemv(gpu_ctx.d_k, (void *)_gp_k2->d_W_proj, gpu_ctx.d_x_sub,

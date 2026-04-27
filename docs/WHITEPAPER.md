@@ -1,6 +1,6 @@
 # HyperTensor GRC Whitepaper
 
-Date: 2026-04-26
+Date: 2026-04-27
 
 ## Abstract
 
@@ -101,11 +101,11 @@ $MODEL = "C:\path\to\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 Measured on WikiText-2 (512 tokens):
 
 - Baseline PPL: 6.7902
-- GRC k=2048 PPL: 7.1969
+- GRC k=2048 PPL: 7.3037
 
 Relative quality view:
 
-- GRC PPL is 106.00% of baseline (about +6.00%)
+- GRC PPL is 107.56% of baseline (about +7.56%)
 
 This is close enough for practical proof-of-concept demonstration while remaining honest about the gap.
 
@@ -137,10 +137,10 @@ The results show transient low-throughput events affecting both prompt classes, 
 
 From the completed outlier pack:
 
-- coding decode retention (6-run mean): 39.32%
-- reasoning decode retention (6-run mean): 38.61%
+- coding decode retention (6-run mean): 64.48%
+- reasoning decode retention (6-run mean): 52.32%
 
-The near-equality indicates a shared run-condition issue rather than a coding-only pathology.
+Both prompt classes degrade under compression in this branch; coding remains somewhat higher than reasoning in this cycle.
 
 ## 7. Confidence-Pack Results Used For Claims
 
@@ -148,23 +148,23 @@ The near-equality indicates a shared run-condition issue rather than a coding-on
 
 Coding 256:
 
-- Decode baseline: 34.10 +/- 3.68 tok/s
-- Decode GRC: 13.24 +/- 1.38 tok/s
-- Decode retention: 38.83%
+- Decode baseline: 29.88 +/- 12.00 tok/s
+- Decode GRC: 20.70 +/- 0.91 tok/s
+- Decode retention: 69.28%
 
-- Overall baseline: 31.70 +/- 3.33 tok/s
-- Overall GRC: 12.08 +/- 1.22 tok/s
-- Overall retention: 38.11%
+- Overall baseline: 27.80 +/- 10.98 tok/s
+- Overall GRC: 19.04 +/- 0.94 tok/s
+- Overall retention: 68.49%
 
 Reasoning 256:
 
-- Decode baseline: 32.50 +/- 6.81 tok/s
-- Decode GRC: 12.32 +/- 2.72 tok/s
-- Decode retention: 37.91%
+- Decode baseline: 35.36 +/- 0.95 tok/s
+- Decode GRC: 19.66 +/- 2.28 tok/s
+- Decode retention: 55.60%
 
-- Overall baseline: 30.30 +/- 6.08 tok/s
-- Overall GRC: 11.32 +/- 2.59 tok/s
-- Overall retention: 37.36%
+- Overall baseline: 32.86 +/- 0.83 tok/s
+- Overall GRC: 18.06 +/- 2.11 tok/s
+- Overall retention: 54.96%
 
 These confidence figures are intentionally narrow in scope and tied to the exact run conditions and command path used.
 They support stability analysis for the affected sessions, not broad performance guarantees.
@@ -172,8 +172,11 @@ They support stability analysis for the affected sessions, not broad performance
 ### 7.2 5-run PPL pack
 
 PPL confidence pack artifacts are recorded under the benchmark output directory and used to bound quality claims.
-In this revision cycle, central quality claim remains anchored to the stable 6.7902 vs 7.1969 measurement pair and baseline-relative expression.
-The strict gate check still requires `ci_ppl_5run.csv`; this file is currently missing from the latest CI directory used by the validator.
+Latest 5-run PPL means:
+
+- Baseline: 6.7902
+- GRC k=2048: 7.3037
+- Delta: +7.56%
 
 ## 8. Rank Sweep Status
 
@@ -181,9 +184,9 @@ The baseline-normalized rank sweep is now complete for 1024, 1536, and 2048.
 
 Latest aggregate from the completed sweep:
 
-- k=1024: decode 103.27% of baseline, overall 101.32%, prefill 104.91%
-- k=1536: decode 89.02% of baseline, overall 88.10%, prefill 119.21%
-- k=2048: decode 46.22% of baseline, overall 45.81%, prefill 244.48%
+- k=1024: decode 83.75% of baseline, overall 81.71%, prefill 119.19%
+- k=1536: decode 87.07% of baseline, overall 85.81%, prefill 127.50%
+- k=2048: decode 48.23% of baseline, overall 47.12%, prefill 256.82%
 
 Interpretation:
 
@@ -193,12 +196,13 @@ Interpretation:
 Machine-gate status from `scripts/paradigm_shift_validate.ps1`:
 
 - strong-claim ready: false
-- k1024 decode gate: pass
-- k1536 decode gate: pass
-- k2048 decode gate: fail
-- k2048 prefill gate: fail
-- CI lower-bound throughput gate: fail
-- PPL gate: unresolved/fail due missing `ci_ppl_5run.csv` in current CI artifacts
+- k1024 decode: 83.75%
+- k1536 decode: 87.07%
+- k2048 decode: 48.23%
+- k2048 prefill: 256.82%
+- coding lower-95 throughput retention: 63.29%
+- reasoning lower-95 throughput retention: 42.98%
+- PPL delta: +7.56%
 
 ## 9. What Is Demonstrated Today
 
@@ -239,5 +243,6 @@ Benchmark outputs used in this cycle are under:
 - `benchmarks/whitepaper_matrix_20260425_160512/`
 - `benchmarks/whitepaper_pack_20260425_192208/`
 - `benchmarks/whitepaper_finalize_20260425_rank/`
+- `benchmarks/whitepaper_pack_20260426_191201/`
 
 These include raw stdout/stderr captures and derived CSV files.
