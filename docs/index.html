@@ -45,7 +45,7 @@ nav {
   display: flex; align-items: center; justify-content: space-between;
 }
 .nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
-.nav-brand span { color: var(--accent); }
+.nav-brand span { color: inherit; }
 .nav-links { display: flex; gap: 1.6rem; list-style: none; }
 .nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
 .nav-links a:hover { color: var(--text); }
@@ -190,6 +190,25 @@ footer a:hover { text-decoration: underline; }
 
   <div class="papers">
 
+    <a class="paper-card" href="papers/00-introduction.html">
+      <div class="paper-head">
+        <span class="paper-num">Background article</span>
+        <span class="paper-title">An Introduction to the HyperTensor Papers (For Readers With No Background)</span>
+      </div>
+      <p class="paper-abstract">
+        Long-form teaching article. Assumes no prior knowledge. Covers tensors, neural
+        networks, transformers, attention, the KV cache, GPU bandwidth and cache
+        hierarchy, quantisation and GGUF, PCA / SVD / Eckart&#8209;Young, manifolds and
+        intrinsic dimension, and ends with one plain-English summary per paper plus a
+        vocabulary cheat-sheet. Read this first if any term in the four papers is
+        unfamiliar.
+      </p>
+      <div class="paper-meta">
+        <span><strong>Type:</strong> Article, not a research paper</span>
+        <span><strong>Length:</strong> ~30 minute read</span>
+      </div>
+    </a>
+
     <a class="paper-card" href="papers/01-attention-compression.html">
       <div class="paper-head">
         <span class="paper-num">Paper 1</span>
@@ -251,7 +270,7 @@ footer a:hover { text-decoration: underline; }
         A theoretical framework that motivates Papers 1\u20133 and proposes future
         directions: a Riemannian-manifold view of the trained latent space, an
         $\mathcal{O}(nk^2)$ geodesic forward pass, and Geodesic Trajectory Caching
-        (GTC) \u2014 a self-improving library of inference paths corrected by Jacobi
+        (GTC) &mdash; a self-improving library of inference paths corrected by Jacobi
         fields. Validated only at simulation scale; the diffeomorphism construction is an
         explicitly open problem.
       </p>
@@ -266,7 +285,7 @@ footer a:hover { text-decoration: underline; }
     <strong>Naming note.</strong> Earlier drafts used "GRC" for two different things.
     On this site, <strong>GRC = Geodesic Runtime Compression</strong> (the implemented
     low-rank attention scheme of Paper&nbsp;1). The trajectory-library idea from the
-    theory companion (Paper&nbsp;4) is renamed <strong>GTC \u2014 Geodesic Trajectory
+    theory companion (Paper&nbsp;4) is renamed <strong>GTC &mdash; Geodesic Trajectory
     Caching</strong> to remove the collision.
   </div>
 </section>
@@ -280,8 +299,8 @@ footer a:hover { text-decoration: underline; }
     licence; collaboration on cross-hardware reproduction is welcome.
   </p>
   <p style="color:var(--text-soft); max-width: 640px; margin-top: 1rem;">
-    Reader controls \u2014 light/sepia/dark theme, font size, line height, column width,
-    serif/sans/mono \u2014 are in the floating button at the bottom right of every page.
+    Reader controls &mdash; light/sepia/dark theme, font size, line height, column width,
+    serif/sans/mono &mdash; are in the floating button at the bottom right of every page.
     Settings persist locally.
   </p>
 </section>

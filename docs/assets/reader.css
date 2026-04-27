@@ -139,10 +139,28 @@
 }
 :root[data-theme="dark"] .reader-btn[aria-pressed="true"] { color: #0f1115; }
 
+/* PDF / print button — second floating circle, sits to the left of the
+   reader-settings toggle. Same shape, smaller text label. */
+.reader-toggle.pdf-toggle {
+  right: calc(1.1rem + 56px);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 /* ─── Hide controls for print ─── */
 @media print {
-  .reader-toggle, .reader-panel { display: none !important; }
-  :root { --bg: #fff; --text: #000; }
+  .reader-toggle, .reader-panel, nav, footer { display: none !important; }
+  :root { --bg: #fff; --text: #000; --bg-soft: #fafafa; --bg-code: #f0f0f0; --border: #ccc; }
+  html { font-size: 12pt; }
+  body { background: #fff !important; color: #000 !important; }
+  main, header, section { break-inside: avoid-page; }
+  h1, h2, h3 { break-after: avoid-page; }
+  pre, table, .table-wrap, .callout { break-inside: avoid; }
+  a { color: #000 !important; text-decoration: none !important; }
+  a.repo-link, a.term { border: none !important; }
+  /* Reset reader-controlled width to a print-friendly column */
+  :root[data-width] { --max-w: 7in; }
 }
 
 /* ─── Dark-mode visibility patches ──────────────────────

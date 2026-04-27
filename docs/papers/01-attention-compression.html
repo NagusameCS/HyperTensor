@@ -83,7 +83,7 @@ nav {
   color: var(--text);
   text-decoration: none;
 }
-.nav-brand span { color: var(--accent); }
+.nav-brand span { color: inherit; }
 .nav-links { display: flex; gap: 2rem; list-style: none; }
 .nav-links a {
   font-size: 0.85rem;
@@ -433,6 +433,7 @@ section { animation: fadeUp .4s ease both; }
     <li><a href="#limitations">Limitations</a></li>
     <li><a href="#reproduce">Reproduce</a></li>
     <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
     <li><a href="../whitepaper.html">Whitepaper</a></li>
   </ul>
 </nav>
@@ -562,7 +563,7 @@ section { animation: fadeUp .4s ease both; }
   <h2>The Simple Version: What We Built and Why It Matters</h2>
 
   <div class="callout intuition">
-    <div class="callout-title">🎓 If you're new to AI — start here</div>
+    <div class="callout-title">If you're new to AI &mdash; start here</div>
     <p>This section explains everything without equations. Skip to §2 for the technical content.</p>
   </div>
 
@@ -631,7 +632,7 @@ section { animation: fadeUp .4s ease both; }
     compression at all.
   </p>
   <div class="callout finding">
-    <div class="callout-title">🔍 The key finding</div>
+    <div class="callout-title">The key finding</div>
     <p>
       Compressing the attention weights to 25% of their original size made the GPU generate tokens
       <em>faster</em> than using the full-size weights. The reason: the compressed matrices are

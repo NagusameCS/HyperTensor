@@ -47,6 +47,19 @@
   var state = load();
   apply(state);
 
+  // Favicon: site-wide GitHub avatar. Injected once if absent so we don't
+  // have to thread a <link rel="icon"> through every HTML file.
+  function ensureFavicon() {
+    if (!document || !document.head) return;
+    if (document.querySelector('link[rel="icon"]')) return;
+    var l = document.createElement('link');
+    l.rel = 'icon';
+    l.type = 'image/png';
+    l.href = 'https://github.com/NagusameCS.png';
+    document.head.appendChild(l);
+  }
+  ensureFavicon();
+
   function buildPanel() {
     var toggle = document.createElement('button');
     toggle.className = 'reader-toggle';
@@ -171,6 +184,20 @@
 
     document.body.appendChild(toggle);
     document.body.appendChild(panel);
+
+    // Print/Save-as-PDF button (paper pages only). Browsers' built-in
+    // "Save as PDF" target in the print dialog is the simplest way to give
+    // readers a downloadable PDF without bundling a JS PDF generator.
+    if (/\/papers\//.test(location.pathname) || /\bwhitepaper\.html$/.test(location.pathname)) {
+      var pdfBtn = document.createElement('button');
+      pdfBtn.className = 'reader-toggle pdf-toggle';
+      pdfBtn.setAttribute('aria-label', 'Print or save as PDF');
+      pdfBtn.title = 'Print / Save as PDF';
+      // Simple printer glyph (unicode), no emoji.
+      pdfBtn.textContent = 'PDF';
+      pdfBtn.addEventListener('click', function () { window.print(); });
+      document.body.appendChild(pdfBtn);
+    }
   }
 
   if (document.readyState === 'loading') {

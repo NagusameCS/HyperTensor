@@ -33,7 +33,7 @@ html { scroll-behavior: smooth; font-size: 17px; }
 body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; -webkit-font-smoothing: antialiased; }
 nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
 .nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
-.nav-brand span { color: var(--accent); }
+.nav-brand span { color: inherit; }
 .nav-links { display: flex; gap: 1.6rem; list-style: none; }
 .nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
 .nav-links a:hover { color: var(--text); }
@@ -74,6 +74,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
   <ul class="nav-links">
     <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
     <li><a href="01-attention-compression.html">Paper 1</a></li>
     <li><a href="03-speculative-decoding.html">Paper 3</a></li>
     <li><a href="04-organic-training-theory.html">Paper 4</a></li>
