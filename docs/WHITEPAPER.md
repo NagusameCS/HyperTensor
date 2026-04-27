@@ -663,8 +663,7 @@ Vulkan compute, or CPU-only execution. Reproducing results requires an NVIDIA GP
 - **Generalisability across hardware.** The L2-cache-fit effect that produces the k=1024
   super-baseline result is specific to the Ada Lovelace microarchitecture with 8 GB GDDR6.
   Different GPUs (RTX 4090, A100, H100, Apple M-series) have different cache hierarchies and
-  bandwidth profiles. Cross-hardware testing is a known scope limitation; the author is an
-  independent student researcher with access to one GPU.
+  bandwidth profiles. Cross-hardware testing is a known scope limitation.
 - **Generalisability across models.** Only Llama-3.1-8B-Instruct at Q4_K_M was tested.
   Behaviour on models with different head counts, head dimensions, or architectures is unknown.
   Phase 3 cross-model testing (Mistral-7B-v0.1) is in progress.
@@ -675,7 +674,7 @@ Vulkan compute, or CPU-only execution. Reproducing results requires an NVIDIA GP
   context lengths has not been evaluated.
 - **Task-level quality.** No MMLU, HumanEval, or other benchmark evaluation was performed.
 
-### 10.3 Methodological gaps (single-student infrastructure)
+### 10.3 Methodological gaps
 
 Beyond the above, the following methodological gaps are documented honestly so that
 reviewers can calibrate the strength of the claims:
@@ -742,7 +741,7 @@ Gate validation:
 | 1     | Eliminate measurement instability   | **Complete** — root cause: GPU thermal throttling; fixed with 30s cooldown      |
 | 2     | Validate under locked protocol      | **Complete** — all 7 gates pass, pack `whitepaper_pack_20260427_121815`         |
 | 3     | Cross-model transfer                | **In progress** — Mistral-7B-v0.1 Q4_K_M benchmark queued                     |
-| 3     | Cross-hardware transfer             | **Blocked** — single-GPU constraint (independent student researcher)            |
+| 3     | Cross-hardware transfer             | **Blocked** — single-GPU constraint                                             |
 | 4     | External reproduction package       | **Complete** — `repro/REPRODUCE.md` + `repro/expected_outputs/` committed       |
 
 ---

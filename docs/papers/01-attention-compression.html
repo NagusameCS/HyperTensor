@@ -434,7 +434,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ HERO ════════════════ -->
 <div id="hero">
-  <div class="hero-tag">Independent Research Report · April 2026</div>
+  <div class="hero-tag">Research Report · April 2026</div>
   <h1 class="hero-title">HyperTensor / Geodesic Runtime Compression</h1>
   <p class="hero-subtitle">
     A calibration-free attention-weight compression scheme, and an unexpected
@@ -1681,14 +1681,14 @@ section { animation: fadeUp .4s ease both; }
 
   <h3>11.5.3 Honest scope of the implications</h3>
   <p>
-    This is a single-student project. We do not claim a new state of the art on any benchmark
-    leaderboard, and we do not have the resources to run the head-to-head comparisons that
-    would be needed to make such a claim (see §<a href="#limitations">12.3</a>). What this
-    report can offer is a clean, reproducible empirical observation, an honest account of why
-    we think it occurs, and a list of concrete experiments that other groups with more
-    infrastructure would be well-placed to run. The cross-hardware sweep, the Nsight Compute
-    counter trace, and the Q8_0/fp16 W_proj re-measurement are, in our view, the three
-    follow-ups most likely to be informative. We invite collaboration on any of them.
+    This report does not claim a new state of the art on any benchmark leaderboard, and
+    the head-to-head comparisons that would be needed to make such a claim (see
+    §<a href="#limitations">12.3</a>) have not been run. What it offers is a clean,
+    reproducible empirical observation, an account of why we think it occurs, and a list
+    of concrete experiments that other groups would be well-placed to run. The
+    cross-hardware sweep, the Nsight Compute counter trace, and the Q8_0/fp16 W_proj
+    re-measurement are the three follow-ups most likely to be informative. Collaboration
+    on any of them is welcome.
   </p>
 </section>
 
@@ -1700,9 +1700,9 @@ section { animation: fadeUp .4s ease both; }
   <div class="callout warning">
     <div class="callout-title">Scope of validation</div>
     <p>All results in this paper are from a single GPU (RTX 4070 Laptop) and a single model
-    (Llama-3.1-8B-Instruct Q4_K_M). This is an independent high school research project with
-    access to one GPU. Cross-hardware and cross-model transfer experiments are in progress
-    (Phase 3) but incomplete. Claims about generality are unsupported by current data.</p>
+    (Llama-3.1-8B-Instruct Q4_K_M). Cross-hardware and cross-model transfer experiments are
+    in progress (Phase 3) but incomplete. Claims about generality are unsupported by current
+    data.</p>
   </div>
 
   <h3>12.1 What Is and Is Not Demonstrated</h3>
@@ -1756,9 +1756,8 @@ section { animation: fadeUp .4s ease both; }
 
   <h3>12.3 Methodological Gaps (What This Paper Does <em>Not</em> Establish)</h3>
   <p>
-    Beyond the technical constraints above, the following methodological gaps reflect
-    single-student infrastructure limits and are documented honestly so that reviewers
-    can calibrate the strength of the claims:
+    Beyond the technical constraints above, the following methodological gaps are
+    documented so that reviewers can calibrate the strength of the claims:
   </p>
   <div class="table-wrap">
     <table>
@@ -2027,11 +2026,6 @@ PPL baseline: 6.7902  |  PPL GRC k=1536: 7.6936  |  delta: +13.30%</code></pre>
     <a href="../index.html">All papers</a> &middot;
     <a href="../whitepaper.html">Whitepaper</a> &middot;
     <a href="../WHITEPAPER.md">Whitepaper (Markdown)</a>
-  </p>
-  <p style="margin-top:0.5rem;">
-    Single-student, single-GPU, single-model project. Code, data, and analysis scripts are
-    open under the repository's licence. Collaboration on cross-hardware reproduction,
-    Nsight counter measurement, and head-to-head AWQ/GPTQ comparisons is welcome.
   </p>
 </footer>
 
