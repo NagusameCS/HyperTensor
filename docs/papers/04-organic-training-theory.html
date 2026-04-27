@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organic Training Theory and Geodesic Trajectory Caching — HyperTensor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>
+:root { --bg:#fff; --bg-soft:#f9f9f8; --bg-code:#f4f4f4; --border:#e5e5e5; --text:#1a1a1a; --text-soft:#5c5c5c; --accent:#c0392b; --accent-l:#e74c3c; --blue:#2d6be4; --green:#1a7a4a; --yellow-bg:#fffbeb; --blue-bg:#eef4ff; --green-bg:#edfbf3; --red-bg:#fff5f5; --max-w:780px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+.nav-brand span { color: var(--accent); }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+#hero { max-width: var(--max-w); margin: 0 auto; padding: 5rem 1.5rem 2.5rem; text-align: center; }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); background: var(--blue-bg); border: 1px solid var(--border); border-radius: 2rem; padding: 0.3em 0.9em; margin-bottom: 1.4rem; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; margin-bottom: 0.9rem; }
+.meta { color: var(--text-soft); font-size: 0.92rem; }
+main { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+section { padding: 2.5rem 0; border-top: 1px solid var(--border); }
+section:first-child { border-top: 0; padding-top: 0; }
+.section-num { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--text-soft); letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+p, li { margin-bottom: 0.85rem; }
+ul, ol { padding-left: 1.4rem; margin-bottom: 1rem; }
+code { font-family: 'IBM Plex Mono', monospace; font-size: 0.86em; background: var(--bg-code); padding: 0.1em 0.4em; border-radius: 3px; }
+.math-block { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.2rem; margin: 1rem 0; text-align: center; overflow-x: clip; }
+.math-block mjx-container { max-width: 100%; }
+.callout { background: var(--bg-soft); border-left: 3px solid var(--blue); padding: 0.9rem 1.1rem; margin: 1.4rem 0; border-radius: 0 6px 6px 0; }
+.callout.warning { border-left-color: var(--accent); background: var(--red-bg); }
+.callout.info { border-left-color: var(--blue); background: var(--blue-bg); }
+.callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
+table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; }
+th { background: var(--bg-soft); font-weight: 600; }
+footer { max-width: var(--max-w); margin: 3rem auto 0; padding: 2rem 1.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--text-soft); font-size: 0.85rem; }
+footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="tag">Paper 4 &middot; Theory + Simulation</div>
+  <h1>Organic Training Theory and Geodesic Trajectory Caching</h1>
+  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research, 2026</p>
+</header>
+
+<main>
+
+<section id="framing">
+  <div class="callout warning">
+    <div class="callout-title">Read this first \u2014 framing of this paper</div>
+    <p>
+      Papers&nbsp;1, 2, and 3 are <em>empirical</em>. They report measurements on real
+      hardware running real LLMs. This paper is different. It is a
+      <strong>theoretical framework</strong> with a 25-test simulation suite and
+      <strong>no LLM-scale validation</strong>. Where it claims a speedup figure (e.g.
+      4800\u00d7 at $n{=}32{,}768$), that figure is conditional on solving an open
+      problem (the diffeomorphism $\phi$ that absorbs softmax and LayerNorm into
+      Christoffel curvature). We flag the open problem at the front rather than the
+      back so the reader is not surprised. This paper exists to motivate the empirical
+      papers and to lay out a research direction; it should not be read as a
+      benchmark-leaderboard claim.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">\u00a70 \u2014 Abstract</span>
+  <h2>One paragraph</h2>
+  <p>
+    We treat the trained latent space of a transformer as a Riemannian manifold
+    $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30\u201350$, equipped with a
+    Fisher-information metric. Under this view, inference is approximately the solution
+    of the geodesic equation, with cost $\mathcal{O}(nk^2)$ rather than the standard
+    $\mathcal{O}(n^2 d L)$. We further propose <strong>Geodesic Trajectory Caching
+    (GTC)</strong>: a self-improving library of stored geodesics, where new queries are
+    served by applying a Jacobi-field linear correction to the nearest stored
+    trajectory at cost $\mathcal{O}(k^2)$ per query. We connect this framework to
+    Block Attention Residuals (AttnRes, Kimi&nbsp;Team 2026) by interpreting AttnRes
+    weights as depth-wise geodesic segment selection on $\mathcal{M}_\theta$. All claims
+    are validated only at simulation scale; the construction of the diffeomorphism
+    $\phi$ that would make the framework deployable is left as an open problem.
+  </p>
+</section>
+
+<section id="renaming">
+  <span class="section-num">\u00a70.5 \u2014 Naming</span>
+  <h2>"GRC" disambiguation</h2>
+  <p>
+    The earlier draft of this paper used "GRC" for Geodesic Resonance Caching. Paper&nbsp;1
+    on this site uses "GRC" for Geodesic Runtime Compression \u2014 a different,
+    implemented thing. To remove the collision, the trajectory-library idea is renamed
+    in this paper to <strong>Geodesic Trajectory Caching (GTC)</strong>. The
+    "resonance" terminology was always slightly metaphorical; the substantive content
+    is the trajectory library plus the Jacobi correction, which the new name reflects
+    more accurately.
+  </p>
+</section>
+
+<section id="ott">
+  <span class="section-num">\u00a71 \u2014 Organic Training Theory</span>
+  <h2>The manifold view</h2>
+  <p>
+    Let $\theta \in \mathbb{R}^P$ be the trained weights. Define
+  </p>
+  <div class="math-block">
+    $$\mathcal{M}_\theta = \{x \in \mathbb{R}^d : x = f_\theta(\text{tokens}) \text{ for some input}\}$$
+  </div>
+  <p>
+    with metric approximated by the Fisher Information matrix. Empirical intrinsic
+    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30\u201350$
+    for current LLMs despite $d \in \{4096, 8192\}$. Inference under this view solves
+    the geodesic equation with cost $\mathcal{O}(nk^2)$.
+  </p>
+  <p>
+    <em>This section will reproduce the OTT material from the original PDF, with
+    citations to the linear-representation-probing literature that supports the
+    low-dimensional structure claim.</em>
+  </p>
+</section>
+
+<section id="gtc">
+  <span class="section-num">\u00a72 \u2014 Geodesic Trajectory Caching</span>
+  <h2>Storing geodesics, correcting cheaply</h2>
+  <p>
+    Each completed inference produces a full geodesic trajectory, not just an answer.
+    We propose storing these trajectories \u2014 the embedding, contextual velocity,
+    waypoint sequence, Jacobi propagator $J(\lambda) \in \mathbb{R}^{k \times k}$, an
+    injectivity radius estimate, and the terminal logits \u2014 in a library indexed by
+    nearest-neighbour search. New queries within the validity radius are served by a
+    single $\mathcal{O}(k^2)$ matrix-vector product:
+  </p>
+  <div class="math-block">
+    $$x^\mu(\lambda) = \bar{x}^\mu(\lambda) + J(\lambda) \cdot \delta q + \mathcal{O}(\|\delta q\|^2)$$
+  </div>
+  <p>
+    The Jacobi equation is linear, so a batch of similar queries can be corrected in a
+    single matmul \u2014 a "resonance" effect where throughput rises rather than falls
+    under load. The simulation suite verifies linearity (err $7.3 \times 10^{-13}$),
+    superposition ($1.6 \times 10^{-17}$), and exactness in flat regions ($5.6 \times
+    10^{-17}$). On a synthetic mixture-of-Gaussians query distribution, the library
+    converges to a 92% hit rate while storing only 7.8% of seen queries.
+  </p>
+</section>
+
+<section id="attnres">
+  <span class="section-num">\u00a73 \u2014 Connection to Attention Residuals</span>
+  <h2>AttnRes as depth-wise geodesic segment selection</h2>
+  <p>
+    Block AttnRes (Kimi&nbsp;Team, arXiv:2603.15031) replaces fixed PreNorm residual
+    accumulation with a softmax over learned pseudo-queries against block summaries.
+    Under the manifold interpretation, block summaries $b_n$ are waypoints on the
+    geodesic, and the AttnRes attention weights $\alpha_{n \to l}$ select a convex
+    combination of those waypoints. This re-anchors the hidden state to
+    $\mathcal{M}_\theta$, mitigating the $\mathcal{O}(\sqrt{L})$ magnitude inflation
+    that PreNorm produces. Importantly, this connection is testable: AttnRes weights
+    should concentrate on the block whose cached representation is geodesically nearest
+    to the current state. We verify this in the simulation suite (8/8 trials).
+  </p>
+  <p>
+    The HyperTensor runtime ships an independent implementation of AttnRes
+    (<code>--attnres</code>); Paper&nbsp;3 reports its empirical interaction with
+    compression. Theory and practice meet there.
+  </p>
+</section>
+
+<section id="open">
+  <span class="section-num">\u00a74 \u2014 Open problems</span>
+  <h2>What is missing</h2>
+  <ol>
+    <li>
+      <strong>The diffeomorphism $\phi$.</strong> An explicit map absorbing softmax and
+      LayerNorm into Christoffel curvature is not constructed. Until $\phi$ is
+      constructed, OTT is a framework, not a deployment.
+    </li>
+    <li>
+      <strong>Geodesic initial velocity $v_0$.</strong> Computing the contextual
+      direction without running full attention requires a closed-form expression for
+      $v_0$ in terms of the Christoffel symbols and the input embedding. Approximations
+      exist; rigorous derivation does not.
+    </li>
+    <li>
+      <strong>Jacobi propagator construction cost.</strong> Building $J(\lambda)$
+      requires $\mathcal{O}(k \cdot N_w \cdot k)$ operations per record. At
+      library-construction time this is non-trivial.
+    </li>
+    <li>
+      <strong>AttnRes + GTC joint training.</strong> If GTC is to correct AttnRes
+      block summaries via Jacobi fields, the training objective must encourage
+      Jacobi-smooth trajectories in block-summary space.
+    </li>
+    <li>
+      <strong>Injectivity radius estimation.</strong> Estimating $\rho(\bar{q})$
+      cheaply per record needs local curvature information that is expensive from
+      scratch.
+    </li>
+  </ol>
+</section>
+
+<section id="status">
+  <span class="section-num">Status</span>
+  <h2>Where this paper sits</h2>
+  <p>
+    Honest framing: theoretical proposal with simulation tests. Speedup numbers are
+    conditional on the open problems above. Treat it as a research direction, not as a
+    benchmark claim. The HyperTensor empirical papers (1, 2, 3) implement what is
+    currently implementable from this framework: Paper&nbsp;1 the calibration-free
+    basis, Paper&nbsp;2 the multi-slot manifold compression, Paper&nbsp;3 the
+    composition with AttnRes. GTC itself is unimplemented.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    <a href="../index.html">\u2190 Back to all papers</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Composing Compression: Speculative Decoding and AttnRes — HyperTensor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>
+:root { --bg:#fff; --bg-soft:#f9f9f8; --bg-code:#f4f4f4; --border:#e5e5e5; --text:#1a1a1a; --text-soft:#5c5c5c; --accent:#c0392b; --accent-l:#e74c3c; --blue:#2d6be4; --green:#1a7a4a; --yellow-bg:#fffbeb; --blue-bg:#eef4ff; --green-bg:#edfbf3; --red-bg:#fff5f5; --max-w:780px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+.nav-brand span { color: var(--accent); }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+#hero { max-width: var(--max-w); margin: 0 auto; padding: 5rem 1.5rem 2.5rem; text-align: center; }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); background: var(--red-bg); border: 1px solid var(--border); border-radius: 2rem; padding: 0.3em 0.9em; margin-bottom: 1.4rem; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; margin-bottom: 0.9rem; }
+.meta { color: var(--text-soft); font-size: 0.92rem; }
+main { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+section { padding: 2.5rem 0; border-top: 1px solid var(--border); }
+section:first-child { border-top: 0; padding-top: 0; }
+.section-num { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--text-soft); letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+p, li { margin-bottom: 0.85rem; }
+ul, ol { padding-left: 1.4rem; margin-bottom: 1rem; }
+code { font-family: 'IBM Plex Mono', monospace; font-size: 0.86em; background: var(--bg-code); padding: 0.1em 0.4em; border-radius: 3px; }
+.callout { background: var(--bg-soft); border-left: 3px solid var(--accent); padding: 0.9rem 1.1rem; margin: 1.4rem 0; border-radius: 0 6px 6px 0; }
+.callout.warning { border-left-color: var(--accent); background: var(--red-bg); }
+.callout.info { border-left-color: var(--blue); background: var(--blue-bg); }
+.callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
+footer { max-width: var(--max-w); margin: 3rem auto 0; padding: 2rem 1.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--text-soft); font-size: 0.85rem; }
+footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="tag">Paper 3 &middot; Draft</div>
+  <h1>Composing Compression: Geodesic Speculative Decoding and Attention Residuals</h1>
+  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research, 2026</p>
+</header>
+
+<main>
+
+<section id="status">
+  <div class="callout warning">
+    <div class="callout-title">Drafting</div>
+    <p>
+      Paper&nbsp;3 is the most exploratory of the four. It composes ideas already
+      implemented in the runtime (geodesic speculative decode, AttnRes) and asks
+      whether they actually help once the compression of Papers&nbsp;1\u20132 is in place.
+      The benchmark pass that produces the headline numbers has not been run yet.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">\u00a70 \u2014 Abstract (planned)</span>
+  <h2>What this paper will say</h2>
+  <p>
+    Compression and inference tricks compose poorly in general. We characterise two
+    specific compositions that the HyperTensor runtime already supports: (a) using a
+    GP-compressed model as the draft generator in speculative decoding against the
+    full-precision baseline (<code>llm_generate_geodesic_speculative</code>), and (b)
+    layering Block Attention Residuals (AttnRes) on top of compressed attention to test
+    whether the depth-memory mechanism survives rank reduction. We report acceptance
+    rates, end-to-end throughput, and quality deltas, and we flag the cases where the
+    composition is a wash or a loss.
+  </p>
+</section>
+
+<section id="outline">
+  <span class="section-num">Outline</span>
+  <h2>Sections, in order</h2>
+
+  <h3>1. Why compose</h3>
+  <p>
+    Speculative decoding wins by amortising the cost of verification across multiple
+    accepted tokens. AttnRes wins by mitigating PreNorm dilution. Compression saves
+    bandwidth. Each is well-studied alone; the question is whether they fight each
+    other. Concretely: a high-compression draft model produces drafts that diverge from
+    the verifier's distribution, dropping acceptance rate. AttnRes adds a softmax over
+    block summaries, which shifts the weight-magnitude profile that low-rank
+    decomposition is exploiting. Both interactions are non-obvious.
+  </p>
+
+  <h3>2. Geodesic speculative decoding (already in runtime)</h3>
+  <p>
+    The <code>--ott-speculative</code> mode runs the GP-compressed model as a drafter
+    and the full transformer as a verifier. Drafts produced by the geodesic-first decode
+    path are rejection-sampled against the full distribution. We characterise:
+  </p>
+  <ul>
+    <li>Acceptance rate vs draft length and vs compression rank.</li>
+    <li>End-to-end tok/s vs baseline (full transformer) and vs Paper&nbsp;1's compression-only configuration.</li>
+    <li>The <code>--no-verifier</code> ablation: drafts emitted directly. How much quality is lost in exchange for the verifier's cost.</li>
+  </ul>
+  <p><em>Implementation exists; benchmark pass to be run on EC2 (compute approved).</em></p>
+
+  <h3>3. Attention Residuals at low rank</h3>
+  <p>
+    The runtime exposes <code>--attnres</code> (default strength 0.35). We compare
+    PreNorm vs AttnRes at three compression levels: uncompressed baseline, $k=1024$
+    (Paper 1's configuration), and a heavier setting. Hypotheses to test:
+  </p>
+  <ul>
+    <li>AttnRes's depth-memory benefit survives compression (good case).</li>
+    <li>AttnRes's softmax-over-block-summaries amplifies the rank-reduction error (bad case).</li>
+    <li>Hidden-state magnitude growth (the Kimi paper's $\sqrt{L}$ envelope) interacts with the compressed Frobenius error in a measurable way.</li>
+  </ul>
+  <p><em>Implementation exists; PPL + perplexity-by-depth measurements pending.</em></p>
+
+  <h3>4. KV-cache geodesic compression</h3>
+  <p>
+    Brief section on <code>--axex-kv</code>: applying the same projection basis to
+    the KV cache. This is a memory-footprint result more than a throughput result and
+    fits naturally as a sub-section here.
+  </p>
+
+  <h3>5. What composes and what doesn't</h3>
+  <p>
+    A frank table. We expect at least one of the three compositions to be a loss; the
+    point of the paper is to be specific about which.
+  </p>
+</section>
+
+<section id="status-tracker">
+  <span class="section-num">Status</span>
+  <h2>What is missing before this is publishable</h2>
+  <ul>
+    <li>Speculative-decode acceptance rate sweep.</li>
+    <li>AttnRes vs PreNorm PPL at multiple compression ranks.</li>
+    <li>KV-cache compression footprint + quality numbers.</li>
+    <li>Citation pass (Kimi AttnRes, vLLM, EAGLE, Medusa, draft-and-verify lineage).</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    <a href="../index.html">\u2190 Back to all papers</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

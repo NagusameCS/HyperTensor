@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geodesic Projection: A Production Compression Pipeline — HyperTensor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>
+:root {
+  --bg:#fff; --bg-soft:#f9f9f8; --bg-code:#f4f4f4;
+  --border:#e5e5e5; --text:#1a1a1a; --text-soft:#5c5c5c;
+  --accent:#c0392b; --accent-l:#e74c3c;
+  --blue:#2d6be4; --green:#1a7a4a;
+  --yellow-bg:#fffbeb; --blue-bg:#eef4ff;
+  --green-bg:#edfbf3; --red-bg:#fff5f5;
+  --max-w:780px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+.nav-brand span { color: var(--accent); }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+#hero { max-width: var(--max-w); margin: 0 auto; padding: 5rem 1.5rem 2.5rem; text-align: center; }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); background: var(--red-bg); border: 1px solid var(--border); border-radius: 2rem; padding: 0.3em 0.9em; margin-bottom: 1.4rem; }
+.tag.draft { color: var(--accent); }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; margin-bottom: 0.9rem; }
+.meta { color: var(--text-soft); font-size: 0.92rem; }
+.meta a { color: var(--blue); text-decoration: none; }
+main { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+section { padding: 2.5rem 0; border-top: 1px solid var(--border); }
+section:first-child { border-top: 0; padding-top: 0; }
+.section-num { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--text-soft); letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; margin-bottom: 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+p, li { margin-bottom: 0.85rem; }
+ul, ol { padding-left: 1.4rem; margin-bottom: 1rem; }
+code { font-family: 'IBM Plex Mono', monospace; font-size: 0.86em; background: var(--bg-code); padding: 0.1em 0.4em; border-radius: 3px; }
+.callout { background: var(--bg-soft); border-left: 3px solid var(--accent); padding: 0.9rem 1.1rem; margin: 1.4rem 0; border-radius: 0 6px 6px 0; }
+.callout.warning { border-left-color: var(--accent); background: var(--red-bg); }
+.callout.info    { border-left-color: var(--blue);   background: var(--blue-bg); }
+.callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
+footer { max-width: var(--max-w); margin: 3rem auto 0; padding: 2rem 1.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--text-soft); font-size: 0.85rem; }
+footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="tag draft">Paper 2 &middot; Draft</div>
+  <h1>Geodesic Projection: A Production Compression Pipeline for LLM Inference</h1>
+  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research, 2026</p>
+</header>
+
+<main>
+
+<section id="status">
+  <div class="callout warning">
+    <div class="callout-title">Drafting</div>
+    <p>
+      This paper is being assembled from work that already exists in the
+      <code>geodessical</code> runtime. The numbers exist; the writeup does not, yet.
+      What follows is the planned outline. Sections marked <em>"data exists"</em>
+      have measurements in the repository already; sections marked <em>"to be measured"</em>
+      need a benchmark pass before the paper is publishable.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">\u00a70 \u2014 Abstract (planned)</span>
+  <h2>What this paper will say</h2>
+  <p>
+    Paper&nbsp;1 isolates a single design choice (calibration-free, attention-only,
+    fixed rank) and measures throughput on one model. The HyperTensor runtime ships
+    with a more general compression pipeline: <strong>Geodesic Projection (GP)</strong>,
+    a per-layer, per-matrix compression scheme covering all of Q, K, V, O, FFN&nbsp;up,
+    FFN&nbsp;gate, and (via a dedicated SVD path) FFN&nbsp;down. The pipeline includes
+    a persistent geometry cache, an OTT depth-sink shortcut, and an early-cache fast
+    path that takes 70B-class startup from minutes to under a minute. We characterise
+    GP across SmolLM2-135M, Phi-3.5-mini, Llama-3.1-8B, and a 70B target.
+  </p>
+</section>
+
+<section id="outline">
+  <span class="section-num">Outline</span>
+  <h2>Sections, in order</h2>
+
+  <h3>1. From Paper 1 to GP</h3>
+  <p>
+    Paper 1 stops at attention-only and rank=$k$ shared across layers. GP generalises
+    along three axes: per-matrix slots, per-layer rank selection (MCR/Ricci heuristic
+    with a $k$-floor), and a separate FFN&nbsp;down SVD path. We lay out the seven slots
+    and why the FFN-down path is special. <em>Data exists.</em>
+  </p>
+
+  <h3>2. The persistent geometry cache</h3>
+  <p>
+    The runtime serialises the discovered manifold geometry to <code>ott_geometry.bin</code>
+    and the per-matrix projection bases to a W_proj cache, both keyed by a hash of the
+    model weights and the configured rank. With both caches warm, Llama-3.1-8B starts in
+    under a second; the 70B target moves from \u224870 minutes (full axiom run) to under a
+    minute (cache hit). We document the cache layout, the geometry-peek shortcut for the
+    depth-sink layer, and the safety check on cache invalidation. <em>Data exists.</em>
+  </p>
+
+  <h3>3. Per-model results</h3>
+  <p>
+    Cross-model walk: SmolLM2-135M (k=509, 88.37%, fluent text at 165 tok/s),
+    Phi-3.5-mini-3.8B (rank=128, ~13.7 tok/s but quality degraded \u2014 honest negative
+    result: 91.7% compression is too aggressive on $d{=}3072$),
+    Llama-3.1-8B-Q4_K_M (the Paper&nbsp;1 numbers, plus FFN-included variants), and the
+    70B target (startup, VRAM budget, speedup vs CPU-FFN-via-PCIe baseline).
+    <em>Data exists; needs cleanup.</em>
+  </p>
+
+  <h3>4. Where GP wins and where it loses</h3>
+  <p>
+    A frank quality\u2013speed table. GP at low rank on small-$d$ models produces
+    incoherent text; GP at moderate rank on large-$d$ models is a clean throughput win.
+    The MCR/Ricci layer-rank heuristic needs a floor (the SmolLM2 k=509 fix) on small
+    models. We describe the failure mode (attention collapse at $k/d < 0.4$ for $d \le
+    1024$) and the fix.
+  </p>
+
+  <h3>5. Origin: TensorOS</h3>
+  <p>
+    The axiom-discovery and manifold-extraction pipeline that GP relies on was first
+    explored in the predecessor project, <strong>TensorOS</strong>. We document which
+    pieces survived the move into HyperTensor (manifold extraction, geometry caching),
+    which were rebuilt (the GPU upload path, the seven-slot scheme), and which were
+    dropped. <em>To be summarised once the relevant TensorOS files are pointed at.</em>
+  </p>
+
+  <h3>6. Reproduction</h3>
+  <p>
+    Per-model command lines and expected output. Same shape as Paper&nbsp;1's
+    <a href="01-attention-compression.html#reproduce">Reproduce</a> section.
+  </p>
+</section>
+
+<section id="status-tracker">
+  <span class="section-num">Status</span>
+  <h2>What is missing before this is publishable</h2>
+  <ul>
+    <li>Clean PPL numbers for SmolLM2 and Phi-3.5 at the working ranks (currently only spot-checks).</li>
+    <li>70B end-to-end throughput numbers on the EC2 target (compute time approved; data still local).</li>
+    <li>TensorOS prose section once the pointers are provided.</li>
+    <li>One pass of plot generation reusing the Paper&nbsp;1 figure style.</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    <a href="../index.html">\u2190 Back to all papers</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>
