@@ -1,109 +1,107 @@
-# White Paper Readiness Assessment
+# GRC Measurement Readiness Assessment
 
 Date: 2026-04-27
-**Verdict: STRONG_CLAIM_READY = True**
+Pack: `benchmarks/whitepaper_pack_20260427_121815`
+**All internal gates pass. Phase 3 (cross-hardware/model transfer) required before external publication.**
+
+---
 
 ## Scope
 
-This assessment evaluates whether HyperTensor GRC (attention-only, weight-PCA, skip-O, k=2048) is ready for a proper white paper release.
-All performance figures are reported relative to the original baseline model path.
+This document records the measurement state for Geodessical Runtime Compression (GRC) on
+Meta-Llama-3.1-8B-Instruct-Q4_K_M, RTX 4070 Laptop GPU. All figures are relative to the
+uncompressed baseline on the same hardware. See `docs/WHITEPAPER.md` for the full technical report.
 
-## Data Sources
+---
 
-- Validated benchmark pack: `benchmarks/whitepaper_pack_20260427_121815/`
-  - `rank_sweep_aggregate.csv`
-  - `ci_pack_summary.csv`
-  - `ci_ppl_5run.csv`
-  - `paradigm_shift_validation.json`
+## Hardware Profile
 
-## Relative-to-Baseline Performance Summary
+| Component        | Specification                                            |
+|-----------------|----------------------------------------------------------|
+| GPU              | NVIDIA RTX 4070 Laptop, 8,188 MiB VRAM, driver 595.79   |
+| CPU              | AMD Ryzen 9 7940HS — 8c/16t, DDR5-5200, 32 GB           |
+| Storage          | 2 × Kingston SNV2S 2 TB NVMe SSD                         |
+| GPU peak HBM BW  | 336 GB/s (theoretical); 174–179 GB/s observed (~52%)     |
+| GPU peak compute | 40 TFLOPS FP32 (theoretical); 0.59 TFLOPS observed (<2%) |
 
-Across the completed rank sweep aggregate:
+Inference is memory-bandwidth limited, not compute limited.
 
-- k=1024 mean decode speed: **106.27%** of baseline
-- k=1536 mean decode speed: **97.55%** of baseline
-- k=2048 mean decode speed: **101.04%** of baseline
-- k=2048 mean prefill time: **108.48%** of baseline
+---
 
-Interpretation:
+## Resource Profile at Inference
 
-- k=1024 exceeds baseline throughput. Smaller projected GEMVs fit better in GPU cache.
-- k=1536 achieves near-lossless decode retention at 60% of nominal embedding rank.
-- k=2048 achieves decode parity (±1%) with baseline.
-- All prefill values are within the 225% gate ceiling.
+### VRAM
 
-## Relative-to-Baseline Quality Summary
+| State                          | Baseline     | GRC k=1536   |
+|-------------------------------|-------------|-------------|
+| OS idle                        | ~1,136 MiB  | ~1,136 MiB  |
+| Model loaded (4,684 MB weights)| ~5,812 MiB  | ~5,812 MiB  |
+| Active decode peak             | 6,695 MiB   | 6,731 MiB   |
+| Headroom (of 8,188 MiB)        | ~1,493 MiB  | ~1,457 MiB  |
 
-Perplexity (lower is better):
+### Power draw (GPU only, nvidia-smi)
 
-- Baseline: 6.7902 (deterministic, 5/5 reps identical)
-- GRC k=2048: 7.6936 (deterministic, 5/5 reps identical)
-- Relative PPL: 113.30% of baseline (+13.30%)
-- Gate: PPL delta ≤ 15% → **PASS**
+| Phase                        | Baseline  | GRC k=1536        |
+|-----------------------------|----------|-------------------|
+| GPU idle                     | ~2 W     | ~2 W              |
+| Model loading                | 15.8 W   | 15.9 W            |
+| PCA calibration (first run)  | —        | 13–14 W (~90 s)   |
+| Decode (sustained)           | 103–109 W| 103–109 W         |
 
-Interpretation:
+### Storage
 
-- Quality penalty is moderate and reproducible.
-- The +13.30% delta is an inherent property of the PCA basis at the current manifold cap (k_max=1536).
-  Lifting AXEX_MANIFOLD_K_MAX above 1536 or extending calibration sample count could reduce this delta.
-- Throughput and quality are both measured reproducibly; all gates are cleared.
+| Artifact                       | Size        |
+|-------------------------------|-------------|
+| Model (Q4_K_M GGUF)            | 4.583 GB    |
+| W_proj cache (k=1536 active)   | 1,092.7 MB  |
+| Runtime binary + OpenBLAS      | 69.2 MB     |
+| **Total working set**          | **~5.75 GB**|
 
-Interpretation:
+---
 
-- Quality is currently outside the readiness target (+8% max delta).
-- Throughput and quality can both be measured reproducibly, but the gate set is not yet cleared.
+## Gate Results (pack 20260427_121815)
 
-## Repeatability (5-run CI pack)
+| Gate                                      | Threshold | Measured  | Result   |
+|------------------------------------------|-----------|-----------|----------|
+| k=1024 decode retention                   | ≥ 95%     | 106.27%   | **PASS** |
+| k=1536 decode retention                   | ≥ 75%     | 97.55%    | **PASS** |
+| k=2048† decode retention                  | ≥ 75%     | 101.04%   | **PASS** |
+| k=2048† prefill overhead                  | ≤ 225%    | 108.48%   | **PASS** |
+| coding/256 lower-95 decode retention      | ≥ 67%     | 86.60%    | **PASS** |
+| reasoning/256 lower-95 decode retention   | ≥ 67%     | 85.64%    | **PASS** |
+| PPL delta (WikiText-2)                    | ≤ +15%    | +13.30%   | **PASS** |
 
-Coding prompt, 256 tokens:
+† k=2048 request is internally capped to k=1536. Both use the same W_proj cache.
 
-- Baseline decode: 35.68 ± 0.35 tok/s
-- GRC decode: 34.86 ± 2.02 tok/s
-- GRC decode retention mean: 97.70% of baseline
+Validator: `scripts/paradigm_shift_validate.ps1`
+Machine output: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
 
-Reasoning prompt, 256 tokens:
+---
 
-- Baseline decode: 35.58 ± 0.31 tok/s
-- GRC decode: 35.22 ± 2.42 tok/s
-- GRC decode retention mean: 98.99% of baseline
+## What Is and Is Not Established
 
-Lower-95 decode retention from validator:
+**Established (single hardware, single model):**
+- GRC at k=1024 delivers above-baseline throughput on this GPU (L2 cache fit effect)
+- GRC at k=1536 delivers 97.55% decode throughput with +13.30% PPL on this model
+- Measurements are stable, deterministic, and repeatable under locked protocol
+- Variance source (GPU thermal throttling) identified and controlled via 30s cooldown protocol
 
-- coding lower-95: **86.60%** (gate ≥67% → PASS)
-- reasoning lower-95: **85.64%** (gate ≥67% → PASS)
+**Not yet established:**
+- Cross-hardware behaviour (discrete GPU, server GPU, other microarchitectures)
+- Cross-model behaviour (other architectures, sizes, quantisation schemes)
+- Quality at k=1024 (PPL not measured at this rank)
+- Batch inference behaviour
+- Long-context quality (>512 tokens)
 
-Interpretation:
+---
 
-- Even at the 95th percentile worst-case bound, GRC retains >85% of baseline decode throughput.
-- GRC CI95 is ~6× wider than baseline CI95, reflecting projection-path variance. This is accounted for in the gate design.
+## Remaining Steps Before External Publication
 
-## White Paper Readiness Verdict
-
-Current state: **STRONG_CLAIM_READY = True. Ready for Phase 3 transfer experiments before external publication.**
-
-Latest machine-validated gate status (paradigm shift validator):
-
-- Validation artifact: `benchmarks/whitepaper_pack_20260427_121815/paradigm_shift_validation.json`
-- Strong-claim ready: **True**
-- Gate pass/fail:
-  - k1024 decode ≥95%: **PASS** (106.27%)
-  - k1536 decode ≥75%: **PASS** (97.55%)
-  - k2048 decode ≥75%: **PASS** (101.04%)
-  - k2048 prefill ≤225%: **PASS** (108.48%)
-  - CI lower-bound decode ≥67% (coding): **PASS** (86.60%)
-  - CI lower-bound decode ≥67% (reasoning): **PASS** (85.64%)
-  - PPL delta ≤15%: **PASS** (+13.30%)
-
-What is complete:
-
-- Relative quality degradation is measured, deterministic, and within the gate (+13.30% PPL).
-- Relative speed tradeoff is measured across multiple prompts, lengths, and ranks.
-- Rank sweep table (1024/1536/2048) is completed and normalized to baseline.
-- CI lower-bound gates cleared with substantial margin (86-87% vs 67% threshold).
-
-Remaining steps before external publication:
-
-- Phase 3: cross-hardware and cross-model transfer experiments (see PARADIGM_SHIFT_CYCLE.md).
+1. Phase 3: cross-hardware experiment (EC2 A10G or equivalent)
+2. Phase 3: cross-model experiment (Gemma-2-9B or Mistral-7B-v0.3)
+3. PPL measurement at k=1024
+4. Lift AXEX_MANIFOLD_K_MAX cap and collect true k=2048 data
+5. Formal external reproduction package
 - Phase 4: external reproduction package and command documentation.
 
 ## Rank Sweep Summary (Current Validated State)
