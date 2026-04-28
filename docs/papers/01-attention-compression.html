@@ -511,8 +511,11 @@ section { animation: fadeUp .4s ease both; }
       Evaluated on Meta-Llama-3.1-8B-Instruct (Q4_K_M, 4.58 GB) under a 30-second thermal
       cooldown protocol: at $k=1536$ ($k/d = 0.375$), GRC reaches <strong>97.55%</strong>
       of baseline decode throughput at a cost of <strong>+13.30%</strong> WikiText-2
-      perplexity. At $k=1024$, throughput is the cited 106.27% but
-      <strong>perplexity at $k=1024$ was not measured in this cycle</strong>. Seven
+      perplexity. At $k=1024$, throughput is the cited 106.27% but PPL collapses to
+      <strong>+61.39%</strong> (10.9585 vs baseline 6.7902) &mdash; the GQA K/V
+      projection dimension on Llama-3.1-8B is exactly 1024, so $k=1024$ is the
+      lossless-K-and-V boundary at which the Q matrix is severely rank-deficient.
+      $k=1536$ is the Pareto rank for this model. Seven
       automated validation gates pass under a locked measurement protocol.
     </p>
     <p>
@@ -1170,6 +1173,12 @@ section { animation: fadeUp .4s ease both; }
           <td class="num">6.7902</td>
           <td class="num">—</td>
           <td class="num">—</td>
+        </tr>
+        <tr>
+          <td>GRC k=1024</td>
+          <td class="num warn">10.9585</td>
+          <td class="num warn">+61.39%</td>
+          <td class="num" style="font-size:0.76rem">measured 2026-04-22</td>
         </tr>
         <tr>
           <td>GRC k=1536</td>
@@ -1922,7 +1931,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Calibration-free basis construction</td><td class="pass">Demonstrated</td><td>Zero calibration data used</td></tr>
         <tr><td>Cross-hardware generality</td><td class="fail">Not demonstrated</td><td>Single GPU tested</td></tr>
         <tr><td>Cross-model generality</td><td class="fail">Not demonstrated</td><td>Phase 3 in progress</td></tr>
-        <tr><td>Quality at k=1024</td><td class="fail">Not measured</td><td>Only PPL at k=1536 measured</td></tr>
+        <tr><td>Quality at k=1024</td><td class="warn">Measured (+61.39% PPL)</td><td><a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/</a> &mdash; collapse explained by GQA K/V dim = 1024</td></tr>
         <tr><td>Batch inference behaviour</td><td class="fail">Not demonstrated</td><td>Single-request decode only</td></tr>
         <tr><td>Long-context quality (4K–8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
         <tr><td>Task-level quality (MMLU, HumanEval)</td><td class="fail">Not demonstrated</td><td>Only PPL measured</td></tr>
@@ -2123,7 +2132,8 @@ k=2048† decode: 101.04%  overall:  99.34%  prefill: 108.48%
 coding/256    lower-95 decode retention: 86.60%
 reasoning/256 lower-95 decode retention: 85.64%
 
-PPL baseline: 6.7902  |  PPL GRC k=1536: 7.6936  |  delta: +13.30%</code></pre>
+PPL baseline: 6.7902  |  PPL GRC k=1024: 10.9585 (+61.39%)
+PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical to k=1536)</code></pre>
 
   <p>
     A complete reproduction package is at <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md">repro/REPRODUCE.md</a> with expected output

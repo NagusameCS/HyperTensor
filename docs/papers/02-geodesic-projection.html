@@ -59,6 +59,16 @@ pre code { background: none; padding: 0; }
 .callout.finding { border-left-color: var(--green);  background: var(--green-bg); }
 .callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
 .table-wrap { overflow-x: auto; margin: 1rem 0; }
+.table-wrap.wide {
+  width: min(1080px, calc(100vw - 2rem));
+  max-width: none;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+}
+@media (max-width: 880px) {
+  .table-wrap.wide { width: 100%; transform: none; margin-left: 0; }
+}
 table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
 thead th { text-align: left; font-weight: 600; color: var(--text-soft); border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; }
 td { border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; vertical-align: top; }
@@ -471,24 +481,34 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     <em>is</em> the Paper&nbsp;1 configuration. We summarise them here with the GP
     framing rather than the calibration-free framing.
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>Configuration</th><th>Decode tok/s<br>(% of baseline)</th><th>PPL (WikiText-2, 512&nbsp;tok)</th><th>$W_\text{proj}$ disk</th></tr></thead>
       <tbody>
         <tr><td>Baseline (no GP)</td><td class="num">100.00%</td><td class="num">6.7902</td><td class="num">—</td></tr>
-        <tr><td>GP attn-only, shared $k = 1{,}024$</td><td class="num">106.27%</td><td class="num">(not measured)</td><td class="num">729 MB</td></tr>
+        <tr><td>GP attn-only, shared $k = 1{,}024$</td><td class="num">106.27%</td><td class="num">10.9585&nbsp;(+61.39%)</td><td class="num">729 MB</td></tr>
         <tr><td>GP attn-only, shared $k = 1{,}536$</td><td class="num">97.55%</td><td class="num">7.6936&nbsp;(+13.30%)</td><td class="num">1,093 MB</td></tr>
-        <tr><td>GP attn-only, $k = 2{,}048$ requested</td><td class="num">101.04%</td><td class="num">(not measured)</td><td class="num">1,093 MB</td></tr>
+        <tr><td>GP attn-only, $k = 2{,}048$ requested</td><td class="num">101.04%</td><td class="num">7.6936&nbsp;(+13.30%)</td><td class="num">1,093 MB</td></tr>
       </tbody>
     </table>
   </div>
   <p style="font-size:0.82rem; color: var(--text-soft);">
-    The $k=2{,}048$ row is silently capped to $k=1{,}536$ by
+    All four PPL values measured under <code>--ppl-eval</code> on WikiText-2 first
+    512 tokens; raw outputs in
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json</a>
+    (date 2026-04-22). Two structural observations: (i) $k=1{,}024$ collapses
+    quality (+61% PPL) because the K/V projection dimension on GQA-Llama-3.1-8B
+    is exactly $1{,}024$ &mdash; at $k=1{,}024$ the Q matrix is rank-deficient
+    against its full $4{,}096$-dim, while K and V are at the boundary; (ii)
+    $k=1{,}536$ and $k=2{,}048$ produce <em>identical</em> PPL because once
+    $k \ge 1{,}024$ the K and V matrices are full-rank (lossless), so
+    additional rank only affects Q, whose PCA energy is already saturated by
+    $k=1{,}536$. The $k=2{,}048$ disk footprint matches $k=1{,}536$ because
     <code>AXEX_MANIFOLD_K_MAX</code> in
-    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>;
-    the disk footprint is identical to the $k=1{,}536$ row for the same reason.
-    Source data:
-    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/tree/main/benchmarks/whitepaper_pack_20260427_121815">benchmarks/whitepaper_pack_20260427_121815/</a>.
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>
+    silently caps the stored basis. Operationally: $k=1{,}536$ is the Pareto
+    rank for this model on this protocol &mdash; $k=2{,}048$ is wasted memory
+    and compute, $k=1{,}024$ is unsafe.
   </p>
   <h3>6.1 What is <em>not</em> in this table</h3>
   <ul>
