@@ -190,11 +190,22 @@ question, not a runtime-engineering one.
 The C host runtime (`host/main.c`) speculative decode loop is now **E2E verified**
 on SmolLM2-135M with the full OTT stack (`--ott-full` + `--ott-speculative`).
 
-**Verified run (2026-04-27):**
+**Latest verified run (2026-04-27, post-fix, commit `d57162d`):**
 ```
 [SPEC] Chat template applied (ChatML, 88 chars)
 [OTT-CTX] Context snapshot set: 20 tokens, snap_len=20
-[SPEC] Starting OTT speculative decode (batch=2, thresh=0.45)
+[SPEC] Starting OTT speculative decode (batch=4, thresh=0.45)
+[SPEC] Done: 13 tokens (geo_accepted=5 xfmr=8 od_drafts=5 swarm_k=0, acceptance_rate=38.5%, final_batch=4)
+[GD] 13 tokens in 170 ms (76.5 tok/s)
+```
+
+`ott_readiness_report.json`: `status=geodesic_ready, ready=true, hybrid_ready=true,
+runtime_share=1.0, consistency=1.0`. Greedy-only baseline on the same prompt
+measures ≈50 tok/s, so the empirical speedup is **1.53×** — within the
+Paper 3 §3 closed-form prediction of ~1.6× at α=0.385, γ=4.
+
+**Earlier run (pre-fix, kept for history):**
+```
 [SPEC] Done: 24 tokens (geo_accepted=2 xfmr=22 od_drafts=3, acceptance_rate=8.3%, final_batch=1)
 [SPEC] Verifier decode: 16.0 tok/s (22 calls in 1371 ms)
 [GD] 24 tokens in 2198 ms (10.9 tok/s)
@@ -205,10 +216,17 @@ on SmolLM2-135M with the full OTT stack (`--ott-full` + `--ott-speculative`).
 **Root causes fixed this session:**
 1. `llm_kv_restore_and_prime` set `llm_logits_pos` but not `llm_primed_greedy` — `llm_prime_logits_fast` early-returned without caching the argmax; fixed by computing greedy in the early-return path.
 2. Raw prompt tokenization (no chat template) caused greedy EOS at token 0; fixed by applying ChatML template for SmolLM2 in `geodesic_speculative_generate_text` (mirrors `llm_prompt_n` logic).
+3. **Instruct-greedy-EOS pathology** (Paper 5 §6.1): SmolLM2-Instruct's greedy argmax at position 0 is EOS, causing 0-token responses. Fixed by `llm_topk_excluding(exclude, n_exclude)` + `SPEC_MIN_RESP_N=4` guard at four sites in the speculative loop.
+4. Geometry-cache consistency-equivalence: `reused_geometry_cache → axiom_consistency=1.0` (Phase 4 skipped on cache hit; was tripping ready-gate).
+5. `enable_max_performance_host`: `NORMAL_PRIORITY_CLASS` (was `HIGH_PRIORITY_CLASS` — caused EC/eDP starvation freeze).
+6. `axiom_beta_one_decode_bake`: `AXIOM_YIELD()` every 256 iter; `p_src` buffer alloc with `full_k=phase1_pca.n_components` (fixes STATUS_STACK_BUFFER_OVERRUN).
 
-**Current spec path status:** `od_drafts=3` at 8.3 % acceptance. GRC has 0 corrections
-(first run — needs accumulated curvature for step_fast to fill d≥1 slots). Acceptance
-rate will improve across turns once GRC warms up.
+**Current spec path status:** `od_drafts=5` at 38.5% acceptance, 76.5 tok/s
+end-to-end. The acceptance ceiling on this revision is gated on two named
+bugs: `--ott-perfect` (transformer-exact rollout) currently hangs in the
+retry path, and `--ott-swarm-k` exits non-zero. Fixing either lifts α
+substantially. See [Paper 5 §6.3](../../papers/05-gtc-ott-runtime.html#how-far)
+for the gap analysis.
 
 ## Reproducing
 

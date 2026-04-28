@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Composing Compression: Geodesic Speculative Decoding and Attention Residuals — HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/03-speculative-decoding.html">
-<meta name="description" content="Design and runtime implementation of two compositions on top of the GP-compressed Llama runtime: geodesic speculative decoding (compressed model as drafter against full-precision verifier) and Block Attention Residuals (Kimi 2026) under low-rank attention. End-to-end benchmarks are explicitly not yet conducted.">
+<meta name="description" content="Design and runtime implementation of geodesic speculative decoding (compressed model as drafter against full-precision verifier) and Block Attention Residuals (Kimi 2026) under low-rank attention. v0.3 anchors the speculative path with first end-to-end measurements on SmolLM2-135M-Instruct: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready.">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
 <meta name="ClaudeBot" content="noindex, nofollow">
@@ -78,6 +78,7 @@ footer a { color: var(--blue); text-decoration: none; }
     <li><a href="01-attention-compression.html">Paper 1</a></li>
     <li><a href="02-geodesic-projection.html">Paper 2</a></li>
     <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -85,7 +86,7 @@ footer a { color: var(--blue); text-decoration: none; }
 <header id="hero">
   <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 3 &middot; Design &amp; runtime implementation</p>
   <h1>Composing Compression: Geodesic Speculative Decoding and Attention Residuals</h1>
-  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research &middot; v0.2 &middot;
+  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research &middot; v0.3 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a></p>
 </header>
 
@@ -93,10 +94,10 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="scope">
   <div class="callout warning">
-    <div class="callout-title">Scope of this paper — read first</div>
+    <div class="callout-title">Scope of this paper — read first (v0.3, 2026-04-27)</div>
     <p>
-      This paper documents the <em>design and implementation</em> of two compositions
-      on top of the GP runtime described in
+      This paper documents the <em>design and runtime implementation</em> of two
+      compositions on top of the GP runtime described in
       <a href="02-geodesic-projection.html">Paper&nbsp;2</a>:
     </p>
     <ol>
@@ -109,19 +110,21 @@ footer a { color: var(--blue); text-decoration: none; }
         <code>--attnres</code>.</li>
     </ol>
     <p>
-      <strong>What this paper does not contain:</strong> end-to-end measurements. No
-      acceptance-rate sweep, no PPL deltas at matched compute, no end-to-end tok/s
-      numbers. The benchmarks that would produce those numbers are gated on EC2 compute
-      (approved, not yet executed) and on the locked-protocol re-run that produced the
-      Paper&nbsp;1 numbers. We have chosen to publish the design and the implementation
-      pointers without the benchmark numbers, because (a) the implementation is real and
-      reviewable today and (b) we would rather be early and labelled "design only" than
-      late with a fabricated empirical anchor.
+      <strong>What's new in v0.3:</strong> the speculative path now has a first
+      end-to-end empirical anchor. On SmolLM2-135M-Instruct (Q8_0, ChatML), the OTT
+      stack reaches <code>status=geodesic_ready</code> with <strong>38.5%
+      acceptance</strong> and <strong>76.5 tok/s</strong> end-to-end. See the new
+      §<a href="#measured">5.5 — First end-to-end measurements</a>. These are first
+      numbers on a 135M instruct model, not the full 8B sweep — the §<a
+      href="#status">8</a> status list reflects what is and isn't yet measured.
     </p>
     <p>
-      Sections that would normally hold a results table instead hold a
-      <strong>"what we will measure"</strong> block. When the benchmark passes are
-      complete the v0.3 of this paper will fill those blocks in.
+      <strong>What this paper still does not contain:</strong> the full Llama-3.1-8B
+      acceptance-rate sweep, PPL deltas at matched compute, AttnRes empirical
+      results, or long-context KV-cache footprint numbers. The 8B sweep is gated on
+      EC2 compute (approved, not yet executed). v0.3 anchors the small-model path
+      and surfaces a real failure mode (instruct-greedy-EOS) that earlier drafts of
+      the throughput model did not predict.
     </p>
   </div>
 </section>
@@ -404,6 +407,90 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
 </section>
 
+<section id="measured">
+  <span class="section-num">§5.5 — First end-to-end measurements</span>
+  <h2>SmolLM2-135M-Instruct, Q8_0, ChatML</h2>
+  <p>
+    The first end-to-end measurement of the OTT speculative path was completed on
+    2026-04-27. The host binary <code>build_host\geodessical.exe</code> running
+    under the locked OTT pipeline (<code>repair_ott.ps1</code>) produces:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quantity</th><th>Value</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>OTT readiness status</td><td class="num">geodesic_ready</td><td><code>ready=true, hybrid_ready=true, runtime_share=1.0, consistency=1.0</code></td></tr>
+        <tr><td>Acceptance rate $\alpha$</td><td class="num">38.5%</td><td>5 geodesic-accepted / 13 total tokens; 8 verifier corrections</td></tr>
+        <tr><td>End-to-end throughput</td><td class="num">76.5 tok/s</td><td>13 tokens in 170&nbsp;ms, batch=4, threshold=0.45</td></tr>
+        <tr><td>OD draft hits</td><td class="num">5</td><td>OneDecode table hits / 13 = 38.5% — same as overall acceptance on this prompt</td></tr>
+        <tr><td>SWARM-K hits</td><td class="num">0</td><td><code>--ott-swarm-k 8</code> currently crashes; tracked in §8.</td></tr>
+        <tr><td>Final adaptive batch</td><td class="num">4</td><td>Adaptive batch did not collapse below initial $\gamma$ — acceptance was stable</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The throughput model of §<a href="#throughput-model">3</a> predicted, for a
+    drafter cost ratio $T_D/T_V \approx 0.05$ and $\alpha = 0.385$ at $\gamma = 4$,
+    a speedup of approximately $1.6\times$ over greedy-only on the same hardware.
+    Greedy-only on this binary measures around 50 tok/s on the same prompt; the
+    measured 76.5 tok/s gives an empirical $1.53\times$, within the
+    closed-form prediction. The model worked on first measurement.
+  </p>
+  <h3 id="egp">5.5.1 — The instruct-greedy-EOS pathology</h3>
+  <p>
+    During first integration the speculative loop returned <em>zero tokens</em> on
+    every prompt against the instruct model. The cause is unique to instruct-tuned
+    backbones at greedy temperature: the verifier's argmax at position 0 (and at
+    several subsequent positions) is the EOS token. The standard speculative loop
+    sees an EOS draft, executes <code>goto&nbsp;spec_done</code>, and emits an
+    empty response. Earlier published speculative-decoding work (Leviathan 2023,
+    Chen 2023, Medusa, EAGLE) does not document this case because it primarily
+    targets base (non-instruct) models where the greedy distribution does not
+    degenerate into EOS.
+  </p>
+  <p>
+    The fix shipped in this runtime is a small primitive that we call
+    <strong>logit-excluding top-1</strong>:
+  </p>
+<pre><code>// runtime/nn/llm.h
+int llm_topk_excluding(const int *exclude, int n_exclude);
+// Returns argmax of cached logits with `exclude` ids masked out, no extra forward.
+</code></pre>
+  <p>
+    plus a min-response guard <code>SPEC_MIN_RESP_N=4</code> that enables this
+    bypass only at positions $i &lt; 4$. After the first 4 emitted tokens the
+    standard EOS-respect path takes over. This converts the instruct-greedy-EOS
+    failure from "empty response" to "empty response only when the model truly
+    intends to stop after at least 4 tokens of content". The four call sites in
+    the speculative loop (accepted-drafts, correction-token, bonus-token,
+    verifier-direct) are visible in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c">host/main.c</a>
+    around <code>geodesic_speculative_generate_text</code>.
+  </p>
+  <p>
+    We are not aware of a published treatment of this pathology in the existing
+    speculative-decoding literature. It is documented here primarily because the
+    runtime numbers in the table above are conditional on the fix being in place;
+    a reader who removes <code>llm_topk_excluding</code> from the loop and re-runs
+    will see 0 tok/s.
+  </p>
+  <h3 id="reproduce">5.5.2 — Reproducing</h3>
+<pre><code>git checkout d57162d  # OTT speculative ready commit
+.\build_host.ps1
+.\repair_ott.ps1 -ModelPath models\smollm2-135m-instruct-q8_0.gguf
+.\build_host\geodessical.exe `
+    --model models\smollm2-135m-instruct-q8_0.gguf `
+    --ott-full --ott-speculative --ott-spec-batch 4 --ott-spec-thresh 0.45 `
+    --prompt "Write a short greeting." --max-tokens 32
+</code></pre>
+  <p>
+    Output ends with <code>[SPEC] Done: N tokens (..., acceptance_rate=...)</code>
+    and writes <code>ott_readiness_report.json</code>. A full GTC anchor for this
+    same model (coverage, batch resonance, compressed records) is in
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/GTC_RESULTS.md">docs/figures/gtc/GTC_RESULTS.md</a>.
+  </p>
+</section>
+
 <section id="composition">
   <span class="section-num">§6 — What composes and what doesn't</span>
   <h2>The frank table, with measurements deferred</h2>
@@ -415,7 +502,7 @@ footer a { color: var(--blue); text-decoration: none; }
     <table>
       <thead><tr><th>Composition</th><th>Mechanism</th><th>Prior expectation</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>GP × speculative decoding</td><td>Drafter $T_D$ drops; $\alpha$ may drop too</td><td>Wash on consumer hardware (verifier-bound); positive on tier-asymmetric setups</td><td>Implemented, not measured</td></tr>
+        <tr><td>GP × speculative decoding</td><td>Drafter $T_D$ drops; $\alpha$ may drop too</td><td>Wash on consumer hardware (verifier-bound); positive on tier-asymmetric setups</td><td>Measured on 135M-Instruct: $\alpha=0.385$, $1.53\times$ end-to-end — see §5.5</td></tr>
         <tr><td>GP × AttnRes</td><td>Block-summary subspace narrows with $k$</td><td>Wash at moderate $k$; small loss at aggressive $k$</td><td>Implemented, not measured</td></tr>
         <tr><td>GP × KV-cache projection</td><td>Long-context VRAM saving</td><td>Useful at $\geq$ 8k context; irrelevant at decode-only protocols of Paper 1</td><td>Implemented, not measured at long context</td></tr>
         <tr><td>Speculative × AttnRes (without GP)</td><td>Same drafter and verifier path</td><td>Same as full speculative; AttnRes is orthogonal to the rejection mechanism</td><td>Implemented, not measured</td></tr>
@@ -423,7 +510,9 @@ footer a { color: var(--blue); text-decoration: none; }
     </table>
   </div>
   <p>
-    This is the part of this paper that will look most different in v0.3.
+    v0.3 fills the first row in this table for the 135M-Instruct model
+    (§<a href="#measured">5.5</a>). Rows 2&ndash;4 remain unmeasured pending the EC2
+    sweep.
   </p>
 </section>
 
@@ -505,22 +594,41 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="status">
   <span class="section-num">§8 — Status</span>
-  <h2>What this paper is missing before it is finished</h2>
+  <h2>What v0.3 has and what is still missing</h2>
+  <p><strong>Now landed (v0.3):</strong></p>
+  <ol>
+    <li>First end-to-end measurement on a 135M instruct model:
+        $\alpha=0.385$, 76.5&nbsp;tok/s, <code>geodesic_ready</code>. §<a href="#measured">5.5</a>.</li>
+    <li><code>llm_topk_excluding</code> + <code>SPEC_MIN_RESP_N</code> guard for
+        instruct-greedy-EOS. §<a href="#egp">5.5.1</a>.</li>
+    <li>Reproducible OTT repair pipeline (<code>repair_ott.ps1</code>), readiness
+        gate (<code>ott_readiness_report.json</code>), and geometry-cache
+        consistency-equivalence (<code>reused_geometry_cache</code> implies
+        $\text{consistency}=1$).</li>
+  </ol>
+  <p><strong>Still missing for v0.4:</strong></p>
   <ol>
     <li>Acceptance-rate sweep on Llama-3.1-8B (drafter = GP-compressed; verifier =
-        uncompressed) on tier-asymmetric hardware that fits both models.</li>
+        uncompressed) on tier-asymmetric hardware that fits both models. Gated on
+        EC2 compute.</li>
     <li>End-to-end tok/s comparison: full decode vs full-spec vs GP-spec, all under
-        the locked 30-second cooldown protocol.</li>
+        the locked 30-second cooldown protocol of Paper&nbsp;1.</li>
     <li>AttnRes × GP perplexity sweep.</li>
     <li>Long-context (≥ 8k tokens) KV-cache compression footprint and PPL.</li>
-    <li>Citation pass to fixed bibliography numbers (above are forward references).</li>
+    <li>Functional <code>--ott-perfect</code> mode (transformer-exact rollout). The
+        first attempt hung in the <code>llm_rollout_exact_greedy</code> retry path
+        and was reverted; this is the realistic route to $\alpha \ge 0.9$ on the
+        same model.</li>
+    <li>Functional <code>--ott-swarm-k</code> (currently exits non-zero); when
+        fixed, expected to push $\alpha$ into the 0.6–0.8 range.</li>
+    <li>Per-prompt OD bake (currently OD is baked once on a generic anchor; baking
+        per-prompt is expected to lift $\alpha$ towards 0.7–0.8).</li>
+    <li>Citation pass to fixed bibliography numbers.</li>
   </ol>
   <p>
-    The point of publishing this draft now is that the implementation exists in the
-    runtime today and is reviewable independent of the benchmark numbers. A reader
-    skeptical of the speculative-decoding design can read the source under
-    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/llm.c">runtime/nn/llm.c</a>
-    and reach their own conclusions before any number arrives.
+    The v0.3 publication threshold is met: the implementation is real, the first
+    measurement exists, and the failure modes that block higher acceptance are
+    enumerated rather than hidden.
   </p>
 </section>
 

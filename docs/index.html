@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HyperTensor Research — NagusameCS</title>
-<meta name="description" content="Research papers under the HyperTensor project by William Ken Ohara Stewart (NagusameCS): low-rank attention compression, geodesic projection, geodesic speculative decoding, and Organic Training Theory.">
+<meta name="description" content="Research papers under the HyperTensor project by William Ken Ohara Stewart (NagusameCS): low-rank attention compression, geodesic projection, geodesic speculative decoding, Organic Training Theory, and the GTC + OTT runtime anchor.">
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -228,14 +228,16 @@ footer a:hover { text-decoration: underline; }
 
     <a class="paper-card" href="papers/03-speculative-decoding.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 3 &middot; Design</span>
+        <span class="paper-num">Paper 3 &middot; Design + first measurements</span>
         <span class="paper-title">Composing Compression: Geodesic Speculative Decoding and Attention Residuals</span>
       </div>
       <p class="paper-abstract">
         How a compressed-manifold model serves as a draft generator for speculative
         decoding against the full-precision transformer, and how Attention Residuals
-        (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. Design and runtime
-        implementation; end-to-end benchmarks are not yet conducted.
+        (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. v0.3 anchors the
+        speculative path with a first end-to-end measurement on SmolLM2-135M-Instruct:
+        <strong>38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready</strong>,
+        plus the instruct-greedy-EOS pathology and its fix.
       </p>
     </a>
 
@@ -250,6 +252,22 @@ footer a:hover { text-decoration: underline; }
         OTT program. The universal diffeomorphism construction remains open, but the
         current repository's OTT deployment manifolds have a narrower,
         certificate-backed closure.
+      </p>
+    </a>
+
+    <a class="paper-card" href="papers/05-gtc-ott-runtime.html">
+      <div class="paper-head">
+        <span class="paper-num">Paper 5 &middot; Empirical anchor</span>
+        <span class="paper-title">Geodesic Trajectory Caching and the OTT Runtime Anchor</span>
+      </div>
+      <p class="paper-abstract">
+        Empirical companion to Paper&nbsp;4. Fits Riemannian structure on three LM
+        activation manifolds, validates the Jacobi-correction contract
+        (<strong>97&times;</strong> at $B{=}10$, $30.9$&nbsp;µs/q lookup,
+        $5.96$&nbsp;KB/record), and anchors the OTT runtime end-to-end at
+        <strong>38.5%&nbsp;acceptance / 76.5&nbsp;tok/s</strong> on
+        SmolLM2-135M-Instruct. 12 of 17 Paper&nbsp;4 testable claims now have a
+        replicable measured result.
       </p>
     </a>
 
