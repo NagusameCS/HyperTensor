@@ -7446,12 +7446,6 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
     for (int L = 0; L < m->n_layers; L++) {
         llm_layer_t *layer = &m->layers[L];
 
-        /* Crash-hunt: log every layer when bridge-capture is active (first token only) */
-        if ((llm_bridge.mode & BRIDGE_MODE_CAPTURE) && pos == 0)
-            kprintf("[CPU-L] L=%d attn_norm=%p q=%p k=%p v=%p o=%p\n",
-                    L, layer->attn_norm, layer->q_weight, layer->k_weight,
-                    layer->v_weight, layer->o_weight);
-
         /* Bridge: inject hidden state before this layer */
         if (llm_bridge.mode & BRIDGE_MODE_INJECT) {
             int inj_layer = llm_bridge.inject_layer < 0 ? 0 : llm_bridge.inject_layer;
@@ -13160,7 +13154,18 @@ int llm_prime_logits_fast(const int *ctx, int n_ctx)
 {
     if (!ctx || n_ctx <= 0) return -1;
     llm_model_t *m = &llm_model;
-    if (llm_logits_pos == n_ctx - 1) return 0;  /* already primed */
+    if (llm_logits_pos == n_ctx - 1) {
+        /* Ensure greedy argmax is cached — llm_kv_restore_and_prime sets
+         * llm_logits_pos but not llm_primed_greedy, so compute it here. */
+        if (llm_primed_greedy < 0 && m->vocab_size > 0) {
+            int   best = 0;
+            float bv   = llm_logits[0];
+            for (int t = 1; t < m->vocab_size; t++)
+                if (llm_logits[t] > bv) { bv = llm_logits[t]; best = t; }
+            llm_primed_greedy = best;
+        }
+        return 0;  /* already primed */
+    }
     if (m->cache_len != n_ctx - 1) return -1;   /* can't do single-step prime */
 #ifdef ENABLE_CUDA
     cuda_graph_decode_ready = 1;
@@ -13597,6 +13602,29 @@ int llm_speculative_verify_topk(const int *context_tokens, int n_context,
     m->cache_len = pos;
     __sync_lock_release(&llm_inference_active);
     return accepted;
+}
+
+/* Public helper: return the top-1 token from the most-recent logits, excluding
+ * any token id that appears in `exclude[0..n_exclude)`.  Used by the speculative
+ * decode path to recover from a model that emits EOS as its first generated
+ * token under greedy decoding (e.g. SmolLM2-Instruct in ChatML mode).  No
+ * forward pass is performed — operates on logits already populated by the
+ * preceding llm_speculative_verify_* / llm_prime_logits_fast call. */
+int llm_topk_excluding(const int *exclude, int n_exclude)
+{
+    if (!llm_is_loaded() || !llm_logits || llm_logits_pos < 0) return -1;
+    llm_model_t *m = &llm_model;
+    int   best   = -1;
+    float best_v = -1e30f;
+    for (int i = 0; i < m->vocab_size; i++) {
+        int skip = 0;
+        for (int e = 0; e < n_exclude; e++) {
+            if (exclude && exclude[e] == i) { skip = 1; break; }
+        }
+        if (skip) continue;
+        if (llm_logits[i] > best_v) { best_v = llm_logits[i]; best = i; }
+    }
+    return best;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

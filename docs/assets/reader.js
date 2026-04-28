@@ -4,14 +4,15 @@
   'use strict';
 
   var KEY = 'hypertensor.reader.v1';
-  var ATTRS = ['theme', 'fontsize', 'lineheight', 'width', 'font'];
+  var ATTRS = ['theme', 'fontsize', 'lineheight', 'width', 'font', 'graphs'];
 
   var DEFAULTS = {
     theme: null,        // null = follow prefers-color-scheme
     fontsize: 'm',
     lineheight: 'normal',
     width: 'normal',
-    font: 'sans'
+    font: 'sans',
+    graphs: 'static' // static by default; user can opt into interactive graphs
   };
 
   function load() {
@@ -41,11 +42,26 @@
     html.setAttribute('data-lineheight', s.lineheight);
     html.setAttribute('data-width', s.width);
     html.setAttribute('data-font', s.font);
+    html.setAttribute('data-graphs', s.graphs || DEFAULTS.graphs);
+  }
+
+  function emitChange(s) {
+    try {
+      document.dispatchEvent(new CustomEvent('hypertensor:reader-settings-changed', {
+        detail: { state: Object.assign({}, s) }
+      }));
+    } catch (e) {}
   }
 
   // Apply BEFORE DOM ready to avoid flash on dark mode.
   var state = load();
   apply(state);
+
+  // Public API so page-level scripts can query reader preferences.
+  window.HyperTensorReader = {
+    getState: function () { return Object.assign({}, state); },
+    interactiveGraphsEnabled: function () { return (state.graphs || DEFAULTS.graphs) === 'interactive'; }
+  };
 
   // Favicon: site-wide GitHub avatar. Injected once if absent so we don't
   // have to thread a <link rel="icon"> through every HTML file.
@@ -90,6 +106,7 @@
           state[key] = opt.value;
           apply(state);
           save(state);
+          emitChange(state);
           // refresh pressed states for this row
           [].forEach.call(r.querySelectorAll('.reader-btn'), function (sib) {
             sib.setAttribute('aria-pressed', String(sib.getAttribute('data-value') === opt.value));
@@ -130,6 +147,10 @@
       { label: 'Serif', value: 'serif' },
       { label: 'Mono',  value: 'mono' }
     ]);
+    row('Graphs', 'graphs', [
+      { label: 'Static',      value: 'static' },
+      { label: 'Interactive', value: 'interactive' }
+    ]);
 
     // Reset
     var hReset = document.createElement('h4');
@@ -145,6 +166,7 @@
       state = Object.assign({}, DEFAULTS, { theme: 'auto' });
       apply(state);
       save(state);
+      emitChange(state);
       // refresh all pressed states
       [].forEach.call(panel.querySelectorAll('.reader-btn'), function (b) {
         var k = b.getAttribute('data-key');
@@ -168,6 +190,7 @@
         state.theme = null;
         apply(state);
         save(state);
+        emitChange(state);
       }
     });
 

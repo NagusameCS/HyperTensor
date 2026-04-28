@@ -1463,13 +1463,35 @@ section { animation: fadeUp .4s ease both; }
   <script>
   (function () {
     if (typeof Plotly === "undefined") return;
+    function readerState() {
+      if (window.HyperTensorReader && typeof window.HyperTensorReader.getState === "function") {
+        return window.HyperTensorReader.getState();
+      }
+      return { graphs: "static" };
+    }
+    function interactiveGraphsEnabled() {
+      var s = readerState();
+      return s && s.graphs === "interactive";
+    }
+    function plotConfig() {
+      var interactive = interactiveGraphsEnabled();
+      return {
+        responsive: true,
+        displaylogo: false,
+        staticPlot: !interactive,
+        scrollZoom: interactive
+      };
+    }
+
     var COLORS = {
       Q: "#c0392b", K: "#e67e22", V: "#d35400", O: "#a93226",
       gate: "#2d6be4", up: "#1a7a4a", down: "#16a085"
     };
     var ATTN = ["Q", "K", "V", "O"];
     var FFN = ["gate", "up", "down"];
-    fetch("../figures/spectra_web.json").then(function (r) { return r.json(); }).then(function (d) {
+    var cachedData = null;
+
+    function renderPlots(d) {
       // ── Figure 8.1: SV spectra (log-log) ──────────────────────────
       var traces1 = [];
       var layerStyles = { 0: 1, 7: 0.85, 15: 0.7, 23: 0.55, 31: 0.4 };
@@ -1526,7 +1548,7 @@ section { animation: fadeUp .4s ease both; }
           { x: Math.log10(1024), y: 1, xref: "x", yref: "paper", showarrow: false, text: "k=1024", font: { size: 10, color: fgSoft } },
           { x: Math.log10(1536), y: 0.95, xref: "x", yref: "paper", showarrow: false, text: "k=1536", font: { size: 10, color: fgSoft } }
         ]
-      }), { responsive: true, displaylogo: false });
+      }), plotConfig());
 
       // ── Figure 8.2: Cumulative energy ─────────────────────────────
       var traces2 = [];
@@ -1561,7 +1583,7 @@ section { animation: fadeUp .4s ease both; }
           { type: "line", x0: 0, x1: 4096, y0: 0.95, y1: 0.95, line: { dash: "dash", color: fgSoft, width: 1 } },
           { type: "line", x0: 1024, x1: 1024, y0: 0, y1: 1, line: { dash: "dash", color: fgSoft, width: 1 } }
         ]
-      }), { responsive: true, displaylogo: false });
+      }), plotConfig());
 
       // ── Figure 8.3: Per-layer k_95 bar/scatter ────────────────────
       var traces3 = [];
@@ -1584,8 +1606,18 @@ section { animation: fadeUp .4s ease both; }
         annotations: [
           { x: 31, y: 1024, xref: "x", yref: "y", showarrow: false, text: "GRC k=1024", font: { size: 10, color: fgSoft }, xanchor: "right", yanchor: "bottom" }
         ]
-      }), { responsive: true, displaylogo: false });
+      }), plotConfig());
+    }
+
+    fetch("../figures/spectra_web.json").then(function (r) { return r.json(); }).then(function (d) {
+      cachedData = d;
+      renderPlots(d);
     }).catch(function (e) { console.error("Failed to load spectra_web.json:", e); });
+
+    document.addEventListener("hypertensor:reader-settings-changed", function () {
+      if (!cachedData) return;
+      renderPlots(cachedData);
+    });
   })();
   </script>
 

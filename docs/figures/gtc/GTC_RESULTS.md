@@ -1,6 +1,6 @@
 # GTC v0.3 — Geodesic Trajectory Cache: Validity, Coverage, Resonance, Scaling
 
-**Date:** 2026-04-27 · **Status:** Code-complete v0.3. Three-model coverage scaling, batch resonance verified, compressed record store on disk.
+**Date:** 2026-04-27 · **Status:** Code-complete v0.3. Three-model coverage scaling, batch resonance verified, compressed record store on disk. Runtime OTT speculative decode E2E verified (see Runtime Integration below).
 
 ## TL;DR (v0.3 headline)
 
@@ -185,6 +185,31 @@ on 135 M) requires a denser cache than the runtime currently exports — but
 the Python-side construction makes that densification a pure offline-job
 question, not a runtime-engineering one.
 
+## Runtime Integration (OTT speculative decode, NEW)
+
+The C host runtime (`host/main.c`) speculative decode loop is now **E2E verified**
+on SmolLM2-135M with the full OTT stack (`--ott-full` + `--ott-speculative`).
+
+**Verified run (2026-04-27):**
+```
+[SPEC] Chat template applied (ChatML, 88 chars)
+[OTT-CTX] Context snapshot set: 20 tokens, snap_len=20
+[SPEC] Starting OTT speculative decode (batch=2, thresh=0.45)
+[SPEC] Done: 24 tokens (geo_accepted=2 xfmr=22 od_drafts=3, acceptance_rate=8.3%, final_batch=1)
+[SPEC] Verifier decode: 16.0 tok/s (22 calls in 1371 ms)
+[GD] 24 tokens in 2198 ms (10.9 tok/s)
+```
+
+`test_live.tsv` populated with 12 data rows (hidden-state telemetry per `--ott-live-every 2`).
+
+**Root causes fixed this session:**
+1. `llm_kv_restore_and_prime` set `llm_logits_pos` but not `llm_primed_greedy` — `llm_prime_logits_fast` early-returned without caching the argmax; fixed by computing greedy in the early-return path.
+2. Raw prompt tokenization (no chat template) caused greedy EOS at token 0; fixed by applying ChatML template for SmolLM2 in `geodesic_speculative_generate_text` (mirrors `llm_prompt_n` logic).
+
+**Current spec path status:** `od_drafts=3` at 8.3 % acceptance. GRC has 0 corrections
+(first run — needs accumulated curvature for step_fast to fill d≥1 slots). Acceptance
+rate will improve across turns once GRC warms up.
+
 ## Reproducing
 
 ```powershell
@@ -246,24 +271,33 @@ This is the canonical answer to "how done is GTC?".
 | Validity radius / injectivity radius ρ scaling | ✅ <0.1 % error to ε=5.0 | `smollm2-135m_validity_radius.json` |
 | OTT locality of curvature warp (Test 5a) | ✅ ratio 7e11×, decays to 0 at 20σ | implicit in `manifold.py` smoothing |
 | Knowledge-injection curvature warp delivers redirection | ⚠️ **still negative**: v2 reduces spillover to ~0.01% but best redirection gain is 2.24% (0/32 pass) | [`docs/figures/curvature_warp/smollm2-135m_v2_grid.json`](../curvature_warp/smollm2-135m_v2_grid.json) |
-| **Live decode-step replacement inside `geodessical.exe`** | ⚠️ Python-side benchmark complete; runtime hook still missing. 3-bucket metric: 100% lookup hits, 0% within rho at 64-point cloud density. | [`smollm2-135m_decode_substitution.json`](smollm2-135m_decode_substitution.json) |
+| **Live decode-step replacement inside `geodessical.exe`** | ⚠️ Runtime hook is now integrated (`host/main.c` speculative loop + live telemetry + GRC feedback), but deployment quality is still gated by draft coverage/acceptance calibration and cloud density (especially on smaller models where OD drafts can be sparse). | [`smollm2-135m_decode_substitution.json`](smollm2-135m_decode_substitution.json) |
 | AttnRes block-summary integration (§6) | ⚠️ prototype measured: block-end Jacobi err 1.29%, simplex blend underperforms (11.4%) | [`smollm2-135m_attnres_integration.json`](smollm2-135m_attnres_integration.json) |
 | Diffeomorphism ϕ construction (§11.1) | ✅ resolved for OTT deployment manifold family via certificates (`k=11,17,25` self-cases + dim-4 inherited-structure theorem) | [`data/decisions.json`](../../../data/decisions.json) |
-| Closed-form geodesic initial velocity v₀ (§11.2) | ❌ open problem | — |
+| Geodesic initial velocity v₀ (§11.2) | ⚠️ universal closed form still open; deployable Christoffel-guided runtime surrogate already implemented | [`runtime/nn/axiom_beta.c`](../../../runtime/nn/axiom_beta.c) |
 
 ### Reading
 
 What was *theory* in Paper 5 §4 has been built and measured. What was
-*deployment* (live decode replacement, AttnRes integration) is gated on
-runtime instrumentation that we deliberately did not patch in this
-milestone.
+*deployment* is now split more cleanly:
+
+- live decode replacement is gated on runtime cloud density plus speculative
+   draft coverage/acceptance calibration,
+- AttnRes remains a measured prototype rather than a trained deployment path,
+- deployment-scoped ϕ is resolved for the current manifold family,
+- and $v_0$ no longer blocks runtime deployment because a curvature-guided
+   surrogate already exists.
 
 Quantitatively, the work-units we own that the paper proposed:
 
 - 12 of 17 testable claims now have a measured, replicable result.
-- 4 remain unmeasured (live decode, AttnRes, ϕ, v₀); 1 has a measured negative (curvature-warp).
-- 3 of the 4 unmeasured are correctly flagged as open problems by the
-  paper itself (§11). The fourth (live decode replacement) is the
+- 2 remain genuinely open at deployment level: dense live decode replacement
+   and a robust AttnRes integration path; 1 remains universally open but
+   deployment-scoped resolved (ϕ); 1 remains mathematically open but has a
+   deployable surrogate ($v_0$); 1 has a measured negative (curvature-warp).
+- The paper's original open-problem list is therefore now partly historical:
+   some items remain universal-theory gaps, but no longer block the repo's
+   current deployment family in the same way.
   natural v0.4 milestone.
 
 GTC is **theoretically and statically empirically complete** at the
@@ -271,3 +305,88 @@ GTC is **theoretically and statically empirically complete** at the
 between those two states is one runtime hook (per-step activation dump)
 and one decode-loop modification (substitute Jacobi-corrected next-state
 on cache hit).
+
+## Formal-hypothesis implementation check (NEW, 2026-04-27)
+
+To move beyond wording updates, we implemented and executed a direct
+"does this work in HyperTensor right now?" experiment:
+
+- Script: [`scripts/gtc/formal_hypothesis_eval.py`](../../../scripts/gtc/formal_hypothesis_eval.py)
+- Output: [`smollm2-135m_formal_hypothesis_eval.json`](smollm2-135m_formal_hypothesis_eval.json)
+
+### A) Attention-derived $v_0$ proxy
+
+Two variants were tested on the fitted SmolLM2 manifold (`dim=8`):
+
+- **Finite-difference gradient proxy**
+   $v_0 \propto -\nabla_x \log \mathrm{Attn}(x,y)$:
+   mean cosine to local target direction `0.178`, rollout error `117%` mean.
+- **Local-metric closed-form proxy**
+   (assumes local constant metric and applies $g^{-1}$):
+   cosine `1.000`, rollout error `0.000%`.
+
+Interpretation: the direct FD proxy is not robust on the current sampled
+manifold implementation, while the local-metric closed-form variant works
+under its stronger assumptions. This supports using a deployable surrogate,
+not claiming universal closed-form success.
+
+### B) Spectral/Ricci-style $\hat{\rho}$ proxy
+
+Using
+
+$$
+\hat{\rho} = C\,\frac{\pi}{\sqrt{\lambda_{\max}(\mathrm{Cov}(\nabla_x A))}}\,\frac{1}{\sigma_{\max}(A)}
+$$
+
+with calibration on strict local Jacobi-threshold sweeps gave weak predictive
+power in this run (`corr(raw,true)=0.002`, high MAPE), i.e. **not production-ready**.
+
+Interpretation: this proxy is currently a research direction, not an OTT
+deployment primitive.
+
+## Implementation continuation (NEW, 2026-04-27, pass 2)
+
+We continued from the above by implementing three concrete follow-ups:
+
+1. **Smooth metric lookup** in the manifold object
+    - File: `scripts/gtc/manifold.py`
+    - `Manifold.g_at(x)` now uses a log-Euclidean RBF interpolant over sampled SPD
+       tensors (`interp_sigma`) rather than nearest-sample snapping.
+
+2. **Decode-loop gating ablation with local-metric $v_0$ surrogate**
+    - File: `scripts/gtc/decode_substitution.py`
+    - Added local-metric $v_0$ gate (`cos(v0_hat, v_record) >= threshold`) and
+       token-level rows with per-step gate decisions.
+    - Added explicit baseline-vs-v0-gated projected latency/TPS deltas.
+
+3. **Refit $\rho$ on strict-local unsaturated anchors only**
+    - File: `scripts/gtc/formal_hypothesis_eval.py`
+    - Neighbour set constrained by `rho_local_max_g` and calibration/correlation
+       computed on anchors where strict `rho_true` is not floor/ceiling saturated.
+
+### New measured outputs
+
+- Decode ablation output:
+   `docs/figures/gtc/smollm2-135m_decode_substitution.json`
+   (latest run used `rho_validity=6.4` so quality deltas are non-empty)
+   - `v0_gate_rate = 8.33%`
+   - baseline projected GTC TPS: `2856.8`
+   - v0-gated projected GTC TPS: `403.4`
+   - delta TPS (v0-gated - baseline): `-2453.43`
+   - quality delta (mean rel error): `+0.0774` absolute
+
+- Strict-local unsaturated rho refit output:
+   `docs/figures/gtc/smollm2-135m_formal_hypothesis_eval.json`
+   - fit anchors: `6/10` unsaturated
+   - `corr_fit = 0.840` (unsaturated fit subset)
+   - `corr_all = 0.924` (all anchors)
+   - `mape = 328.35%`, `rmse = 0.780`
+
+### Practical interpretation
+
+- The **local-metric $v_0$ surrogate is now wired into decode ablation logic**,
+   but with current thresholds it admits a small fraction of steps; latency
+   benefit depends strongly on gating policy and the chosen `rho` regime.
+- Smooth metric interpolation + strict-local unsaturated calibration materially
+   improves rho correlation diagnostics, but high relative error means
+   **do not runtime-integrate rho control yet**.

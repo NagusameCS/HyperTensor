@@ -105,6 +105,18 @@
 #include <string.h>
 #include <math.h>
 
+/* Cooperative yield used by long bake loops to keep the OS UI responsive. */
+#ifdef _WIN32
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  define AXIOM_YIELD() SwitchToThread()
+#else
+#  include <sched.h>
+#  define AXIOM_YIELD() sched_yield()
+#endif
+
 /* AVX2 dot-product helpers for the 262K-vocab PCA scans */
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -5381,7 +5393,8 @@ axiom_beta_status_t axiom_beta_one_decode_bake(int vocab_coverage)
 
     int vocab  = m->vocab_size;
     int dim    = m->dim;
-    int k      = phase1_pca.n_components;
+    int full_k = phase1_pca.n_components;
+    int k      = full_k;
     int k_geo  = (phase3_ch.dim > 0 && phase3_ch.dim <= k) ? phase3_ch.dim : k;
     if (k > 64) k = 64;       /* table uses fixed-width src_pca[64] */
     if (k_geo > k) k_geo = k;
@@ -5422,7 +5435,9 @@ axiom_beta_status_t axiom_beta_one_decode_bake(int vocab_coverage)
     /* Working buffers */
     double *emb_d  = (double *)tensor_alloc((uint64_t)dim   * sizeof(double));
     float  *emb_f  = (float  *)tensor_alloc((uint64_t)dim   * sizeof(float));
-    double *p_src  = (double *)tensor_alloc((uint64_t)k     * sizeof(double));
+    /* axpca_project writes phase1_pca.n_components outputs; keep a full-size
+     * source buffer even though OD stores only the leading 64 dimensions. */
+    double *p_src  = (double *)tensor_alloc((uint64_t)full_k * sizeof(double));
     double *v      = (double *)tensor_alloc((uint64_t)k     * sizeof(double));
     double *p_pred = (double *)tensor_alloc((uint64_t)k     * sizeof(double));
     double *gamma  = (double *)tensor_alloc((uint64_t)k_geo * (uint64_t)k_geo * (uint64_t)k_geo * sizeof(double));
@@ -5442,6 +5457,13 @@ axiom_beta_status_t axiom_beta_one_decode_bake(int vocab_coverage)
     int filled = 0;
 
     for (int si = 0; si < n_cov; si++) {
+        /* SAFETY: Yield to the OS every 256 entries so the scheduler can
+         * service HID input and DWM during long bakes (prevents the apparent
+         * screen/keyboard freeze observed during --axiom-probe 2048 runs). */
+        if ((si & 0xFF) == 0) {
+            AXIOM_YIELD();
+        }
+
         int tok;
         if (si < n_dense) {
             tok = si;                                   /* dense: IDs 0..n_dense-1 */

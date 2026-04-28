@@ -51,13 +51,36 @@ class Manifold:
     R_scalar:       np.ndarray  # (M,)
     dim:            int
     name:           str = ""
+    interp_sigma:   float = 0.0
 
     def nearest(self, x: np.ndarray) -> int:
         d = self.sample_points - x[None, :]
         return int(np.argmin(np.einsum("ij,ij->i", d, d)))
 
     def g_at(self, x: np.ndarray) -> np.ndarray:
-        return self.g_field[self.nearest(x)]
+        if self.interp_sigma <= 0.0:
+            return self.g_field[self.nearest(x)]
+
+        # Smooth local metric interpolant (log-Euclidean RBF blend of SPD samples).
+        d = self.sample_points - x[None, :]
+        d2 = np.einsum("ij,ij->i", d, d)
+        inv_2s2 = 1.0 / max(2.0 * self.interp_sigma * self.interp_sigma, 1e-12)
+        w = np.exp(-d2 * inv_2s2)
+        ws = float(w.sum())
+        if ws < 1e-12:
+            return self.g_field[self.nearest(x)]
+
+        accum = np.zeros((self.dim, self.dim), dtype=np.float64)
+        for i in range(self.g_field.shape[0]):
+            wi = float(w[i])
+            if wi < 1e-12:
+                continue
+            try:
+                lg = _spd_log(self.g_field[i] + 1e-9 * np.eye(self.dim))
+            except np.linalg.LinAlgError:
+                continue
+            accum += (wi / ws) * lg
+        return _spd_exp(accum)
 
     def gamma_at(self, x: np.ndarray) -> np.ndarray:
         return self.gamma_field[self.nearest(x)]
@@ -263,7 +286,7 @@ def fit_phase3_manifold(model: str, n_intrinsic: Optional[int] = None,
 
     return Manifold(
         sample_points=sample_points, g_field=g_field, gamma_field=gamma_field,
-        R_scalar=R_scalar, dim=n, name=f"{model}-intrinsic{n}",
+        R_scalar=R_scalar, dim=n, name=f"{model}-intrinsic{n}", interp_sigma=sigma,
     )
 
 
@@ -302,5 +325,5 @@ def build_sphere_manifold(n_intrinsic: int = 3, n_grid: int = 64,
 
     return Manifold(
         sample_points=pts, g_field=g_field, gamma_field=gamma_field,
-        R_scalar=R_scalar, dim=n, name=f"sphere{n}-r{radius}",
+        R_scalar=R_scalar, dim=n, name=f"sphere{n}-r{radius}", interp_sigma=0.15 * radius,
     )

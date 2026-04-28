@@ -74,10 +74,31 @@ def build_anchored_library(M, points: np.ndarray, anchor_idx: np.ndarray,
     return lib
 
 
+def _local_metric_v0(M, x: np.ndarray, y: np.ndarray, tau_attn: float) -> np.ndarray:
+    """Local-metric closed-form v0 surrogate direction at x toward y."""
+    g_x = M.g_at(x)
+    gneg = (g_x @ (x - y)) / max(2.0 * tau_attn, 1e-12)
+    try:
+        ginv = np.linalg.inv(g_x + 1e-9 * np.eye(g_x.shape[0]))
+    except np.linalg.LinAlgError:
+        ginv = np.linalg.pinv(g_x)
+    return normalise_to_unit_speed(M, x, -(ginv @ gneg))
+
+
+def _cos(a: np.ndarray, b: np.ndarray) -> float:
+    na = float(np.linalg.norm(a))
+    nb = float(np.linalg.norm(b))
+    if na < 1e-12 or nb < 1e-12:
+        return 0.0
+    return float(np.clip((a @ b) / (na * nb), -1.0, 1.0))
+
+
 def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
                     eps_star: float = 3.0, rho: float = 0.4,
                     T: int = 8, dl: float = 0.1,
                     phi_rank: int = 5, t_full_ms_per_token: float = 29.5,
+                    v0_tau_attn: float = 0.5,
+                    v0_gate_cos: float = 0.6,
                     seed: int = 20260427) -> dict:
     """Three-bucket decode-substitution benchmark.
 
@@ -104,8 +125,11 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
     t_build = time.perf_counter() - t0
 
     pred_err_correctable = []
+    pred_err_v0_gated = []
     g_dist   = np.zeros(len(decode_idx))
+    v0_cosine = np.zeros(len(decode_idx))
     n_correctable = 0
+    n_v0_gated = 0
     n_cache_hit   = 0
     t_lookup = []
     t_correct = []
@@ -125,6 +149,11 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
         rec = lib.records[a_idx]
         dq = p - rec.q
 
+        v0_hat = _local_metric_v0(M, p, rec.q, tau_attn=v0_tau_attn)
+        vcos = _cos(v0_hat, rec.v0)
+        v0_cosine[j] = vcos
+        v0_gate_pass = bool(vcos >= v0_gate_cos)
+
         t0 = time.perf_counter()
         U = rec.Phi_U[-1]; V = rec.Phi_V[-1]
         terminal_cached = rec.xs[-1].astype(np.float64)
@@ -142,17 +171,30 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
             g_t = M.g_at(p_true)
             err_g = float(np.sqrt(max(diff @ g_t @ diff, 0.0)))
             denom = max(float(np.sqrt(p_true @ g_t @ p_true)), 1e-12)
-            pred_err_correctable.append(err_g / denom)
+            rel_err = err_g / denom
+            pred_err_correctable.append(rel_err)
+            if v0_gate_pass:
+                n_v0_gated += 1
+                pred_err_v0_gated.append(rel_err)
 
     n_steps = len(decode_idx)
     hit_rate    = n_cache_hit / n_steps
     correct_rate = n_correctable / n_steps
+    v0_gate_rate = n_v0_gated / n_steps
     if pred_err_correctable:
         pe = np.asarray(pred_err_correctable)
         mean_pe = float(pe.mean()); p50_pe = float(np.quantile(pe, 0.5))
         p95_pe  = float(np.quantile(pe, 0.95))
     else:
         mean_pe = p50_pe = p95_pe = float("nan")
+
+    if pred_err_v0_gated:
+        pev = np.asarray(pred_err_v0_gated)
+        mean_pe_v0 = float(pev.mean())
+        p50_pe_v0 = float(np.quantile(pev, 0.5))
+        p95_pe_v0 = float(np.quantile(pev, 0.95))
+    else:
+        mean_pe_v0 = p50_pe_v0 = p95_pe_v0 = float("nan")
 
     t_full_s = t_full_ms_per_token / 1000.0
     t_jacobi_per_q = float(np.mean(t_correct))
@@ -171,6 +213,29 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
     tps_baseline = 1.0 / t_full_s
     tps_gtc      = 1.0 / max(t_step_avg, 1e-12)
 
+    # Ablation: same traffic model but with local-metric v0 gate deciding correction.
+    f_corr_v0 = v0_gate_rate
+    f_hit_only_v0 = max(0.0, hit_rate - v0_gate_rate)
+    f_miss_v0 = 1.0 - hit_rate
+    t_step_avg_v0 = (
+        f_corr_v0    * (t_lookup_per_q + t_jacobi_per_q) +
+        f_hit_only_v0 * (t_lookup_per_q + 0.5 * t_full_s) +
+        f_miss_v0    * (t_lookup_per_q + t_full_s)
+    )
+    speedup_avg_v0 = t_full_s / max(t_step_avg_v0, 1e-12)
+    tps_gtc_v0 = 1.0 / max(t_step_avg_v0, 1e-12)
+
+    token_rows = []
+    for j, idx in enumerate(decode_idx):
+        token_rows.append({
+            "decode_idx": int(idx),
+            "g_dist": float(g_dist[j]),
+            "v0_cos": float(v0_cosine[j]),
+            "cache_hit_eps": bool(g_dist[j] <= eps_star),
+            "correctable_rho": bool(g_dist[j] <= rho),
+            "correctable_rho_v0gate": bool(g_dist[j] <= rho and v0_cosine[j] >= v0_gate_cos),
+        })
+
     return {
         "model": model, "n_intrinsic": dim, "Nc": Nc,
         "cache_fraction": cache_fraction, "k_anchors": int(k),
@@ -188,6 +253,15 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
         "pred_err_correctable_mean": mean_pe,
         "pred_err_correctable_p50": p50_pe,
         "pred_err_correctable_p95": p95_pe,
+        "pred_err_correctable_v0gate_mean": mean_pe_v0,
+        "pred_err_correctable_v0gate_p50": p50_pe_v0,
+        "pred_err_correctable_v0gate_p95": p95_pe_v0,
+        "v0_tau_attn": float(v0_tau_attn),
+        "v0_gate_cos": float(v0_gate_cos),
+        "v0_gate_rate": float(v0_gate_rate),
+        "v0_cosine_mean": float(np.mean(v0_cosine)) if len(v0_cosine) else float("nan"),
+        "v0_cosine_p50": float(np.quantile(v0_cosine, 0.5)) if len(v0_cosine) else float("nan"),
+        "v0_cosine_p95": float(np.quantile(v0_cosine, 0.95)) if len(v0_cosine) else float("nan"),
         "lookup_us_per_step": round(t_lookup_per_q * 1e6, 3),
         "correct_us_per_step": round(t_jacobi_per_q * 1e6, 3),
         "ground_truth_geodesic_us_per_step": round(t_truth_per_q * 1e6, 3) if not np.isnan(t_truth_per_q) else None,
@@ -197,6 +271,15 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
         "projected_speedup_avg": round(speedup_avg, 3),
         "baseline_tps": round(tps_baseline, 1),
         "projected_gtc_tps": round(tps_gtc, 1),
+        "v0_gated_projected_avg_step_ms": round(t_step_avg_v0 * 1e3, 4),
+        "v0_gated_projected_speedup_avg": round(speedup_avg_v0, 3),
+        "v0_gated_projected_gtc_tps": round(tps_gtc_v0, 1),
+        "delta_quality_mean_abs": (float(mean_pe_v0 - mean_pe)
+                                     if not np.isnan(mean_pe_v0) and not np.isnan(mean_pe)
+                                     else None),
+        "delta_projected_step_ms": round((t_step_avg_v0 - t_step_avg) * 1e3, 4),
+        "delta_projected_tps": round(tps_gtc_v0 - tps_gtc, 3),
+        "token_rows": token_rows,
     }
 
 
@@ -217,6 +300,10 @@ def main():
     #   Gemma-4 E2B         : ~9.3 ms (107.7 tps)
     ap.add_argument("--t-full-ms", type=float, default=29.5,
                     help="Full forward pass wall-clock in ms (default: Llama-3.1-8B baseline).")
+    ap.add_argument("--v0-tau-attn", type=float, default=0.5,
+                    help="Tau for local-metric v0 surrogate gating.")
+    ap.add_argument("--v0-gate-cos", type=float, default=0.6,
+                    help="Cosine threshold to allow correction under v0 gating ablation.")
     args = ap.parse_args()
 
     out = substitute_run(args.model, dim=args.dim,
@@ -224,28 +311,41 @@ def main():
                          eps_star=args.eps_star, rho=args.rho,
                          T=args.T, dl=args.dl,
                          phi_rank=args.phi_rank,
-                         t_full_ms_per_token=args.t_full_ms)
+                         t_full_ms_per_token=args.t_full_ms,
+                         v0_tau_attn=args.v0_tau_attn,
+                         v0_gate_cos=args.v0_gate_cos)
     out_path = REPO / "docs" / "figures" / "gtc" / f"{args.model}_decode_substitution.json"
     out_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
     print(f"[decode-sub] model={args.model} k={out['k_anchors']}/{out['Nc']} "
           f"steps={out['n_decode_steps']} eps_star={args.eps_star} rho={args.rho}")
-    print(f"  cache hit rate (≤ε*) : {out['cache_hit_rate_eps_star']:.1%}")
-    print(f"  correctable (≤ρ)     : {out['correctable_rate_within_rho']:.1%}")
-    print(f"  hit-but-uncorr       : {out['fraction_hit_but_uncorrectable']:.1%}")
-    print(f"  miss                 : {out['fraction_miss']:.1%}")
+    print(f"  cache hit rate (<=eps*) : {out['cache_hit_rate_eps_star']:.1%}")
+    print(f"  correctable (<=rho)     : {out['correctable_rate_within_rho']:.1%}")
+    print(f"  hit-but-uncorr          : {out['fraction_hit_but_uncorrectable']:.1%}")
+    print(f"  miss                    : {out['fraction_miss']:.1%}")
     print(f"  pred_err on correctable : "
           f"mean={out['pred_err_correctable_mean']:.3%} "
           f"p50={out['pred_err_correctable_p50']:.3%} "
           f"p95={out['pred_err_correctable_p95']:.3%}")
-    print(f"  lookup µs/step       : {out['lookup_us_per_step']}")
-    print(f"  correct µs/step      : {out['correct_us_per_step']}")
-    print(f"  gtc step on hit      : {out['gtc_step_us_on_hit']} µs")
-    print(f"  baseline full step   : {out['baseline_full_step_ms']} ms")
-    print(f"  projected avg step   : {out['projected_avg_step_ms']} ms")
-    print(f"  projected speedup    : {out['projected_speedup_avg']}× over baseline")
-    print(f"  projected tps        : {out['baseline_tps']} → {out['projected_gtc_tps']}")
-    print(f"  → {out_path}")
+    print(f"  pred_err on v0-gated    : "
+          f"mean={out['pred_err_correctable_v0gate_mean']:.3%} "
+          f"p50={out['pred_err_correctable_v0gate_p50']:.3%} "
+          f"p95={out['pred_err_correctable_v0gate_p95']:.3%}")
+    print(f"  v0 gate rate            : {out['v0_gate_rate']:.1%} "
+          f"(cos >= {out['v0_gate_cos']:.2f})")
+    print(f"  lookup us/step          : {out['lookup_us_per_step']}")
+    print(f"  correct us/step         : {out['correct_us_per_step']}")
+    print(f"  gtc step on hit         : {out['gtc_step_us_on_hit']} us")
+    print(f"  baseline full step      : {out['baseline_full_step_ms']} ms")
+    print(f"  projected avg step      : {out['projected_avg_step_ms']} ms")
+    print(f"  projected speedup       : {out['projected_speedup_avg']}x over baseline")
+    print(f"  projected tps           : {out['baseline_tps']} -> {out['projected_gtc_tps']}")
+    print(f"  v0-gated projected tps  : {out['baseline_tps']} -> {out['v0_gated_projected_gtc_tps']}")
+    print(f"  delta (v0gate-baseline) : "
+          f"quality_mean={out['delta_quality_mean_abs']} "
+          f"step_ms={out['delta_projected_step_ms']} "
+          f"tps={out['delta_projected_tps']}")
+    print(f"  -> {out_path}")
 
 
 if __name__ == "__main__":

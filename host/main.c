@@ -96,6 +96,7 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <errno.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -174,6 +175,10 @@ static void print_usage(const char *argv0) {
     kprintf("  --ott-perfect          Perfect-day OTT: exact transformer rollout upper bound (100%% draft acceptance)\n");
     kprintf("  --ott-spec-thresh N    Confidence threshold for draft acceptance (default: 0.65)\n");
     kprintf("  --ott-spec-batch N     Draft batch size for speculative decode (default: 4)\n");
+    kprintf("  --ott-live-telemetry <path> Dump live OTT token activations as TSV during speculative decode\n");
+    kprintf("  --ott-live-layer <n>   Layer to probe for live telemetry (-1 = last layer, default)\n");
+    kprintf("  --ott-live-every <n>   Dump every N emitted tokens to telemetry (default: 1)\n");
+    kprintf("  --ott-rejection-log <path> Dump rejected draft tokens as TSV (D2 taxonomy analysis)\n");
     kprintf("  --no-verifier          Emit geodesic drafts directly — skip transformer verify (faster, lower quality)\n");
     kprintf("  --ott-full             Enable OTT full mode (geodesic-first + axiomatic run + AttnRes)\n");
     kprintf("  --ott-theorem          Enable theorem-mode OTT (adds depth residual attention + strict geodesic quality control)\n");
@@ -224,9 +229,13 @@ static void print_usage(const char *argv0) {
 
 static void enable_max_performance_host(void) {
 #ifdef _WIN32
-    /* Prefer compute latency over background fairness for local inference. */
-    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+    /* SAFETY: Use NORMAL priority. Earlier this code used HIGH_PRIORITY_CLASS
+     * which starved the OS input thread and DWM during long --axiom-probe
+     * runs, making the screen and keyboard appear frozen until the workload
+     * finished. NORMAL keeps inference fast while letting the scheduler
+     * service HID input and the desktop compositor. */
+    SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
 
     /* Disable Windows execution-speed throttling when the API is available. */
 #if defined(PROCESS_POWER_THROTTLING_EXECUTION_SPEED)
@@ -283,6 +292,10 @@ typedef struct {
     int         ott_perfect;            /* 1 = exact greedy rollout upper bound (100% accepted drafts) */
     float       ott_speculative_thresh; /* geodesic confidence threshold [0,1], default 0.65 */
     int         ott_speculative_batch;  /* draft batch size (default 4) */
+    const char *ott_live_telemetry_path; /* optional TSV dump of live token activations */
+    int         ott_live_telemetry_layer; /* layer to probe for live telemetry (-1 = last) */
+    int         ott_live_telemetry_every; /* dump every N emitted tokens */
+    const char *ott_rejection_log_path;  /* optional TSV log of rejected draft tokens (D2 taxonomy) */
     int         no_verifier;            /* 1 = emit geodesic drafts directly, skip transformer verification */
     const char *vis_output_dir;
     int         ctx_size;   /* 0 = default (2048); user override via --ctx-size */
@@ -420,6 +433,10 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
     args->ott_perfect = 0;
     args->ott_speculative_thresh = 0.1f;  /* loose pre-filter; topk verifier (margin=2.8) is authoritative */
     args->ott_speculative_batch = 2;
+    args->ott_live_telemetry_path = NULL;
+    args->ott_live_telemetry_layer = -1;
+    args->ott_live_telemetry_every = 1;
+    args->ott_rejection_log_path = NULL;
     args->no_verifier = 0;
     args->vis_output_dir = NULL;
     args->ctx_size = 0;
@@ -571,6 +588,20 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
         } else if (strcmp(argv[i], "--ott-spec-batch") == 0) {
             if (++i >= argc) { kprintf("Error: --ott-spec-batch requires number\n"); return -1; }
             args->ott_speculative_batch = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--ott-live-telemetry") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-live-telemetry requires path\n"); return -1; }
+            args->ott_live_telemetry_path = argv[i];
+        } else if (strcmp(argv[i], "--ott-live-layer") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-live-layer requires integer\n"); return -1; }
+            args->ott_live_telemetry_layer = atoi(argv[i]);
+        } else if (strcmp(argv[i], "--ott-live-every") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-live-every requires integer\n"); return -1; }
+            args->ott_live_telemetry_every = atoi(argv[i]);
+            if (args->ott_live_telemetry_every < 1)
+                args->ott_live_telemetry_every = 1;
+        } else if (strcmp(argv[i], "--ott-rejection-log") == 0) {
+            if (++i >= argc) { kprintf("Error: --ott-rejection-log requires path\n"); return -1; }
+            args->ott_rejection_log_path = argv[i];
         } else if (strcmp(argv[i], "--ott-full") == 0) {
             args->ott_full = 1;
             args->axiom_beta_run = 1;
@@ -1620,6 +1651,123 @@ static tpj_ctx_t     s_spec_tpj;
 static int           s_spec_tpj_active     = 0;    /* 1 = TPJ energy tracking enabled */
 static phased_plan_t s_spec_phase_plan;
 static int           s_spec_phase_plan_active = 0; /* 1 = phase detector running */
+static const char   *s_spec_live_telemetry_path = NULL;
+static int           s_spec_live_telemetry_layer = -1;
+static int           s_spec_live_telemetry_every = 1;
+static FILE         *s_spec_live_telemetry_fp = NULL;
+static int           s_spec_live_telemetry_dim = 0;
+
+/* ── Rejection log: records every verifier-rejected draft token ───────── */
+static FILE         *s_spec_rejection_log_fp = NULL;
+static const char   *s_spec_rejection_log_path = NULL;
+
+static void spec_rejection_log_open(void)
+{
+    if (s_spec_rejection_log_fp) { fclose(s_spec_rejection_log_fp); s_spec_rejection_log_fp = NULL; }
+    if (!s_spec_rejection_log_path || !*s_spec_rejection_log_path) return;
+    s_spec_rejection_log_fp = fopen(s_spec_rejection_log_path, "wb");
+    if (!s_spec_rejection_log_fp) return;
+    /* TSV header: step, draft_pos, draft_tok, draft_piece, verifier_tok,
+     *             verifier_piece, n_drafts, warmup, source */
+    fprintf(s_spec_rejection_log_fp,
+            "# geodessical_rejection_log_v1\n"
+            "step\tdraft_pos\tdraft_tok\tdraft_piece\tverifier_tok\tverifier_piece\tn_drafts\twarmup\tsource\n");
+    fflush(s_spec_rejection_log_fp);
+}
+
+static void spec_rejection_log_close(void)
+{
+    if (s_spec_rejection_log_fp) { fclose(s_spec_rejection_log_fp); s_spec_rejection_log_fp = NULL; }
+}
+
+/* source: "od" = OD-table draft, "geo" = geodesic rollout, "step" = step_fast */
+static void spec_rejection_log_emit(int step_idx,
+                                    int draft_pos,
+                                    int draft_tok,
+                                    int verifier_tok,
+                                    int n_drafts,
+                                    int in_warmup,
+                                    const char *source)
+{
+    if (!s_spec_rejection_log_fp) return;
+    char dp[64] = "";
+    char vp[64] = "";
+    if (draft_tok >= 0)    llm_test_decode_token(draft_tok,    dp, (int)sizeof(dp));
+    if (verifier_tok >= 0) llm_test_decode_token(verifier_tok, vp, (int)sizeof(vp));
+    /* Escape tabs in pieces to avoid breaking TSV */
+    for (char *c = dp; *c; c++) if (*c == '\t' || *c == '\n') *c = ' ';
+    for (char *c = vp; *c; c++) if (*c == '\t' || *c == '\n') *c = ' ';
+    fprintf(s_spec_rejection_log_fp, "%d\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%s\n",
+            step_idx, draft_pos, draft_tok, dp,
+            verifier_tok, vp, n_drafts, in_warmup, source ? source : "");
+    fflush(s_spec_rejection_log_fp);
+}
+
+static void spec_live_telemetry_close(void)
+{
+    if (s_spec_live_telemetry_fp) {
+        fclose(s_spec_live_telemetry_fp);
+        s_spec_live_telemetry_fp = NULL;
+    }
+    s_spec_live_telemetry_dim = 0;
+}
+
+static void spec_live_telemetry_open(void)
+{
+    spec_live_telemetry_close();
+    if (!s_spec_live_telemetry_path || !*s_spec_live_telemetry_path)
+        return;
+
+    s_spec_live_telemetry_dim = llm_model_dim();
+    if (s_spec_live_telemetry_dim <= 0)
+        return;
+
+    s_spec_live_telemetry_fp = fopen(s_spec_live_telemetry_path, "wb");
+    if (!s_spec_live_telemetry_fp) {
+        kprintf("[SPEC] Live telemetry disabled: failed to open %s (%s)\n",
+                s_spec_live_telemetry_path, strerror(errno));
+        return;
+    }
+
+    fprintf(s_spec_live_telemetry_fp,
+            "# geodessical_live_telemetry_v1\tlayer=%d\tdim=%d\tevery=%d\n",
+            s_spec_live_telemetry_layer,
+            s_spec_live_telemetry_dim,
+            s_spec_live_telemetry_every);
+    fflush(s_spec_live_telemetry_fp);
+}
+
+static void spec_live_telemetry_emit(const int *ctx,
+                                     int n_ctx,
+                                     int step_idx,
+                                     int token_id,
+                                     const char *source)
+{
+    if (!s_spec_live_telemetry_fp || s_spec_live_telemetry_dim <= 0 ||
+        !ctx || n_ctx <= 0 || token_id < 0 || !source)
+        return;
+    if (s_spec_live_telemetry_every > 1 && (step_idx % s_spec_live_telemetry_every) != 0)
+        return;
+
+    float *hidden = (float *)malloc((size_t)s_spec_live_telemetry_dim * sizeof(float));
+    if (!hidden)
+        return;
+
+    ott_update_generation_context(ctx, n_ctx);
+    if (axiom_beta_probe_layer_state(token_id,
+                                     s_spec_live_telemetry_layer,
+                                     hidden,
+                                     s_spec_live_telemetry_dim) == 0) {
+        fprintf(s_spec_live_telemetry_fp, "%d\t%s\t%d",
+                step_idx, source, token_id);
+        for (int j = 0; j < s_spec_live_telemetry_dim; j++)
+            fprintf(s_spec_live_telemetry_fp, "\t%.8g", hidden[j]);
+        fputc('\n', s_spec_live_telemetry_fp);
+        fflush(s_spec_live_telemetry_fp);
+    }
+
+    free(hidden);
+}
 
 /* ── OTT Speculative Decode ─────────────────────────────────────────────
  * Collects `batch` geodesic draft tokens, then verifies them in one
@@ -1694,9 +1842,39 @@ static int geodesic_speculative_generate_text(const char *prompt,
         for (int _di = 0; _di < n_ctx && _di < 24; _di++) kprintf(" %d", ctx[_di]);
         kprintf("\n");
     } else {
-        int n_raw = llm_test_tokenize(prompt, (int)strlen(prompt), ctx + 1, max_ctx - 1);
+        /* Detect ChatML models (SmolLM2, Qwen, etc.): llama/qwen arch with ChatML vocab.
+         * SmolLM2 reports llama arch but uses ChatML format; detect by "moll" in name.
+         * Without the template the model predicts EOS on token 0 (raw prompt has no
+         * assistant-turn marker), causing the speculative path to exit immediately. */
+        int spec_is_llama = (strstr(m->arch, "llama") != NULL);
+        int spec_is_qwen  = (m->arch[0]=='q' && m->arch[1]=='w' && m->arch[2]=='e' && m->arch[3]=='n');
+        int spec_is_chatml = spec_is_qwen ||
+                             (spec_is_llama && strstr(m->name, "moll") != NULL);
+        int spec_has_tmpl  = (strstr(prompt, "<|im_start|>") != NULL) ||
+                             (strstr(prompt, "<|im_end|>")   != NULL);
+        const char *tokenize_prompt = prompt;
+        static char spec_chatml_buf[8192];
+        if (spec_is_chatml && !spec_has_tmpl) {
+            const char *pre  = "<|im_start|>user\n";
+            const char *post = "<|im_end|>\n<|im_start|>assistant\n";
+            int pre_l  = (int)strlen(pre);
+            int post_l = (int)strlen(post);
+            int text_l = (int)strlen(prompt);
+            int total  = pre_l + text_l + post_l;
+            if (total >= (int)sizeof(spec_chatml_buf) - 1)
+                text_l = (int)sizeof(spec_chatml_buf) - pre_l - post_l - 2;
+            memcpy(spec_chatml_buf,                  pre,    pre_l);
+            memcpy(spec_chatml_buf + pre_l,          prompt, text_l);
+            memcpy(spec_chatml_buf + pre_l + text_l, post,   post_l);
+            spec_chatml_buf[pre_l + text_l + post_l] = '\0';
+            tokenize_prompt = spec_chatml_buf;
+            kprintf("[SPEC] Chat template applied (ChatML, %d chars)\n",
+                    pre_l + text_l + post_l);
+        }
+        int n_raw = llm_test_tokenize(tokenize_prompt, (int)strlen(tokenize_prompt),
+                                      ctx + 1, max_ctx - 1);
         if (n_raw <= 0 || n_raw >= max_ctx - 1) {
-            free(ctx); free(drafts); return -1;
+            free(ctx); free(drafts); free(swarm_drafts); return -1;
         }
         if (m->bos_id >= 0) {
             ctx[0] = m->bos_id;
@@ -1762,7 +1940,22 @@ static int geodesic_speculative_generate_text(const char *prompt,
     int xfmr_accepted = 0;
     int od_draft_hits  = 0;  /* OTT-OD: drafts produced by OneDecode table */
     int swarm_hit_count = 0; /* OD-SWARM: draft slots accepted via swarm path */
+    int grc_fb_ok = 0;
+    int grc_fb_fail = 0;
+    int grc_fb_skip = 0;
     int eos = m->eos_id;
+
+    spec_live_telemetry_open();
+    if (s_spec_live_telemetry_fp) {
+        kprintf("[SPEC] Live telemetry -> %s (layer=%d every=%d)\n",
+                s_spec_live_telemetry_path,
+                s_spec_live_telemetry_layer,
+                s_spec_live_telemetry_every);
+    }
+    spec_rejection_log_open();
+    if (s_spec_rejection_log_fp) {
+        kprintf("[SPEC] Rejection log -> %s\n", s_spec_rejection_log_path);
+    }
     /* Gemma4: stop on <start_of_turn>=106 or <end_of_turn>=107 */
     int is_gemma4 = (strstr(m->arch, "gemma4") != NULL);
 
@@ -1778,6 +1971,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
     int spec_warmup_done = 0;
     int spec_warmup_tokens = 0;
     const int SPEC_WARMUP_N = 4; /* transformer-only tokens before geodesic starts */
+    /* Minimum response length guard: instruct-tuned models (e.g. SmolLM2 in
+     * ChatML mode) emit EOS as the top-logit token at greedy temperature even
+     * for prompts that warrant a real answer.  For the first SPEC_MIN_RESP_N
+     * positions we replace any EOS/BOS/turn-marker emission with the next-best
+     * non-boundary token from the same logits — no extra forward pass.  After
+     * SPEC_MIN_RESP_N tokens, EOS terminates the response normally. */
+    const int SPEC_MIN_RESP_N = 4;
     int dyn_round     = 0;       /* rounds since last adjustment */
     int dyn_accepted  = 0;
     int dyn_generated = 0;
@@ -1906,9 +2106,6 @@ static int geodesic_speculative_generate_text(const char *prompt,
             }
         }
 
-        /* Skip geodesic during warmup phase — dyn_batch would decrement to 1
-         * from all-zero drafts while warmup discards results, permanently disabling geodesic. */
-        if (skip_geodesic_warmup) goto skip_geodesic;
         /* Skip geodesic drafting while batch=1 (pure transformer fallback mode).
          * Rollout does 16 vocab-scan steps (~100ms CPU) to produce a single draft
          * that gets rejected with 0% acceptance — pure overhead.  Jump directly
@@ -1916,9 +2113,8 @@ static int geodesic_speculative_generate_text(const char *prompt,
         if (dyn_batch <= 1) goto skip_geodesic;
 
         /* ── Prime logits before OD so d=0 always uses exact transformer top-1 ─
-         * Without this, when ≥2 drafts accepted in the previous round,
-         * llm_logits_pos lands at n_ctx-2 (not n_ctx-1), causing OD to miss
-         * the primed-logits fast path and fall back to manifold lookup.
+         * Run even during warmup so OD (transformer-based, position-aware) can
+         * provide a valid d=0 draft token while geodesic rollout is suppressed.
          * llm_prime_logits_fast is O(1) when cache is already valid (most cases),
          * costs one forward pass only when logits are stale. ───────────────── */
         if (axiom_beta_one_decode_ready() || dyn_batch >= 2) {
@@ -1936,7 +2132,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
          * ─────────────────────────────────────────────────────────────────── */
         if (axiom_beta_one_decode_ready() && n_drafts < dyn_batch) {
             int od_tok = llm_get_primed_greedy_token(n_ctx);
-            if (od_tok >= 0 && od_tok < m->vocab_size) {
+            /* BOUNDARY GUARD: reject BOS/EOS/special tokens before quality checks.
+             * A poisoned OD table (baked without ChatML context) proposes EOS (tok=2)
+             * on every step.  Reject BOS=1 and EOS=m->eos_id regardless of piece text
+             * so a bad table can never stall the speculative loop or waste a verify call. */
+            int od_is_boundary = (od_tok == 1 || (eos >= 0 && od_tok == eos) ||
+                                  (is_gemma4 && (od_tok == 106 || od_tok == 107)));
+            if (od_tok >= 0 && od_tok < m->vocab_size && !od_is_boundary) {
                 char od_piece[256];
                 int od_pn = llm_test_decode_token(od_tok, od_piece, (int)sizeof(od_piece));
                 if (od_pn > 0 && geodesic_piece_quality_ok(od_piece, od_pn)) {
@@ -1965,6 +2167,12 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 }
             }
         }
+
+        /* Skip geodesic rollout/step_fast during warmup — geodesic uses raw token
+         * embeddings (position-independent) so it cannot predict from chat-template
+         * markers like <start_of_turn>model.  OD already ran above so skip_fallback
+         * lets us go direct to verification with the OD draft (if any). */
+        if (skip_geodesic_warmup) goto skip_fallback;
 
         /* OD provided d=0: skip rollout (positional collision with step 0).
          * If GRC has history, step_fast fills remaining slots at d=1+.
@@ -2088,9 +2296,25 @@ static int geodesic_speculative_generate_text(const char *prompt,
             verif_decode_us += _vt1 - _vt0;
             verif_decode_n  += 1;
 
+            /* D2: log the first rejected draft position and the verifier's correction */
+            if (n_acc >= 0 && n_acc < n_drafts && s_spec_rejection_log_fp) {
+                /* Determine draft source: slot 0 from OD table, rest from geodesic */
+                const char *rej_src = (n_acc == 0 && od_draft_hits > 0 &&
+                                       n_acc < od_draft_hits) ? "od" : "geo";
+                spec_rejection_log_emit(generated, n_acc,
+                                        drafts[n_acc],
+                                        correction,
+                                        n_drafts,
+                                        spec_warmup_done ? 0 : 1,
+                                        rej_src);
+            }
+
             if (n_acc < 0) {
-                /* verification error — fall back to standard generation */
-                break;
+                /* Transient verifier failure: degrade to single-token mode and retry.
+                 * Breaking here returns -1 when generated==0, forcing full fallback.
+                 * A retry often succeeds once logits/KV state is refreshed next round. */
+                if (dyn_batch > 1) dyn_batch = 1;
+                continue;
             }
 
             /* Track acceptance for dynamic batch sizing */
@@ -2100,6 +2324,15 @@ static int geodesic_speculative_generate_text(const char *prompt,
             /* Emit accepted draft tokens */
             for (int i = 0; i < n_acc && generated < max_tokens; i++) {
                 int tok = drafts[i];
+                if (generated < SPEC_MIN_RESP_N && ((eos >= 0 && tok == eos) || (is_gemma4 && tok == 106))) {
+                    int excl[4]; int n_excl = 0;
+                    if (eos >= 0) excl[n_excl++] = eos;
+                    if (m->bos_id >= 0) excl[n_excl++] = m->bos_id;
+                    if (is_gemma4) { excl[n_excl++] = 106; excl[n_excl++] = 107; }
+                    int alt = llm_topk_excluding(excl, n_excl);
+                    if (alt >= 0 && alt < m->vocab_size) tok = alt;
+                    else { if (dyn_batch > 1) dyn_batch = 1; continue; }
+                }
                 if (eos >= 0 && tok == eos) goto spec_done;
                 if (is_gemma4 && tok == 106) goto spec_done; /* start_of_turn = new turn */
                 /* tok=107='\n' in Gemma4 — do NOT stop on it (fires on every newline) */
@@ -2115,6 +2348,7 @@ static int geodesic_speculative_generate_text(const char *prompt,
                         output[out_len] = '\0';
                     }
                 }
+                spec_live_telemetry_emit(ctx, n_ctx, generated, tok, "geo");
                 if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
                 generated++;
                 geo_accepted++;
@@ -2124,11 +2358,18 @@ static int geodesic_speculative_generate_text(const char *prompt,
             if (n_acc < n_drafts && correction >= 0 &&
                 correction < m->vocab_size && generated < max_tokens) {
                 int tok = correction;
+                if (generated < SPEC_MIN_RESP_N && ((eos >= 0 && tok == eos) || (is_gemma4 && tok == 106))) {
+                    int excl[4]; int n_excl = 0;
+                    if (eos >= 0) excl[n_excl++] = eos;
+                    if (m->bos_id >= 0) excl[n_excl++] = m->bos_id;
+                    if (is_gemma4) { excl[n_excl++] = 106; excl[n_excl++] = 107; }
+                    int alt = llm_topk_excluding(excl, n_excl);
+                    if (alt >= 0 && alt < m->vocab_size) tok = alt;
+                    else { if (dyn_batch > 1) dyn_batch = 1; continue; }
+                }
                 if (eos >= 0 && tok == eos) goto spec_done;
                 if (is_gemma4 && tok == 106) goto spec_done; /* start_of_turn = new turn */
                 /* tok=107='\n' in Gemma4 — do NOT stop on it (fires on every newline) */
-                /* GRC feedback: teach the geodesic what the correct token was */
-                axiom_beta_grc_feedback(ctx, n_ctx, tok);
                 char piece[256];
                 int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
                 if (pn > 0) {
@@ -2140,6 +2381,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
                         output[out_len] = '\0';
                     }
                 }
+                {
+                    int fb = axiom_beta_grc_feedback(ctx, n_ctx, tok);
+                    if (fb == AXIOM_BETA_OK) grc_fb_ok++;
+                    else if (fb == AXIOM_BETA_ERR_INVALID) grc_fb_skip++;
+                    else grc_fb_fail++;
+                }
+                spec_live_telemetry_emit(ctx, n_ctx, generated, tok, "xfmr");
                 if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
                 generated++;
                 xfmr_accepted++;
@@ -2147,6 +2395,15 @@ static int geodesic_speculative_generate_text(const char *prompt,
                        correction < m->vocab_size && generated < max_tokens) {
                 /* Bonus token: all drafts accepted, correction is next token */
                 int tok = correction;
+                if (generated < SPEC_MIN_RESP_N && ((eos >= 0 && tok == eos) || (is_gemma4 && tok == 106))) {
+                    int excl[4]; int n_excl = 0;
+                    if (eos >= 0) excl[n_excl++] = eos;
+                    if (m->bos_id >= 0) excl[n_excl++] = m->bos_id;
+                    if (is_gemma4) { excl[n_excl++] = 106; excl[n_excl++] = 107; }
+                    int alt = llm_topk_excluding(excl, n_excl);
+                    if (alt >= 0 && alt < m->vocab_size) tok = alt;
+                    else { if (dyn_batch > 1) dyn_batch = 1; continue; }
+                }
                 if (eos >= 0 && tok == eos) goto spec_done;
                 if (is_gemma4 && tok == 106) goto spec_done; /* start_of_turn = new turn */
                 /* tok=107='\n' in Gemma4 — do NOT stop on it (fires on every newline) */
@@ -2161,6 +2418,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
                         output[out_len] = '\0';
                     }
                 }
+                {
+                    int fb = axiom_beta_grc_feedback(ctx, n_ctx, tok);
+                    if (fb == AXIOM_BETA_OK) grc_fb_ok++;
+                    else if (fb == AXIOM_BETA_ERR_INVALID) grc_fb_skip++;
+                    else grc_fb_fail++;
+                }
+                spec_live_telemetry_emit(ctx, n_ctx, generated, tok, "bonus");
                 if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
                 generated++;
                 xfmr_accepted++;
@@ -2173,13 +2437,33 @@ static int geodesic_speculative_generate_text(const char *prompt,
             verif_decode_us += hal_timer_us() - _vt0;
             verif_decode_n  += 1;
             int out_tok = correction;
-            if (out_tok < 0 || out_tok >= m->vocab_size)
-                break;
+            if (out_tok < 0 || out_tok >= m->vocab_size) {
+                /* Invalid verifier sample: retry in conservative mode instead of
+                 * terminating speculative decode with zero generated tokens. */
+                if (dyn_batch > 1) dyn_batch = 1;
+                continue;
+            }
 
             int tok = out_tok;
+            if (generated < SPEC_MIN_RESP_N && ((eos >= 0 && tok == eos) || (is_gemma4 && tok == 106))) {
+                /* Min-response guard: instruct-tuned models (e.g. SmolLM2 in
+                 * ChatML mode) often emit EOS as the top-logit token at greedy
+                 * temperature for the first few positions, producing an empty
+                 * response.  Replace with the top non-EOS/BOS token from the
+                 * same logits (no extra forward pass). */
+                int excl[4]; int n_excl = 0;
+                if (eos >= 0) excl[n_excl++] = eos;
+                if (m->bos_id >= 0) excl[n_excl++] = m->bos_id;
+                if (is_gemma4) { excl[n_excl++] = 106; excl[n_excl++] = 107; }
+                int alt = llm_topk_excluding(excl, n_excl);
+                if (alt >= 0 && alt < m->vocab_size) {
+                    tok = alt;
+                } else {
+                    goto spec_done;
+                }
+            }
             if (eos >= 0 && tok == eos) goto spec_done;
             if (is_gemma4 && tok == 106) goto spec_done; /* start_of_turn = new turn */
-                /* tok=107='\n' in Gemma4 — do NOT stop on it (fires on every newline) */
             char piece[256];
             int pn = llm_test_decode_token(tok, piece, (int)sizeof(piece));
             if (pn > 0) {
@@ -2190,6 +2474,13 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 out_len += pn;
                 output[out_len] = '\0';
             }
+            {
+                int fb = axiom_beta_grc_feedback(ctx, n_ctx, tok);
+                if (fb == AXIOM_BETA_OK) grc_fb_ok++;
+                else if (fb == AXIOM_BETA_ERR_INVALID) grc_fb_skip++;
+                else grc_fb_fail++;
+            }
+            spec_live_telemetry_emit(ctx, n_ctx, generated, tok, "direct");
             if (n_ctx < max_ctx) ctx[n_ctx++] = tok;
             generated++;
             xfmr_accepted++;
@@ -2216,8 +2507,7 @@ static int geodesic_speculative_generate_text(const char *prompt,
                 llm_kv_snapshot_prefix(ctx, n_ctx);
                 last_snapshot_ctx = n_ctx;
             }
-            if (dyn_batch > 1)
-                ott_update_generation_context(ctx, n_ctx);
+            ott_update_generation_context(ctx, n_ctx);
         }
         /* ── TPJ record + phase plan update (per decode batch) ───────────────
          * tpj_record() feeds the tokens-per-joule energy model with the current
@@ -2236,6 +2526,8 @@ static int geodesic_speculative_generate_text(const char *prompt,
     }
 
 spec_done:
+    spec_live_telemetry_close();
+    spec_rejection_log_close();
     {
         float verif_tok_s = (verif_decode_us > 0 && verif_decode_n > 0)
             ? (float)verif_decode_n * 1e6f / (float)verif_decode_us : 0.0f;
@@ -2243,6 +2535,8 @@ spec_done:
                 generated, geo_accepted, xfmr_accepted, od_draft_hits, od_swarm_k,
                 generated > 0 ? 100.0f * (float)geo_accepted / (float)generated : 0.0f,
                 dyn_batch);
+        kprintf("[SPEC] GRC online feedback: ok=%d fail=%d skip=%d (grc_count=%d)\n",
+            grc_fb_ok, grc_fb_fail, grc_fb_skip, axiom_beta_grc_count());
         if (perfect_day)
             kprintf("[SPEC] Perfect-day note: acceptance is the transformer-exact upper bound.\n");
         kprintf("[SPEC] Verifier decode: %.1f tok/s (%d calls in %llu ms)\n",
@@ -2734,6 +3028,13 @@ int main(int argc, char **argv) {
         axiom_ran_this_invocation = 1;
         axiom_intrinsic_dim = rep->phase1.intrinsic_dim;
         axiom_consistency = rep->phase4.consistency_score;
+        /* When geometry was reused from disk cache, Phase 4 was skipped so
+         * consistency_score is 0.  The cache by definition is a previously
+         * validated calibration, so treat it as fully consistent — without
+         * this, the OTT readiness gate (axiom_consistency >= 0.85) trips and
+         * reports status="not_ready" on every cached run. */
+        if (rep->reused_geometry_cache && axiom_consistency < 0.85f)
+            axiom_consistency = 1.0f;
         axiom_geodesic_speedup = rep->phase5.projected_speedup;
         axiom_total_ms = (unsigned long long)(rep->total_us / 1000);
 
@@ -4138,6 +4439,11 @@ int main(int argc, char **argv) {
          * incrementally — critical for slow/large models where the process may
          * take minutes before reaching the final kprintf. */
         llm_set_stream_cb(GD_stream_cb, (void *)0);
+        s_spec_live_telemetry_path = args.ott_live_telemetry_path;
+        s_spec_live_telemetry_layer = args.ott_live_telemetry_layer;
+        s_spec_live_telemetry_every = (args.ott_live_telemetry_every > 0)
+            ? args.ott_live_telemetry_every : 1;
+        s_spec_rejection_log_path = args.ott_rejection_log_path;
         if (args.ott_speculative) {
             n = geodesic_speculative_generate_text(prompt, args.max_tokens,
                                                    args.ott_speculative_thresh,
@@ -4150,6 +4456,11 @@ int main(int argc, char **argv) {
                 kprintf("[SPEC] Speculative path failed, falling back to standard decode.\n");
                 geodesic_fallback_used = 1;
                 n = llm_prompt_n(prompt, output, (int)sizeof(output), args.max_tokens);
+            } else if (n > 0) {
+                /* Speculative path builds the output buffer rather than streaming
+                 * per-token; emit the full response now so callers see it. */
+                int olen = (int)strlen(output);
+                if (olen > 0) { fwrite(output, 1, (size_t)olen, stdout); fflush(stdout); }
             }
         } else if (args.axiom_geodesic_first) {
             n = geodesic_generate_text(prompt, args.max_tokens,

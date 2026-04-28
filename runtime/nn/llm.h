@@ -560,6 +560,14 @@ int llm_speculative_verify_topk(const int *context_tokens, int n_context,
                                 int *correction_tok_out);
 
 /**
+ * Return the top-1 token from the most-recent logits (set by the preceding
+ * llm_speculative_verify_* / llm_prime_logits_fast call), excluding any token
+ * id in exclude[0..n_exclude).  Returns -1 if no logits are currently valid.
+ * Performs no forward pass.
+ */
+int llm_topk_excluding(const int *exclude, int n_exclude);
+
+/**
  * OD-SWARM speculative verify: like llm_speculative_verify_topk (topk_margin
  * acceptance) but with an additional SWARM acceptance path: if the primary
  * draft at slot i fails the margin test, the verifier's greedy token is
