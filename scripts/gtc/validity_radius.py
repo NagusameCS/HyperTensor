@@ -119,7 +119,7 @@ def main():
         args.dim = 3 if args.case == "sphere" else 6
 
     M = make_manifold(args.case, args.dim)
-    eps_grid = (0.005, 0.01, 0.02, 0.05, 0.10, 0.20, 0.40)
+    eps_grid = (0.005, 0.01, 0.02, 0.05, 0.10, 0.20, 0.40, 1.0, 2.0, 3.0, 5.0)
     out = sweep(M, args.n_seeds, args.T, args.dl, args.n_perturb, eps_grid, args.seed)
 
     out_dir = REPO / "docs" / "figures" / "gtc"

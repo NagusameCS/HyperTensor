@@ -67,15 +67,40 @@ resolution that errors are below 1e-3 across the whole ε ∈ [0.005, 0.4]
 sweep. This is the operational green light: the validity radius is **not**
 the bottleneck for GTC; coverage is.
 
-## Next milestones
+## Coverage benchmark (NEW, 2026-04-22)
 
-1. **Live decode benchmark.** `gtc_benchmark.py` will drive
-   `geodessical.exe` on the 150-prompt SmolLM2 corpus, comparing cache
-   hits + Jacobi correction against the full forward. Blocked on the
-   SmolLM2-135M Q8_0 download finishing locally.
-2. **Coverage analysis.** Map the 64-point Phase-1 cloud against decode
-   activations on the 150-prompt corpus; report the fraction of decode
-   steps within ε=0.4 of a cached point. This pins the empirical hit-rate
-   ceiling.
-3. **Curvature-warp injection** (Paper 4 §3, separate
-   `scripts/curvature_warp/` directory). Not started.
+`gtc_benchmark.py` runs the empirical coverage sweep: holds out a fraction
+of the Phase-1 cloud, asks "could a held-out point be predicted from a
+geodesic anchored at its g-norm-nearest cached point within tolerance ε".
+
+```powershell
+.venv\Scripts\python.exe scripts\gtc\gtc_benchmark.py --model smollm2-135m --dim 8
+```
+
+**Headline result (SmolLM2-135M, n=8, 16 repeats):**
+
+| Cached fraction (k) | Coverage @ ε=3.0 |
+|---:|---:|
+|  9 % (k=6)  | 58.6 % |
+| 25 % (k=16) | **91.0 %** |
+| 50 % (k=32) | 99.8 % |
+| 75 % (k=48) | 100.0 % |
+
+**Interpretation.** A 25 % cache covers 91 % of the activation cloud at
+the operational ε that the validity radius study showed safe (ε ≤ 5.0 has
+< 0.1 % geodesic error). This is the first quantitative answer to the
+GTC feasibility question on a real LM manifold. Knife-edge transition
+sits at ε ≈ 3.0; below that the cloud is too sparse, above it the
+manifold is essentially a single chart.
+
+## Curvature-warp prototype (NEW, 2026-04-22)
+
+See [`../curvature_warp/`](../curvature_warp). Tests Paper 4 §3's
+metric-warp knowledge injection idea. **Falsifiable negative result:**
+0/32 configurations of `(strength, sigma, dl)` meet the success criterion
+(≥ 50 % redirect at target AND ≤ 5 % spillover). Best improvement 16 %
+but spillover diverges. Mechanism: the manifold is too flat for a
+local Gaussian metric perturbation to redirect a geodesic without
+globally perturbing all geodesics. Recorded for the next paper revision.
+
+Output: `docs/figures/curvature_warp/smollm2-135m_{protocol,sweep}.json`.

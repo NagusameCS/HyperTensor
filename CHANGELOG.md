@@ -5,6 +5,52 @@ The focus here is code and measured behavior, not release-note marketing.
 
 ---
 
+## [unreleased] — 2026-04-22 — "GTC + PPL Sweep"
+
+### Verified Results (this turn)
+
+#### Llama-3.1-8B PPL sweep
+| Case        | Rank | PPL      | % of baseline |
+|-------------|-----:|---------:|--------------:|
+| baseline    |   —  |  6.7902  | 100.00 %      |
+| GRC k=1024  | 1024 | 10.9585  | 161.39 %      |
+| GRC k=1536  | 1536 |  7.6936  | **113.30 %**  |
+| GRC k=2048  | 2048 |  7.6936  | 113.30 %      |
+
+k=1536 ≡ k=2048 (bit-identical PPL) because Llama-3.1 GQA K/V dim is 1024:
+once k ≥ 1024 the K/V matrices are full-rank and only Q is being truncated;
+Q's PCA energy saturates by k=1536. **k=1536 is the Pareto rank** for
+`--axex-attn-only` on Llama-3.1-8B. Source: `docs/figures/ppl_sweep/`.
+
+#### GTC v0.2 coverage on SmolLM2-135M
+- k=16 cached samples (25 % of cloud) → **91.0 %** hit rate at ε=3.0.
+- Validity radius: errors < 0.1 % out to ε=5.0.
+- Sphere sanity (n=4) matches theoretical Jacobi quadratic scaling.
+- Source: `docs/figures/gtc/GTC_RESULTS.md`.
+
+#### Curvature-warp prototype (negative result)
+- 32-config sweep over (strength, sigma, dl). 0/32 pass success criterion.
+- Best improvement 16 %; spillover diverges at high strength.
+- Mechanism: SmolLM2 manifold too flat for local Gaussian metric warp to
+  redirect a geodesic without global side effects.
+- Source: `docs/figures/curvature_warp/`, `scripts/curvature_warp/`.
+
+#### Model inventory
+SmolLM2-135M Q8_0 (138 MB), Mistral-7B Q4_K_M (4166 MB), Llama-3.1-8B
+Q4_K_M (4693 MB) — `docs/figures/model_inventory.{json,md}`.
+
+### Code added
+- `scripts/run_ppl_sweep.ps1` — wrapper for the four-case PPL sweep.
+- `scripts/gtc/gtc_benchmark.py` — coverage sweep harness (NEW).
+- `scripts/curvature_warp/{inject.py,sweep.py}` — Paper 4 §3 prototype.
+- `scripts/inventory_models.py` — GGUF inventory generator.
+- `docs/figures/findings/FIVE_FINDINGS.md` — source-of-record for the five
+  un-published findings (Phase 3 warm-cache, Phase 4 oracle-budget, Phase 5
+  decode-aligned MRR, `axiom_warp_state.dat`, archived
+  `WHITEPAPER_DIFFEOMORPHISM.md`).
+
+---
+
 ## [0.6.1] — 2026-04-25 — "GRC 8B Milestone"
 
 ### Summary
