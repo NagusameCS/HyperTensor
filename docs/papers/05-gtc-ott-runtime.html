@@ -348,7 +348,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     against this instruct model. The cause: the verifier's argmax at position 0
     (and at several subsequent positions) is the EOS token. A standard
     speculative loop sees an EOS draft and exits. Earlier speculative-decoding
-    work (Leviathan&nbsp;2023, Chen&nbsp;2023, Medusa, EAGLE) does not document
+    work (<a href="https://arxiv.org/abs/2211.17192" target="_blank" rel="noopener">Leviathan&nbsp;2023</a>, <a href="https://arxiv.org/abs/2302.01318" target="_blank" rel="noopener">Chen&nbsp;2023</a>, <a href="https://arxiv.org/abs/2401.10774" target="_blank" rel="noopener">Medusa</a>, <a href="https://arxiv.org/abs/2401.15077" target="_blank" rel="noopener">EAGLE</a>) does not document
     this case because it primarily targets base (non-instruct) backbones where
     the greedy distribution does not degenerate into EOS.
   </p>
