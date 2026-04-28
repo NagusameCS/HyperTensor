@@ -147,24 +147,27 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="abstract">
   <span class="section-num">§0 — Abstract</span>
-  <h2>One paragraph</h2>
-  <p>
-    We treat the trained latent space of a transformer as a Riemannian manifold
-    $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$, equipped with a
-    Fisher-information metric. Under this view, inference is approximately the solution
-    of the geodesic equation, with cost $\mathcal{O}(nk^2)$ rather than the standard
-    $\mathcal{O}(n^2 d L)$. We further propose <strong>Geodesic Trajectory Caching
-    (GTC)</strong>: a self-improving library of stored geodesics, where new queries are
-    served by applying a Jacobi-field linear correction to the nearest stored
-    trajectory at cost $\mathcal{O}(k^2)$ per query. We connect this framework to
-    Block Attention Residuals (AttnRes, Kimi&nbsp;Team 2026) by interpreting AttnRes
-    weights as depth-wise geodesic segment selection on $\mathcal{M}_\theta$. Since the
-    original draft, parts of the proposal have acquired real-manifold anchors:
-    cache coverage, batch Jacobi correction, compressed record storage, and an
-    AttnRes-style block-summary correction prototype have all been measured on fitted
-    LM manifolds. The remaining gap is not the local geometry itself but the full
-    runtime deployment path and a universal construction of $\phi$.
-  </p>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      We treat the trained latent space of a transformer as a Riemannian
+      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$,
+      equipped with a Fisher-information metric. Under that view, inference is
+      approximately the solution of the geodesic equation, with cost
+      $\mathcal{O}(nk^2)$ rather than the standard $\mathcal{O}(n^2 d L)$. We then
+      propose <strong>Geodesic Trajectory Caching (GTC)</strong>: a self-improving
+      library of stored geodesics, where new queries are served by a Jacobi-field
+      linear correction against the nearest stored trajectory at cost
+      $\mathcal{O}(k^2)$ per query. We connect this picture to Block Attention
+      Residuals (AttnRes, Kimi&nbsp;Team 2026) by reading AttnRes weights as
+      depth-wise geodesic-segment selection on $\mathcal{M}_\theta$. Since the
+      original draft, parts of the proposal have acquired real-manifold anchors:
+      cache coverage, batch Jacobi correction, compressed record storage, and an
+      AttnRes-style block-summary correction prototype have all been measured on
+      fitted LM manifolds. What is left open is not the local geometry itself
+      but the full runtime deployment path and a universal construction of $\phi$.
+    </p>
+  </div>
 </section>
 
 <section id="renaming">

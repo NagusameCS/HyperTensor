@@ -165,28 +165,32 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="abstract">
   <span class="section-num">§0 — Abstract</span>
-  <h2>One paragraph</h2>
-  <p>
-    We describe Geodesic&nbsp;Projection (GP): a multi-slot, per-layer attention and FFN
-    compression scheme implemented in the <code>geodessical</code> C11 runtime. GP
-    extends the calibration-free attention compression of Paper&nbsp;1 along three axes
-    — per-matrix slot coverage ($Q$, $K$, $V$, $O$, FFN&nbsp;up, FFN&nbsp;gate, FFN&nbsp;down),
-    per-layer rank selection driven by a manifold-curvature heuristic with a hard floor,
-    and a dedicated <a class="term" href="https://en.wikipedia.org/wiki/Singular_value_decomposition"
-    target="_blank" rel="noopener">SVD</a>-based path for FFN&nbsp;down whose
-    <a class="term" href="https://en.wikipedia.org/wiki/Singular_value" target="_blank"
-    rel="noopener">singular-value</a> profile is fundamentally less compressible than the
-    others. Two engineering pieces are required to make GP usable:
-    <strong>(a)</strong> a persistent geometry cache that converts the model startup cost
-    from minutes to seconds on subsequent runs, and <strong>(b)</strong> a depth-sink
-    shortcut that lets the cache be probed without re-running the full axiom-discovery
-    pass. The cross-architecture evidence that motivates GP — that the local activation
-    manifold of trained transformers is approximately 11–25-dimensional regardless of
-    the ambient $d \in \{576, 1536, 3072\}$ — is reproducible on three open-weight
-    models (SmolLM2-135M, Gemma-4-E2B, Phi-3.5-mini) using the manifold-extraction
-    pipeline checked in under <a class="repo-link"
-    href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>.
-  </p>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      Geodesic Projection (GP) is the multi-slot, per-layer attention and FFN
+      compression scheme implemented in the <code>geodessical</code> C11 runtime.
+      It extends the calibration-free attention compression of Paper&nbsp;1 along
+      three axes: per-matrix slot coverage ($Q$, $K$, $V$, $O$, FFN&nbsp;up,
+      FFN&nbsp;gate, FFN&nbsp;down); per-layer rank selection driven by a
+      manifold-curvature heuristic with a hard floor; and a dedicated
+      <a class="term" href="https://en.wikipedia.org/wiki/Singular_value_decomposition"
+      target="_blank" rel="noopener">SVD</a>-based path for FFN&nbsp;down, whose
+      <a class="term" href="https://en.wikipedia.org/wiki/Singular_value" target="_blank"
+      rel="noopener">singular-value</a> profile is fundamentally less compressible than
+      the others. Two engineering pieces make GP usable in practice:
+      <strong>(a)</strong> a persistent geometry cache that drops startup from
+      minutes to seconds on repeat runs, and <strong>(b)</strong> a depth-sink
+      shortcut that lets the cache be probed without re-running the full
+      axiom-discovery pass. The cross-architecture observation that motivates the
+      whole pipeline — that the local activation manifold of a trained transformer
+      is roughly $11–25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$
+      — reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
+      Phi-3.5-mini) using the manifold-extraction pipeline checked in under
+      <a class="repo-link"
+      href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>.
+    </p>
+  </div>
 </section>
 
 <section id="glossary">

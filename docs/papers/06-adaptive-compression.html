@@ -164,29 +164,32 @@ footer a { color: var(--blue); text-decoration: none; }
 </section>
 
 <section id="abstract">
-  <span class="section-num">§0 &mdash; Abstract</span>
-  <h2>One paragraph</h2>
-  <p>
-    Static rank-$r$ SVD compression of a transformer treats every layer, every
-    weight matrix, and every operating point as exchangeable. None of those
-    invariances actually hold. Layers belong to one of three empirical phases
-    (mix, compress, refine) with different sensitivity to rank reduction; the
-    residual stream carries an exact GL($d$) gauge symmetry that no static SVD
-    exploits; consumer hardware enters thermal throttling within $30$ seconds
-    of sustained load and the optimal rank changes accordingly; and the
-    inference distribution drifts away from the calibration distribution,
-    making yesterday's PCA basis stale. We present four mechanisms shipped in
-    the <code>geodessical</code> runtime that address each invariance failure
-    individually: MCR phase-aware rank allocation with attention-sink bypass,
-    gauge-optimal compression via diagonal $g \in \mathrm{GL}(d)$ optimisation,
-    thermal-budget-coupled rank scaling driven by NVML with a tokens-per-joule
-    objective term, and rejection-triggered online PCA via Oja's rule. All
-    four are reachable from the host binary CLI and individually composable
-    with the GP and OTT pipelines. The design contribution is the
-    <em>combination</em>: each mechanism targets one specific invariance
-    failure, all four are zero- or near-zero-overhead at inference time, and
-    none requires retraining. First-measurement sweep is the v0.2 milestone.
-  </p>
+  <span class="section-num">§0 — Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      Static rank-$r$ SVD compression of a transformer treats every layer, every
+      weight matrix, and every operating point as exchangeable. None of those
+      invariances actually hold: layers fall into one of three empirical phases
+      (mix, compress, refine) with different sensitivity to rank reduction; the
+      residual stream carries an exact GL($d$) gauge symmetry that no static SVD
+      exploits; consumer hardware enters thermal throttling within $30$ seconds
+      of sustained load and the optimal rank changes accordingly; and the
+      inference distribution drifts away from the calibration distribution,
+      so yesterday's PCA basis goes stale. We present four mechanisms shipped
+      in the <code>geodessical</code> runtime that address each invariance
+      failure individually: MCR phase-aware rank allocation with attention-sink
+      bypass, gauge-optimal compression via diagonal $g \in \mathrm{GL}(d)$
+      optimisation, thermal-budget-coupled rank scaling driven by NVML with a
+      tokens-per-joule objective term, and rejection-triggered online PCA via
+      Oja's rule. All four are reachable from the host binary CLI and individually
+      composable with the GP and OTT pipelines. The contribution is the
+      <em>combination</em>: each mechanism targets one specific invariance
+      failure, all four are zero- or near-zero-overhead at inference time, and
+      none requires retraining. The first measurement sweep is the v0.2
+      milestone.
+    </p>
+  </div>
 </section>
 
 <section id="why">

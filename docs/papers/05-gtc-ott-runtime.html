@@ -156,29 +156,31 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="abstract">
   <span class="section-num">§0 — Abstract</span>
-  <h2>One paragraph</h2>
-  <p>
-    We anchor Geodesic Trajectory Caching and the Organic Training Theory runtime
-    on real LM activation manifolds. From Phase-1 telemetry we fit a metric
-    $g_{ij}$ and Christoffel field $\Gamma^k_{ij}$ in Python; we integrate the
-    geodesic ODE; we compute the Riemann tensor and Magnus-3 Jacobi propagator
-    $\Phi(\lambda)$; and we benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
-    and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
-    <strong>90.4–91.5%</strong> across all three scales (scale-invariant within
-    $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
-    and $60\times$ at $B=10{,}000$</strong> with reconstruction error at the
-    float64 roundoff floor. The compressed record store persists at
-    <strong>5.96&nbsp;KB/record</strong> with rank-5 propagator truncation exact,
-    and the two-stage Euclidean$\to g$-norm lookup runs at
-    <strong>30.9&nbsp;µs/query</strong> &mdash; $\sim\!160\times$ under the
-    Paper&nbsp;4 budget. The OTT speculative path on the C runtime closes the
-    loop end-to-end: <code>geodesic_ready</code> at 38.5% acceptance and
-    76.5&nbsp;tok/s on SmolLM2-135M-Instruct. We document the
-    instruct-greedy-EOS pathology and its fix (<code>llm_topk_excluding</code> +
-    a min-response guard). 12 of 17 Paper&nbsp;4 testable claims now have a
-    replicable measured result; the remaining 5 are listed by name in §<a
-    href="#status">7</a>.
-  </p>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      We anchor Geodesic Trajectory Caching and the Organic Training Theory
+      runtime on real LM activation manifolds. From Phase-1 telemetry we fit a
+      metric $g_{ij}$ and a Christoffel field $\Gamma^k_{ij}$ in Python, integrate
+      the geodesic ODE, compute the Riemann tensor and Magnus-3 Jacobi propagator
+      $\Phi(\lambda)$, and benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
+      and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
+      <strong>90.4–91.5%</strong> across all three scales (scale-invariant within
+      $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
+      and $60\times$ at $B=10{,}000$</strong> with reconstruction error sitting at
+      the float64 roundoff floor. The compressed record store persists at
+      <strong>5.96&nbsp;KB/record</strong>, with rank-5 propagator truncation
+      exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
+      <strong>30.9&nbsp;µs/query</strong> &mdash; about $160\times$ under the
+      Paper&nbsp;4 budget. The OTT speculative path on the C runtime closes the
+      loop end to end: <code>geodesic_ready</code> at 38.5% acceptance and
+      76.5&nbsp;tok/s on SmolLM2-135M-Instruct. We document the
+      instruct-greedy-EOS pathology and its fix (<code>llm_topk_excluding</code>
+      plus a min-response guard). 12 of 17 Paper&nbsp;4 testable claims now have
+      a replicable measured result; the remaining 5 are listed by name in
+      §<a href="#status">7</a>.
+    </p>
+  </div>
 </section>
 
 <section id="why">

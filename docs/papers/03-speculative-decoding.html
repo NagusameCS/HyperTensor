@@ -174,21 +174,26 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="abstract">
   <span class="section-num">§0 — Abstract</span>
-  <h2>One paragraph</h2>
-  <p>
-    Compression and inference tricks compose poorly in general. We describe two
-    specific compositions implemented in the <code>geodessical</code> runtime: using a
-    GP-compressed Llama as the drafter in
-    <a class="term" href="https://en.wikipedia.org/wiki/Speculative_execution"
-    target="_blank" rel="noopener">speculative</a> decoding against the full-precision
-    transformer, and layering Block Attention Residuals on top of compressed attention
-    to test whether the depth-memory mechanism survives rank reduction. We give the
-    algorithmic design of each, point at the runtime symbols where it is implemented,
-    work out the throughput model in closed form so the empirical numbers (when they
-    arrive) can be compared against the prediction, and list the specific failure modes
-    we expect each composition to be vulnerable to. We deliberately do not fabricate an
-    empirical headline: the benchmark pass that would produce one has not been run.
-  </p>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      Compression and inference tricks rarely compose cleanly. This paper picks
+      two specific compositions implemented in the <code>geodessical</code> runtime
+      and works through them end to end: a GP-compressed Llama serving as the
+      drafter in <a class="term" href="https://en.wikipedia.org/wiki/Speculative_execution"
+      target="_blank" rel="noopener">speculative</a> decoding against the
+      full-precision transformer, and Block Attention Residuals layered on top of
+      compressed attention to test whether the depth-memory mechanism survives
+      rank reduction. For each, we give the algorithmic design, point at the
+      runtime symbols where it lives, derive the throughput model in closed form
+      (so the empirical numbers, when they arrive, can be checked against a
+      prediction), and list the failure modes we expect each composition to be
+      vulnerable to. We do not invent an empirical headline; the benchmark pass
+      that would produce one for the 8B sweep has not been run. v0.3 anchors the
+      small-model speculative path with the first measured numbers: 38.5%
+      acceptance and 76.5&nbsp;tok/s on SmolLM2-135M-Instruct.
+    </p>
+  </div>
 </section>
 
 <section id="glossary">
