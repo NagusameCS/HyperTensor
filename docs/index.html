@@ -298,8 +298,11 @@ footer a:hover { text-decoration: underline; }
 @media (max-width: 1280px) { #paper-preview { display: none; } }
 
 /* ── QOL: back-to-top button ─────────────────────────── */
+/* Lives above the reader-settings toggle (bottom-right of every page),
+   not next to it. The reader toggle is 44px tall at bottom: 1.1rem,
+   so to-top sits ~12px above that. */
 #to-top {
-  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  position: fixed; bottom: calc(1.1rem + 44px + 12px); right: 1.1rem;
   width: 42px; height: 42px;
   border-radius: 50%;
   background: var(--accent); color: #fff;

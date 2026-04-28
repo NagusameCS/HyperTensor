@@ -1,0 +1,417 @@
+/* ─────────────────────────────────────────────────────────
+   paper-style.css — canonical Paper 1 styling, shared across
+   Papers 2–6 so every paper inherits the same hero / section /
+   callout / table / code / abstract / figure / gates language.
+
+   This is a verbatim copy of the inline <style> block in
+   01-attention-compression.html (with a small addendum at the
+   bottom for <main>, section:first-child, and .table-wrap.wide
+   used by Papers 2–6). If you change Paper 1's inline styles,
+   either keep them in sync here or migrate Paper 1 to load this
+   file instead.
+   ───────────────────────────────────────────────────────── */
+
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f9f9f8;
+  --bg-code:   #f4f4f4;
+  --border:    #e5e5e5;
+  --text:      #1a1a1a;
+  --text-soft: #5c5c5c;
+  --accent:    #c0392b;
+  --accent-l:  #e74c3c;
+  --blue:      #2d6be4;
+  --green:     #1a7a4a;
+  --yellow-bg: #fffbeb;
+  --blue-bg:   #eef4ff;
+  --green-bg:  #edfbf3;
+  --red-bg:    #fff5f5;
+  --max-w:     780px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; font-size: 17px; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Nav ─────────────────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+}
+.nav-brand {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+.nav-brand span { color: inherit; }
+.nav-links { display: flex; gap: 2rem; list-style: none; }
+.nav-links a {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-decoration: none;
+  transition: color .15s;
+}
+.nav-links a:hover { color: var(--text); }
+
+/* ─── Hero ─────────────────────────────────────────────── */
+#hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 7rem 1.5rem 5rem;
+  text-align: center;
+}
+.hero-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--red-bg);
+  border: 1px solid #fac5c5;
+  border-radius: 2rem;
+  padding: 0.3em 0.9em;
+  margin-bottom: 2rem;
+}
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.2rem;
+}
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-soft);
+  max-width: 600px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.65;
+}
+.hero-meta {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin-bottom: 2.5rem;
+}
+.hero-meta a { color: var(--blue); text-decoration: none; }
+.hero-meta a:hover { text-decoration: underline; }
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.stat { text-align: center; }
+.stat-num {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.stat-num.good { color: var(--green); }
+.stat-num.warn { color: var(--accent); }
+.stat-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.hero-actions { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65em 1.4em;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all .15s;
+  cursor: pointer;
+  border: none;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: #a93226; }
+.btn-secondary { background: var(--bg-soft); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--border); }
+
+/* ─── Sections ─────────────────────────────────────────── */
+section {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-bottom: 1.5rem;
+  line-height: 1.25;
+}
+h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 2.5rem 0 0.75rem;
+  color: var(--text);
+}
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--text);
+}
+p { margin-bottom: 1.2rem; color: var(--text); }
+p:last-child { margin-bottom: 0; }
+a { color: var(--blue); }
+
+/* ─── Callout boxes ───────────────────────────────────── */
+.callout {
+  border-left: 3px solid;
+  border-radius: 0 8px 8px 0;
+  padding: 1.1rem 1.4rem;
+  margin: 2rem 0;
+  font-size: 0.95rem;
+}
+.callout-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.callout.intuition {
+  background: var(--yellow-bg);
+  border-color: #f0c040;
+}
+.callout.intuition .callout-title { color: #9a6e00; }
+.callout.finding {
+  background: var(--green-bg);
+  border-color: #2ecc71;
+}
+.callout.finding .callout-title { color: var(--green); }
+.callout.warning {
+  background: var(--red-bg);
+  border-color: #e74c3c;
+}
+.callout.warning .callout-title { color: var(--accent); }
+.callout.info {
+  background: var(--blue-bg);
+  border-color: var(--blue);
+}
+.callout.info .callout-title { color: var(--blue); }
+
+/* ─── Tables ───────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+thead th {
+  background: var(--bg-soft);
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-soft); }
+.pass { color: var(--green); font-weight: 600; }
+.fail { color: var(--accent); font-weight: 600; }
+.highlight-row td { background: #fffbeb; }
+td.num { font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; }
+td.good { color: var(--green); font-weight: 600; }
+td.warn { color: var(--accent); font-weight: 600; }
+
+/* ─── Code ─────────────────────────────────────────────── */
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  line-height: 1.55;
+}
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.84rem;
+  color: #1a1a1a;
+}
+p code, li code {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.84em;
+}
+
+/* ─── Math display ─────────────────────────────────────── */
+.math-block {
+  /* Avoid spurious horizontal scrollbars for equations that fit;
+     wide equations still scale via MathJax SVG. */
+  overflow-x: clip;
+  padding: 0.5rem 0;
+  margin: 1.5rem 0;
+  text-align: center;
+}
+.math-block mjx-container { max-width: 100%; }
+
+/* ─── Figures ─────────────────────────────────────────── */
+.figure {
+  margin: 2rem 0;
+  text-align: center;
+}
+.figure-caption {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
+/* ─── ASCII art figure ────────────────────────────────── */
+.ascii-figure {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.4rem 1.6rem;
+  display: inline-block;
+  text-align: left;
+  line-height: 1.6;
+  margin: 1.5rem auto;
+}
+
+/* ─── Section number ──────────────────────────────────── */
+.section-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* ─── Two-column grid ─────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+.grid-2 .card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  background: var(--bg-soft);
+}
+.card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.card-body { font-size: 0.88rem; color: var(--text-soft); }
+
+/* ─── Gates bar ───────────────────────────────────────── */
+.gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
+.gate-card {
+  border: 1px solid #c8f0d8;
+  background: var(--green-bg);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+.gate-icon {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 4px;
+  background: var(--green-bg); color: var(--green);
+  flex-shrink: 0; line-height: 1.4;
+}
+.gate-text { font-size: 0.83rem; line-height: 1.45; }
+.gate-label { font-weight: 600; display: block; }
+.gate-value { color: var(--text-soft); }
+
+/* ─── Equation label ───────────────────────────────────── */
+.eq-row { display: flex; align-items: baseline; gap: 1rem; justify-content: center; margin: 1.5rem 0; }
+.eq-num { font-size: 0.82rem; color: var(--text-soft); white-space: nowrap; }
+
+/* ─── Footer ───────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+footer a { color: var(--text-soft); }
+footer strong { color: var(--text); }
+
+/* ─── Responsive ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .hero-stats { gap: 1.5rem; }
+  nav { padding: 0 1rem; }
+  .nav-links { display: none; }
+  section { padding: 3rem 1.2rem; }
+}
+
+/* ─── Smooth section transitions ─────────────────────── */
+section { animation: fadeUp .4s ease both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ─── Abstract card ───────────────────────────────────── */
+.abstract-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 2.2rem;
+  margin-bottom: 1rem;
+}
+.abstract-box p { font-size: 0.97rem; line-height: 1.8; }
+
+/* TOC */
+.toc { font-size: 0.88rem; }
+.toc ol { padding-left: 1.4rem; }
+.toc li { margin: 0.35rem 0; }
+.toc a { color: var(--text-soft); text-decoration: none; }
+.toc a:hover { color: var(--text); text-decoration: underline; }
+
+/* ─────────────────────────────────────────────────────────
+   Addendum for Papers 2–6: they wrap their body in <main>
+   and use .table-wrap.wide for figures that need to break
+   out of the 780px column. Paper 1 has neither.
+   ───────────────────────────────────────────────────────── */
+main { max-width: var(--max-w); margin: 0 auto; }
+main > section:first-child { border-top: 0; }
+
+.table-wrap.wide {
+  width: min(1080px, calc(100vw - 2rem));
+  max-width: none;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+}
+@media (max-width: 880px) {
+  .table-wrap.wide { width: 100%; transform: none; margin-left: 0; }
+}
