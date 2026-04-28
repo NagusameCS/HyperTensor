@@ -270,7 +270,23 @@ footer a:hover { text-decoration: underline; }
         replicable measured result.
       </p>
     </a>
-
+    <a class="paper-card" href="papers/06-adaptive-compression.html">
+      <div class="paper-head">
+        <span class="paper-num">Paper 6 &middot; Design &amp; runtime implementation</span>
+        <span class="paper-title">Adaptive Compression: Phase, Gauge, Thermal, Online Basis</span>
+      </div>
+      <p class="paper-abstract">
+        Four mechanisms shipped in the runtime that target distinct failures of
+        static rank-$r$ SVD: <strong>MCR</strong> phase-aware per-layer rank
+        allocation with attention-sink bypass, <strong>Axiom Gauge</strong>
+        diagonal-$g$ optimisation over the GL($d$) residual-stream symmetry
+        (zero inference overhead), <strong>Thermal Rank</strong> NVML-driven
+        rank scaling with a tokens-per-joule policy gradient, and
+        <strong>Online Basis</strong> Oja's-rule updates fired by speculative
+        rejections. Implementation real and CLI-reachable; first measurements
+        deferred to v0.2.
+      </p>
+    </a>
   </div>
 
   <div class="note">

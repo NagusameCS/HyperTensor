@@ -59,6 +59,16 @@ pre code { background: none; padding: 0; }
 .callout.finding { border-left-color: var(--green);  background: var(--green-bg); }
 .callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
 .table-wrap { overflow-x: auto; margin: 1rem 0; }
+.table-wrap.wide {
+  width: min(1080px, calc(100vw - 2rem));
+  max-width: none;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+}
+@media (max-width: 880px) {
+  .table-wrap.wide { width: 100%; transform: none; margin-left: 0; }
+}
 table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
 thead th { text-align: left; font-weight: 600; color: var(--text-soft); border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; }
 td { border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; vertical-align: top; }
@@ -79,6 +89,7 @@ footer a { color: var(--blue); text-decoration: none; }
     <li><a href="02-geodesic-projection.html">Paper 2</a></li>
     <li><a href="04-organic-training-theory.html">Paper 4</a></li>
     <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -284,7 +295,7 @@ footer a { color: var(--blue); text-decoration: none; }
     candidate values of $\alpha$ (corresponding to "high agreement", "moderate",
     "weak") and zero compression-induced $\Delta\alpha$ gives:
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>$\alpha$ (drafter accept rate)</th><th>Predicted tok/s, full-spec</th><th>Predicted tok/s, GP-spec</th><th>Predicted speedup of GP-spec over full decode</th></tr></thead>
       <tbody>
@@ -498,7 +509,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     We list the four composition cells and our prior expectation for each, with the
     numbers explicitly marked as predictions until the benchmark pass produces them.
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>Composition</th><th>Mechanism</th><th>Prior expectation</th><th>Status</th></tr></thead>
       <tbody>

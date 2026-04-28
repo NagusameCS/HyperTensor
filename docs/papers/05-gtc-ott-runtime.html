@@ -50,6 +50,16 @@ pre code { background: none; padding: 0; }
 .callout.finding { border-left-color: var(--green); background: var(--green-bg); }
 .callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
 .table-wrap { overflow-x: auto; margin: 1rem 0; }
+.table-wrap.wide {
+  width: min(1080px, calc(100vw - 2rem));
+  max-width: none;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+}
+@media (max-width: 880px) {
+  .table-wrap.wide { width: 100%; transform: none; margin-left: 0; }
+}
 table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
 thead th { text-align: left; font-weight: 600; color: var(--text-soft); border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; }
 td { border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; vertical-align: top; }
@@ -69,6 +79,7 @@ footer a { color: var(--blue); text-decoration: none; }
     <li><a href="02-geodesic-projection.html">Paper 2</a></li>
     <li><a href="03-speculative-decoding.html">Paper 3</a></li>
     <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -208,7 +219,7 @@ footer a { color: var(--blue); text-decoration: none; }
     measurements at $\varepsilon = 3.0$, $n_{\text{intrinsic}} = 8$,
     $n_{\text{repeats}} = 16$.
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>Model</th><th>Params</th><th>$k=6$ (10%)</th><th>$k=16$ (25%)</th><th>$k=32$ (50%)</th><th>$k=48$ (75%)</th></tr></thead>
       <tbody>
@@ -246,7 +257,7 @@ footer a { color: var(--blue); text-decoration: none; }
     matmul. The throughput shape that follows is the "resonance" property of
     Paper&nbsp;4 §4.5 &mdash; throughput rises rather than falls under load.
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>Batch $B$</th><th>Sequential (ms)</th><th>Batched (ms)</th><th>Speedup</th><th>µs/query</th><th>rel. error</th></tr></thead>
       <tbody>
@@ -394,7 +405,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     "Perfect" has at least three reasonable definitions. We report the gap
     against each.
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap wide">
     <table>
       <thead><tr><th>Definition of "perfect"</th><th>Current</th><th>Gap</th><th>Path</th></tr></thead>
       <tbody>
