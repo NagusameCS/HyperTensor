@@ -38,7 +38,7 @@ PPL.
 ## Build
 
 ```bash
-latexmk -pdf -bibtex -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode main.tex
 ```
 
 ## arXiv prep (from the parent folder)

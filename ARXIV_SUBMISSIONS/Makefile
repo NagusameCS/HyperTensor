@@ -12,7 +12,7 @@ PAPERS := A B C D
 PDFS   := $(addprefix paper-,$(PAPERS:%=%/main.pdf))
 
 LATEXMK ?= latexmk
-LATEXMK_FLAGS ?= -pdf -bibtex -interaction=nonstopmode -halt-on-error
+LATEXMK_FLAGS ?= -pdf -interaction=nonstopmode -halt-on-error
 
 .PHONY: all clean distclean A B C D $(addprefix submit-,$(PAPERS))
 

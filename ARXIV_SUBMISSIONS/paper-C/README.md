@@ -23,5 +23,5 @@ closed-form throughput-model prediction.
 ## Build
 
 ```bash
-latexmk -pdf -bibtex -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode main.tex
 ```

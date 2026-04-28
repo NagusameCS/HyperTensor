@@ -166,10 +166,15 @@ collapse onto nearby vectors, the softmax becomes noisier and the
 depth-memory mechanism weakens.  This is the failure mode we expect to
 dominate at small $k/d$.
 
-\paragraph{Honest prior.}  Wash at moderate compression
-($k/d\in[0.4,0.6]$); small loss at aggressive compression ($k/d<0.3$).
-The publishable version of this section will report whichever of these
-turns out to be true.
+\paragraph{Status.}  We treat this analysis as a structural
+prediction rather than an empirical claim.  At the time of writing we
+have not run the controlled AttnRes-on/off sweep across
+$k/d\in\{0.25,0.35,0.45,0.55,0.65\}$ that would distinguish the
+help/hurt regimes above.  The honest prior is: wash at moderate
+compression ($k/d\in[0.4,0.6]$) and small accept-rate loss at aggressive
+compression ($k/d<0.3$), driven by softmax noise in the AttnRes mixing
+weights.  Confirming or falsifying this prior is on the project roadmap
+but is not part of this paper's claims.
 
 % =================================================================
 \section{KV-Cache Compression}

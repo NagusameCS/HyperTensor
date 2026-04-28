@@ -37,5 +37,5 @@ aware, Axiom Gauge, Thermal Rank, Online Basis).
 ## Build
 
 ```bash
-latexmk -pdf -bibtex -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode main.tex
 ```
