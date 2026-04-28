@@ -64,6 +64,40 @@ pressure" property (Paper 5 §4.5) is empirically real.
 Source: [`smollm2-135m_record_store.json`](smollm2-135m_record_store.json),
 binary: [`smollm2-135m_library.npz`](smollm2-135m_library.npz).
 
+## Live decode substitution benchmark (Python-side, NEW)
+
+We now separate three operational buckets per decode step:
+
+- `correctable`: nearest cached record is within the Jacobi validity radius
+   `rho` (trusted linear correction).
+- `hit-only`: nearest cached record is within lookup radius `eps_star` but
+   outside `rho` (cache hit, but correction not trusted).
+- `miss`: outside `eps_star` (full step fallback).
+
+At `k=32/64`, `eps_star=3.0`, `rho=0.4`, all three available runtime clouds
+(SmolLM2, Phi-3.5-mini, Gemma-4-E2B) show:
+
+- `cache_hit_rate_eps_star = 100 %`
+- `correctable_rate_within_rho = 0 %`
+
+Interpretation: the current 64-point runtime export is sparse relative to
+the measured local validity radius. Lookup coverage is high, but the points
+are too far apart for direct Jacobi correction at `rho=0.4`.
+
+To test the actual correction contract, we ran a dense local benchmark with
+synthetic queries sampled *inside* `rho` around anchors
+([`smollm2-135m_decode_substitution_dense.json`](smollm2-135m_decode_substitution_dense.json)):
+
+| rho | mean rel err | p95 rel err | Jacobi us | geodesic us | speedup vs geodesic |
+|---:|---:|---:|---:|---:|---:|
+| 0.05 | 1.65e-8 | 9.61e-8 | 2.22 | 355.0 | 160.3x |
+| 0.10 | 3.38e-8 | 2.79e-7 | 1.85 | 339.9 | 183.9x |
+| 0.20 | 8.08e-8 | 5.35e-7 | 2.19 | 350.6 | 159.9x |
+| 0.40 | 1.43e-7 | 1.35e-6 | 2.27 | 360.9 | 158.7x |
+
+So the mechanism is valid and very fast *inside* its regime; the blocker is
+cloud density, not Jacobi quality.
+
 ## Original v0.2 numbers (preserved)
 
 > At cache size **k=16** (25 % of the runtime's already-exported 64-point Phase-1 cloud), GTC achieves a **91 % hit rate** at ε = 3.0 (manifold-induced norm), and the Jacobi linearisation is exact within 0.1 % out to ε = 5.0. **Decode steps in this regime can be replaced by an O(k²) cache lookup plus a linear correction, instead of the O(d × layers) full forward.**
@@ -211,10 +245,10 @@ This is the canonical answer to "how done is GTC?".
 | **Scaling: SmolLM2 → Phi-3.5-mini "flag flip"** | ✅ scale-invariant within ±0.5 % across SmolLM2-135M / Phi-3.5-mini / Gemma-4-E2B | this doc |
 | Validity radius / injectivity radius ρ scaling | ✅ <0.1 % error to ε=5.0 | `smollm2-135m_validity_radius.json` |
 | OTT locality of curvature warp (Test 5a) | ✅ ratio 7e11×, decays to 0 at 20σ | implicit in `manifold.py` smoothing |
-| Knowledge-injection curvature warp delivers redirection | ❌ **falsifiable negative**: 0/32 configs pass success criterion on SmolLM2 | [`docs/figures/curvature_warp/`](../curvature_warp/) |
-| **Live decode-step replacement inside `geodessical.exe`** | ❌ **not started** — runtime hook required | — |
-| AttnRes block-summary integration (§6) | ❌ not started — needs joint training signal | — |
-| Diffeomorphism ϕ construction (§11.1) | ❌ open problem (paper itself flags this) | — |
+| Knowledge-injection curvature warp delivers redirection | ⚠️ **still negative**: v2 reduces spillover to ~0.01% but best redirection gain is 2.24% (0/32 pass) | [`docs/figures/curvature_warp/smollm2-135m_v2_grid.json`](../curvature_warp/smollm2-135m_v2_grid.json) |
+| **Live decode-step replacement inside `geodessical.exe`** | ⚠️ Python-side benchmark complete; runtime hook still missing. 3-bucket metric: 100% lookup hits, 0% within rho at 64-point cloud density. | [`smollm2-135m_decode_substitution.json`](smollm2-135m_decode_substitution.json) |
+| AttnRes block-summary integration (§6) | ⚠️ prototype measured: block-end Jacobi err 1.29%, simplex blend underperforms (11.4%) | [`smollm2-135m_attnres_integration.json`](smollm2-135m_attnres_integration.json) |
+| Diffeomorphism ϕ construction (§11.1) | ✅ resolved for OTT deployment manifold family via certificates (`k=11,17,25` self-cases + dim-4 inherited-structure theorem) | [`data/decisions.json`](../../../data/decisions.json) |
 | Closed-form geodesic initial velocity v₀ (§11.2) | ❌ open problem | — |
 
 ### Reading
