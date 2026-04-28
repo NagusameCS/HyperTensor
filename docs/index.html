@@ -215,6 +215,128 @@ footer {
 }
 footer a { color: var(--blue); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
+
+/* ── QOL: read time, visited marker ──────────────────── */
+.paper-card { position: relative; }
+.paper-readtime {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; color: var(--text-soft);
+  letter-spacing: 0.04em;
+  margin-left: 0.6rem;
+}
+.paper-card.visited::before {
+  content: ""; position: absolute;
+  left: -1px; top: -1px; bottom: -1px;
+  width: 3px; border-radius: 10px 0 0 10px;
+  background: var(--green);
+}
+.paper-card.visited .paper-num::after {
+  content: " · read";
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* ── QOL: hover preview panel (right side) ───────────── */
+#paper-preview {
+  position: fixed;
+  top: 50%; right: 1.5rem;
+  transform: translateY(-50%) translateX(20px);
+  width: 360px; max-height: 78vh;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.13);
+  padding: 1.4rem 1.5rem;
+  font-size: 0.9rem; line-height: 1.6;
+  color: var(--text);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.22s ease;
+  z-index: 200;
+  overflow-y: auto;
+}
+#paper-preview.show {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+#paper-preview .pp-tag {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); background: var(--red-bg);
+  border: 1px solid #fac5c5;
+  padding: 0.2em 0.7em; border-radius: 1rem;
+  margin-bottom: 0.8rem;
+}
+#paper-preview .pp-title {
+  font-size: 1.05rem; font-weight: 700;
+  letter-spacing: -0.01em; line-height: 1.3;
+  margin-bottom: 0.6rem; color: var(--text);
+}
+#paper-preview .pp-abstract {
+  color: var(--text-soft); font-size: 0.88rem;
+  margin-bottom: 0.9rem;
+}
+#paper-preview .pp-extended {
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem; margin-bottom: 0.9rem;
+  font-size: 0.85rem; color: var(--text);
+}
+#paper-preview .pp-extended-label {
+  font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.3rem;
+}
+#paper-preview .pp-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem; color: var(--text-soft);
+  display: flex; justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+#paper-preview .pp-meta .pp-cta { color: var(--accent); font-weight: 700; }
+@media (max-width: 1280px) { #paper-preview { display: none; } }
+
+/* ── QOL: back-to-top button ─────────────────────────── */
+#to-top {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--accent); color: #fff;
+  border: none; cursor: pointer;
+  font-size: 1.1rem; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  opacity: 0; pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s, background 0.15s;
+  z-index: 150;
+}
+#to-top.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#to-top:hover { background: #a93226; }
+
+/* ── QOL: keyboard-focus ring on cards ───────────────── */
+.paper-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-color: var(--accent);
+}
+
+/* ── QOL: shortcut hint ──────────────────────────────── */
+.kbd-hint {
+  display: inline-flex; gap: 0.4rem; align-items: center;
+  font-size: 0.78rem; color: var(--text-soft);
+  margin-top: 1.2rem;
+}
+.kbd-hint kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.1em 0.45em;
+  color: var(--text);
+}
 </style>
 </head>
 <body>
@@ -269,7 +391,9 @@ footer a:hover { text-decoration: underline; }
 
   <div class="papers">
 
-    <a class="paper-card" href="papers/00-introduction.html">
+    <a class="paper-card" href="papers/00-introduction.html"
+       data-readtime="~22 min"
+       data-extended="Plain-English orientation: read this first if any term in the seven papers is unfamiliar. Closes with a per-paper one-paragraph summary and a vocabulary cheat-sheet.">
       <div class="paper-head">
         <span class="paper-num">Paper 0</span>
         <span class="paper-version">background article</span>
@@ -285,7 +409,9 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/01-attention-compression.html">
+    <a class="paper-card" href="papers/01-attention-compression.html"
+       data-readtime="~35 min"
+       data-extended="Headline measurement: 106.27% of baseline decode tok/s on Llama-3.1-8B at k=1024 with PCA-only Q/K/V compression, n=300 prompts, p ≈ 10⁻¹⁰. Caveat: penalty grows quickly above k=1024 (+13.30% PPL at k=1536); the speedup hypothesis is L2 fit, not algorithmic.">
       <div class="paper-head">
         <span class="paper-num">Paper 1</span>
         <span class="paper-version">v0.4 · April 2026</span>
@@ -306,7 +432,9 @@ footer a:hover { text-decoration: underline; }
       </div>
     </a>
 
-    <a class="paper-card" href="papers/02-geodesic-projection.html">
+    <a class="paper-card" href="papers/02-geodesic-projection.html"
+       data-readtime="~14 min"
+       data-extended="Generalises Paper 1 to all attention slots plus FFN up/gate (PCA) and FFN down (SVD). Persistent geometry cache lets a fitted manifold serve every quantisation level. Deployment envelope: 1,093 MB W_proj on the 8B Q4_K_M build, fits a single 8 GB GPU.">
       <div class="paper-head">
         <span class="paper-num">Paper 2</span>
         <span class="paper-version">v0.2 · April 2026</span>
@@ -327,7 +455,9 @@ footer a:hover { text-decoration: underline; }
       </div>
     </a>
 
-    <a class="paper-card" href="papers/03-speculative-decoding.html">
+    <a class="paper-card" href="papers/03-speculative-decoding.html"
+       data-readtime="~15 min"
+       data-extended="First end-to-end speculative anchor: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready on SmolLM2-135M-Instruct. Documents the instruct-greedy-EOS pathology and its fix; AttnRes (Kimi 2026) composes additively over the compression draft.">
       <div class="paper-head">
         <span class="paper-num">Paper 3</span>
         <span class="paper-version">v0.3 · April 2026</span>
@@ -349,7 +479,9 @@ footer a:hover { text-decoration: underline; }
       </div>
     </a>
 
-    <a class="paper-card" href="papers/04-organic-training-theory.html">
+    <a class="paper-card" href="papers/04-organic-training-theory.html"
+       data-readtime="~9 min"
+       data-extended="Theory layer for the OTT runtime: Riemannian latent-space inference, geodesic trajectory caching, batched Jacobi correction. Two universal-construction theorems remain open; the OTT deployment manifolds in this repo have a narrower certificate-backed closure.">
       <div class="paper-head">
         <span class="paper-num">Paper 4</span>
         <span class="paper-version">2026</span>
@@ -370,7 +502,9 @@ footer a:hover { text-decoration: underline; }
       </div>
     </a>
 
-    <a class="paper-card" href="papers/05-gtc-ott-runtime.html">
+    <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
+       data-readtime="~12 min"
+       data-extended="Empirical companion to Paper 4. 12 of 17 testable claims now have a measured value, including 97× batched-Jacobi at B=10, 30.9 µs/q lookup, 5.96 KB/record, and the same 38.5% / 76.5 tok/s OTT runtime anchor as Paper 3.">
       <div class="paper-head">
         <span class="paper-num">Paper 5</span>
         <span class="paper-version">v0.1 · 2026-04-27</span>
@@ -392,7 +526,9 @@ footer a:hover { text-decoration: underline; }
         <div class="paper-stat"><span class="paper-stat-num info">30.9 µs</span><span class="paper-stat-label">per-query lookup</span></div>
       </div>
     </a>
-    <a class="paper-card" href="papers/06-adaptive-compression.html">
+    <a class="paper-card" href="papers/06-adaptive-compression.html"
+       data-readtime="~16 min"
+       data-extended="Adaptive layer atop Paper 1+2. MCR phase-aware rank with attention-sink bypass; Axiom Gauge diagonal-g over the GL(d) residual-stream symmetry (zero inference overhead); Thermal Rank with NVML and a tokens-per-joule policy gradient; Online Basis Oja-rule updates fired by speculative rejections. v0.1 design + impl, measurements deferred.">
       <div class="paper-head">
         <span class="paper-num">Paper 6</span>
         <span class="paper-version">v0.1 · 2026-04-27</span>
@@ -425,6 +561,13 @@ footer a:hover { text-decoration: underline; }
     theory companion (Paper&nbsp;4) is renamed <strong>GTC &mdash; Geodesic Trajectory
     Caching</strong> to remove the collision.
   </div>
+
+  <p class="kbd-hint">
+    Tips:
+    <kbd>j</kbd>/<kbd>k</kbd> or <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> to move between papers,
+    <kbd>Enter</kbd> to open, <kbd>g</kbd>+<kbd>g</kbd> top, <kbd>G</kbd> bottom.
+    Hover a card on a wide screen for an extended preview on the right.
+  </p>
 </section>
 
 <section id="about">
@@ -453,6 +596,135 @@ footer a:hover { text-decoration: underline; }
     <a href="WHITEPAPER.md">Markdown source</a>
   </p>
 </footer>
+
+<aside id="paper-preview" aria-hidden="true">
+  <span class="pp-tag" id="pp-tag">Paper</span>
+  <h3 class="pp-title" id="pp-title">—</h3>
+  <p class="pp-abstract" id="pp-abstract">—</p>
+  <div class="pp-extended">
+    <div class="pp-extended-label">Why it matters</div>
+    <div id="pp-extended">—</div>
+  </div>
+  <div class="pp-meta">
+    <span id="pp-readtime">—</span>
+    <span class="pp-cta">click to open &rarr;</span>
+  </div>
+</aside>
+
+<button id="to-top" type="button" aria-label="Back to top" title="Back to top">&uarr;</button>
+
+<script>
+(function () {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.paper-card'));
+  if (!cards.length) return;
+
+  // 1) Inject read-time chip into each card head.
+  cards.forEach(function (c) {
+    var rt = c.getAttribute('data-readtime');
+    var head = c.querySelector('.paper-head');
+    if (rt && head && !head.querySelector('.paper-readtime')) {
+      var s = document.createElement('span');
+      s.className = 'paper-readtime';
+      s.textContent = rt;
+      // Insert after .paper-version (or .paper-num if no version).
+      var anchor = head.querySelector('.paper-version') || head.querySelector('.paper-num');
+      if (anchor && anchor.nextSibling) head.insertBefore(s, anchor.nextSibling);
+      else head.appendChild(s);
+    }
+  });
+
+  // 2) Visited tracking (localStorage).
+  var KEY = 'hypertensor.visited.v1';
+  var visited;
+  try { visited = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { visited = {}; }
+  cards.forEach(function (c) {
+    if (visited[c.getAttribute('href')]) c.classList.add('visited');
+    c.addEventListener('click', function () {
+      visited[c.getAttribute('href')] = Date.now();
+      try { localStorage.setItem(KEY, JSON.stringify(visited)); } catch (_) {}
+    });
+  });
+
+  // 3) Hover preview panel.
+  var panel = document.getElementById('paper-preview');
+  var ppTag = document.getElementById('pp-tag');
+  var ppTitle = document.getElementById('pp-title');
+  var ppAbs = document.getElementById('pp-abstract');
+  var ppExt = document.getElementById('pp-extended');
+  var ppRead = document.getElementById('pp-readtime');
+  var hideTimer = null;
+
+  function show(c) {
+    if (window.innerWidth < 1280) return;
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    var num = (c.querySelector('.paper-num') || {}).textContent || 'Paper';
+    var ver = (c.querySelector('.paper-version') || {}).textContent || '';
+    ppTag.textContent = ver ? (num + ' · ' + ver) : num;
+    ppTitle.textContent = (c.querySelector('.paper-title') || {}).textContent || '';
+    var abs = c.querySelector('.paper-abstract');
+    ppAbs.innerHTML = abs ? abs.innerHTML : '';
+    ppExt.textContent = c.getAttribute('data-extended') || '';
+    ppRead.textContent = c.getAttribute('data-readtime') || '';
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden', 'false');
+  }
+  function hide() {
+    hideTimer = setTimeout(function () {
+      panel.classList.remove('show');
+      panel.setAttribute('aria-hidden', 'true');
+    }, 120);
+  }
+  cards.forEach(function (c) {
+    c.addEventListener('mouseenter', function () { show(c); });
+    c.addEventListener('mouseleave', hide);
+    c.addEventListener('focus', function () { show(c); });
+    c.addEventListener('blur', hide);
+  });
+  panel.addEventListener('mouseenter', function () { if (hideTimer) clearTimeout(hideTimer); });
+  panel.addEventListener('mouseleave', hide);
+
+  // 4) Keyboard navigation: j/k or arrow keys, Enter to open, gg/G top/bottom.
+  var focusIdx = -1;
+  var lastG = 0;
+  function focusCard(i) {
+    if (i < 0) i = 0;
+    if (i >= cards.length) i = cards.length - 1;
+    focusIdx = i;
+    cards[i].focus();
+    cards[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.target && /^(input|textarea)$/i.test(e.target.tagName)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key;
+    if (k === 'j' || k === 'ArrowDown') { e.preventDefault(); focusCard(focusIdx + 1); }
+    else if (k === 'k' || k === 'ArrowUp') { e.preventDefault(); focusCard(focusIdx - 1); }
+    else if (k === 'Enter' && focusIdx >= 0 && document.activeElement === cards[focusIdx]) {
+      // default link behaviour handles it
+    } else if (k === 'g') {
+      var now = Date.now();
+      if (now - lastG < 500) { window.scrollTo({ top: 0, behavior: 'smooth' }); lastG = 0; }
+      else { lastG = now; }
+    } else if (k === 'G') {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  });
+  // Make cards programmatically focusable while preserving anchor semantics.
+  cards.forEach(function (c) { if (!c.hasAttribute('tabindex')) c.setAttribute('tabindex', '0'); });
+
+  // 5) Back-to-top button.
+  var toTop = document.getElementById('to-top');
+  function onScroll() {
+    if (window.scrollY > 600) toTop.classList.add('show');
+    else toTop.classList.remove('show');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  toTop.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  onScroll();
+})();
+</script>
 
 </body>
 </html>
