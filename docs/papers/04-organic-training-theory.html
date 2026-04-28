@@ -69,7 +69,7 @@ footer a { color: var(--blue); text-decoration: none; }
 </nav>
 
 <header id="hero">
-  <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 4 &middot; Theory (simulation only)</p>
+  <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 4 &middot; Theory with partial empirical anchors</p>
   <h1>Organic Training Theory and Geodesic Trajectory Caching</h1>
   <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research, 2026</p>
 </header>
@@ -81,15 +81,31 @@ footer a { color: var(--blue); text-decoration: none; }
     <div class="callout-title">Read this first — framing of this paper</div>
     <p>
       Papers&nbsp;1, 2, and 3 are <em>empirical</em>. They report measurements on real
-      hardware running real LLMs. This paper is different. It is a
-      <strong>theoretical framework</strong> with a 25-test simulation suite and
-      <strong>no LLM-scale validation</strong>. Where it claims a speedup figure (e.g.
-      4800× at $n{=}32{,}768$), that figure is conditional on solving an open
-      problem (the diffeomorphism $\phi$ that absorbs softmax and LayerNorm into
-      Christoffel curvature). We flag the open problem at the front rather than the
-      back so the reader is not surprised. This paper exists to motivate the empirical
-      papers and to lay out a research direction; it should not be read as a
-      benchmark-leaderboard claim.
+      hardware running real LLMs. This paper is still primarily a
+      <strong>theoretical framework</strong>, but it is no longer fair to describe it as
+      simulation-only in every respect. The GTC components now have real-manifold
+      anchors on exported LM activation clouds, and the diffeomorphism question is
+      resolved <em>for the current OTT deployment manifolds in this repository</em> via
+      inherited-structure certificates. What remains open is the universal
+      construction and the full runtime deployment path. Where this paper claims a
+      speedup figure (e.g. 4800× at $n{=}32{,}768$), that figure should still be read
+      as conditional on solving the remaining deployment problems, not as a production
+      benchmark claim.
+    </p>
+  </div>
+</section>
+
+<section id="delta-note">
+  <div class="callout info">
+    <div class="callout-title">2026-04-27 status update</div>
+    <p>
+      Current status is narrower and stronger than the original Paper&nbsp;4 wording:
+      the map $\phi$ is still open as a <em>universal</em> transformer-scale
+      construction, but for the measured OTT manifolds in this repository
+      (SmolLM2, Phi-3.5-mini, Gemma-4-E2B) the deployment-scoped diffeomorphism
+      requirement is treated as resolved by certificate-backed inherited structure.
+      That is a practical closure for this repo's OTT regime, not a claim that the
+      general mathematical problem is solved.
     </p>
   </div>
 </section>
@@ -107,9 +123,12 @@ footer a { color: var(--blue); text-decoration: none; }
     served by applying a Jacobi-field linear correction to the nearest stored
     trajectory at cost $\mathcal{O}(k^2)$ per query. We connect this framework to
     Block Attention Residuals (AttnRes, Kimi&nbsp;Team 2026) by interpreting AttnRes
-    weights as depth-wise geodesic segment selection on $\mathcal{M}_\theta$. All claims
-    are validated only at simulation scale; the construction of the diffeomorphism
-    $\phi$ that would make the framework deployable is left as an open problem.
+    weights as depth-wise geodesic segment selection on $\mathcal{M}_\theta$. Since the
+    original draft, parts of the proposal have acquired real-manifold anchors:
+    cache coverage, batch Jacobi correction, compressed record storage, and an
+    AttnRes-style block-summary correction prototype have all been measured on fitted
+    LM manifolds. The remaining gap is not the local geometry itself but the full
+    runtime deployment path and a universal construction of $\phi$.
   </p>
 </section>
 
@@ -199,9 +218,12 @@ footer a { color: var(--blue); text-decoration: none; }
   <h2>What is missing</h2>
   <ol>
     <li>
-      <strong>The diffeomorphism $\phi$.</strong> An explicit map absorbing softmax and
-      LayerNorm into Christoffel curvature is not constructed. Until $\phi$ is
-      constructed, OTT is a framework, not a deployment.
+      <strong>The diffeomorphism $\phi$.</strong> As a universal transformer-scale
+      construction, this remains open. For the concrete OTT deployment manifolds in
+      this repository, however, the requirement is treated as resolved via
+      certificate-backed inherited-structure arguments on star-shaped manifolds.
+      This is a deployment-scoped closure, not a universal one, and it does not come
+      from a Hodge-theoretic derivation.
     </li>
     <li>
       <strong>Geodesic initial velocity $v_0$.</strong> Computing the contextual
@@ -231,12 +253,15 @@ footer a { color: var(--blue); text-decoration: none; }
   <span class="section-num">Status</span>
   <h2>Where this paper sits</h2>
   <p>
-    Framing: theoretical proposal with simulation tests. Speedup numbers are
-    conditional on the open problems above. Treat it as a research direction, not as a
-    benchmark claim. The HyperTensor empirical papers (1, 2, 3) implement what is
-    currently implementable from this framework: Paper&nbsp;1 the calibration-free
-    basis, Paper&nbsp;2 the multi-slot manifold compression, Paper&nbsp;3 the
-    composition with AttnRes. GTC itself is unimplemented.
+    Framing: still primarily a theory paper, but now partially anchored by real LM
+    manifold measurements. The remaining distance from full OTT deployment is much
+    smaller than the original draft implied: the repo now has deployment-scoped
+    diffeomorphism closure for its current manifold family, real-manifold GTC
+    measurements, and an AttnRes correction prototype. The main unsolved pieces are
+    a runtime-integrated decode path, a closed-form or deployable surrogate for
+    geodesic initial velocity $v_0$, denser live activation telemetry, and a
+    universal $\phi$ construction. Treat the large speedup figures as conditional on
+    those remaining steps, not as current benchmark claims.
   </p>
 </section>
 

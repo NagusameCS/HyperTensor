@@ -715,20 +715,22 @@ footer a { color: var(--blue); text-decoration: none; }
     multiplications.
   </p>
   <p>
-    The mathematics is well-defined; the practical implementation is not. The
-    construction depends on building a smooth invertible map (a
+    The mathematics is well-defined; the practical implementation is only partly in
+    hand. The construction depends on building a smooth invertible map (a
     <a href="https://en.wikipedia.org/wiki/Diffeomorphism" target="_blank" rel="noopener">diffeomorphism</a>)
-    between the data manifold and the trained latent manifold, and we do not know
-    how to construct that map at LLM scale. Paper&nbsp;4 is explicit that this is an
-    open problem; it lists five specific things one would need to build before the
-    framework could produce a working LLM, and labels the speedup numbers it computes
-    as conditional. Its experimental validation is at simulation scale, not LLM
-    scale, which the paper says explicitly.
+    between the data manifold and the trained latent manifold. As a universal LLM
+    construction, that is still open. For the concrete OTT manifolds currently in
+    this repository, though, the project now treats that requirement as resolved via
+    a narrower inherited-structure argument with certificates. So the honest current
+    position is: Paper&nbsp;4 is still conditional at full deployment scale, but it is
+    no longer accurate to describe every part of it as simulation-only.
   </p>
   <p>
-    Paper&nbsp;4 is best read as a research agenda for what the empirical work might
-    become if several hard problems get solved, not as a claim that they have been
-    solved.
+    Paper&nbsp;4 is best read as a research agenda with some pieces now materially
+    advanced: real-manifold GTC measurements exist, AttnRes-style correction has a
+    prototype, and the repo's OTT-scoped diffeomorphism story is much stronger than
+    the original draft. The remaining gap is the runtime/deployment path rather than
+    the entire manifold program.
   </p>
 </section>
 
