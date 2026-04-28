@@ -17,6 +17,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 <link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
 <script src="../assets/reader.js"></script>
 <style>
 :root {
@@ -95,10 +96,41 @@ footer a { color: var(--blue); text-decoration: none; }
 </nav>
 
 <header id="hero">
-  <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 3 &middot; Design &amp; runtime implementation</p>
-  <h1>Composing Compression: Geodesic Speculative Decoding and Attention Residuals</h1>
-  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research &middot; v0.3 &middot;
-    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a></p>
+  <div class="hero-tag">Paper 3 &middot; April 2026 &middot; v0.3</div>
+  <h1 class="hero-title">Composing Compression</h1>
+  <p class="hero-subtitle">
+    Geodesic speculative decoding and Attention Residuals: how a
+    compressed-manifold model serves as a draft generator against the
+    full-precision transformer, and how the two compress-and-skip mechanisms
+    compose. v0.3 adds the first end-to-end measurement.
+  </p>
+  <div class="hero-meta">
+    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">38.5%</span>
+      <span class="stat-label">Speculative<br>acceptance rate</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">76.5</span>
+      <span class="stat-label">tok/s on<br>SmolLM2-135M</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">1.53×</span>
+      <span class="stat-label">Empirical speedup<br>vs greedy-only</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">5 / 13</span>
+      <span class="stat-label">OneDecode<br>draft hits</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#reproduce">Reproduce</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
 </header>
 
 <main>

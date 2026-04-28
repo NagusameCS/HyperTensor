@@ -17,6 +17,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 <link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
 <script src="../assets/reader.js"></script>
 <style>
 :root {
@@ -95,10 +96,41 @@ footer a { color: var(--blue); text-decoration: none; }
 </nav>
 
 <header id="hero">
-  <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 2 &middot; Framework documentation</p>
-  <h1>Geodesic Projection: A Production Compression Pipeline for LLM Inference</h1>
-  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research &middot; v0.2 &middot;
-    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a></p>
+  <div class="hero-tag">Paper 2 &middot; April 2026 &middot; v0.2</div>
+  <h1 class="hero-title">Geodesic Projection</h1>
+  <p class="hero-subtitle">
+    The full multi-slot Geodesic Projection (GP) compression pipeline shipped in
+    the <code>geodessical</code> runtime: per-layer PCA bases for $Q/K/V/O$, FFN
+    up/gate, and a dedicated SVD path for FFN&nbsp;down, with a persistent geometry
+    cache and a depth-sink shortcut.
+  </p>
+  <div class="hero-meta">
+    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">106.27%</span>
+      <span class="stat-label">Decode tok/s<br>at $k=1024$</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num warn">+13.30%</span>
+      <span class="stat-label">PPL penalty<br>at $k=1536$</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">1,093 MB</span>
+      <span class="stat-label">$W_\text{proj}$ disk<br>(8B Q4_K_M)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">4</span>
+      <span class="stat-label">Architectures with<br>extracted manifolds</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#reproduce">Reproduce</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
 </header>
 
 <main>

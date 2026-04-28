@@ -17,6 +17,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 <link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
 <script src="../assets/reader.js"></script>
 <style>
 :root { --bg:#fff; --bg-soft:#f9f9f8; --bg-code:#f4f4f4; --border:#e5e5e5; --text:#1a1a1a; --text-soft:#5c5c5c; --accent:#c0392b; --accent-l:#e74c3c; --blue:#2d6be4; --green:#1a7a4a; --yellow-bg:#fffbeb; --blue-bg:#eef4ff; --green-bg:#edfbf3; --red-bg:#fff5f5; --max-w:780px; }
@@ -85,10 +86,40 @@ footer a { color: var(--blue); text-decoration: none; }
 </nav>
 
 <header id="hero">
-  <p class="meta" style="text-transform:uppercase;letter-spacing:0.08em;font-size:0.72rem;font-weight:600;margin-bottom:0.6rem;">Paper 5 &middot; Empirical anchor for OTT + GTC</p>
-  <h1>Geodesic Trajectory Caching and the OTT Runtime Anchor</h1>
-  <p class="meta">By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; HyperTensor Research &middot; v0.1 (2026-04-27) &middot;
-    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a></p>
+  <div class="hero-tag">Paper 5 &middot; April 2026 &middot; v0.1</div>
+  <h1 class="hero-title">GTC and the OTT Runtime Anchor</h1>
+  <p class="hero-subtitle">
+    Empirical companion to Paper&nbsp;4. Fits Riemannian structure on three LM
+    activation manifolds, validates the Jacobi-correction contract, and
+    anchors the OTT runtime end-to-end on SmolLM2-135M-Instruct.
+  </p>
+  <div class="hero-meta">
+    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">38.5%</span>
+      <span class="stat-label">Acceptance<br>rate, OTT spec</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">76.5</span>
+      <span class="stat-label">tok/s end-to-end<br>throughput</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">97×</span>
+      <span class="stat-label">Batched Jacobi<br>at $B=10$</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">30.9 µs</span>
+      <span class="stat-label">Per-query<br>lookup latency</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#repro">Reproduce</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
 </header>
 
 <main>

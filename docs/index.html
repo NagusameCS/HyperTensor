@@ -90,7 +90,7 @@ h2 {
 .papers { display: flex; flex-direction: column; gap: 1.1rem; margin: 1.5rem 0 3rem; }
 .paper-card {
   border: 1px solid var(--border);
-  border-radius: 10px; padding: 1.2rem 1.4rem;
+  border-radius: 10px; padding: 1.3rem 1.5rem;
   background: var(--bg);
   text-decoration: none; color: inherit;
   display: block;
@@ -107,12 +107,80 @@ h2 {
 }
 .paper-num {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem; color: var(--text-soft);
+  font-size: 0.74rem; color: var(--text-soft);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 700;
+}
+.paper-version {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; color: var(--text-soft);
+  margin-left: auto;
   letter-spacing: 0.04em;
 }
 .paper-title {
   font-size: 1.18rem; font-weight: 700;
   letter-spacing: -0.015em; line-height: 1.3;
+  display: block; flex-basis: 100%;
+  color: var(--text);
+}
+.paper-abstract { color: var(--text-soft); font-size: 0.95rem; line-height: 1.6; }
+.paper-stats {
+  display: flex; gap: 1.3rem; flex-wrap: wrap;
+  margin-top: 0.9rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.paper-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+.paper-stat-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem; font-weight: 700;
+  color: var(--text); letter-spacing: -0.01em;
+}
+.paper-stat-num.good { color: var(--green); }
+.paper-stat-num.warn { color: var(--accent); }
+.paper-stat-num.info { color: var(--blue); }
+.paper-stat-label { color: var(--text-soft); font-size: 0.74rem; }
+
+.hero-summary {
+  display: flex; justify-content: center;
+  gap: 2.4rem; flex-wrap: wrap;
+  margin: 2rem auto 0; max-width: 720px;
+}
+.hsum { text-align: center; }
+.hsum-num {
+  display: block;
+  font-size: 1.8rem; font-weight: 700;
+  letter-spacing: -0.025em; color: var(--text);
+}
+.hsum-num.good { color: var(--green); }
+.hsum-num.warn { color: var(--accent); }
+.hsum-label {
+  display: block; font-size: 0.76rem;
+  color: var(--text-soft); font-weight: 500;
+  letter-spacing: 0.02em; margin-top: 0.25rem;
+}
+
+.thread {
+  margin: 1.5rem 0 2rem;
+  padding: 1.4rem 1.6rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+.thread strong { color: var(--text); }
+.thread-row {
+  display: flex; gap: 1rem; align-items: baseline;
+  margin: 0.4rem 0;
+}
+.thread-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent);
+  min-width: 5.5rem;
 }
 .badge {
   display: inline-block; font-size: 0.68rem; font-weight: 700;
@@ -173,19 +241,38 @@ footer a:hover { text-decoration: underline; }
     2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a>
   </p>
+  <div class="hero-summary">
+    <div class="hsum"><span class="hsum-num">7</span><span class="hsum-label">Papers</span></div>
+    <div class="hsum"><span class="hsum-num good">106.27%</span><span class="hsum-label">Peak decode tok/s</span></div>
+    <div class="hsum"><span class="hsum-num good">76.5</span><span class="hsum-label">tok/s OTT runtime</span></div>
+    <div class="hsum"><span class="hsum-num">97&times;</span><span class="hsum-label">Batched Jacobi at $B{=}10$</span></div>
+    <div class="hsum"><span class="hsum-num good">12 / 17</span><span class="hsum-label">Theory claims measured</span></div>
+  </div>
 </header>
 
 <main>
 
 <section id="papers">
   <span class="section-label">Papers</span>
-  <h2>Four papers under the HyperTensor project.</h2>
+  <h2>Seven research papers under the HyperTensor project.</h2>
+
+  <div class="thread">
+    <strong>Research thread.</strong> Each paper builds on what came before and is anchored, where possible, by a measurement in this repository.
+    <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first if any term feels unfamiliar.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>Empirical kernel: a single PCA-compressed attention block measured at <strong>106.27%</strong> of baseline decode throughput, $p \approx 10^{-10}$.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Generalises Paper 1 into a full multi-slot pipeline (Geodesic Projection) with persistent geometry cache and FFN&nbsp;down SVD.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Composes Paper 1+2 with speculative decoding and Attention Residuals; first end-to-end speculative anchor at <strong>38.5%</strong> acceptance.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 4</span><span>Theory layer: Riemannian latent-space inference, GTC, OTT. Two universal-construction theorems remain open.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 5</span><span>Empirical companion to Paper 4: 12 of 17 testable claims anchored, including the <strong>97&times;</strong> batched-Jacobi gain.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 6</span><span>Adaptive layer atop Paper 1+2: phase-aware rank, gauge optimisation, thermal coupling, online basis updates.</span></div>
+  </div>
 
   <div class="papers">
 
     <a class="paper-card" href="papers/00-introduction.html">
       <div class="paper-head">
-        <span class="paper-num">Background article</span>
+        <span class="paper-num">Paper 0</span>
+        <span class="paper-version">background article</span>
         <span class="paper-title">An Introduction to the HyperTensor Papers (For Readers With No Background)</span>
       </div>
       <p class="paper-abstract">
@@ -193,14 +280,15 @@ footer a:hover { text-decoration: underline; }
         networks, transformers, attention, the KV cache, GPU bandwidth and cache
         hierarchy, quantisation and GGUF, PCA / SVD / Eckart&#8209;Young, manifolds and
         intrinsic dimension, and ends with one plain-English summary per paper plus a
-        vocabulary cheat-sheet. Read this first if any term in the four papers is
+        vocabulary cheat-sheet. Read this first if any term in the seven papers is
         unfamiliar.
       </p>
     </a>
 
     <a class="paper-card" href="papers/01-attention-compression.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 1 &middot; Empirical</span>
+        <span class="paper-num">Paper 1</span>
+        <span class="paper-version">v0.4 · April 2026</span>
         <span class="paper-title">Calibration-Free Low-Rank Attention Compression for Bandwidth-Bound LLM Decode</span>
       </div>
       <p class="paper-abstract">
@@ -210,11 +298,18 @@ footer a:hover { text-decoration: underline; }
         $p \approx 10^{-10}$. We argue (with caveats) that the speedup comes from
         the attention working set fitting in L2.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num good">106.27%</span><span class="paper-stat-label">decode tok/s @ $k{=}1024$</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">$p\approx10^{-10}$</span><span class="paper-stat-label">significance</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">L2</span><span class="paper-stat-label">working-set hypothesis</span></div>
+        <div class="paper-stat"><span class="paper-stat-num info">Llama-3.1-8B</span><span class="paper-stat-label">target model</span></div>
+      </div>
     </a>
 
     <a class="paper-card" href="papers/02-geodesic-projection.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 2 &middot; Framework</span>
+        <span class="paper-num">Paper 2</span>
+        <span class="paper-version">v0.2 · April 2026</span>
         <span class="paper-title">Geodesic Projection: A Production Compression Pipeline for LLM Inference</span>
       </div>
       <p class="paper-abstract">
@@ -224,11 +319,18 @@ footer a:hover { text-decoration: underline; }
         persistent geometry cache, the depth-sink shortcut, and the deployment
         envelope on a single 8&nbsp;GB GPU.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num good">106.27%</span><span class="paper-stat-label">decode tok/s @ $k{=}1024$</span></div>
+        <div class="paper-stat"><span class="paper-stat-num warn">+13.30%</span><span class="paper-stat-label">PPL @ $k{=}1536$</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">1,093 MB</span><span class="paper-stat-label">$W_\text{proj}$ disk (8B Q4_K_M)</span></div>
+        <div class="paper-stat"><span class="paper-stat-num info">4</span><span class="paper-stat-label">architectures</span></div>
+      </div>
     </a>
 
     <a class="paper-card" href="papers/03-speculative-decoding.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 3 &middot; Design + first measurements</span>
+        <span class="paper-num">Paper 3</span>
+        <span class="paper-version">v0.3 · April 2026</span>
         <span class="paper-title">Composing Compression: Geodesic Speculative Decoding and Attention Residuals</span>
       </div>
       <p class="paper-abstract">
@@ -239,11 +341,18 @@ footer a:hover { text-decoration: underline; }
         <strong>38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready</strong>,
         plus the instruct-greedy-EOS pathology and its fix.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num good">38.5%</span><span class="paper-stat-label">acceptance rate</span></div>
+        <div class="paper-stat"><span class="paper-stat-num good">76.5</span><span class="paper-stat-label">tok/s end-to-end</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">1.53×</span><span class="paper-stat-label">speedup vs greedy</span></div>
+        <div class="paper-stat"><span class="paper-stat-num info">5 / 13</span><span class="paper-stat-label">OneDecode draft hits</span></div>
+      </div>
     </a>
 
     <a class="paper-card" href="papers/04-organic-training-theory.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 4 &middot; Theory</span>
+        <span class="paper-num">Paper 4</span>
+        <span class="paper-version">2026</span>
         <span class="paper-title">Organic Training Theory and Geodesic Trajectory Caching</span>
       </div>
       <p class="paper-abstract">
@@ -253,11 +362,18 @@ footer a:hover { text-decoration: underline; }
         current repository's OTT deployment manifolds have a narrower,
         certificate-backed closure.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num good">12 / 17</span><span class="paper-stat-label">testable claims measured</span></div>
+        <div class="paper-stat"><span class="paper-stat-num info">2</span><span class="paper-stat-label">universal theorems open</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">3</span><span class="paper-stat-label">activation manifolds fitted</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">GTC</span><span class="paper-stat-label">trajectory caching</span></div>
+      </div>
     </a>
 
     <a class="paper-card" href="papers/05-gtc-ott-runtime.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 5 &middot; Empirical anchor</span>
+        <span class="paper-num">Paper 5</span>
+        <span class="paper-version">v0.1 · 2026-04-27</span>
         <span class="paper-title">Geodesic Trajectory Caching and the OTT Runtime Anchor</span>
       </div>
       <p class="paper-abstract">
@@ -269,10 +385,17 @@ footer a:hover { text-decoration: underline; }
         SmolLM2-135M-Instruct. 12 of 17 Paper&nbsp;4 testable claims now have a
         replicable measured result.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num good">38.5%</span><span class="paper-stat-label">acceptance, OTT spec</span></div>
+        <div class="paper-stat"><span class="paper-stat-num good">76.5</span><span class="paper-stat-label">tok/s end-to-end</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">97×</span><span class="paper-stat-label">batched Jacobi @ $B{=}10$</span></div>
+        <div class="paper-stat"><span class="paper-stat-num info">30.9 µs</span><span class="paper-stat-label">per-query lookup</span></div>
+      </div>
     </a>
     <a class="paper-card" href="papers/06-adaptive-compression.html">
       <div class="paper-head">
-        <span class="paper-num">Paper 6 &middot; Design &amp; runtime implementation</span>
+        <span class="paper-num">Paper 6</span>
+        <span class="paper-version">v0.1 · 2026-04-27</span>
         <span class="paper-title">Adaptive Compression: Phase, Gauge, Thermal, Online Basis</span>
       </div>
       <p class="paper-abstract">
@@ -286,6 +409,12 @@ footer a:hover { text-decoration: underline; }
         rejections. Implementation real and CLI-reachable; first measurements
         deferred to v0.2.
       </p>
+      <div class="paper-stats">
+        <div class="paper-stat"><span class="paper-stat-num info">4</span><span class="paper-stat-label">adaptive mechanisms</span></div>
+        <div class="paper-stat"><span class="paper-stat-num good">0</span><span class="paper-stat-label">inference overhead (MCR + gauge)</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">GL($d$)</span><span class="paper-stat-label">residual-stream gauge</span></div>
+        <div class="paper-stat"><span class="paper-stat-num">v0.2</span><span class="paper-stat-label">measurements pending</span></div>
+      </div>
     </a>
   </div>
 
