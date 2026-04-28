@@ -98,7 +98,7 @@ matrix of <span class="math inline">\(\{\Wmat_Q,\Wmat_K,\Wmat_V\}\)</span> produ
 bit-stable projection without text samples (<a href="#sec:method" data-reference-type="ref+Label" data-reference="sec:method">3</a>).</p></li>
 <li><p>A measured <em>super-baseline</em>: <span class="math inline">\(106.27\%\)</span> relative decode throughput
 at <span class="math inline">\(k{=}1024\)</span> on Llama-3.1-8B / RTX 4070 Laptop, with <span class="math inline">\(t{=}53.88\)</span>,
-<span class="math inline">\(p&lt;10^{-10}\)</span>, bootstrap CI excluding 1.0 (<a href="#sec:results,sec:stats" data-reference-type="ref+Label" data-reference="sec:results,sec:stats">[sec:results,sec:stats]</a>).</p></li>
+<span class="math inline">\(p&lt;10^{-10}\)</span>, bootstrap CI excluding 1.0 (<a href="#sec:results" data-reference-type="ref+Label" data-reference="sec:results">§Results</a>, <a href="#sec:stats" data-reference-type="ref+Label" data-reference="sec:stats">§Statistics</a>).</p></li>
 <li><p>A cache-fit hypothesis tying the super-baseline to L2 working-set fit at
 <span class="math inline">\(k/d\!\approx\!0.25\)</span> (<a href="#sec:cachefit" data-reference-type="ref+Label" data-reference="sec:cachefit">6</a>), with falsifiable predictions for
 RTX 4090, A100, and H100.</p></li>
@@ -656,7 +656,7 @@ provided the Q4_K_M baseline this study sits on top of.</p>
 <section id="app:extended" class="level2">
 <h2>Extended empirical detail</h2>
 <p>This appendix collects the full measurement detail behind
-<a href="#sec:results,sec:cachefit,sec:stats" data-reference-type="ref+Label" data-reference="sec:results,sec:cachefit,sec:stats">[sec:results,sec:cachefit,sec:stats]</a> for reviewers who want to
+<a href="#sec:results" data-reference-type="ref+Label" data-reference="sec:results">§Results</a>, <a href="#sec:cachefit" data-reference-type="ref+Label" data-reference="sec:cachefit">§Cache-Fit Hypothesis</a>, and <a href="#sec:stats" data-reference-type="ref+Label" data-reference="sec:stats">§Statistics</a> for reviewers who want to
 audit the headline numbers. Validated reference pack:
 <code>benchmarks/whitepaper_pack_20260427_121815/</code>.</p>
 <section id="hardware-model-and-runtime-configuration" class="level3">

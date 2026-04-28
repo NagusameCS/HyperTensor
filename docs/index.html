@@ -71,7 +71,15 @@ nav {
   max-width: 640px; margin: 0 auto 1.4rem; line-height: 1.6;
 }
 .hero-meta { font-size: 0.88rem; color: var(--text-soft); }
-.hero-meta a { color: var(--blue); text-decoration: none; }
+.hero-meta a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+.hero-meta a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .hero-meta a:hover { text-decoration: underline; }
 
 main { max-width: var(--max-w); margin: 0 auto; padding: 3rem 1.5rem 5rem; }
@@ -194,7 +202,15 @@ footer {
   border-top: 1px solid var(--border);
   text-align: center; font-size: 0.85rem; color: var(--text-soft);
 }
-footer a { color: var(--blue); text-decoration: none; }
+footer a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+footer a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 footer a:hover { text-decoration: underline; }
 
 /* ── QOL: read time, visited marker ──────────────────── */
@@ -596,13 +612,6 @@ footer a:hover { text-decoration: underline; }
     theory companion (Paper&nbsp;4) is renamed <strong>GTC &mdash; Geodesic Trajectory
     Caching</strong> to remove the collision.
   </div>
-
-  <p class="kbd-hint">
-    Tips:
-    <kbd>j</kbd>/<kbd>k</kbd> or <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> to move between papers,
-    <kbd>Enter</kbd> to open, <kbd>g</kbd>+<kbd>g</kbd> top, <kbd>G</kbd> bottom.
-    Hover a card on a wide screen for an extended preview on the right.
-  </p>
 
   </div><!-- /#tab-engineering -->
 

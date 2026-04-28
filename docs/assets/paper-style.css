@@ -112,7 +112,15 @@ nav {
   color: var(--text-soft);
   margin-bottom: 2.5rem;
 }
-.hero-meta a { color: var(--blue); text-decoration: none; }
+.hero-meta a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+.hero-meta a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .hero-meta a:hover { text-decoration: underline; }
 .hero-stats {
   display: flex;
@@ -186,7 +194,78 @@ h4 {
 }
 p { margin-bottom: 1.2rem; color: var(--text); }
 p:last-child { margin-bottom: 0; }
-a { color: var(--blue); }
+
+/* ─── Cohesive link styling ───────────────────────────
+   Body links inherit the prose color and carry only a thin, subtle
+   underline; on hover they pick up the site's accent. This avoids
+   the harsh blue and keeps academic prose calm. */
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+a:hover, a:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+a:visited { color: inherit; }
+a[href^="#"] { text-decoration-style: dotted; }
+
+/* External-link affordance: a tiny arrow after URLs that leave the page. */
+a[href^="http"]::after {
+  content: " \2197";
+  font-size: 0.78em;
+  color: var(--text-soft);
+  vertical-align: 0.15em;
+  margin-left: 0.05em;
+}
+a[href^="http"]:hover::after { color: var(--accent); }
+
+/* ─── Link preview tooltip (driven by reader.js) ─────── */
+#ht-link-preview {
+  position: fixed;
+  z-index: 9999;
+  max-width: 380px;
+  min-width: 220px;
+  padding: 0.7rem 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+#ht-link-preview[data-open="1"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+#ht-link-preview .ht-lp-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 0.3rem;
+}
+#ht-link-preview .ht-lp-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+#ht-link-preview .ht-lp-snippet {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
 
 /* ─── Callout boxes ───────────────────────────────────── */
 .callout {

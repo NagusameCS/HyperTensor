@@ -669,7 +669,7 @@ to fp32). No cross-hardware or cross-model end-to-end measurement is
 included for the adaptive layers.</p></li>
 <li><p>All four adaptive extensions are <em>design-validated</em>: code paths
 exist, runtime flags work, but the v0.2 measurement sweep is the next
-milestone. Predicted gains in <a href="#sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online" data-reference-type="ref+Label" data-reference="sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online">[sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online]</a>
+milestone. Predicted gains in <a href="#sec:adaptive-mcr" data-reference-type="ref+Label" data-reference="sec:adaptive-mcr">§Adaptive MCR</a>, <a href="#sec:gauge" data-reference-type="ref+Label" data-reference="sec:gauge">§Gauge</a>, <a href="#sec:thermal" data-reference-type="ref+Label" data-reference="sec:thermal">§Thermal</a>, and <a href="#sec:online" data-reference-type="ref+Label" data-reference="sec:online">§Online</a>
 are upper-bound estimates from closed-form arithmetic, not measurements.</p></li>
 <li><p>The <span class="math inline">\(W_\text{proj}\)</span> cache is fp32; converting to Q8_0
 <span class="citation" data-cites="ggerganov2023kquants">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023b)</span> would close the disk-footprint gap but
