@@ -424,12 +424,6 @@ footer a:hover { text-decoration: underline; }
         $p \approx 10^{-10}$. We argue (with caveats) that the speedup comes from
         the attention working set fitting in L2.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num good">106.27%</span><span class="paper-stat-label">decode tok/s @ $k{=}1024$</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">$p\approx10^{-10}$</span><span class="paper-stat-label">significance</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">L2</span><span class="paper-stat-label">working-set hypothesis</span></div>
-        <div class="paper-stat"><span class="paper-stat-num info">Llama-3.1-8B</span><span class="paper-stat-label">target model</span></div>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/02-geodesic-projection.html"
@@ -447,12 +441,6 @@ footer a:hover { text-decoration: underline; }
         persistent geometry cache, the depth-sink shortcut, and the deployment
         envelope on a single 8&nbsp;GB GPU.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num good">106.27%</span><span class="paper-stat-label">decode tok/s @ $k{=}1024$</span></div>
-        <div class="paper-stat"><span class="paper-stat-num warn">+13.30%</span><span class="paper-stat-label">PPL @ $k{=}1536$</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">1,093 MB</span><span class="paper-stat-label">$W_\text{proj}$ disk (8B Q4_K_M)</span></div>
-        <div class="paper-stat"><span class="paper-stat-num info">4</span><span class="paper-stat-label">architectures</span></div>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/03-speculative-decoding.html"
@@ -471,12 +459,6 @@ footer a:hover { text-decoration: underline; }
         <strong>38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready</strong>,
         plus the instruct-greedy-EOS pathology and its fix.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num good">38.5%</span><span class="paper-stat-label">acceptance rate</span></div>
-        <div class="paper-stat"><span class="paper-stat-num good">76.5</span><span class="paper-stat-label">tok/s end-to-end</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">1.53×</span><span class="paper-stat-label">speedup vs greedy</span></div>
-        <div class="paper-stat"><span class="paper-stat-num info">5 / 13</span><span class="paper-stat-label">OneDecode draft hits</span></div>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/04-organic-training-theory.html"
@@ -494,12 +476,6 @@ footer a:hover { text-decoration: underline; }
         current repository's OTT deployment manifolds have a narrower,
         certificate-backed closure.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num good">12 / 17</span><span class="paper-stat-label">testable claims measured</span></div>
-        <div class="paper-stat"><span class="paper-stat-num info">2</span><span class="paper-stat-label">universal theorems open</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">3</span><span class="paper-stat-label">activation manifolds fitted</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">GTC</span><span class="paper-stat-label">trajectory caching</span></div>
-      </div>
     </a>
 
     <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
@@ -519,12 +495,6 @@ footer a:hover { text-decoration: underline; }
         SmolLM2-135M-Instruct. 12 of 17 Paper&nbsp;4 testable claims now have a
         replicable measured result.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num good">38.5%</span><span class="paper-stat-label">acceptance, OTT spec</span></div>
-        <div class="paper-stat"><span class="paper-stat-num good">76.5</span><span class="paper-stat-label">tok/s end-to-end</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">97×</span><span class="paper-stat-label">batched Jacobi @ $B{=}10$</span></div>
-        <div class="paper-stat"><span class="paper-stat-num info">30.9 µs</span><span class="paper-stat-label">per-query lookup</span></div>
-      </div>
     </a>
     <a class="paper-card" href="papers/06-adaptive-compression.html"
        data-readtime="~16 min"
@@ -545,12 +515,6 @@ footer a:hover { text-decoration: underline; }
         rejections. Implementation real and CLI-reachable; first measurements
         deferred to v0.2.
       </p>
-      <div class="paper-stats">
-        <div class="paper-stat"><span class="paper-stat-num info">4</span><span class="paper-stat-label">adaptive mechanisms</span></div>
-        <div class="paper-stat"><span class="paper-stat-num good">0</span><span class="paper-stat-label">inference overhead (MCR + gauge)</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">GL($d$)</span><span class="paper-stat-label">residual-stream gauge</span></div>
-        <div class="paper-stat"><span class="paper-stat-num">v0.2</span><span class="paper-stat-label">measurements pending</span></div>
-      </div>
     </a>
   </div>
 
