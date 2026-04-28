@@ -609,10 +609,11 @@ footer a:hover { text-decoration: underline; }
   <div id="tab-research" class="tab-panel" role="tabpanel" aria-hidden="true">
 
     <div class="thread">
-      <strong>Research-paper thread.</strong> Four arXiv-formatted condensations
-      of the engineering work, rendered from LaTeX so they read inline like the
-      engineering papers but carry theorem numbering and citation infrastructure.
-      The PDF of each is reachable from the rendered page header for archival use.
+      <strong>Research-paper thread.</strong> Four arXiv-formatted papers,
+      condensing the engineering work above into single-claim, single-result
+      submissions with theorem numbering, formal proofs, and a real
+      bibliography. The rendered HTML mirrors the LaTeX section-by-section;
+      the PDF is linked from each paper's header for archival.
     </div>
 
     <div class="papers">
@@ -626,9 +627,12 @@ footer a:hover { text-decoration: underline; }
           <span class="paper-title">Geodesic Runtime Compression: a calibration-free, super-baseline attention compression</span>
         </div>
         <p class="paper-abstract">
-          The arXiv condensation of the GRC measurement: Roofline-formal analysis,
-          Eckart&ndash;Young numerical bound, thermally controlled protocol, and an
-          explicit cross-architecture $k_{\mathrm{int}}/d$ table that decouples
+          We measure a calibration-free PCA basis on the Q/K/V Gram matrix and
+          show that, on Llama-3.1-8B at $k\!=\!1024$, the compressed model
+          decodes at <strong>106.27%</strong> of the uncompressed baseline
+          ($p\!\approx\!10^{-10}$). The paper carries the Roofline derivation,
+          the Eckart&ndash;Young lower bound, the thermally-controlled
+          benchmark protocol, and a cross-architecture table that separates
           intrinsic dimension from ambient model width.
         </p>
       </a>
@@ -642,11 +646,14 @@ footer a:hover { text-decoration: underline; }
           <span class="paper-title">Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut</span>
         </div>
         <p class="paper-abstract">
-          MCR phase-aware rank as a constrained budget problem; a Sink-Basis Bypass
-          that preserves the dominant residual-stream direction in the PCA basis
-          (not just in the KV cache, as StreamingLLM does); and the
-          $\ell^\star\!\approx\!2L/3$ depth-sink rule used as an $O(1)$
-          cache-integrity probe.
+          A per-layer rank-allocation rule for low-rank attention compression,
+          formulated as a constrained-budget KKT problem and solved by
+          water-filling against measured per-layer curvature. Two structural
+          results: a Sink-Basis Bypass that preserves the dominant
+          residual-stream direction inside the PCA basis itself (not just in
+          the KV cache, as StreamingLLM does), and a $\ell^\star\!\approx\!2L/3$
+          depth-sink rule that lets a single-layer probe stand in for a full
+          cache-integrity check.
         </p>
       </a>
 
@@ -659,10 +666,12 @@ footer a:hover { text-decoration: underline; }
           <span class="paper-title">Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance</span>
         </div>
         <p class="paper-abstract">
-          Speculative decoding with a GP-compressed drafter and a full-precision
-          verifier under the OTT one-decode contract.  Includes the formal
-          derivation of the EOS-pathology and the EOS-aware acceptance rule that
-          fixes it.
+          Speculative decoding with a Geodesic-Projection-compressed drafter
+          against a full-precision verifier. The paper derives the
+          instruct-greedy-EOS pathology &mdash; under which the standard
+          $\min(1,P_V/P_D)$ acceptance rule collapses to unconditional
+          accept &mdash; and gives an EOS-aware acceptance rule that closes
+          it, with a first end-to-end measurement on a Q8_0 ChatML backbone.
         </p>
       </a>
 
@@ -675,11 +684,14 @@ footer a:hover { text-decoration: underline; }
           <span class="paper-title">Organic Training Theory and the GTC Manifold Runtime</span>
         </div>
         <p class="paper-abstract">
-          The theory layer (OTT) merged with the GTC measurement anchor.
-          Carries the explicit Fisher$\to$Jacobi$\to$Magnus-3 derivation, the
-          $k_{\mathrm{int}}/d$ invariance table, and a final HJB-regularised
-          joint-training objective stated as a public-record claim for future
-          training work.
+          A Riemannian view of transformer inference, with measurements. The
+          paper sets the geometry &mdash; Fisher metric, Christoffel symbols,
+          Jacobi fields, Magnus-3 parallel transport &mdash; then anchors it
+          on three open-weight models (SmolLM2-135M, Phi-3.5-mini,
+          Gemma-4-E2B), reporting cross-architecture intrinsic-dimension
+          invariance and a 97&times; batched-Jacobi gain. Closes with an
+          HJB-regularised joint-training objective stated as a public-record
+          claim for future training work.
         </p>
       </a>
 
@@ -689,7 +701,7 @@ footer a:hover { text-decoration: underline; }
       <strong>Source.</strong> Each rendered research paper is built from its
       LaTeX source in <code>ARXIV_SUBMISSIONS/paper-{A,B,C,D}/</code> via
       <code>scripts/render_research_papers.sh</code> (pandoc + MathJax). The
-      arXiv-style PDF of each paper is linked from the page header.
+      compiled PDF of each paper is linked from its page header.
     </div>
 
   </div><!-- /#tab-research -->

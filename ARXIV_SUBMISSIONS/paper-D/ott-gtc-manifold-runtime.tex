@@ -1,5 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage{hypertensor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,backgrounds}
 \addbibresource{refs.bib}
 
 \title{Organic Training Theory and Geodesic Trajectory Caching:\\
@@ -117,6 +119,60 @@ named \textbf{GTC} throughout this paper.
         guard} and the \emph{geometry-cache consistency-equivalence rule}
         (Sec.~\ref{sec:runtime}).
 \end{enumerate}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  >={Stealth[length=2.2mm]},
+  node distance=8mm and 9mm,
+  stage/.style={draw, rounded corners=2pt, align=center, minimum height=8.5mm,
+                minimum width=22mm, fill=HTbgsoft, line width=0.5pt},
+  prim/.style={stage, fill=white},
+  artefact/.style={draw, rounded corners=1pt, align=center, font=\scriptsize\ttfamily,
+                   minimum height=6mm, fill=white, line width=0.4pt},
+  group/.style={draw, dashed, rounded corners=2pt, inner sep=4pt, line width=0.4pt, color=HTgrey},
+  arr/.style={->, line width=0.5pt}
+]
+% --- top row: phase-1 export -> manifold fit -> jacobi propagator
+\node[stage] (p1)  {Phase-1 export\\ \scriptsize activation cloud};
+\node[stage, right=of p1] (fit) {Manifold fit\\ \scriptsize PCA on Gram};
+\node[stage, right=of fit] (jac) {Batch-Jacobi\\ \scriptsize Magnus-3 transport};
+\node[stage, right=of jac] (rec) {Record store\\ \scriptsize $5.96$\,KB/record};
+% --- bottom row: runtime side
+\node[prim, below=14mm of fit] (rt) {OTT runtime\\ \scriptsize C path};
+\node[prim, right=of rt]       (cache) {Geometry cache\\ \scriptsize $\ell^\star\!\approx\!2L/3$};
+\node[prim, right=of cache]    (out) {Decoded token\\ \scriptsize $30.9$\,\textmu s/query};
+% --- artefacts (small italics under groups)
+\node[artefact, below=2mm of p1] (art1) {phase1\_manifold.json};
+% --- arrows top row
+\draw[arr] (p1)  -- (fit);
+\draw[arr] (fit) -- (jac);
+\draw[arr] (jac) -- (rec);
+% record store feeds runtime
+\draw[arr] (rec.south) |- (out.east);
+% --- arrows bottom row
+\draw[arr] (rt) -- (cache);
+\draw[arr] (cache) -- (out);
+% manifold feeds runtime
+\draw[arr, dashed] (fit.south) -- (rt.north);
+% groupings
+\begin{scope}[on background layer]
+  \node[group, fit=(p1)(fit)(jac)(rec)(art1), label={[font=\scriptsize\itshape, color=HTgrey]above:Part I --- Theory \& offline construction}] {};
+  \node[group, fit=(rt)(cache)(out),          label={[font=\scriptsize\itshape, color=HTgrey]below:Part II --- Empirical anchor \& runtime}] {};
+\end{scope}
+\end{tikzpicture}
+\caption{End-to-end OTT/GTC pipeline. The \emph{offline} path
+(Sec.~\ref{sec:ott}--\ref{sec:store}) fits a Riemannian manifold from a
+Phase-1 activation export, computes batched Jacobi-field propagators in the
+Magnus-3 truncation, and writes a compressed record store. The
+\emph{runtime} path (Sec.~\ref{sec:runtime}) consumes the manifold and the
+record store via the geometry-cache consistency-equivalence rule, with the
+$\ell^\star\!\approx\!2L/3$ depth-sink shortcut making the cache check $O(1)$
+per token. Numbers cited in the boxes are measured on the empirical anchor
+in \Cref{sec:resonance,sec:store,sec:runtime}.}
+\label{fig:ott-pipeline}
+\end{figure}
 
 \section*{Part I --- Theory}
 

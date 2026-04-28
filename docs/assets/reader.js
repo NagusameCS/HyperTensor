@@ -209,7 +209,7 @@
     document.body.appendChild(panel);
 
     // (Print/Save-as-PDF button removed; the on-screen renders are the
-    // canonical reading surface. arXiv-style PDFs are linked from the
+    // canonical reading surface. Compiled PDFs are linked from the
     // research-papers tab on the home page.)
   }
 

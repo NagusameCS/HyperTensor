@@ -123,3 +123,35 @@ the main repository:
 These are **v1** of the arXiv preparation. Each paper's title page records
 its source-paper revision date. After arXiv assigns identifiers, link them
 back into the project README.
+
+## Pre-submission empirical-data checklist
+
+Four runnable scripts in `scripts/` produce CSV + `\input`-able `.tex`
+snippets that drop directly into the papers. They are honest-or-fail: each
+errors out if a prereq is missing rather than fabricating any number.
+
+| # | Script | Targets | Outputs (under `docs/data/`) | Used in |
+|---|--------|---------|------------------------------|---------|
+| 1 | [`scripts/benchmark_ncu_l2_profile.ps1`](../scripts/benchmark_ncu_l2_profile.ps1) | NCU L2 hit rate + DRAM bytes, baseline vs. GRC k=1024 | `ncu_l2_profile.csv`, `ncu_l2_profile.tex` | Paper A § Cache-Fit Hypothesis |
+| 2 | [`scripts/run_lm_eval_suite.ps1`](../scripts/run_lm_eval_suite.ps1) | GSM8K, HumanEval, MBPP via lm-eval, baseline vs. GRC k=1536 | `lm_eval_results.json`, `lm_eval_results.tex` | Paper A § Results, Paper C § End-to-End |
+| 3 | [`scripts/context_length_sweep.ps1`](../scripts/context_length_sweep.ps1) | Decode tok/s at ctx ∈ {128, 512, 1024, 2048, 4096}, baseline vs. GRC k=1024 | `context_length_sweep.csv`, `context_length_sweep.tex` | Paper A § Results |
+| 4 | [`scripts/benchmark_rank_pareto.ps1`](../scripts/benchmark_rank_pareto.ps1) | Granular rank Pareto at k ∈ {512, 768, 1024, 1280, 1536} | `rank_pareto.csv`, `rank_pareto.tex` | Paper A § Results |
+
+Each generated `.tex` is a single `\begin{tabular}…\end{tabular}` and is
+designed to be wrapped in a `\begin{table}…\end{table}` with a paper-side
+caption, e.g.:
+
+```latex
+\begin{table}[t]
+  \centering
+  \caption{Granular rank--Pareto sweep on Llama-3.1-8B / RTX 4070 Laptop.
+           Ratios $>1$ exceed the uncompressed baseline.}
+  \label{tab:rank-pareto}
+  \input{../../docs/data/rank_pareto.tex}
+\end{table}
+```
+
+These four runs are gated on local hardware time, not on this checkout.
+Run them before tagging an arXiv-ready PDF; until then the corresponding
+table cells should be left blank (preferred) or marked `\pending{}` rather
+than filled with placeholder numbers.
