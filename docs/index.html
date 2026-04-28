@@ -351,6 +351,50 @@ footer a:hover { text-decoration: underline; }
 @media (max-width: 820px) {
   .about-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Tabs (Engineering vs Research) ────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin: 1.4rem 0 1.8rem;
+}
+.tab-btn {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-soft);
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-btn .count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  margin-left: 0.4rem;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.tab-blurb {
+  font-size: 0.92rem;
+  color: var(--text-soft);
+  margin-bottom: 1.2rem;
+  padding: 0.7rem 1rem;
+  background: var(--bg-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}
 </style>
 </head>
 <body>
@@ -384,7 +428,26 @@ footer a:hover { text-decoration: underline; }
 
 <section id="papers">
   <span class="section-label">Papers</span>
-  <h2>Seven research papers under the HyperTensor project.</h2>
+  <h2>The HyperTensor project, in two voices.</h2>
+
+  <div class="tab-blurb">
+    <strong>Engineering papers</strong> are the primary, web-native long-form
+    write-ups: every term defined inline, every measurement linked to a script
+    in this repository.  <strong>Research papers</strong> are the
+    arXiv-formatted condensations of the same work: tighter, theorem-numbered,
+    and aimed at the systems / ML-theory venues.
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" role="tab" aria-controls="tab-engineering" data-tab="engineering">
+      Engineering papers <span class="count">7</span>
+    </button>
+    <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
+      Research papers <span class="count">4</span>
+    </button>
+  </div>
+
+  <div id="tab-engineering" class="tab-panel active" role="tabpanel">
 
   <div class="thread">
     <strong>Research thread.</strong> Each paper builds on what came before and is anchored, where possible, by a measurement in this repository.
@@ -540,8 +603,98 @@ footer a:hover { text-decoration: underline; }
     <kbd>Enter</kbd> to open, <kbd>g</kbd>+<kbd>g</kbd> top, <kbd>G</kbd> bottom.
     Hover a card on a wide screen for an extended preview on the right.
   </p>
-</section>
 
+  </div><!-- /#tab-engineering -->
+
+  <div id="tab-research" class="tab-panel" role="tabpanel" aria-hidden="true">
+
+    <div class="thread">
+      <strong>Research-paper thread.</strong> Four arXiv-formatted condensations
+      of the engineering work, rendered from LaTeX so they read inline like the
+      engineering papers but carry theorem numbering and citation infrastructure.
+      The PDF of each is reachable from the rendered page header for archival use.
+    </div>
+
+    <div class="papers">
+
+      <a class="paper-card" href="research/paper-a-grc-attention-compression.html"
+         data-readtime="~30 min"
+         data-extended="Calibration-free PCA basis on Q/K/V Gram. Headline 106.27% of baseline at k=1024 on Llama-3.1-8B / RTX 4070, p ~ 10⁻¹⁰. New: explicit Roofline equations, k_int(d) cross-architecture invariance table, k=1536 warmup-proxy relabel of the previous k=2048 row.">
+        <div class="paper-head">
+          <span class="paper-num">Paper A</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Runtime Compression: a calibration-free, super-baseline attention compression</span>
+        </div>
+        <p class="paper-abstract">
+          The arXiv condensation of the GRC measurement: Roofline-formal analysis,
+          Eckart&ndash;Young numerical bound, thermally controlled protocol, and an
+          explicit cross-architecture $k_{\mathrm{int}}/d$ table that decouples
+          intrinsic dimension from ambient model width.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-b-geodesic-projection-pipeline.html"
+         data-readtime="~25 min"
+         data-extended="Per-layer rank via MCR with constrained-budget KKT water-filling. New in v1.0: a dedicated subsection on the Sink-Basis Bypass (append the dominant residual-stream direction to the PCA basis when coverage drops below ε), and the Two-Thirds Dimensionality Saturation Rule that turns the geometry-cache integrity check into a single-layer probe.">
+        <div class="paper-head">
+          <span class="paper-num">Paper B</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut</span>
+        </div>
+        <p class="paper-abstract">
+          MCR phase-aware rank as a constrained budget problem; a Sink-Basis Bypass
+          that preserves the dominant residual-stream direction in the PCA basis
+          (not just in the KV cache, as StreamingLLM does); and the
+          $\ell^\star\!\approx\!2L/3$ depth-sink rule used as an $O(1)$
+          cache-integrity probe.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-c-geodesic-speculative-decoding.html"
+         data-readtime="~18 min"
+         data-extended="OTT-aware verifier composition over a GP-compressed drafter. EOS pathology: under instruct-greedy, P_D(EOS) → 1, the standard min(1, P_V/P_D) acceptance collapses to unconditional accept; we derive the explicit failure mode and the EOS-aware fix.">
+        <div class="paper-head">
+          <span class="paper-num">Paper C</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance</span>
+        </div>
+        <p class="paper-abstract">
+          Speculative decoding with a GP-compressed drafter and a full-precision
+          verifier under the OTT one-decode contract.  Includes the formal
+          derivation of the EOS-pathology and the EOS-aware acceptance rule that
+          fixes it.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-d-ott-gtc-manifold-runtime.html"
+         data-readtime="~32 min"
+         data-extended="Theory + measurement anchor. New in v1.0: explicit Fisher-metric → Christoffel → Jacobi → Magnus-3 propagator chain, k_int(d) invariance table in §1, and a closing 'Future Work: HJB-Regularised Joint Training' section that publishes the SHF loss equation L_task + λ Σ ||Δ²s + R̂(s)Δs||² so any future training run using it must cite this paper.">
+        <div class="paper-head">
+          <span class="paper-num">Paper D</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Organic Training Theory and the GTC Manifold Runtime</span>
+        </div>
+        <p class="paper-abstract">
+          The theory layer (OTT) merged with the GTC measurement anchor.
+          Carries the explicit Fisher$\to$Jacobi$\to$Magnus-3 derivation, the
+          $k_{\mathrm{int}}/d$ invariance table, and a final HJB-regularised
+          joint-training objective stated as a public-record claim for future
+          training work.
+        </p>
+      </a>
+
+    </div>
+
+    <div class="note">
+      <strong>Source.</strong> Each rendered research paper is built from its
+      LaTeX source in <code>ARXIV_SUBMISSIONS/paper-{A,B,C,D}/</code> via
+      <code>scripts/render_research_papers.sh</code> (pandoc + MathJax). The
+      arXiv-style PDF of each paper is linked from the page header.
+    </div>
+
+  </div><!-- /#tab-research -->
+
+</section>
 
 </main>
 
@@ -575,6 +728,45 @@ footer a:hover { text-decoration: underline; }
 </aside>
 
 <button id="to-top" type="button" aria-label="Back to top" title="Back to top">&uarr;</button>
+
+<script>
+// Tab switcher (Engineering / Research). Persists choice in localStorage and
+// honours #engineering / #research hashes from in-page links.
+(function () {
+  var btns = document.querySelectorAll('.tab-btn');
+  var panels = document.querySelectorAll('.tab-panel');
+  if (!btns.length) return;
+  function activate (key) {
+    btns.forEach(function (b) {
+      var on = b.dataset.tab === key;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) {
+      var on = p.id === 'tab-' + key;
+      p.classList.toggle('active', on);
+      p.setAttribute('aria-hidden', on ? 'false' : 'true');
+    });
+    try { localStorage.setItem('ht-tab', key); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { activate(b.dataset.tab); });
+  });
+  // Honour #engineering / #research from the URL.
+  var hash = (location.hash || '').replace('#', '');
+  if (hash === 'engineering' || hash === 'research') {
+    activate(hash);
+  } else {
+    var saved = null;
+    try { saved = localStorage.getItem('ht-tab'); } catch (e) {}
+    if (saved === 'research') activate('research');
+  }
+  window.addEventListener('hashchange', function () {
+    var h = (location.hash || '').replace('#', '');
+    if (h === 'engineering' || h === 'research') activate(h);
+  });
+})();
+</script>
 
 <script>
 (function () {

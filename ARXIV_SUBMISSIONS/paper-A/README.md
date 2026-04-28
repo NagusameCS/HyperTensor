@@ -12,7 +12,7 @@ PPL.
 
 ## Coverage map (for reviewers)
 
-| Web-paper item | Where it lives in `main.tex` |
+| Web-paper item | Where it lives in `grc-attention-compression.tex` |
 |---|---|
 | Hardware spec table (web §1.1) | Appendix, "Hardware, model, and runtime configuration" |
 | Model spec (web §1.2) | Same appendix table |
@@ -38,11 +38,11 @@ PPL.
 ## Build
 
 ```bash
-latexmk -pdf -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode grc-attention-compression.tex
 ```
 
 ## arXiv prep (from the parent folder)
 
 ```bash
-make submit-A   # produces ../dist/paper-A.tar.gz with main.bbl and .sty
+make submit-A   # produces ../dist/paper-A.tar.gz with grc-attention-compression.bbl and .sty
 ```

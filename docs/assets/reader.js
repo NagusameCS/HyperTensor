@@ -208,19 +208,9 @@
     document.body.appendChild(toggle);
     document.body.appendChild(panel);
 
-    // Print/Save-as-PDF button (paper pages only). Browsers' built-in
-    // "Save as PDF" target in the print dialog is the simplest way to give
-    // readers a downloadable PDF without bundling a JS PDF generator.
-    if (/\/papers\//.test(location.pathname) || /\bwhitepaper\.html$/.test(location.pathname)) {
-      var pdfBtn = document.createElement('button');
-      pdfBtn.className = 'reader-toggle pdf-toggle';
-      pdfBtn.setAttribute('aria-label', 'Print or save as PDF');
-      pdfBtn.title = 'Print / Save as PDF';
-      // Simple printer glyph (unicode), no emoji.
-      pdfBtn.textContent = 'PDF';
-      pdfBtn.addEventListener('click', function () { window.print(); });
-      document.body.appendChild(pdfBtn);
-    }
+    // (Print/Save-as-PDF button removed; the on-screen renders are the
+    // canonical reading surface. arXiv-style PDFs are linked from the
+    // research-papers tab on the home page.)
   }
 
   if (document.readyState === 'loading') {

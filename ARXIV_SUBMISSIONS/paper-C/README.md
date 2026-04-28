@@ -7,7 +7,7 @@ closed-form throughput-model prediction.
 
 ## Coverage map
 
-| Web-paper item | Section in `main.tex` |
+| Web-paper item | Section in `geodesic-speculative-decoding.tex` |
 |---|---|
 | Closed-form throughput formula with $\Delta\alpha$ penalty | §3 |
 | Three-$\alpha$ prediction table at $\gamma=4$ | §3 |
@@ -23,5 +23,5 @@ closed-form throughput-model prediction.
 ## Build
 
 ```bash
-latexmk -pdf -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode geodesic-speculative-decoding.tex
 ```

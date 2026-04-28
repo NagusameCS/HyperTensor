@@ -9,12 +9,18 @@
 \RequirePackage[T1]{fontenc}
 \RequirePackage{lmodern}
 \RequirePackage{textcomp}
-\RequirePackage{newtxtext,newtxmath}  % Times-like; arXiv-friendly
+\RequirePackage{newtxtext}            % Times-like text; arXiv-friendly
 \linespread{1.05}
 \RequirePackage{setspace}
 
 % ---- Math ------------------------------------------------------------------
-\RequirePackage{amsmath,amssymb,amsthm,mathtools}
+% Load amsmath/amssymb/amsthm BEFORE newtxmath to avoid \Bbbk / \openbox
+% redefinition errors that occur with amsfonts+newtxmath ordering.
+\RequirePackage{amsmath,amssymb,mathtools}
+\let\openbox\relax
+\RequirePackage{amsthm}
+\let\Bbbk\relax
+\RequirePackage{newtxmath}            % math companion to newtxtext
 \RequirePackage{bm}
 
 \theoremstyle{plain}

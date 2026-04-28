@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance — HyperTensor Research</title>
+<meta name="description" content="Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance — research paper from the HyperTensor project (NagusameCS).">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams',
+    processEscapes: true
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/research-paper.css">
+<script src="../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../index.html#engineering">Engineering</a></li>
+    <li><a href="../index.html#research">Research</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Paper C · OTT-Decode</span>
+  <h1>Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance</h1>
+  <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
+  <p class="meta">
+    HyperTensor Project &middot; April 2026
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.pdf">arXiv-style PDF</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.tex">TeX source</a>
+  </p>
+</header>
+
+<article class="paper-body">
+<div class="htnote">
+<p><strong>Project nomenclature.</strong> <em>HyperTensor</em> is the project;
+<em>Geodesic Projection (GP)</em> is the inference-time pipeline that
+factorises every compressible weight (companion paper);
+<em>Geodesic Runtime Compression (GRC)</em> is the attention-only subset of
+GP and is the empirical anchor for the throughput measurements below;
+<em>OTT/GTC</em> is the Riemannian-manifold theoretical framework on top
+of GP that motivates the OneDecode / OTT-OD / OTT-SWARM drafter modes
+briefly described in <a href="#sec:ottmodes" data-reference-type="ref+Label" data-reference="sec:ottmodes">8</a>.</p>
+</div>
+<p><strong>Keywords:</strong> speculative decoding, low-rank compression,
+exactness-preserving sampling, instruction-tuned models, EOS handling,
+geodesic trajectory caching.</p>
+<hr />
+<section id="sec:why" class="level2">
+<h2>Why Compose</h2>
+<p>Speculative decoding wins because the verifier amortises its forward-pass
+cost over multiple accepted tokens. Compression reduces the drafter’s
+cost. These look independent, and on first principles they are, but the
+interaction has a specific shape that matters.</p>
+<p>Let <span class="math inline">\(T_V\)</span> be the verifier-step cost, <span class="math inline">\(T_D\)</span> the drafter-step cost, <span class="math inline">\(\gamma\)</span>
+the draft length, and <span class="math inline">\(\alpha\)</span> the per-token acceptance rate
+<span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span>. Standard speculative throughput is
+<span class="math display">\[\begin{equation}
+\label{eq:spec}
+\text{tok/s}_\text{spec}
+= \frac{\E[\text{accepted}]}{\gamma T_D + T_V}
+= \frac{1-\alpha^{\gamma+1}}{(1-\alpha)(\gamma T_D+T_V)}.
+\end{equation}\]</span>
+With a GP-compressed drafter the drafter cost drops from
+<span class="math inline">\(T_D^\text{full}\)</span> to <span class="math inline">\(T_D^\text{GP}=(1-\rho)T_D^\text{full}\)</span> where
+<span class="math inline">\(\rho\)</span> is the bandwidth saving, and the acceptance rate may also drop
+because the drafter samples from a perturbed distribution. Define
+<span class="math inline">\(\Delta\alpha\)</span> as the loss in acceptance. Net speedup over full
+speculative decoding is
+<span class="math display">\[\begin{equation}
+\label{eq:netspeedup}
+\frac{\text{tok/s}_\text{spec,GP}}{\text{tok/s}_\text{spec,full}}
+=
+\underbrace{\frac{1-(\alpha-\Delta\alpha)^{\gamma+1}}{1-\alpha^{\gamma+1}}}_{\leq 1}
+\cdot
+\underbrace{\frac{1-\alpha}{1-\alpha+\Delta\alpha}}_{\leq 1}
+\cdot
+\underbrace{\frac{\gamma T_D^\text{full}+T_V}{\gamma(1-\rho)T_D^\text{full}+T_V}}_{\geq 1}.
+\end{equation}\]</span>
+The third factor (compression helps) is always <span class="math inline">\(\geq 1\)</span>; the first two
+(compression hurts acceptance) are always <span class="math inline">\(\leq 1\)</span>. Composition wins iff
+the third factor dominates; that depends on <span class="math inline">\(T_V/T_D\)</span> and on <span class="math inline">\(\Delta\alpha\)</span>.
+Whether GP at <span class="math inline">\(k{=}1024\)</span> moves <span class="math inline">\(\alpha\)</span> by more than a few percent is the
+central empirical unknown of this paper.</p>
+</section>
+<section id="implementation" class="level2">
+<h2>Implementation</h2>
+<p>The runtime exposes
+<code>llm_generate_geodesic_speculative()</code> (declared in
+<code>runtime/nn/llm.h</code>) implementing the textbook draft-and-verify
+pattern with two specifics. <em>(i)</em> Drafter and verifier share KV
+cache structure but not weights—the drafter is the GP-compressed
+model loaded once, the verifier is uncompressed and loaded once. Both
+resident in VRAM simultaneously is infeasible for an 8B model on 8 GB
+VRAM; speculative-decode-of-Llama-3.1-8B-with-itself requires either an
+additional VRAM tier or a tier-asymmetric deployment (e.g. 8B drafter
+on commodity GPU, 70B verifier on a server GPU). <em>(ii)</em> Acceptance
+is rejection sampling against the verifier distribution
+<span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span>, not greedy match;
+this preserves the verifier’s sampling distribution exactly under the
+standard tokenizer-sharing assumption.</p>
+<p>The runtime additionally supports running the drafter alone
+(<code>--no-verifier</code>) for ablation: this emits the GP-compressed
+model’s output directly, isolating compression cost from speculative
+gain.</p>
+</section>
+<section id="sec:closedform" class="level2">
+<h2>Closed-Form Throughput Estimates</h2>
+<p>On the reference RTX 4070 Laptop, baseline Llama-3.1-8B Q4_K_M decode
+is <span class="math inline">\(35.6\)</span> tok/s, so <span class="math inline">\(T_D^\text{full}{=}28.1\)</span> ms/token. At GP
+<span class="math inline">\(k{=}1024\)</span>, decode rises to <span class="math inline">\(37.8\)</span> tok/s
+(<span class="math inline">\(T_D^\text{GP}{=}26.5\)</span> ms/token—a <span class="math inline">\(5.7\%\)</span> saving). Verifier prefill
+at <span class="math inline">\(\gamma{=}4\)</span> on the same hardware is <span class="math inline">\(\approx 90\)</span> ms (extrapolated
+from the companion paper, not measured under spec).</p>
+<table>
+<caption>Predicted speculative throughput at <span class="math inline">\(\gamma{=}4\)</span>, three values
+of <span class="math inline">\(\alpha\)</span>, no compression-induced acceptance loss.</caption>
+<thead>
+<tr>
+<th style="text-align: right;"><span class="math inline">\(\alpha\)</span></th>
+<th style="text-align: right;">full-spec tok/s</th>
+<th style="text-align: right;">GP-spec tok/s</th>
+<th style="text-align: right;">Speedup over full decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0.90</td>
+<td style="text-align: right;">17.3</td>
+<td style="text-align: right;">17.4</td>
+<td style="text-align: right;"><span class="math inline">\(\sim 0.49\times\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">0.70</td>
+<td style="text-align: right;">14.4</td>
+<td style="text-align: right;">14.4</td>
+<td style="text-align: right;"><span class="math inline">\(\sim 0.40\times\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">0.50</td>
+<td style="text-align: right;">10.4</td>
+<td style="text-align: right;">10.5</td>
+<td style="text-align: right;"><span class="math inline">\(\sim 0.29\times\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>These are predictions, not measurements. Two observations follow.
+<em>(i)</em> On this hardware (single 8 GB GPU), speculative decoding with
+the full 8B as verifier is <em>not</em> faster than just decoding the full
+8B directly: the verifier is the bottleneck and this is independent of
+GP. Speculative decoding helps when <span class="math inline">\(T_V\gg T_D\)</span>, the deployment shape
+“8B drafter on commodity GPU, 70B verifier on a server GPU” that we
+cannot currently test. <em>(ii)</em> On hypothetical hardware where a 70B
+verifier is the slow side, the GP saving on the drafter compounds—but
+only if <span class="math inline">\(\Delta\alpha\)</span> is small.</p>
+</section>
+<section id="sec:attnres" class="level2">
+<h2>Attention Residuals under Compression</h2>
+<p>Block Attention Residuals (AttnRes) replaces the standard PreNorm
+accumulation <span class="math inline">\(x_{\ell+1}=x_\ell+f_\ell(\mathrm{LN}(x_\ell))\)</span> with
+<span class="math inline">\(x_{\ell+1}=\sum_{n\leq\ell}\alpha_{n\to\ell}\,b_n(x_\ell)\)</span> where <span class="math inline">\(b_n\)</span>
+is a block-summary projector and the <span class="math inline">\(\alpha\)</span> are softmax weights over a
+learned (here: default-initialised) pseudo-query. The runtime exposes
+<code>--attnres</code> with default strength <span class="math inline">\(0.35\)</span> (the recommended
+inference-time injection on a model not trained with AttnRes).</p>
+<section id="why-low-rank-attention-might-help-attnres." class="level5">
+<h5>Why low-rank attention might help AttnRes.</h5>
+<p>Vanilla PreNorm transformers have residuals that grow as <span class="math inline">\(\sqrt L\)</span> in
+depth. AttnRes counters that. Compressed attention slightly reduces the
+per-block update magnitude (the projection caps each <span class="math inline">\(W\cdot x\)</span> at the
+energy retained by <span class="math inline">\(U\)</span>), a small further mitigation.</p>
+</section>
+<section id="why-low-rank-attention-might-hurt-attnres." class="level5">
+<h5>Why low-rank attention might hurt AttnRes.</h5>
+<p>AttnRes computes a softmax over similarities <span class="math inline">\(\inner{q}{b_n}\)</span>, and
+<span class="math inline">\(\rank b_n\)</span> is bounded by <span class="math inline">\(\rank O\)</span>. Compressing <span class="math inline">\(O\)</span> to rank <span class="math inline">\(k\)</span> means
+<span class="math inline">\(b_n\)</span> lives in (at most) a <span class="math inline">\(k\)</span>-dim subspace. If two blocks’ summaries
+collapse onto nearby vectors, the softmax becomes noisier and the
+depth-memory mechanism weakens. This is the failure mode we expect to
+dominate at small <span class="math inline">\(k/d\)</span>.</p>
+</section>
+<section id="status." class="level5">
+<h5>Status.</h5>
+<p>We treat this analysis as a structural
+prediction rather than an empirical claim. At the time of writing we
+have not run the controlled AttnRes-on/off sweep across
+<span class="math inline">\(k/d\in\{0.25,0.35,0.45,0.55,0.65\}\)</span> that would distinguish the
+help/hurt regimes above. The honest prior is: wash at moderate
+compression (<span class="math inline">\(k/d\in[0.4,0.6]\)</span>) and small accept-rate loss at aggressive
+compression (<span class="math inline">\(k/d&lt;0.3\)</span>), driven by softmax noise in the AttnRes mixing
+weights. Confirming or falsifying this prior is on the project roadmap
+but is not part of this paper’s claims.</p>
+</section>
+</section>
+<section id="kv-cache-compression" class="level2">
+<h2>KV-Cache Compression</h2>
+<p>The runtime supports compressing the KV cache itself with the same
+per-layer basis <span class="math inline">\(U^{(\ell,K/V)}\)</span> used for <span class="math inline">\(W_K,W_V\)</span>
+(flag <code>--axex-kv</code>). This saves memory linearly in context length,
+not per-step bandwidth. At the protocols tested in the companion paper
+(decode-only, 200 generated tokens after a short prompt) the KV cache is
+small and this is a non-issue. At 32k or 128k tokens the KV cache
+becomes the dominant VRAM consumer; a <span class="math inline">\(k{=}1024\)</span> projection cuts it by
+<span class="math inline">\(\approx 75\%\)</span> at the cost of an additional <span class="math inline">\(O(kd)\)</span> projection per token
+on read. We have not measured long-context behaviour. PagedAttention
+<span class="citation" data-cites="kwon2023vllm">(Kwon et al. 2023)</span> is an orthogonal mechanism that we do not interact
+with.</p>
+</section>
+<section id="sec:measured" class="level2">
+<h2>First End-to-End Measurements</h2>
+<p><strong>Setup.</strong> SmolLM2-135M-Instruct Q8_0, ChatML template, host binary
+<code>geodessical</code> under the locked OTT pipeline
+(<code>repair_ott.ps1</code>), threshold <span class="math inline">\(0.45\)</span>, <span class="math inline">\(\gamma{=}4\)</span>.</p>
+<div id="tab:measured">
+<table>
+<caption>First measured speculative-decode results, 2026-04-27.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Quantity</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">OTT readiness</td>
+<td style="text-align: right;"><code>geodesic_ready</code></td>
+<td style="text-align: left;"><code>ready=true, hybrid_ready=true, runtime_share=1.0</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="math inline">\(\alpha\)</span> (acceptance)</td>
+<td style="text-align: right;"><strong>38.5%</strong></td>
+<td style="text-align: left;">5/13 tokens; 8 verifier corrections</td>
+</tr>
+<tr>
+<td style="text-align: left;">End-to-end tok/s</td>
+<td style="text-align: right;"><strong>76.5</strong></td>
+<td style="text-align: left;">13 tokens / 170 ms, batch 4</td>
+</tr>
+<tr>
+<td style="text-align: left;">OD draft hits</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: left;">OneDecode table hits / 13</td>
+</tr>
+<tr>
+<td style="text-align: left;">SWARM-K hits</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: left;"><code>--ott-swarm-k 8</code> crashes; tracked in <a href="#sec:status" data-reference-type="ref+Label" data-reference="sec:status">10</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Final adaptive batch</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: left;">did not collapse below initial <span class="math inline">\(\gamma\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="comparison-to-closed-form." class="level5">
+<h5>Comparison to closed form.</h5>
+<p>The throughput model of
+<a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a> predicts, for <span class="math inline">\(T_D/T_V\!\approx\!0.05\)</span> and
+<span class="math inline">\(\alpha{=}0.385\)</span> at <span class="math inline">\(\gamma{=}4\)</span>, a speedup of <span class="math inline">\(\approx 1.6\times\)</span> over
+greedy-only. Greedy-only on the same binary measures <span class="math inline">\(\sim\!50\)</span> tok/s on
+this prompt. Measured: <span class="math inline">\(76.5/50\!=\!1.53\times\)</span>. Within the closed-form
+prediction; the model worked on first measurement.</p>
+</section>
+<section id="sec:eos" class="level3">
+<h3>The Instruct-Greedy-EOS Pathology</h3>
+<section id="why-the-standard-acceptance-rule-fails-on-eos." class="level5">
+<h5>Why the standard acceptance rule fails on EOS.</h5>
+<p>Let <span class="math inline">\(P_D(x\mid c)\)</span> be the drafter’s distribution over the next token given
+context <span class="math inline">\(c\)</span> and <span class="math inline">\(P_V(x\mid c)\)</span> be the verifier’s. Standard exactness-preserving
+speculative decoding
+<span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span> accepts a drafted token
+<span class="math inline">\(x\)</span> with probability
+<span class="math display">\[\begin{equation}
+A(x\mid c)\;=\;\min\!\Bigl(1,\;\tfrac{P_V(x\mid c)}{P_D(x\mid c)}\Bigr).
+\label{eq:accept}
+\end{equation}\]</span>
+Under <em>greedy</em> drafter sampling at temperature <span class="math inline">\(\tau\!\to\!0\)</span>, the
+drafter is a delta on its argmax: <span class="math inline">\(P_D(\hat x\mid c)\!\to\!1\)</span> where
+<span class="math inline">\(\hat x=\argmax_x \ell_D(x\mid c)\)</span>. For an instruct-tuned model on a
+short or empty user turn, the verifier-greedy argmax is itself the EOS
+token and the verifier’s softmax over EOS at that position routinely
+clears <span class="math inline">\(0.95\)</span>, but is rarely exactly <span class="math inline">\(1\)</span>. Concretely, on
+SmolLM2-135M-Instruct at the first decode position after the
+<code>&lt;|im_end|&gt;</code> marker we observe
+<span class="math inline">\(P_V(\text{EOS}\mid c)\in[0.93,0.99]\)</span> and <span class="math inline">\(P_D(\text{EOS}\mid c)=1\)</span>. The
+acceptance probability is then
+<span class="math inline">\(A(\text{EOS})=\min(1,P_V(\text{EOS}))=P_V(\text{EOS})&lt;1\)</span>, but the standard
+speculative loop <em>still emits</em> the EOS as the accepted token (the
+greedy drafter has nothing better to fall back to) and the response
+terminates at zero content tokens. The pathology is therefore not a
+rejection bug; it is the structural fact that <span class="math inline">\(P_D(\text{EOS})\!\to\!1\)</span>
+under greedy decoding makes any verifier draft over EOS <em>equivalent
+to unconditional acceptance of EOS</em>, regardless of how much probability the
+verifier put on continuation tokens. Fixing this requires breaking
+<span class="math inline">\(P_D(\text{EOS})\)</span> away from <span class="math inline">\(1\)</span> at the start of the response.</p>
+<p>During first integration the speculative loop returned <em>zero
+tokens</em> on every prompt against the instruct model. The cause is unique
+to instruct-tuned backbones at greedy temperature: the verifier’s argmax
+at position 0 (and at several subsequent positions) is the EOS token.
+The standard speculative loop sees an EOS draft, executes
+<code>goto spec_done</code>, and emits an empty response. Earlier
+published speculative-decoding work
+<span class="citation" data-cites="leviathan2023speculative chen2023speculative cai2024medusa li2024eagle">(Leviathan et al. 2023; Chen et al. 2023; Cai et al. 2024; Li et al. 2024)</span>
+does not document this case, primarily because it targets base
+(non-instruct) models where the greedy distribution does not degenerate
+into EOS.</p>
+</section>
+<section id="fix." class="level5">
+<h5>Fix.</h5>
+<p>We introduce a small primitive,
+<em>logit-excluding top-1</em>, plus a min-response guard:</p>
+<div class="sourceCode" id="cb1" data-language="C"><pre class="sourceCode objectivec"><code class="sourceCode objectivec"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">// runtime/nn/llm.h</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> llm_topk_excluding<span class="op">(</span><span class="dt">const</span> <span class="dt">int</span> <span class="op">*</span>exclude<span class="op">,</span> <span class="dt">int</span> n_exclude<span class="op">);</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">// returns argmax of cached logits with `exclude` ids masked out, no extra forward.</span></span></code></pre></div>
+<p>Combined with <code>SPEC_MIN_RESP_N=4</code>, the bypass is enabled only
+at positions <span class="math inline">\(i&lt;4\)</span>. After four emitted tokens the standard EOS-respect
+path takes over. This converts the failure from <em>empty response</em>
+to <em>empty response only when the model truly intends to stop after
+at least 4 tokens of content</em>. Four call sites in the speculative loop
+(accepted-drafts, correction-token, bonus-token, verifier-direct) use
+the new primitive; without the fix the runtime measures 0 tok/s, with
+the fix it measures the values in <a href="#tab:measured" data-reference-type="ref+Label" data-reference="tab:measured">1</a>. We are not aware
+of a published treatment of this pathology.</p>
+</section>
+</section>
+<section id="reproduction" class="level3">
+<h3>Reproduction</h3>
+<div class="sourceCode" id="cb2" data-language="bash"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout d57162d</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./build_host.ps1</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./repair_ott.ps1</span> <span class="at">-ModelPath</span> models/smollm2-135m-instruct-q8_0.gguf</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./build_host/geodessical.exe</span> <span class="dt">\</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model</span> models/smollm2-135m-instruct-q8_0.gguf <span class="dt">\</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">--ott-full</span> <span class="at">--ott-speculative</span> <span class="at">--ott-spec-batch</span> 4 <span class="at">--ott-spec-thresh</span> 0.45 <span class="dt">\</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">--prompt</span> <span class="st">&quot;Write a short greeting.&quot;</span> <span class="at">--max-tokens</span> 32</span></code></pre></div>
+<p>Output ends with <code>[SPEC] Done: N tokens (..., acceptance_rate=...)</code>
+and writes <code>ott_readiness_report.json</code>.</p>
+</section>
+</section>
+<section id="sec:compose" class="level2">
+<h2>What Composes and What Does Not</h2>
+<table>
+<caption>Composition matrix with current status.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Composition</th>
+<th style="text-align: left;">Mechanism</th>
+<th style="text-align: left;">Prior expectation</th>
+<th style="text-align: left;">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">GP <span class="math inline">\(\times\)</span> speculative</td>
+<td style="text-align: left;">Drafter <span class="math inline">\(T_D\)</span> drops; <span class="math inline">\(\alpha\)</span> may drop</td>
+<td style="text-align: left;">Wash on consumer; positive on tier-asymmetric</td>
+<td style="text-align: left;"><strong>Measured</strong> on 135M-Instruct (<span class="math inline">\(1.53\times\)</span>)</td>
+</tr>
+<tr>
+<td style="text-align: left;">GP <span class="math inline">\(\times\)</span> AttnRes</td>
+<td style="text-align: left;">Block-summary subspace narrows</td>
+<td style="text-align: left;">Wash at moderate <span class="math inline">\(k\)</span>; small loss at <span class="math inline">\(k/d{&lt;}0.3\)</span></td>
+<td style="text-align: left;">Implemented, not measured</td>
+</tr>
+<tr>
+<td style="text-align: left;">GP <span class="math inline">\(\times\)</span> KV-cache proj</td>
+<td style="text-align: left;">Long-context VRAM saving</td>
+<td style="text-align: left;">Useful at <span class="math inline">\(\geq 8\)</span>k context</td>
+<td style="text-align: left;">Implemented, not measured at long context</td>
+</tr>
+<tr>
+<td style="text-align: left;">Spec <span class="math inline">\(\times\)</span> AttnRes</td>
+<td style="text-align: left;">Same drafter and verifier path</td>
+<td style="text-align: left;">Same as full speculative</td>
+<td style="text-align: left;">Implemented, not measured</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sec:ottmodes" class="level2">
+<h2>OneDecode, OTT-OD, OTT-SWARM</h2>
+<p>The runtime additionally ships three drafter modes that compose with the
+speculative path and reuse the geodesic-trajectory cache infrastructure
+of the OTT/GTC companion paper.</p>
+<section id="onedecode---one-decode." class="level5">
+<h5>OneDecode (<code>--one-decode</code>).</h5>
+<p>Bakes a geodesic flow
+map once over a vocabulary slice (default <span class="math inline">\(V_\text{bake}{=}2048\)</span>
+tokens) and persists it to <code>ott_one_decode.bin</code>. At decode
+time, a hit on the table returns (token, confidence) in <span class="math inline">\(O(1)\)</span>—the
+model forward is skipped. On miss, fall back to the geodesic drafter
+and then the verifier.</p>
+</section>
+<section id="ott-od---ott-od." class="level5">
+<h5>OTT-OD (<code>--ott-od</code>).</h5>
+<p>Wires OneDecode in as the
+<em>draft</em> source for speculative decoding. Drafter cost goes to zero
+on a table hit; verifier (and therefore acceptance distribution) is
+unchanged.</p>
+</section>
+<section id="ott-swarm---ott-swarm-k." class="level5">
+<h5>OTT-SWARM (<code>--ott-swarm K</code>).</h5>
+<p>Fans out <span class="math inline">\(K\)</span> candidate
+tokens per draft slot from OneDecode (or, on miss, from the geodesic
+drafter) and submits all <span class="math inline">\(K\)</span> to the verifier in a single batched forward.
+Structurally similar to Medusa-style multi-head drafting
+<span class="citation" data-cites="cai2024medusa">(Cai et al. 2024)</span>, except candidates come from a baked flow map
+rather than learned auxiliary heads.</p>
+<p>None of the three has the closed-form throughput model of
+<a href="#sec:closedform" data-reference-type="ref+Label" data-reference="sec:closedform">3</a> yet; they are listed as
+<em>implemented, not measured</em>.</p>
+</section>
+</section>
+<section id="related-work" class="level2">
+<h2>Related Work</h2>
+<p>The exactness-preserving rejection rule is from Leviathan et al. <span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span> and Chen et al. <span class="citation" data-cites="chen2023speculative">(Chen et al. 2023)</span>.
+EAGLE <span class="citation" data-cites="li2024eagle">(Li et al. 2024)</span> and Medusa <span class="citation" data-cites="cai2024medusa">(Cai et al. 2024)</span> train auxiliary
+drafter heads against the same backbone; we do not—we use a
+GP-compressed copy. This is closer to “self-speculative”
+decoding. Production runtimes (vLLM <span class="citation" data-cites="kwon2023vllm">(Kwon et al. 2023)</span>, TensorRT-LLM)
+ship speculative paths; we are not competing on raw tok/s, we are
+characterising the interaction with compression. AttnRes is implemented
+independently here. StreamingLLM <span class="citation" data-cites="xiao2023streamingllm">(Xiao et al. 2023)</span>’s sink-token
+treatment is referenced but orthogonal.</p>
+</section>
+<section id="sec:status" class="level2">
+<h2>Status, Limitations</h2>
+<section id="open-issues." class="level5">
+<h5>Open issues.</h5>
+<ul>
+<li><p><code>--ott-swarm-k 8</code> crashes; the SWARM-K hit count in
+<a href="#tab:measured" data-reference-type="ref+Label" data-reference="tab:measured">1</a> is <span class="math inline">\(0\)</span> for that reason.</p></li>
+<li><p>OneDecode/OTT-OD/OTT-SWARM acceptance rates and end-to-end tok/s
+are unmeasured.</p></li>
+<li><p>Tier-asymmetric speculative (8B drafter / 70B verifier) is the
+deployment in which the closed-form model predicts the largest
+composition win; we cannot test it on the available hardware.</p></li>
+<li><p>AttnRes-on-compressed and KV-cache-projection at long context are
+both implemented but unmeasured.</p></li>
+</ul>
+</section>
+<section id="methodological-gaps." class="level5">
+<h5>Methodological gaps.</h5>
+<p>Single model (135M-Instruct) for
+end-to-end measurement; single hardware target; no behavioural-quality
+benchmarks (MMLU, GSM8K, HumanEval) on the accepted-token sequence. The
+closed-form throughput model in <a href="#sec:closedform" data-reference-type="ref+Label" data-reference="sec:closedform">3</a> uses
+companion-paper numbers extrapolated to this drafter; whether those
+extrapolations transfer is the central uncertainty.</p>
+</section>
+</section>
+<section id="acknowledgements" class="level2 unnumbered">
+<h2 class="unnumbered">Acknowledgements</h2>
+<p>The author thanks the open-source SmolLM2 release that made fast
+end-to-end iteration possible and the existing speculative-decoding
+literature on which the rejection rule is based.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-cai2024medusa" class="csl-entry" role="listitem">
+Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <em><span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads</em>. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
+</div>
+<div id="ref-chen2023speculative" class="csl-entry" role="listitem">
+Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>“Accelerating Large Language Model Decoding with Speculative Sampling.”</span> <em>arXiv Preprint</em>. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
+</div>
+<div id="ref-kwon2023vllm" class="csl-entry" role="listitem">
+Kwon, Woosuk, Zhuohan Li, Siyuan Zhuang, et al. 2023. <em>Efficient Memory Management for Large Language Model Serving with <span>PagedAttention</span></em>. <a href="https://arxiv.org/abs/2309.06180">https://arxiv.org/abs/2309.06180</a>.
+</div>
+<div id="ref-leviathan2023speculative" class="csl-entry" role="listitem">
+Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference from Transformers via Speculative Decoding.”</span> <em>ICML</em>.
+</div>
+<div id="ref-li2024eagle" class="csl-entry" role="listitem">
+Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <em><span>EAGLE</span>: Speculative Sampling Requires Rethinking Feature Uncertainty</em>. <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a>.
+</div>
+<div id="ref-xiao2023streamingllm" class="csl-entry" role="listitem">
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+</div>
+</div>
+</section>
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot; rendered from LaTeX via pandoc &middot;
+  <a href="../index.html">back to index</a>
+</footer>
+
+</body>
+</html>

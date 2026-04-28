@@ -86,7 +86,7 @@ arXiv requires the **TeX source**, not the PDF. The recommended workflow:
 
 5. Upload `paper-A.tar.gz` at <https://arxiv.org/submit>.
 
-The convenience target `make submit-A` (etc.) in the parent `arxiv/Makefile`
+The convenience target `make submit-A` (etc.) in this folder's `Makefile`
 performs steps 3–4 automatically.
 
 ## arXiv checklist (apply to each paper before upload)

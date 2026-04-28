@@ -13,6 +13,19 @@ with Adaptive Phase-, Gauge-, Thermal-, and Drift-Aware Extensions}}
 \maketitle
 \hypertensorbanner
 
+\begin{htnote}
+\textbf{Project nomenclature.}  We use a four-level naming hierarchy throughout
+this paper series.  \textit{HyperTensor} is the project (compiler, runtime,
+kernels, theory).  \textit{Geodesic Projection (GP)} --- the subject of this
+paper --- is the inference-time pipeline that factorises every compressible
+weight along its dominant geometric directions.  \textit{Geodesic Runtime
+Compression (GRC)} is the attention-only subset of GP and is the empirical
+anchor of the companion paper.  \textit{OTT/GTC} is the Riemannian-manifold
+theoretical framework built on top of GP and is treated separately.  In short:
+GRC $\subset$ GP $\subset$ HyperTensor, and OTT/GTC is the theoretical
+superstructure that explains why GP works.
+\end{htnote}
+
 \begin{abstract}
 \noindent
 We describe \emph{Geodesic Projection} (GP), the full multi-slot
@@ -151,9 +164,54 @@ six slots: the construction is mathematically equivalent in the rank-truncated
 limit but numerically more stable when the spectrum is approximately flat
 \cite{golub2013matrix}.
 
+\paragraph{Geometric reading of the asymmetry.}
+Attention and FFN solve different problems.  The attention block is a
+routing circuit: $\Wmat_Q,\Wmat_K$ project tokens into a similarity space
+whose discriminative directions are concentrated in a few hundred
+coordinates (head subspaces plus the residual stream's preferred basis),
+and $\Wmat_V,\Wmat_O$ assemble a context-conditional message in that
+low-rank space.  Routing is structurally low-rank because the number of
+``things being routed about'' is small relative to $d$.  The FFN, by
+contrast, behaves as a key-value memory bank \cite{geva2021ffn}: each FFN
+column responds to a localised input pattern, so a high-quality FFN must
+span a high-dimensional set of keys.  Removing FFN directions removes
+individual memories; removing attention directions removes (at worst)
+routing fidelity, partially recoverable from the residual stream.  This
+predicts both the empirical $\sim\!3.4\times$ rank gap between
+FFN and attention $k_{95}/d$ and the runtime observation that aggressive
+FFN low-rank truncation is unstable at 8B scale while attention
+truncation is benign down to $k{=}1024$.  GP therefore treats $W_\text{up}$
+and $W_\text{gate}$ with a high-floor strategy and isolates $W_\text{down}$
+on its dedicated SVD path.
+
 % ───────────────── §4 ─────────────────
 \section{Per-Layer Rank Selection (MCR)}
 \label{sec:mcr}
+
+\paragraph{Constrained-budget formulation.}
+Let layer $\ell\in\{1,\dots,L\}$ have spectrum
+$\{\sigma_{\ell,1}\geq\sigma_{\ell,2}\geq\cdots\}$ and define the captured
+Frobenius energy at rank $k_\ell$ as
+\begin{equation}
+\mathcal{E}_\ell(k_\ell)\;=\;\frac{\sum_{i\le k_\ell}\sigma_{\ell,i}^2}{\sum_i\sigma_{\ell,i}^2}\;\in[0,1].
+\label{eq:Eell}
+\end{equation}
+GP allocates rank by approximately solving the budget-constrained
+maximisation
+\begin{equation}
+\max_{\{k_\ell\}}\;\sum_{\ell=1}^{L}\mathcal{E}_\ell(k_\ell)
+\quad\text{s.t.}\quad
+\sum_{\ell=1}^{L}k_\ell\le K_\text{budget},\;\;
+k_\text{floor}\le k_\ell\le K_\text{max}.
+\label{eq:mcr}
+\end{equation}
+Because each $\mathcal{E}_\ell$ is concave and non-decreasing, the
+Lagrangian KKT conditions reduce to a water-filling rule: spend the next
+rank slot on whichever layer has the largest marginal energy gain
+$\sigma_{\ell,k_\ell+1}^2 / \sum_i\sigma_{\ell,i}^2$.  The MCR heuristic
+below is a closed-form proxy for this rule that uses the manifold
+curvature ratio in place of an expensive per-step spectrum lookup.
+
 A naive scheme assigns the same $k$ to every layer.  GP exposes a
 manifold-curvature-ratio heuristic that allocates more rank to layers
 whose local activation geometry has higher (Ricci-style) curvature:
@@ -170,6 +228,34 @@ use shared-rank for a clean calibration-free claim.  An MCR vs.\
 shared-rank A/B at matched mean-$k$ is in the v0.2 milestone.
 \end{htnote}
 
+\subsection{Sink-Basis Bypass}
+\label{sec:sink-basis-bypass}
+StreamingLLM~\cite{xiao2023streamingllm} preserves a handful of
+\emph{sink tokens} in the KV cache because the first few positions hoard
+disproportionate attention mass and L2 norm.  To our knowledge, no prior
+work preserves the corresponding \emph{sink direction} in the
+weight/activation PCA basis.  GP does.
+
+Let $\hat s\in\mathbb{R}^d$ be the unit vector of the dominant
+residual-stream direction at the sink position (we estimate it as the top
+eigenvector of $\mathbb{E}[h_0 h_0^\top]$ over a calibration-free 32-token
+zero-prompt forward).  Given the per-layer projector $V_{r}^{(\ell)}$
+produced by MCR, define the \emph{sink coverage}
+\begin{equation}
+\eta_\ell \;=\; \max_{1\le k\le r}\;\bigl|\langle\hat s,\,V_{r}^{(\ell)}[:,k]\rangle\bigr|.
+\end{equation}
+Whenever $\eta_\ell < \varepsilon_{\mathrm{sink}}$
+(default $\varepsilon_{\mathrm{sink}}=0.15$) the runtime appends $\hat s$ as
+an extra column and re-orthonormalises:
+\begin{equation}
+V_{r+1}^{(\ell)} \;\leftarrow\; \mathrm{QR}\!\bigl([\,V_{r}^{(\ell)}\;\;\hat s\,]\bigr).
+\end{equation}
+This adds at most one rank per layer and bounds the sink-step
+reconstruction error by $\|h_0\|\sin\theta(\hat s, V_{r+1}^{(\ell)})$,
+which is zero by construction.  Empirically the bypass fires on $3{-}7\%$
+of layers and eliminates the rare ``first-token spike'' in perplexity
+that shared-rank GP otherwise exhibits at very low $k$.
+
 % ───────────────── §5 ─────────────────
 \section{Geometry Cache and Depth-Sink Shortcut}
 \label{sec:cache}
@@ -184,15 +270,30 @@ Llama-3.1-8B at $k{=}1536$.
 \end{enumerate}
 Both caches are keyed on $(\textsf{model digest},\textsf{flag set},k)$.
 
-\paragraph{Depth-sink shortcut.}  Reloading the full geometry cache on a
-70B model is not free; we want only to verify the cache is not stale.
-The runtime defines the \emph{depth-sink} as the single layer where the
-cumulative-explained-variance curve of the residual stream flattens to
-within $10^{-3}$ of its plateau.  On the four models we have inspected,
-this is layer $\sim 2/3$ of the stack (21/32, 19/26, 22/32, 22/32).  The
-cache integrity check reads only the depth-sink layer's spectrum and
-recomputes it on the fly ($<200$~ms on Llama-3.1-8B).  The two-thirds rule
-is a property of these four models, not a theorem.
+\paragraph{The Two-Thirds Dimensionality Saturation Rule.}
+Reloading the full geometry cache on a 70B model is not free; we want
+only to verify the cache is not stale.  The runtime defines the
+\emph{depth-sink} as the single layer where the cumulative
+explained-variance curve of the residual stream first flattens to within
+$10^{-3}$ of its plateau.  Across the four open transformers we have
+inspected this layer sits at depth $\ell^\star\!\approx\!2L/3$:
+\begin{center}\small
+\begin{tabular}{lcc}\toprule
+model & layers $L$ & depth-sink $\ell^\star$\\\midrule
+Llama-3.1-8B   & 32 & 21\\
+Gemma-2-2B     & 26 & 19\\
+Phi-3.5-mini   & 32 & 22\\
+Qwen-2.5-7B    & 32 & 22\\\bottomrule
+\end{tabular}\end{center}
+We call this empirical observation the \textbf{Two-Thirds Dimensionality
+Saturation Rule} and exploit it as an $O(1)$ proxy for the otherwise
+$O(L)$ cache-integrity check: the integrity probe reads only the
+depth-sink layer's spectrum and recomputes it on the fly
+($<200$~ms on Llama-3.1-8B, vs.\ $\sim$70~s for the full sweep).  The
+rule is a property of these four models, not a theorem; we expect it to
+hold approximately on architectures whose residual stream is
+rank-saturating, and to break on mixture-of-experts or extremely shallow
+stacks.
 
 % ───────────────── §6 ─────────────────
 \section{Empirical Anchor: Static-GP Numbers}
@@ -377,18 +478,28 @@ measurement of drift: every \emph{rejection} is a position where draft and
 verifier disagreed, so the residual $h^\text{tgt}-h^\text{drft}$ is a
 sample of the direction the current basis fails to capture.
 
-\paragraph{Decayed Oja update.}  For layer $\ell$ with basis
-$W\in\R^{k\times d}$ and sample $x=h^\text{tgt}-h^\text{drft}$,
-\[
-w_i\leftarrow w_i+\eta_t\,x\,(x^\top w_i),\qquad w_i\leftarrow w_i/\norm{w_i}
-\quad(i=1,\dots,k),
-\]
-deflated across rows so the result remains orthonormal.  Learning rate
-$\eta_t=\eta_0/\sqrt t$ satisfies Robbins--Monro \cite{robbins1951sa};
-default $\eta_0=0.01$.  Convergence to the leading eigenvectors of the
-running covariance is classical \cite{oja1982}; what is new is the
-\emph{trigger}---only rejection residuals are fed in, by construction the
-directions the basis fails to capture.
+\paragraph{Decayed Oja update.}  Write the projection basis at step $t$ as
+$\Pmat_t=W_tW_t^\top\in\R^{d\times d}$, the orthogonal projector onto the
+row-span of $W_t$.  Oja's rule lifts this to a per-row update on $W_t$ itself:
+for layer~$\ell$ with basis $W_t\in\R^{k\times d}$ and sample
+$x=h^\text{tgt}-h^\text{drft}$,
+\begin{equation}
+w_i^{(t+1)} \;\leftarrow\; w_i^{(t)} + \eta_t\,x\,(x^\top w_i^{(t)}),
+\qquad w_i^{(t+1)} \;\leftarrow\; w_i^{(t+1)}/\norm{w_i^{(t+1)}},
+\quad i=1,\dots,k,
+\label{eq:oja}
+\end{equation}
+deflated row-wise so the matrix remains orthonormal.  The induced map on
+the projector is
+$\Pmat_{t+1}=\Pmat_t+\eta_t\bigl(xx^\top-\Pmat_t xx^\top\Pmat_t\bigr)+O(\eta_t^2)$,
+i.e.\ a rank-one tilt of $\Pmat_t$ \emph{toward} the residual direction
+$x$ at rate $\eta_t$.  The learning-rate schedule $\eta_t=\eta_0/\sqrt t$
+satisfies the Robbins--Monro conditions $\sum\eta_t=\infty$,
+$\sum\eta_t^2<\infty$ \cite{robbins1951sa}; default $\eta_0=0.01$.
+Convergence to the leading eigenvectors of the running covariance is
+classical \cite{oja1982}; what is new is the \emph{trigger}---only
+rejection residuals are fed in, by construction the directions the basis
+fails to capture.
 
 \paragraph{Per-layer staleness.}  A bump-counter
 \texttt{onb\_layer\_state\_t::version} is incremented on every applied

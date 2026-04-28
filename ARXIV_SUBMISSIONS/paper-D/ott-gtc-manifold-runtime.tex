@@ -9,6 +9,18 @@ A Riemannian View of Transformer Inference, with an Empirical Anchor on Three Op
 
 \begin{document}
 \maketitle
+\hypertensorbanner
+
+\begin{htnote}
+\textbf{Project nomenclature.}  \textit{HyperTensor} is the project umbrella;
+\textit{Geodesic Projection (GP)} is the inference-time pipeline (companion
+paper); \textit{Geodesic Runtime Compression (GRC)} is its attention-only
+subset; and \textit{OTT/GTC} (Organic Tensor Topology / Geodessical Tensor
+Cache) --- the subject of this paper --- is the longer-term theoretical
+framework that views the GP projection bases as charts on a Riemannian
+manifold.  GP is the engineering layer that this paper provides the geometric
+justification for.
+\end{htnote}
 
 \begin{abstract}
 We present a Riemannian-manifold view of transformer inference together with the
@@ -49,6 +61,21 @@ the activation cloud of a trained model occupies a low-dimensional submanifold
 of the embedding space; estimates put intrinsic dimension at $k\!\approx\!30$--$50$
 even when ambient $d\in\{4096,8192\}$
 \cite{elhage2022superposition,nakkiran2021deep}.
+
+\paragraph{Cross-architecture $k_{\mathrm{int}}$ invariance.}
+Running our manifold-extraction pipeline on three open transformers of
+widely different widths makes the same point quantitatively:
+\begin{center}\small
+\begin{tabular}{lccc}\toprule
+model & ambient $d$ & $k_{\mathrm{int}}$ at $95\%$ var. & $k_{\mathrm{int}}/d$\\\midrule
+SmolLM2-135M   & 576  & 17 & $0.030$\\
+Gemma-4-E2B    & 1536 & 25 & $0.016$\\
+Phi-3.5-mini   & 3072 & 11 & $0.0036$\\\bottomrule
+\end{tabular}\end{center}
+A $5.3\times$ increase in $d$ buys an $\sim$8\,$\times$ \emph{drop} in
+$k_{\mathrm{int}}/d$.  The intrinsic dimension does not scale with the
+ambient width, which is the empirical premise on which both OTT (this
+paper) and GP/GRC (companion papers) operate.
 
 This paper takes that observation seriously. Under \emph{Organic Training
 Theory} (OTT), we model the trained latent space as a Riemannian manifold
@@ -134,6 +161,51 @@ universally proved theorem. Where it holds, attention gradients become a
 geodesic-direction oracle and OTT acquires a constructive starting velocity
 $v_0$ for Eq.~\eqref{eq:geodesic}.
 
+\subsection{From the Fisher metric to the implemented Jacobi propagator}
+\label{sec:fisher-to-jacobi}
+The runtime does not work directly with the Fisher metric tensor; it works
+with its Magnus-3 Jacobi propagator $\Phi(\lambda)$, the linear map that
+advances a deviation vector along a geodesic.  The chain that links the two
+is explicit and worth writing in one place.  Given the Fisher metric
+$g_{ij}(\theta)=\E_{x\sim p_\theta}\!\bigl[\partial_i\log p_\theta(x)\,
+\partial_j\log p_\theta(x)\bigr]$, the Levi-Civita connection symbols are
+\begin{equation}
+\Gamma^k_{ij}\;=\;\tfrac{1}{2}g^{kl}\!\left(\partial_i g_{jl}+\partial_j g_{il}-\partial_l g_{ij}\right),
+\label{eq:christoffel}
+\end{equation}
+and the Riemann curvature tensor along a geodesic $\gamma(\lambda)$ is
+$R^k{}_{lij}=\partial_i\Gamma^k_{jl}-\partial_j\Gamma^k_{il}
++\Gamma^k_{im}\Gamma^m_{jl}-\Gamma^k_{jm}\Gamma^m_{il}$.  A
+deviation field $J(\lambda)$ between neighbouring geodesics satisfies the
+Jacobi equation
+\begin{equation}
+\frac{D^2 J^k}{d\lambda^2}\;+\;R^k{}_{ijl}\,\dot\gamma^i\,J^j\,\dot\gamma^l\;=\;0.
+\label{eq:jacobi}
+\end{equation}
+Writing $\mathbf{J}=(J,\dot J)\in\R^{2k}$ and assembling the
+curvature-and-connection block into the $2k\times2k$ generator
+$A(\lambda)$, Eq.~\eqref{eq:jacobi} becomes
+$\dot{\mathbf{J}}=A(\lambda)\mathbf{J}$, whose flow is the Magnus expansion
+\cite{magnus1954}
+\begin{equation}
+\Phi(\lambda)\;=\;\exp\!\Bigl(\Omega_1+\Omega_2+\Omega_3+\cdots\Bigr),\qquad
+\Omega_1=\!\int_0^\lambda\!A(s)\,ds,\;\;
+\Omega_2=\tfrac{1}{2}\!\int_0^\lambda\!\!\int_0^{s_1}\![A(s_1),A(s_2)]\,ds_2\,ds_1,
+\label{eq:magnus}
+\end{equation}
+and $\Omega_3$ is the corresponding nested-commutator integral.  The runtime
+truncates after $\Omega_3$ (hence ``Magnus-3'') and integrates $A$ along
+waypoints sampled from the geodesic.  In one line: the implemented map is
+\begin{equation}
+\boxed{\;\;g_{ij}(\theta)\;\xrightarrow{\eqref{eq:christoffel}}\;\Gamma^k_{ij}\;\xrightarrow{\eqref{eq:jacobi}}\;A(\lambda)\;\xrightarrow{\eqref{eq:magnus},\,\text{trunc.\,3}}\;\Phi(\lambda).\;\;}
+\label{eq:fisher-to-phi}
+\end{equation}
+Eq.~\eqref{eq:gtc-correction} is then a first-order Taylor expansion of the
+flow with $\Phi(\lambda)$ in the linear coefficient slot, which is exactly
+what the cache stores.  The empirical anchor benchmarks measure the inverse
+property: that the cached $\Phi(\lambda)$ correctly predicts deviation
+vectors on real LM activation clouds, validating the truncation.
+
 \section{Geodesic Trajectory Caching}
 \label{sec:gtc}
 
@@ -205,13 +277,9 @@ without materialising a full Jacobian. With effective curvature rank $r\ll\dim
 \mathcal{M}_\theta$, practical cost is restricted to an $r$-dimensional
 subspace; Sec.~\ref{sec:store} measures $r=5$ exact.
 
-\paragraph{D. HJB-regularised AttnRes/GTC objective.} For future joint
-training, an SHF-style regulariser can be written as a finite-difference
-Jacobi penalty over block summaries:
-\begin{equation}
-L_{\mathrm{SHF}} = L_{\mathrm{task}} + \lambda\sum_\ell
-\bigl\|\Delta^2 s_\ell + \hat R(s_\ell)\,\Delta s_\ell\bigr\|^2.
-\end{equation}
+\paragraph{D. HJB-regularised AttnRes/GTC objective.} See
+\Cref{sec:hjb-future} for a full statement; cross-referenced here for
+completeness.
 
 \paragraph{E. Ricci-spectral $\rho$ estimator.} A practical injectivity-radius
 estimator family,
@@ -520,6 +588,65 @@ python scripts/gtc/record_store.py  --case smollm2-135m
         $\mathtt{-{}-ott-swarm-k}$ wrapper exits non-zero.
   \item Universal closure of $\phi$ and $v_0$ remain open.
 \end{itemize}
+
+\section{Future Work: HJB-Regularised Joint Training}
+\label{sec:hjb-future}
+
+The OTT runtime, as shipped, is an inference-time geometric overlay: the
+base weights are frozen and the manifold structure is read off the
+pre-trained network.  A natural extension is to make the network and the
+manifold \emph{co-trained}, by adding a Hamilton--Jacobi--Bellman (HJB)
+style regulariser that forces residual-stream trajectories to be
+Jacobi-consistent under the runtime's own curvature estimator.
+
+Let $s_\ell\in\mathbb{R}^{d}$ denote the block summary at layer
+$\ell\in\{0,\dots,L\}$ (the residual-stream state at the block boundary),
+let $\Delta s_\ell := s_{\ell+1}-s_\ell$ be the discrete velocity, and
+let $\Delta^2 s_\ell := s_{\ell+1}-2s_\ell+s_{\ell-1}$ be the discrete
+acceleration.  Let $\hat R(s)\in\mathbb{R}^{d\times d}$ be the runtime's
+local sectional-curvature operator (the same $\hat R$ used by the Jacobi
+propagator $\Phi(\lambda)$ of \Cref{sec:fisher-to-jacobi}).  Then the
+finite-difference Jacobi residual
+\begin{equation}
+\mathcal{J}_\ell(s) \;:=\; \Delta^2 s_\ell \;+\; \hat R(s_\ell)\,\Delta s_\ell
+\label{eq:jacobi-residual}
+\end{equation}
+is the discrete Bellman residual of an HJB-style optimality condition on
+the layer-indexed trajectory $\ell\mapsto s_\ell$.  We propose the joint
+objective
+\begin{equation}
+\boxed{\;
+L_{\mathrm{SHF}}(\theta)
+\;=\;
+L_{\mathrm{task}}(\theta)
+\;+\;
+\lambda\,\sum_{\ell=1}^{L-1}
+\bigl\|\,\mathcal{J}_\ell(s_\ell;\theta)\,\bigr\|_2^{\,2}
+\;}
+\label{eq:hjb-loss}
+\end{equation}
+with $\lambda\in[10^{-3},10^{-1}]$, computed on the same block summaries
+used by the GTC runtime so that the regulariser is
+\emph{architecturally free} at the storage layer.  We refer to this as
+the \textbf{SHF (Spectral Hamiltonian Flow) loss}.
+
+\paragraph{Why this is the right form.}
+\Cref{eq:hjb-loss} is a finite-difference enforcement of the geodesic
+equation $\nabla_{\dot\gamma}\dot\gamma=0$ in the linearised regime where
+$\hat R$ controls the second variation; equivalently, it is the
+discrete-time HJB residual of a value function whose generator is the
+Fisher--Rao Laplacian of \Cref{sec:fisher-to-jacobi}.  Models trained
+with $L_{\mathrm{SHF}}$ should, by construction, admit
+sharper Magnus-3 propagators, larger admissible step $\lambda$, and
+lower OTT verifier disagreement under speculative decoding.
+
+\paragraph{Status.}
+This loss is \emph{not} implemented in the reference runtime that
+produces the measurements reported in this paper; the runtime is
+inference-only and the base network is frozen.  We state
+\Cref{eq:hjb-loss} here so that any future training run that uses this
+exact penalty is on the public record as derived from the OTT/GTC
+framework.
 
 \printbibliography
 

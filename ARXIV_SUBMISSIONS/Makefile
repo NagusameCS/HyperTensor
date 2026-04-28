@@ -1,53 +1,56 @@
-# ARXIV_SUBMISSIONS/Makefile — drives self-contained per-paper builds.
-#
-# Each paper-X subfolder is independent. From the master folder:
-#
-#   make           # build all four PDFs
-#   make A         # build only paper-A
-#   make submit-A  # produce arxiv-ready tarball at dist/paper-A.tar.gz
-#   make clean     # remove latex aux files
-#   make distclean # also remove PDFs and dist/
-
-PAPERS := A B C D
-PDFS   := $(addprefix paper-,$(PAPERS:%=%/main.pdf))
-
+# Master arXiv submission Makefile (self-contained per-paper folders).
 LATEXMK ?= latexmk
 LATEXMK_FLAGS ?= -pdf -interaction=nonstopmode -halt-on-error
 
+PAPERS := A B C D
+TEX_A := grc-attention-compression
+TEX_B := geodesic-projection-pipeline
+TEX_C := geodesic-speculative-decoding
+TEX_D := ott-gtc-manifold-runtime
+
 .PHONY: all clean distclean A B C D $(addprefix submit-,$(PAPERS))
 
-all: $(PDFS)
+all: A B C D
+A: paper-A/$(TEX_A).pdf
+B: paper-B/$(TEX_B).pdf
+C: paper-C/$(TEX_C).pdf
+D: paper-D/$(TEX_D).pdf
 
-A: paper-A/main.pdf
-B: paper-B/main.pdf
-C: paper-C/main.pdf
-D: paper-D/main.pdf
-
-paper-%/main.pdf: paper-%/main.tex paper-%/hypertensor.sty paper-%/refs.bib
-	cd $(dir $<) && $(LATEXMK) $(LATEXMK_FLAGS) main.tex
+paper-A/$(TEX_A).pdf: paper-A/$(TEX_A).tex paper-A/hypertensor.sty paper-A/refs.bib
+	cd paper-A && $(LATEXMK) $(LATEXMK_FLAGS) $(TEX_A).tex
+paper-B/$(TEX_B).pdf: paper-B/$(TEX_B).tex paper-B/hypertensor.sty paper-B/refs.bib
+	cd paper-B && $(LATEXMK) $(LATEXMK_FLAGS) $(TEX_B).tex
+paper-C/$(TEX_C).pdf: paper-C/$(TEX_C).tex paper-C/hypertensor.sty paper-C/refs.bib
+	cd paper-C && $(LATEXMK) $(LATEXMK_FLAGS) $(TEX_C).tex
+paper-D/$(TEX_D).pdf: paper-D/$(TEX_D).tex paper-D/hypertensor.sty paper-D/refs.bib
+	cd paper-D && $(LATEXMK) $(LATEXMK_FLAGS) $(TEX_D).tex
 
 dist:
 	mkdir -p dist
 
-# Submit target: produce a flattened tarball with main.tex (comments
-# stripped), main.bbl, and the .sty. arXiv does not run biber on uploads,
-# so .bbl must be shipped.
-submit-%: paper-%/main.pdf dist
-	@echo "Preparing arXiv tarball for paper-$*..."
-	@cd paper-$* && bash ../strip_comments.sh main.tex > main.cleaned.tex
-	@cd paper-$* && mv main.tex main.tex.orig && mv main.cleaned.tex main.tex
-	@cd paper-$* && $(LATEXMK) $(LATEXMK_FLAGS) main.tex
-	@tar czf dist/paper-$*.tar.gz \
-	    -C paper-$* main.tex main.bbl hypertensor.sty
-	@cd paper-$* && mv main.tex.orig main.tex
-	@cd paper-$* && $(LATEXMK) -c >/dev/null 2>&1 || true
-	@echo "Built dist/paper-$*.tar.gz"
+submit-A: A | dist
+	@$(MAKE) _submit PAPER=A TEX=$(TEX_A)
+submit-B: B | dist
+	@$(MAKE) _submit PAPER=B TEX=$(TEX_B)
+submit-C: C | dist
+	@$(MAKE) _submit PAPER=C TEX=$(TEX_C)
+submit-D: D | dist
+	@$(MAKE) _submit PAPER=D TEX=$(TEX_D)
+
+# Strip comments, rebuild for fresh .bbl, then tar source + bbl + sty + figures.
+_submit:
+	@cd paper-$(PAPER) && bash ../strip_comments.sh $(TEX).tex > $(TEX).cleaned.tex
+	@cd paper-$(PAPER) && mv $(TEX).tex $(TEX).tex.orig && mv $(TEX).cleaned.tex $(TEX).tex
+	@cd paper-$(PAPER) && $(LATEXMK) $(LATEXMK_FLAGS) $(TEX).tex
+	@FIGS=""; if [ -d paper-$(PAPER)/figures ]; then FIGS="figures"; fi; \
+	  tar czf dist/paper-$(PAPER).tar.gz -C paper-$(PAPER) $(TEX).tex $(TEX).bbl hypertensor.sty $$FIGS
+	@cd paper-$(PAPER) && mv $(TEX).tex.orig $(TEX).tex
+	@cd paper-$(PAPER) && $(LATEXMK) -c >/dev/null 2>&1 || true
+	@echo "  -> dist/paper-$(PAPER).tar.gz"
 
 clean:
-	@for d in $(addprefix paper-,$(PAPERS)); do \
-	    (cd $$d && $(LATEXMK) -c >/dev/null 2>&1 || true); \
-	done
+	@for d in paper-A paper-B paper-C paper-D; do (cd $$d && $(LATEXMK) -c >/dev/null 2>&1 || true); done
 
 distclean: clean
-	@rm -f $(PDFS)
 	@rm -rf dist
+	@for d in paper-A paper-B paper-C paper-D; do (cd $$d && $(LATEXMK) -C >/dev/null 2>&1 || true); done

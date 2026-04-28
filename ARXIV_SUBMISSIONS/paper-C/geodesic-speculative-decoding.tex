@@ -1,6 +1,6 @@
 \documentclass[11pt]{article}
-\usepackage{../common/hypertensor}
-\addbibresource{../common/refs.bib}
+\usepackage{hypertensor}
+\addbibresource{refs.bib}
 
 \title{\textbf{Geodesic Speculative Decoding under Compression}\\[0.4em]
 \large Throughput Models, the Instruct-Greedy-EOS Pathology, and First Measurements
@@ -13,6 +13,17 @@ on a Q8\_0 ChatML Backbone}
 \begin{document}
 \maketitle
 \hypertensorbanner
+
+\begin{htnote}
+\textbf{Project nomenclature.}  \textit{HyperTensor} is the project;
+\textit{Geodesic Projection (GP)} is the inference-time pipeline that
+factorises every compressible weight (companion paper);
+\textit{Geodesic Runtime Compression (GRC)} is the attention-only subset of
+GP and is the empirical anchor for the throughput measurements below;
+\textit{OTT/GTC} is the Riemannian-manifold theoretical framework on top
+of GP that motivates the OneDecode / OTT-OD / OTT-SWARM drafter modes
+briefly described in \Cref{sec:ottmodes}.
+\end{htnote}
 
 \begin{abstract}
 \noindent
@@ -223,6 +234,37 @@ prediction; the model worked on first measurement.
 
 \subsection{The Instruct-Greedy-EOS Pathology}
 \label{sec:eos}
+
+\paragraph{Why the standard acceptance rule fails on EOS.}
+Let $P_D(x\mid c)$ be the drafter's distribution over the next token given
+context $c$ and $P_V(x\mid c)$ be the verifier's.  Standard exactness-preserving
+speculative decoding
+\cite{leviathan2023speculative,chen2023speculative} accepts a drafted token
+$x$ with probability
+\begin{equation}
+A(x\mid c)\;=\;\min\!\Bigl(1,\;\tfrac{P_V(x\mid c)}{P_D(x\mid c)}\Bigr).
+\label{eq:accept}
+\end{equation}
+Under \emph{greedy} drafter sampling at temperature $\tau\!\to\!0$, the
+drafter is a delta on its argmax: $P_D(\hat x\mid c)\!\to\!1$ where
+$\hat x=\argmax_x \ell_D(x\mid c)$.  For an instruct-tuned model on a
+short or empty user turn, the verifier-greedy argmax is itself the EOS
+token and the verifier's softmax over EOS at that position routinely
+clears $0.95$, but is rarely exactly~$1$.  Concretely, on
+SmolLM2-135M-Instruct at the first decode position after the
+\texttt{<|im\_end|>} marker we observe
+$P_V(\text{EOS}\mid c)\in[0.93,0.99]$ and $P_D(\text{EOS}\mid c)=1$.  The
+acceptance probability is then
+$A(\text{EOS})=\min(1,P_V(\text{EOS}))=P_V(\text{EOS})<1$, but the standard
+speculative loop \emph{still emits} the EOS as the accepted token (the
+greedy drafter has nothing better to fall back to) and the response
+terminates at zero content tokens.  The pathology is therefore not a
+rejection bug; it is the structural fact that $P_D(\text{EOS})\!\to\!1$
+under greedy decoding makes any verifier draft over EOS \emph{equivalent
+to unconditional acceptance of EOS}, regardless of how much probability the
+verifier put on continuation tokens.  Fixing this requires breaking
+$P_D(\text{EOS})$ away from~$1$ at the start of the response.
+
 During first integration the speculative loop returned \emph{zero
 tokens} on every prompt against the instruct model.  The cause is unique
 to instruct-tuned backbones at greedy temperature: the verifier's argmax
@@ -284,6 +326,7 @@ Spec $\times$ AttnRes     & Same drafter and verifier path & Same as full specul
 
 % =================================================================
 \section{OneDecode, OTT-OD, OTT-SWARM}
+\label{sec:ottmodes}
 The runtime additionally ships three drafter modes that compose with the
 speculative path and reuse the geodesic-trajectory cache infrastructure
 of the OTT/GTC companion paper.

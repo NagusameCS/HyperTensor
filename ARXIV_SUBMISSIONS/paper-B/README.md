@@ -18,7 +18,7 @@ aware, Axiom Gauge, Thermal Rank, Online Basis).
 
 ## Coverage map
 
-| Web-paper item | Section in `main.tex` |
+| Web-paper item | Section in `geodesic-projection-pipeline.tex` |
 |---|---|
 | Cross-architecture intrinsic dim (web Paper 2) | §2 Cross-architecture manifold evidence |
 | Seven-slot SVD spectra | §3 |
@@ -37,5 +37,5 @@ aware, Axiom Gauge, Thermal Rank, Online Basis).
 ## Build
 
 ```bash
-latexmk -pdf -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode geodesic-projection-pipeline.tex
 ```

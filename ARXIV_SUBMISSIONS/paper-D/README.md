@@ -17,7 +17,7 @@ measured-pass with a complete gap analysis for the remainder.
 
 ## Coverage map
 
-| Web-paper item | Section in `main.tex` |
+| Web-paper item | Section in `ott-gtc-manifold-runtime.tex` |
 |---|---|
 | OTT manifold view, Fisher metric, geodesic equation | §2 |
 | Fisher-metric / heat-kernel bridge (Varadhan) | §2.1 |
@@ -40,5 +40,5 @@ measured-pass with a complete gap analysis for the remainder.
 ## Build
 
 ```bash
-latexmk -pdf -interaction=nonstopmode main.tex
+latexmk -pdf -interaction=nonstopmode ott-gtc-manifold-runtime.tex
 ```
