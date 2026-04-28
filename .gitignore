@@ -109,6 +109,10 @@ organic_training_theory/
 *.aux
 *.toc
 
+# But DO commit arXiv submission LaTeX sources
+!arxiv/**/*.tex
+!ARXIV_SUBMISSIONS/**/*.tex
+
 # Internal development scripts
 _fix_case*.ps1
 _*.ps1__pycache__/
