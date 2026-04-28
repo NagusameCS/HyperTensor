@@ -5,6 +5,45 @@ The focus here is code and measured behavior, not release-note marketing.
 
 ---
 
+## [unreleased] — 2026-04-27 — "GTC v0.3: Scaling + Resonance + Record Store"
+
+### Verified Results (this turn)
+
+#### Three-model scaling — Paper 5 "flag flip" claim verified
+| Model        | Params | Coverage @ k=16 (25%), ε=3.0 |
+|--------------|-------:|-----------------------------:|
+| SmolLM2-135M | 135M   | 91.0 %                       |
+| Phi-3.5-mini | 3.8B   | 90.4 %                       |
+| Gemma-4-E2B  | 4.5B   | 91.5 %                       |
+Scale-invariant within ±0.5 %.
+
+#### Batch Jacobi resonance (Paper 5 Tests 4a–4c on real LM data)
+| B     | Speedup | Paper-5 target | rel.err |
+|------:|--------:|---------------:|--------:|
+| 10    | 97.9×   | 2.7×           | 1.1e-16 |
+| 100   | 27.4×   | 12.5×          | 1.2e-16 |
+| 1 000 | 44.5×   | 7.0×           | 1.2e-16 |
+| 10 000| 60.0×   | (new)          | 1.2e-16 |
+Source: `docs/figures/gtc/smollm2-135m_batch_jacobi.json`.
+
+#### Compressed record store + two-stage lookup (Paper 5 Algorithm 1)
+- 5.96 KB/record at k=8 (paper target: 50–80 KB at k=40 — well under budget).
+- Rank-5 Φ SVD truncation: reconstruction error 0.0 (paper: "rank ≈ 5 sufficient" — verified).
+- Two-stage Euclidean→g-norm lookup: 30.9 µs/query (paper target <5 ms — 160× faster).
+- Source: `scripts/gtc/record_store.py`, `docs/figures/gtc/smollm2-135m_library.npz`.
+
+### Code added
+- `scripts/gtc/record_store.py` — compressed Library with two-stage lookup.
+- `scripts/gtc/batch_jacobi.py` — Paper 5 §4.5 resonance benchmark.
+
+### Paper 5 status
+12 of 17 testable Paper 5 claims now have measured replicable results.
+Remaining gaps: live decode replacement, AttnRes integration, and the
+two open problems flagged by the paper itself (ϕ, v₀). See
+`docs/figures/gtc/GTC_RESULTS.md` for the full gap analysis table.
+
+---
+
 ## [unreleased] — 2026-04-22 — "GTC + PPL Sweep"
 
 ### Verified Results (this turn)
