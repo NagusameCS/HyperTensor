@@ -750,6 +750,86 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
 </section>
 
+<section id="limitations">
+  <span class="section-num">§9.5 &mdash; Limitations</span>
+  <h2>What v0.1 does not establish</h2>
+  <p>
+    Paper&nbsp;6 is, by construction, a design paper with a stated
+    closed-form prediction per mechanism rather than a measurement paper.
+    The boundaries below are what the next version is expected to close.
+  </p>
+  <ol>
+    <li>
+      <strong>No measurement headline.</strong> All four mechanisms are
+      implementation-real and CLI-reachable, but none has a measured
+      end-to-end PPL or tok/s number in this version. The §§2.4 / 3.3 /
+      4.3 / 5.3 predictions are derivations from the static GP baseline
+      under explicit assumptions, not benchmarks.
+    </li>
+    <li>
+      <strong>Composition is asserted, not measured.</strong> §<a
+      href="#composition">6</a> argues that the four mechanisms are
+      orthogonal — MCR allocates rank, Gauge rotates the basis, Thermal
+      scales rank with NVML signal, Online Basis updates the basis from
+      rejection events — and therefore stack additively. The assertion is
+      load-bearing and is the v0.2 combined-stack measurement listed in
+      §<a href="#status">9</a>.
+    </li>
+    <li>
+      <strong>Thermal Rank depends on NVML.</strong> The tokens-per-joule
+      policy gradient assumes a working NVML telemetry path. On hardware
+      where NVML is absent, throttled, or coarse (some laptop SKUs, some
+      cloud instances), the controller falls back to a static-rank
+      schedule; the fallback is implemented but its quality is not
+      measured.
+    </li>
+    <li>
+      <strong>Online Basis assumes rejection events.</strong> The
+      Oja's-rule update is fired by speculative-decoding rejections
+      (Paper&nbsp;3 §<a href="03-speculative-decoding.html#measured">5.5</a>).
+      In a non-speculative deployment the trigger does not exist and the
+      basis is static; this is by design but means Paper&nbsp;6's online
+      claim is gated on the spec path being live.
+    </li>
+    <li>
+      <strong>Gauge optimisation is offline.</strong> The Axiom Gauge
+      diagonal-$g$ search runs at build time, not during decode. "Zero
+      inference overhead" refers specifically to the runtime forward pass;
+      it is not a claim about the build-time cost of finding $g$, which
+      scales with the Phase-1 cloud size.
+    </li>
+    <li>
+      <strong>No comparison against AWQ / GPTQ / SmoothQuant.</strong>
+      The baseline in this paper is static Geodesic Projection
+      (Paper&nbsp;2). A head-to-head against quantisation-side adaptive
+      schemes is open work.
+    </li>
+  </ol>
+  <p>
+    None of these block the runtime from being usable today; they block
+    the publication-grade adaptive-compression claim. v0.2 is scoped to
+    close items 1, 2, and 3.
+  </p>
+</section>
+
+<section id="terms">
+  <span class="section-num">§9.6 &mdash; Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    Paper&nbsp;6 reuses the glossaries in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, decode vs prefill, residual stream) and
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink, MCR/Ricci
+    rank allocation). Speculative-path terms (acceptance rate $\alpha$,
+    draft/verifier, OneDecode, OTT) are in
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>.
+    Mechanism-specific terms — phase profile, tail energy, gauge group
+    GL($d$), tokens-per-joule, Oja's rule — are introduced inline at
+    first use.
+  </p>
+</section>
+
 <section id="references">
   <span class="section-num">§10 &mdash; References</span>
   <h2>Selected refs</h2>

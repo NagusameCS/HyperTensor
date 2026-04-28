@@ -415,6 +415,108 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
 </section>
 
+<section id="limitations">
+  <span class="section-num">§5 — Limitations</span>
+  <h2>What this paper is not</h2>
+  <p>
+    Paper&nbsp;4 is the theory layer of the OTT/GTC programme. The boundaries
+    below are deliberate, and they should be read together with the
+    measurement-side limitations in Paper&nbsp;5 (which is the empirical
+    companion to this paper) and Paper&nbsp;3 (which carries the speculative-
+    decoding anchor).
+  </p>
+  <ol>
+    <li>
+      <strong>Universal vs. deployment-scoped.</strong> The diffeomorphism
+      $\phi:\mathcal{M}_\theta\to\mathbb{R}^k$ is closed for the specific OTT
+      deployment manifolds in this repository via inherited-structure
+      certificates on star-shaped manifolds; it is <em>not</em> closed as a
+      universal transformer-scale construction. Treat $\phi$-existence as a
+      per-build property of the fitted manifold, not as a theorem.
+    </li>
+    <li>
+      <strong>Speedup figures are conditional.</strong> Numerical speedups in
+      §§1–3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
+      $4800\times$ figure at $n{=}32{,}768$) are derived from the geodesic
+      cost model assuming GTC fully replaces standard attention in the
+      decode path. The repository does not yet ship that runtime; the
+      measured OTT runtime anchor (Paper&nbsp;5 §6, Paper&nbsp;3 §5.5) is a
+      compression-draft + verifier pipeline at $\sim76.5$&nbsp;tok/s, not a
+      pure-geodesic decode loop.
+    </li>
+    <li>
+      <strong>Manifold dimension claim is empirical.</strong> The intrinsic
+      dimension $k\approx30$–$50$ is supported by the Phase-1 fits on
+      SmolLM2-135M, Phi-3.5-mini, and Gemma-4-E2B in Paper&nbsp;5 §3. It is
+      not a theorem about transformers in general; cross-architecture
+      generalisation past these three fits is open.
+    </li>
+    <li>
+      <strong>Fisher-information metric is an approximation.</strong> The
+      Riemannian metric is approximated from the Phase-1 covariance estimate,
+      not from full Fisher information. This is consistent with how the
+      runtime treats the manifold operationally, but a derivation that links
+      the covariance approximation to the true Fisher metric in the
+      transformer setting is not given here.
+    </li>
+    <li>
+      <strong>AttnRes + GTC joint training is unsolved.</strong> The
+      connection in §3 is read in one direction only: AttnRes weights are
+      interpretable as geodesic-segment selection. The reverse — training
+      AttnRes to be Jacobi-smooth against a GTC library so that the
+      correction objective and the training objective agree — is open as a
+      training problem.
+    </li>
+    <li>
+      <strong>Injectivity radius and $v_0$ derivations.</strong> The
+      runtime has a deployable surrogate for both (per-record $\rho$
+      estimate, curvature-guided $v_0$ prior with Christoffel correction),
+      and the Jacobi validity radius is measured in Paper&nbsp;5; closed-form
+      universal derivations are not given.
+    </li>
+  </ol>
+  <p>
+    In short: this paper sets the geometry, Paper&nbsp;5 measures it on three
+    fitted manifolds, and Paper&nbsp;3 anchors the end-to-end decode path.
+    Where the three disagree, the measurement wins.
+  </p>
+</section>
+
+<section id="terms">
+  <span class="section-num">§6 — Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    For brevity Paper&nbsp;4 reuses the glossary tables in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, residual stream, decode vs prefill),
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink), and
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
+    (acceptance rate $\alpha$, draft/verifier, OneDecode). Terms specific to
+    this paper — manifold $\mathcal{M}_\theta$, intrinsic dimension $k$,
+    Fisher-information metric, geodesic, Jacobi field, injectivity radius
+    $\rho$, exponential map $\exp_p$, parallel transport, diffeomorphism
+    $\phi$ — are introduced inline at first use.
+  </p>
+</section>
+
+<section id="references">
+  <span class="section-num">§7 — References</span>
+  <h2>Selected refs</h2>
+  <ol>
+    <li>Stewart, W. K. O., <em>Geodesic Trajectory Caching and the OTT Runtime Anchor</em>, this site, Paper&nbsp;5 v0.1, 2026.</li>
+    <li>Stewart, W. K. O., <em>Composing Compression: Geodesic Speculative Decoding and Attention Residuals</em>, this site, Paper&nbsp;3 v0.3, 2026.</li>
+    <li>Stewart, W. K. O., <em>Geodesic Projection: A Production Compression Pipeline for LLM Inference</em>, this site, Paper&nbsp;2 v0.2, 2026.</li>
+    <li>Stewart, W. K. O., <em>Attention Compression at Constant Quality: A Geometry-Only PCA Basis for Q/K/V</em>, this site, Paper&nbsp;1 v0.4, 2026.</li>
+    <li>Kimi Team, <em>Block Attention Residuals</em>, arXiv:2603.15031, 2026.</li>
+    <li>Amari, S., <em>Information Geometry and Its Applications</em>, Springer, 2016. (Fisher-information metric, natural gradient.)</li>
+    <li>do Carmo, M. P., <em>Riemannian Geometry</em>, Birkhäuser, 1992. (Geodesic equation, Jacobi fields, injectivity radius, exponential map.)</li>
+    <li>Lee, J. M., <em>Introduction to Smooth Manifolds</em>, 2nd ed., Springer, 2013. (Diffeomorphisms, smooth structure on $\mathcal{M}_\theta$.)</li>
+    <li>Magnus, W., <em>On the exponential solution of differential equations for a linear operator</em>, Comm. Pure Appl. Math., 1954. (Series used for parallel-transport approximations.)</li>
+    <li>Tenenbaum, J. B., de Silva, V., and Langford, J. C., <em>A global geometric framework for nonlinear dimensionality reduction</em>, Science, 2000. (Manifold-hypothesis precedent for low-dimensional structure in high-dimensional representations.)</li>
+  </ol>
+</section>
+
 </main>
 
 <footer>

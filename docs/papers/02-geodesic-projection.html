@@ -641,6 +641,73 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   </p>
 </section>
 
+<section id="related">
+  <span class="section-num">§9.5 — Related work</span>
+  <h2>Where Geodesic Projection sits in literature</h2>
+  <p>
+    Paper&nbsp;1 §3.5 placed the single-slot $Q/K/V$ basis next to ASVD,
+    SliceGPT, FWSVD, GPTQ, AWQ, and LoRA. Paper&nbsp;2 inherits that
+    placement for the attention slots and adds three more axes that do not
+    appear in those works: <em>multi-slot fitting</em> across $Q/K/V/O$ plus
+    FFN up/gate/down, <em>persistent geometry caching</em>, and a
+    <em>depth-sink shortcut</em> that lets later layers re-use earlier
+    bases.
+  </p>
+  <ol>
+    <li>
+      <strong>Activation low-dimensionality.</strong> The intrinsic-dim
+      result in §<a href="#manifold">2</a> is consistent with the
+      isotropy/anisotropy line of work (Cai&nbsp;et&nbsp;al. 2021;
+      Razzhigaev&nbsp;et&nbsp;al. 2023) and the linear-representation
+      hypothesis (Park&nbsp;et&nbsp;al. 2023). Paper&nbsp;2's contribution
+      is operational rather than theoretical: it commits to a single PCA
+      basis per slot, ships it to a runtime, and caches it across
+      quantisation levels.
+    </li>
+    <li>
+      <strong>FFN compression.</strong> ASVD (Yuan&nbsp;et&nbsp;al. 2023)
+      and FWSVD (Wang&nbsp;et&nbsp;al. 2023) cover activation-aware FFN
+      decomposition; the FFN-down SVD path in §<a href="#spectra">3</a> is
+      a deliberate reduction of those ideas to the smallest scheme that
+      shares the geometry cache used by the attention slots, not a new
+      contribution to FFN compression on its own.
+    </li>
+    <li>
+      <strong>Per-layer rank allocation.</strong> The MCR/Ricci heuristic
+      in §<a href="#rank-selection">4</a> sits next to compression-aware
+      bit-budgeting work (GPTQ, AWQ, OmniQuant) but operates on rank rather
+      than bits, on a fixed-precision integer budget, and against a
+      curvature signal computed from the same Phase-1 cloud that produces
+      the basis. The closest published precedent is Kimi&nbsp;Team's
+      block-summary curvature signal in <em>Block Attention Residuals</em>
+      (arXiv:2603.15031, 2026); the connection is made explicit in
+      <a href="03-speculative-decoding.html#attnres">Paper&nbsp;3 §4</a>
+      and <a href="04-organic-training-theory.html#attnres">Paper&nbsp;4 §3</a>.
+    </li>
+    <li>
+      <strong>Geometry caching.</strong> The persistent
+      <code>$W_\text{proj}$</code> cache (1,093&nbsp;MB on Llama-3.1-8B
+      Q4_K_M, see §<a href="#cache">5</a>) is closer in spirit to a
+      compiled artefact (e.g. TensorRT plan caches, Triton kernel caches)
+      than to existing compression work. We are not aware of a published
+      compression pipeline that exposes the basis as a cache shared across
+      quantisation levels for the same architecture; if there is one, this
+      paragraph is the place we will cite it.
+    </li>
+    <li>
+      <strong>What we are not doing.</strong> We do not retrain (so this is
+      not LoRA / DoRA territory), we do not change the attention algorithm
+      (so this is not FlashAttention / Ring Attention territory), and we
+      do not change the quantisation format (Q4_K_M is taken as a fixed
+      input). Geodesic Projection is a pre-quantisation geometry pass; the
+      papers it interacts with most are Paper&nbsp;1 (the empirical
+      anchor), Paper&nbsp;3 (speculative decoding on top), and Paper&nbsp;6
+      (adaptive layer that turns the static rank in this paper into a
+      phase-aware schedule).
+    </li>
+  </ol>
+</section>
+
 <section id="references">
   <span class="section-num">§10 — References</span>
   <h2>Selected refs</h2>

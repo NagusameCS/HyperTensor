@@ -680,6 +680,74 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   </p>
 </section>
 
+<section id="limitations">
+  <span class="section-num">§8.5 — Limitations</span>
+  <h2>What this paper does not establish</h2>
+  <p>
+    The v0.3 anchor is a single-model, single-hardware measurement, and the
+    composition claims in §<a href="#composition">6</a> mix design with
+    measurement. Read the following before quoting numbers from this paper.
+  </p>
+  <ol>
+    <li>
+      <strong>Single-model anchor.</strong> The 38.5%/76.5&nbsp;tok/s result
+      is on SmolLM2-135M-Instruct only. The closed-form throughput model
+      (§<a href="#throughput-model">3</a>) predicts higher acceptance on
+      larger drafters, but those predictions are unmeasured. The
+      Llama-3.1-8B drafter sweep is gated on compute and explicitly listed
+      under "still missing for v0.4" (§<a href="#status">8</a>).
+    </li>
+    <li>
+      <strong>Acceptance is not a quality claim.</strong> $\alpha=0.385$
+      is the geometric verifier-acceptance rate, not a downstream-task
+      score. Where users care about MMLU / HumanEval / GSM8K, those have
+      not been re-measured under the spec path; Paper&nbsp;1 §6 carries
+      the only PPL anchor in this stack.
+    </li>
+    <li>
+      <strong>Composition table is mostly design.</strong> Of the four
+      cells in the GP × spec × AttnRes × KV table (§<a
+      href="#composition">6</a>), only GP × spec is measured. AttnRes
+      composition is a prototype with a documented negative result on
+      simplex blending and a positive result on single-anchor Jacobi
+      transport; KV-cache compression footprint past 8k tokens is
+      unmeasured.
+    </li>
+    <li>
+      <strong>Instruct-greedy-EOS fix is local.</strong> The
+      <code>llm_topk_excluding</code> + <code>SPEC_MIN_RESP_N</code> guard
+      (§<a href="#egp">5.5.1</a>) was identified and patched on the
+      135M-Instruct model. Whether the same pathology surfaces on larger
+      instruct models with the same template family is untested; the fix
+      is conservative (it only changes behaviour when the verifier
+      proposes EOS at a position guarded by the response-length floor),
+      so the failure mode if it generalises is "spec path silently
+      degrades to greedy", not a correctness regression.
+    </li>
+    <li>
+      <strong>OTT-perfect and OTT-swarm-k are not yet runnable.</strong>
+      The most credible route to $\alpha\ge 0.9$ on this model
+      (transformer-exact rollout) hangs in the
+      <code>llm_rollout_exact_greedy</code> retry path; the swarm-k path
+      exits non-zero. Until those are fixed, the upper-bound acceptance
+      claims in §<a href="#throughput-model">3</a> remain analytic.
+    </li>
+    <li>
+      <strong>Hardware envelope.</strong> All numbers are on a single
+      RTX&nbsp;4070 Laptop / Ryzen&nbsp;9&nbsp;7940HS / 32&nbsp;GB box.
+      Spec gains are sensitive to verifier batch size, KV layout, and
+      decode-vs-prefill ratio; cross-hardware reproduction is open work.
+    </li>
+  </ol>
+  <p>
+    The composition claim that this paper does make is narrow:
+    GP-compressed drafter on a verified path on a 135M-Instruct model
+    runs end-to-end at <code>geodesic_ready</code> with the cited
+    acceptance and tok/s. Everything past that is either marked open in
+    §<a href="#status">8</a> or framed as a closed-form prediction.
+  </p>
+</section>
+
 <section id="references">
   <span class="section-num">§9 — References</span>
   <h2>Selected refs</h2>

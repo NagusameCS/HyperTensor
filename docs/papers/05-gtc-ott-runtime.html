@@ -577,6 +577,80 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   </p>
 </section>
 
+<section id="related">
+  <span class="section-num">§10.5 — Related work</span>
+  <h2>Where this empirical anchor sits</h2>
+  <p>
+    Paper&nbsp;5 is the measurement layer underneath Paper&nbsp;4's theory.
+    Three lines of literature touch what is measured here.
+  </p>
+  <ol>
+    <li>
+      <strong>Intrinsic dimension of LM activations.</strong> The
+      $k\approx30$–$50$ fits in §<a href="#coverage">3</a> are consistent
+      with TwoNN/PCA intrinsic-dim estimates on transformers
+      (Razzhigaev&nbsp;et&nbsp;al. 2023; Cai&nbsp;et&nbsp;al. 2021) and the
+      linear-representation hypothesis (Park&nbsp;et&nbsp;al. 2023). What
+      is new here is not the dimension number but its operational use: the
+      same $k$ that comes out of Phase-1 is the working dimension of the
+      Jacobi-correction record store and the OTT runtime path. The
+      manifold fit is therefore a deployment artefact, not just an
+      observation.
+    </li>
+    <li>
+      <strong>Speculative decoding.</strong> The OTT runtime anchor
+      ($\alpha=0.385$, 76.5&nbsp;tok/s) sits in the speculative-decoding
+      family (Leviathan&nbsp;et&nbsp;al. 2023; Chen&nbsp;et&nbsp;al. 2023;
+      Medusa, EAGLE). The compositional question — what changes when the
+      draft model is a Geodesic-Projection compressed twin rather than a
+      separate small model — is the subject of
+      <a href="03-speculative-decoding.html">Paper&nbsp;3</a>; this paper
+      contributes the OTT runtime timing primitives and the per-query
+      lookup cost (30.9&nbsp;µs).
+    </li>
+    <li>
+      <strong>Trajectory libraries and Jacobi-field methods.</strong> The
+      compressed record store in §<a href="#store">5</a> is the closest
+      thing in this paper to outside-LM literature: Jacobi-field-based
+      transport is standard in computational geometry and physics
+      (Magnus&nbsp;1954 series for parallel transport; do&nbsp;Carmo for
+      injectivity radius), and trajectory-library ideas appear in robotics
+      and motion planning (LQR-trees, GMR libraries). We are not aware of
+      a published trajectory-cache for transformer inference that uses
+      Jacobi corrections; if such work exists, it should be cited here in
+      v0.2.
+    </li>
+    <li>
+      <strong>Block-summary curvature.</strong> The connection to
+      Kimi&nbsp;Team's <em>Block Attention Residuals</em> is read in this
+      site as: AttnRes weights are interpretable as geodesic-segment
+      selection on $\mathcal{M}_\theta$
+      (<a href="04-organic-training-theory.html#attnres">Paper&nbsp;4 §3</a>),
+      and the AttnRes prototype in this repository is the inference-time
+      version of that connection.
+    </li>
+  </ol>
+</section>
+
+<section id="terms">
+  <span class="section-num">§10.6 — Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    Paper&nbsp;5 reuses the glossaries in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, decode vs prefill, residual stream),
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink), and
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
+    (acceptance rate $\alpha$, draft/verifier, OneDecode, OTT).
+    Theory-side terms — manifold $\mathcal{M}_\theta$, intrinsic dimension
+    $k$, Fisher metric, Jacobi field, injectivity radius $\rho$,
+    diffeomorphism $\phi$ — are defined in
+    <a href="04-organic-training-theory.html#abstract">Paper&nbsp;4 §0</a>
+    and used here without redefinition.
+  </p>
+</section>
+
 <section id="references">
   <span class="section-num">§11 — References</span>
   <h2>Selected refs</h2>
