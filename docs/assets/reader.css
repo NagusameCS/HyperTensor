@@ -148,19 +148,261 @@
   letter-spacing: 0.02em;
 }
 
-/* ─── Hide controls for print ─── */
+/* ─── Print / Save-as-PDF stylesheet ───────────────────
+   Targets the browser's built-in "Save as PDF" exporter. Goal: a
+   one-column, A4-friendly document that ignores all the on-screen
+   chrome (nav, reader toggles, hover panels) and never lets a table
+   or figure escape the page width. */
 @media print {
-  .reader-toggle, .reader-panel, nav, footer { display: none !important; }
-  :root { --bg: #fff; --text: #000; --bg-soft: #fafafa; --bg-code: #f0f0f0; --border: #ccc; }
-  html { font-size: 12pt; }
-  body { background: #fff !important; color: #000 !important; }
-  main, header, section { break-inside: avoid-page; }
-  h1, h2, h3 { break-after: avoid-page; }
-  pre, table, .table-wrap, .callout { break-inside: avoid; }
-  a { color: #000 !important; text-decoration: none !important; }
-  a.repo-link, a.term { border: none !important; }
-  /* Reset reader-controlled width to a print-friendly column */
-  :root[data-width] { --max-w: 7in; }
+  /* Page geometry */
+  @page { size: A4; margin: 0.75in 0.7in; }
+
+  /* Reset theme to printable greyscale regardless of toggle state. */
+  :root,
+  :root[data-theme="dark"],
+  :root[data-theme="sepia"] {
+    --bg: #fff !important;
+    --bg-soft: #f5f5f5 !important;
+    --bg-code: #f0f0f0 !important;
+    --border: #c8c8c8 !important;
+    --text: #000 !important;
+    --text-soft: #444 !important;
+    --accent: #000 !important;
+    --accent-l: #000 !important;
+    --blue: #000 !important;
+    --green: #000 !important;
+    --yellow-bg: #fff !important;
+    --blue-bg: #fff !important;
+    --green-bg: #fafafa !important;
+    --red-bg: #fafafa !important;
+    --max-w: 100% !important;
+  }
+  html { font-size: 10.5pt; }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide everything that is interactive chrome. */
+  nav, footer,
+  .reader-toggle, .reader-panel,
+  #paper-preview, #to-top,
+  .hero-actions,
+  .kbd-hint,
+  .nav-brand, .nav-links { display: none !important; }
+
+  /* Layout: drop sticky/fixed positioning, single column. */
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  main, header, section, article {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    float: none !important;
+    position: static !important;
+  }
+  main { padding-top: 0.2in !important; }
+
+  /* Hero: shrink dramatically; the on-screen stats stay but inline. */
+  #hero {
+    padding: 0 0 0.4in 0 !important;
+    text-align: left !important;
+    border-bottom: 1px solid #888 !important;
+    margin-bottom: 0.3in !important;
+  }
+  .hero-tag {
+    display: inline !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 9pt !important;
+    color: #444 !important;
+    margin: 0 0 0.1in 0 !important;
+    letter-spacing: 0.06em;
+  }
+  .hero-title, h1 {
+    font-size: 20pt !important;
+    line-height: 1.2 !important;
+    margin: 0.05in 0 0.15in 0 !important;
+    page-break-after: avoid;
+  }
+  .hero-subtitle {
+    font-size: 11pt !important;
+    color: #222 !important;
+    max-width: 100% !important;
+    margin: 0 0 0.15in 0 !important;
+  }
+  .hero-meta {
+    font-size: 9pt !important;
+    color: #444 !important;
+    margin: 0 0 0.15in 0 !important;
+  }
+  .hero-stats {
+    display: flex !important;
+    gap: 0.3in !important;
+    justify-content: flex-start !important;
+    margin: 0 !important;
+  }
+  .stat { min-width: 0 !important; text-align: left !important; }
+  .stat-num { font-size: 12pt !important; color: #000 !important; }
+  .stat-label { font-size: 8.5pt !important; color: #444 !important; }
+
+  /* Headings */
+  h2 { font-size: 15pt !important; margin: 0.25in 0 0.1in !important; page-break-after: avoid; }
+  h3 { font-size: 12.5pt !important; margin: 0.18in 0 0.08in !important; page-break-after: avoid; }
+  .section-num {
+    color: #444 !important;
+    font-size: 8.5pt !important;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.04in !important;
+  }
+
+  p, li { font-size: 10.5pt !important; line-height: 1.5 !important; orphans: 3; widows: 3; }
+
+  /* Abstract box → quiet bordered block */
+  .abstract-box {
+    background: #fafafa !important;
+    border: 1px solid #aaa !important;
+    border-radius: 3pt !important;
+    padding: 0.16in 0.2in !important;
+    margin: 0.1in 0 0.2in 0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Callouts: keep visible but neutral */
+  .callout {
+    background: #fafafa !important;
+    border: 1px solid #aaa !important;
+    border-left: 3pt solid #555 !important;
+    padding: 0.12in 0.18in !important;
+    margin: 0.12in 0 !important;
+    page-break-inside: avoid;
+    border-radius: 0 3pt 3pt 0 !important;
+  }
+  .callout.warning   { border-left-color: #000 !important; }
+  .callout.info      { border-left-color: #555 !important; }
+  .callout.finding   { border-left-color: #555 !important; }
+  .callout.intuition { border-left-color: #555 !important; background: #fafafa !important; }
+  .callout-title { color: #000 !important; font-size: 8.5pt !important; }
+
+  /* Tables: this is where on-screen breaks PDF.
+     The reader.css negative-margin trick + .wide translateX must be
+     undone or the table runs off the page. */
+  .table-wrap,
+  .table-wrap.wide {
+    margin: 0.1in 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    left: auto !important;
+    overflow: visible !important;
+    border: 1px solid #aaa !important;
+    border-radius: 3pt !important;
+    page-break-inside: avoid;
+  }
+  table {
+    width: 100% !important;
+    font-size: 8.5pt !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  table thead { display: table-header-group; }
+  table tr { page-break-inside: avoid; page-break-after: auto; }
+  table thead th {
+    background: #eee !important;
+    color: #000 !important;
+    font-size: 8pt !important;
+    padding: 4pt 6pt !important;
+    border-bottom: 1px solid #888 !important;
+  }
+  table td {
+    padding: 4pt 6pt !important;
+    border-top: 1px solid #ddd !important;
+    color: #000 !important;
+  }
+  table tr:hover td { background: transparent !important; }
+  td.good, td.warn, .pass, .fail, .warn { color: #000 !important; font-weight: 700; }
+
+  /* Code, pre, math */
+  code, pre, pre code {
+    background: #f4f4f4 !important;
+    color: #000 !important;
+    border: 1px solid #ddd !important;
+    font-size: 9pt !important;
+  }
+  pre {
+    padding: 0.1in !important;
+    page-break-inside: avoid;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+  }
+  mjx-container { page-break-inside: avoid; }
+  mjx-container[display="true"] { margin: 0.1in 0 !important; }
+
+  /* Gate cards / grid */
+  .gates, .grid-2 { display: block !important; }
+  .gate-card, .grid-2 .card {
+    background: #fafafa !important;
+    border: 1px solid #aaa !important;
+    margin: 0.05in 0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Links: print URL of external links inline (footnote-style) so a
+     printed PDF is still usable offline. Skip in-page anchors. */
+  a, a:visited { color: #000 !important; text-decoration: none !important; }
+  a[href^="http"]:not(.no-print-url)::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #555;
+    word-break: break-all;
+  }
+  /* Avoid noise on the hero/meta links and inline term/repo links. */
+  .hero-meta a::after, .hero-actions a::after, nav a::after,
+  a.term::after, a.repo-link::after, .reader-panel a::after,
+  footer a::after, sup a::after { content: "" !important; }
+
+  /* Page-break niceties */
+  section { page-break-inside: auto; }
+  section + section { page-break-before: auto; }
+  h1, h2 { page-break-before: auto; page-break-after: avoid; }
+  figure, .figure, img, svg { page-break-inside: avoid; max-width: 100% !important; height: auto !important; }
+
+  /* Home-page paper cards: readable as a TOC */
+  .paper-card {
+    border: 1px solid #aaa !important;
+    transform: none !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin: 0.08in 0 !important;
+    padding: 0.12in 0.16in !important;
+  }
+  .paper-card.visited::before { display: none !important; }
+  .paper-stats { border-top: 1px solid #ccc !important; padding-top: 0.06in !important; }
+
+  /* Hero summary on the index page */
+  .hero-summary {
+    gap: 0.25in !important;
+    justify-content: flex-start !important;
+    margin: 0.1in 0 !important;
+  }
+  .hsum-num { font-size: 12pt !important; color: #000 !important; }
+  .hsum-label { font-size: 8.5pt !important; color: #444 !important; }
+
+  /* Research thread */
+  .thread {
+    background: #fafafa !important;
+    border: 1px solid #aaa !important;
+    padding: 0.14in 0.18in !important;
+    page-break-inside: avoid;
+  }
+  .thread-tag { color: #000 !important; }
 }
 
 /* ─── Dark-mode visibility patches ──────────────────────
