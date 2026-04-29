@@ -581,7 +581,7 @@ with strong per-feature scale asymmetry, $\geq 20\%$ is plausible.
 % ───────────────── §9 ─────────────────
 \section{Thermal Rank and Tokens-per-Joule}
 \label{sec:thermal}
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} The thermal control law and J/token objective are given here; closed-loop measurement against an unthrottled baseline is deferred to v0.2.}}\par\medskip
+\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 status.} The thermal control law and J/token objective are given here; a 90-second sustained-decode telemetry trace on Llama-3.1-8B Q4\_K\_M is reported in the ``Measured sustained-decode trace'' paragraph below. A closed-loop A/B against an unthrottled baseline (i.e.\ rank held fixed at $r_\text{max}$ while the controller is permitted to actuate) remains the next step.}}\par\medskip
 On the reference RTX~4070 Laptop, sustained Llama-3.1-8B inference reaches
 $\sim 85\,^\circ\mathrm{C}$ within $\sim 30$~s and the boost clock is
 clamped; tok/s falls to 50--60\% of cold-start.  Earlier work clamps the
@@ -745,7 +745,7 @@ The four adaptive extensions are reachable via:
 \texttt{runtime/nn/axiom\_exploit.h}.
 
 \section*{Acknowledgements}
-The author thanks the open-source \texttt{llama.cpp} \cite{ggerganov2023gguf}
+I thank the open-source \texttt{llama.cpp} \cite{ggerganov2023gguf}
 community.  The MCR phase-detection borrows the Mix/Compress/Refine
 terminology from recent training-dynamics literature; the residual-stream
 gauge has been observed across multiple architectures

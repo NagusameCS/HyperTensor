@@ -609,7 +609,7 @@ Gen4 ×8 configuration. The same k=1024 setting on:
 
 **Cross-hardware and cross-model transfer experiments are listed as a known limitation** of this
 report. Phase 3 cross-model testing is in progress (Mistral-7B-v0.1). Hardware generalisation
-testing is blocked by the author's current infrastructure constraints as an independent student
+testing is blocked by my current infrastructure constraints as an independent student
 researcher — this is an acknowledged scope limitation, not an oversight.
 
 #### 9.2.10 CUDA-only runtime

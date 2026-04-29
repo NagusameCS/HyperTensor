@@ -491,19 +491,51 @@ $(\alpha,\sigma,\delta\ell)$ with the success criterion
 $\leq 5\%$ spillover at non-target points'', \textbf{0/32 pass};
 the best configuration achieves a 16\,\% target reduction at
 $\alpha{=}0.99$ but its non-target spillover diverges (NaN at high
-$\alpha$). The mechanism is consistent with the empirical finding of
+$\alpha$).
+
+\paragraph{Cross-model replication (2026-04-29).}
+The single-model result was replicated across three architectures
+(SmolLM2-135M, Gemma-4-e2b, Phi-3.5-mini) and two protocol variants:
+(v1)~the original Christoffel-Gaussian warp ($\alpha{=}0.7$,
+$\sigma{=}1.2$, $T{=}16$, $\delta\ell{=}0.1$), and (v2)~a covariant
+Riemannian-exponential push of magnitude $\alpha{=}0.35$ in a
+radius-$1.2$ ball, parallel-transported by the cached Christoffel
+symbols. Twelve configurations total (3 models $\times$ 2 intrinsic
+dimensions $n\in\{6,8\}$ $\times$ 2 protocols), 146\,s wall on a single
+CPU core. \textbf{0/12 satisfy both criteria.} The best v1 case
+(Gemma-4-e2b $n{=}6$) achieves a 39.4\,\% target-error reduction but
+60\,\% p95 spillover; v2 produces \emph{negative} target improvements
+on Phi-3.5-mini (target error grows by 9--24\,\%) and only one
+configuration meets the spillover criterion alone (Gemma-4-e2b $n{=}8$
+v2: $-1.8$\,\% target improvement, 14\,\% p95 spillover). Phi-3.5-mini
+v1 $n{=}6$ produces NaN post-error: the warp drives the geodesic
+solver out of its convergence basin. The cross-model replication
+\emph{strengthens} rather than narrows the negative conclusion ---
+neither protocol generalises and v2 is consistently worse than the
+trivial baseline on at least one architecture.
+
+The mechanism is consistent with the empirical finding of
 \Cref{sec:hjb-future} (Empirical feasibility stub): the manifolds
 exported from frozen pretrained networks are nearly flat in the
-intrinsic-coordinate basis, so a Gaussian metric perturbation is
-either too weak to redirect the geodesic or strong enough to redirect
-but at the cost of a global metric perturbation that destroys the
-surrounding manifold. We retain this as a documented negative result;
-the positive form of the problem (curvature warp via
-\emph{learnable} $\phi$ rather than hand-crafted $g'$) is the
-joint-training premise of \Cref{sec:hjb-future}.
-Raw sweep:
-\texttt{docs/figures/curvature\_warp/smollm2-135m\_sweep.json};
-findings note: \texttt{docs/figures/findings/FIVE\_FINDINGS.md} \S5.
+intrinsic-coordinate basis (kinetic-to-curvature ratio $> 10^{17}$
+in squared L2), so a Gaussian metric perturbation is either too weak
+to redirect the geodesic or strong enough to redirect but at the cost
+of a global metric perturbation that destroys the surrounding
+manifold. We retain this as a documented negative result; the positive
+form of the problem (curvature warp via \emph{learnable} $\phi$ rather
+than hand-crafted $g'$) is the joint-training premise of
+\Cref{sec:hjb-future}, and the cross-model evidence here is what
+makes that future training premise non-trivial: any future
+construction must demonstrably outperform 0/12 hand-crafted variants
+on the same three-model benchmark before being claimed as a positive
+result. Raw sweeps:
+\texttt{docs/figures/curvature\_warp/smollm2-135m\_sweep.json}
+(single-model 32-config) and
+\texttt{docs/figures/curvature\_warp/cross\_model\_summary.json}
+(cross-model 12-config); status note:
+\texttt{docs/figures/curvature\_warp/STATUS.md};
+findings note:
+\texttt{docs/figures/findings/FIVE\_FINDINGS.md} \S5.
 
 \section*{Part II --- Empirical anchor}
 
@@ -759,7 +791,7 @@ Scaling: SmolLM2 $\to$ Phi-3.5-mini ``flag flip'' & $\pm 0.5\%$ & \S\ref{sec:cov
 Validity / injectivity radius $\hat\rho$ scaling & $<0.1\%$ err to $\varepsilon{=}5.0$ & \texttt{validity\_radius.json}\\
 OTT locality of curvature warp & ratio $7\!\times\!10^{11}$, decays to 0 at $20\sigma$ & implicit\\
 OTT runtime end-to-end & partial: $\alpha=0.385$, $1.53\times$ & \S\ref{sec:runtime}\\
-Knowledge-injection curvature warp & \textbf{negative}: best gain 2.24\%, 0/32 pass & \texttt{curvature\_warp/}\\
+Knowledge-injection curvature warp & \textbf{negative}: 0/32 single-model + 0/12 cross-model & \texttt{curvature\_warp/}\\
 AttnRes block-summary integration & prototype: block-end Jacobi err 1.29\% & \texttt{attnres\_integration.json}\\
 Diffeomorphism $\phi$ construction & resolved for OTT family via certificates & deployment\\
 Initial velocity $v_0$ & universal open; deployable surrogate exists & \texttt{axiom\_beta.c}\\
