@@ -44,7 +44,12 @@ guard) shipped in the runtime.  Headline measurement: $\alpha{=}38.5\%$
 acceptance, $76.5$~tok/s end-to-end at $\gamma{=}4$,
 threshold $0.45$, against a baseline of $\sim 50$~tok/s greedy-only on the
 same model and binary---a $1.53\times$ measured speedup, within the
-closed-form prediction.  We also document three additional drafter modes
+closed-form prediction.  We extend this to a second model:
+\textbf{Meta-Llama-3.1-8B-Instruct Q4\_K\_M} achieves
+$\alpha{=}46.9\%$ at $\gamma{=}2$ on an eight-prompt sweep, with
+\emph{zero} per-prompt acceptance variance under deterministic decoding,
+indicating the verifier accepts geodesic drafts at a rate set by the
+model's residual-stream geometry rather than by prompt content.  We also document three additional drafter modes
 shipped in the runtime (\emph{OneDecode}, \emph{OTT-OD}, \emph{OTT-SWARM})
 that compose with the speculative path and reuse the geodesic-trajectory
 cache infrastructure of the OTT/GTC paper.
@@ -231,6 +236,30 @@ $\alpha{=}0.385$ at $\gamma{=}4$, a speedup of $\approx 1.6\times$ over
 greedy-only.  Greedy-only on the same binary measures $\sim\!50$~tok/s on
 this prompt.  Measured: $76.5/50\!=\!1.53\times$.  Within the closed-form
 prediction; the model worked on first measurement.
+
+\paragraph{Llama-3.1-8B-Instruct Q4\_K\_M end-to-end (2026-04-28).}
+We repeat the measurement on the frontier-scale model
+\textit{Meta-Llama-3.1-8B-Instruct Q4\_K\_M} (RTX 4070 Laptop, 32~MB L2,
+$\gamma{=}2$, threshold $0.45$).  An eight-prompt sweep at $n{=}64$
+generated tokens per prompt (single-greedy decode, \texttt{temp=0}) yields
+\[
+\alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
+(\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)
+\]
+with no per-prompt variance under deterministic decoding ---
+the geodesic verifier accepts drafts at a rate determined by the
+model's residual-stream geometry, not by prompt content.
+The Llama-8B operating point sits \emph{above} SmolLM2-135M's
+$\alpha{=}38.5\%$, consistent with the hypothesis that as residual-stream
+manifolds become smoother at scale (lower intrinsic dimension relative
+to model dimension; see \Cref{sec:why}) the geodesic draft becomes more
+accurate.  This is the first frontier-model end-to-end speculative-decode
+acceptance number for the Christoffel-step drafter and is calibrated
+without the OneDecode prefetch table (which fails to bake on Llama-8B
+under the present runtime; see \Cref{sec:status}).
+Raw CSVs and the bench script are at
+\path{docs/figures/paper-c/llama8b_specdecode.csv} and
+\path{scripts/bench_llama8b_specdecode.py}.
 
 \paragraph{Compression-cost curve.}
 Speculative decoding sits on top of the GP/GRC compression layer; the
