@@ -99,14 +99,17 @@ ships \emph{four} adaptive mechanisms.  Of those, exactly one
 of this paper: phase-aware per-layer rank allocation has a complete
 implementation, a documented calibration recipe, and an executed
 A/B against the shared-rank super-baseline of the companion paper.
-The result of that A/B (\Cref{sec:mcr}) is a \emph{measured negative}
-at $k_\text{target}{=}1024$ on Llama-3.1-8B: MCR is statistically
-indistinguishable from the shared-rank baseline on mean throughput
-($-2.2\%$, within stdev) and strictly worse on run-to-run stability.
-We retain MCR as v1 because the negative finding is itself the v1
-contribution --- it falsifies the curvature-driven allocation
-hypothesis at the cache-fit knee and reframes per-layer rebalancing as
-a low-rank-regime question. The remaining three mechanisms --- the
+The result of that A/B (\Cref{sec:mcr}) is a \emph{measured null}
+at $k_\text{target}{=}1024$ on Llama-3.1-8B: in a clean repeat with
+no co-resident workloads MCR matches the shared-rank baseline within
+run-to-run noise ($-0.13\%$, $1{\times}$ variance).  An earlier
+contaminated pass spuriously suggested $-2.2\%$ with $21{\times}$
+variance; the variance ratio was the contamination signal and the
+measurement was retaken.  We retain MCR as v1 because the null finding
+at the cache-fit knee is itself the v1 contribution --- it shows that
+phase-aware rebalancing neither helps nor hurts above the knee, and
+reframes the open question as a low-$k$ sweep where the knee is
+closer. The remaining three mechanisms --- the
 GL$(d)$ Axiom Gauge (\Cref{sec:gauge}), thermal-aware rank
 (\Cref{sec:thermal}) and rejection-driven Oja online basis
 (\Cref{sec:online}) --- are presented as \emph{v0.2 design
@@ -344,20 +347,24 @@ use shared-rank for a clean calibration-free claim.
 \paragraph{MCR vs.\ shared-rank A/B (Llama-3.1-8B, 2026-04-29).}
 We ran the matched-budget A/B at $k_\text{target}{=}1024$ on
 Llama-3.1-8B-Instruct Q4\_K\_M (RTX 4070 Laptop, $-n\,64$, deterministic,
-$n{=}4$ reps + cold-cache warmup). The shared-rank baseline yields
-$37.93\pm 0.05$ tok/s; MCR yields $37.10\pm 1.05$ tok/s --- a
-\textbf{$-2.2\%$ throughput delta with 21$\times$ higher run-to-run
-variance}. At this rank and on this prompt class MCR does \emph{not}
-beat the shared-rank baseline; it is statistically indistinguishable on
-mean and strictly worse on stability. Two interpretations are
-plausible: (i)~at $k{=}1024$ the shared-rank already sits above the
-cache-fit knee and per-layer rebalancing has nothing left to extract;
-(ii)~the curvature-ratio heuristic is mis-tuned for frontier-scale
-attention spectra. We report this as a measured negative result rather
-than tune it away. Raw CSV at
-\texttt{docs/figures/paper-b/mcr\_ablation.csv}; full sweep across
-lower base ranks (where the cache-fit knee is closer and per-layer
-rebalancing has room to act) is the next ablation milestone.
+$n{=}4$ reps + cold-cache warmup) twice. An initial pass conducted with
+unrelated background workloads on the same machine reported
+$37.93\pm 0.05$ tok/s baseline vs.\ $37.10\pm 1.05$ tok/s MCR
+($-2.2\%$, $21\times$ higher MCR variance). A clean repeat with no
+co-resident processes (verified by \texttt{nvidia-smi} idle pre-launch
+and process audit) yields baseline $39.28\pm 0.05$ tok/s vs.\ MCR
+$39.23\pm 0.05$ tok/s --- a \textbf{$-0.13\%$ delta within run-to-run
+noise, $1{\times}$ variance}. The variance gap in the first run was
+the contamination signal; both means rose by $\sim 1.4$~tok/s once the
+machine was quiet, confirming $\sim 3.5\%$ throughput was being eaten
+by the unrelated workload. We therefore report MCR at this rank as
+\textbf{statistically indistinguishable from the shared-rank baseline,
+not worse}. The interpretive question remains: at $k{=}1024$ the
+shared-rank already sits above the cache-fit knee, so per-layer
+rebalancing has little room to act --- the right test is a sweep across
+lower base ranks $k{\in}\{256, 512, 768\}$ where the knee is closer.
+Raw CSVs at \texttt{docs/figures/paper-b/mcr\_ablation.csv} (clean) and
+\texttt{mcr\_ablation\_run1\_contaminated.csv} (preserved for audit).
 
 \paragraph{Weight-PCA flat-fallback finding (2026-04-29).}
 A second measurement reveals an interaction between MCR and the
