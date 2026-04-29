@@ -4683,7 +4683,17 @@ int main(int argc, char **argv) {
                 }
             }
         } else {
-            kprintf("[error generating response]\n");
+            if (n == 0) {
+                /* Model emitted EOS as the very first sampled token — not a
+                 * runtime error.  Common with greedy (--temp 0) on small
+                 * instruct models when the chat-template-wrapped prompt
+                 * makes <|im_end|>/<|eos|> the argmax of the prefill logits.
+                 * Workaround: increase --temp (e.g. 0.7) or use a longer prompt. */
+                kprintf("[GD] Model emitted EOS as first token (n=0). "
+                        "Try --temp 0.7 or a longer prompt.\n");
+            } else {
+                kprintf("[error generating response]\n");
+            }
         }
     }
 

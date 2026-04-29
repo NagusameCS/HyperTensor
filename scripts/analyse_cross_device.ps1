@@ -76,8 +76,11 @@ function Parse-Log {
 $rows = @()
 $rows += Parse-Log "$Root\session_logs\local\baseline_4070_q4km.log" 'RTX 4070 Laptop (Win11)' 'baseline'                  'Q4_K_M'
 $rows += Parse-Log "$Root\session_logs\local\fix_test.log"           'RTX 4070 Laptop (Win11)' '--axex-compress k=1024'    'Q4_K_M'
-$rows += Parse-Log "$Root\session_logs\local\smollm_local.log"       'RTX 4070 Laptop (Win11)' '--axex-compress k=512 (smollm2)' 'Q8_0'
-$rows += Parse-Log "$Root\session_logs\remote\smollm_run.log"        'RTX 3050 6GB (Arch)'     '--axex-compress k=512 (smollm2)' 'Q8_0'
+$rows += Parse-Log "$Root\session_logs\local\smollm_local_baseline.log" 'RTX 4070 Laptop (Win11)' 'baseline (smollm2)'              'Q8_0'
+$rows += Parse-Log "$Root\session_logs\local\smollm_local_fix.log"      'RTX 4070 Laptop (Win11)' '--axex-compress k=512 (smollm2)' 'Q8_0'
+$rows += Parse-Log "$Root\session_logs\local\smollm_local.log"          'RTX 4070 Laptop (Win11)' '--axex-compress k=512 (smollm2 legacy)' 'Q8_0'
+$rows += Parse-Log "$Root\session_logs\remote\smollm_3050_combined.log" 'RTX 3050 6GB (Arch)'     'baseline + GRC k=512 (smollm2)' 'Q8_0'
+$rows += Parse-Log "$Root\session_logs\remote\smollm_run.log"           'RTX 3050 6GB (Arch)'     '--axex-compress k=512 (smollm2 legacy)' 'Q8_0'
 $rows += Parse-Log "$Root\session_logs\remote\grc_8b_k256.log"       'RTX 3050 6GB (Arch)'     '--axex-compress k=256'    'Q8_0'
 
 $rows = $rows | Where-Object { $_ -ne $null }
@@ -118,6 +121,22 @@ if ($base3050) {
 } else {
     $md += '* RTX 3050, Llama-3.1-8B Q8_0 GRC k=256: still in progress; will be filled in after run completes.'
 }
+$smb = $rows | Where-Object { $_.machine -like '*4070*' -and $_.quant -eq 'Q8_0' -and $_.mode -eq 'baseline (smollm2)' -and $_.completed } | Select-Object -First 1
+$smf = $rows | Where-Object { $_.machine -like '*4070*' -and $_.quant -eq 'Q8_0' -and $_.mode -like '*k=512 (smollm2)' -and $_.completed } | Select-Object -First 1
+if ($smb -and $smf) {
+    $delta = (($smf.decode_tok_s / $smb.decode_tok_s) - 1.0) * 100.0
+    $md += ('* RTX 4070 Laptop, SmolLM2-135M Q8_0: GRC k=512 = {0:N1} tok/s vs baseline {1:N1} tok/s -> **{2:N2}%**' -f $smf.decode_tok_s, $smb.decode_tok_s, $delta)
+}
+$md += ''
+$md += '## SmolLM2 + greedy ([error generating response]) explained'
+$md += ''
+$md += 'Earlier reports of "[error generating response]" with SmolLM2-135M-Instruct Q8_0 + `--axex-compress` were **not** a runtime/GP regression. The 135M model with the chatml-templated short prompt "hello" picks `<|im_end|>`(id=2) as the argmax of the prefill logits (logit 32.297 vs runner-up 31.601). With `--temp 0` the decoder breaks at `gen_count=0` on the first sample, and `host/main.c` previously folded that case into the generic error string. Verified via `GD_BENCH_DEBUG=1`:'
+$md += ''
+$md += '```'
+$md += '[GEN-DBG] first-step eos=2 logit=32.297142 top=2(32.297142) 1(31.601219) 2683(31.463902)'
+$md += '```'
+$md += ''
+$md += 'Reproduces on **baseline** (no `--axex-compress`); independent of GP/PCA. Workaround: use `--temp 0.7` (or any non-greedy sampler) or a longer prompt. The local SmolLM2 numbers above use `--temp 0.7` and the GP path performs as expected (+44.9% decode tok/s on 4070 Laptop). Runtime now prints a dedicated message (`[GD] Model emitted EOS as first token (n=0). Try --temp 0.7 or a longer prompt.`) instead of the misleading generic error.'
 $md += ''
 $md += '## Files indexed'
 foreach ($r in $rows) { $md += "* ``$($r.log)`` -> $($r.machine), $($r.mode)" }
