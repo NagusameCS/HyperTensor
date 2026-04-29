@@ -93,6 +93,22 @@ that exist, run without error, and are consistent with the implemented
 behaviour of their components, but for which no end-to-end benchmark has
 produced numbers.
 
+\paragraph{v1 versus v0.2 mechanisms (this revision).}  This revision
+ships \emph{four} adaptive mechanisms.  Of those, exactly one
+(\textbf{MCR}, \Cref{sec:adaptive-mcr}) is the v1 measurement target
+of this paper: phase-aware per-layer rank allocation has a complete
+implementation, a documented calibration recipe, and an explicit
+ablation plan against the shared-rank super-baseline of the companion
+paper.  The remaining three --- the GL$(d)$ Axiom Gauge
+(\Cref{sec:gauge}), thermal-aware rank
+(\Cref{sec:thermal}) and rejection-driven Oja online basis
+(\Cref{sec:online}) --- are presented as \emph{v0.2 design
+specifications}: the geometry is derived, the algorithm is given, and
+the runtime hooks exist, but the paired ablations are deferred to a
+companion v0.2 release.  We adopt this split because the time budget
+to NeurIPS does not permit four credible ablations and we prefer one
+measured mechanism over four under-measured ones.
+
 % ───────────────── §2 ─────────────────
 \section{Cross-Architecture Manifold Evidence}
 \label{sec:manifold}
@@ -485,6 +501,7 @@ prediction holds is the v0.2 measurement.
 % ───────────────── §8 ─────────────────
 \section{Axiom Gauge: $\mathrm{GL}(d)$ Gauge-Optimal Compression}
 \label{sec:gauge}
+\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} This section derives the gauge-optimal basis and gives the algorithm. End-to-end PPL/throughput ablation against MCR-only is deferred to a companion v0.2 release.}}\par\medskip
 The transformer residual stream carries an exact gauge symmetry.  For any
 invertible $G\in\mathrm{GL}(d)$, the substitution
 $x\!\mapsto\!Gx,\ W^\text{read}\!\mapsto\!W^\text{read}G^{-1},\
@@ -523,6 +540,7 @@ with strong per-feature scale asymmetry, $\geq 20\%$ is plausible.
 % ───────────────── §9 ─────────────────
 \section{Thermal Rank and Tokens-per-Joule}
 \label{sec:thermal}
+\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} The thermal control law and J/token objective are given here; closed-loop measurement against an unthrottled baseline is deferred to v0.2.}}\par\medskip
 On the reference RTX~4070 Laptop, sustained Llama-3.1-8B inference reaches
 $\sim 85\,^\circ\mathrm{C}$ within $\sim 30$~s and the boost clock is
 clamped; tok/s falls to 50--60\% of cold-start.  Earlier work clamps the
@@ -564,6 +582,7 @@ Llama-3.1-8B), the trade is favourable.
 % ───────────────── §10 ─────────────────
 \section{Online Basis: Rejection-Driven Oja}
 \label{sec:online}
+\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} The rejection trigger and Oja update rule are derived; long-horizon drift measurements vs.\ a frozen-basis baseline are deferred to v0.2.}}\par\medskip
 A static PCA basis fitted on calibration data drifts out of validity as
 inference moves into uncovered distributions.  Speculative decoding
 \cite{leviathan2023speculative,chen2023speculative} provides a free
