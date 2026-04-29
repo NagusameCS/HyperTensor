@@ -33,12 +33,16 @@ function Invoke-DecodeRun {
     param([string[]]$ExtraArgs)
     $tps = @()
     for ($r = 0; $r -lt $Repeats; $r++) {
-        $args = @("-m", $Model, "-p", $Prompt, "-n", $DecodeTokens, "--report-tps") + $ExtraArgs
-        $out  = & $Exe @args 2>&1
-        if ($LASTEXITCODE -ne 0) { throw "geodessical failed: $out" }
-        $line = $out | Where-Object { $_ -match "decode_tps=" } | Select-Object -First 1
-        if (-not $line) { throw "no decode_tps in output: $out" }
-        $tps += [double]([regex]::Match($line, "decode_tps=([0-9.]+)").Groups[1].Value)
+        $args = @($Model, "-p", $Prompt, "-n", $DecodeTokens, "--temp", "0") + $ExtraArgs
+        $raw  = (& $Exe @args 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "geodessical failed: $raw" }
+        $mDec = [regex]::Match($raw, 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s')
+        $mGd  = [regex]::Match($raw, '\[GD\]\s*(\d+)\s+tokens\s+in\s*([\d.]+)\s*ms\s*\(([\d.]+)\s*tok/s\)')
+        $val = $null
+        if ($mDec.Success) { $val = [double]$mDec.Groups[2].Value }
+        elseif ($mGd.Success) { $val = [double]$mGd.Groups[3].Value }
+        if ($null -eq $val) { throw "no decode tok/s in output: $raw" }
+        $tps += $val
         Start-Sleep -Seconds $CooldownSec
     }
     $mean = ($tps | Measure-Object -Average).Average
@@ -56,7 +60,7 @@ $base = Invoke-DecodeRun @()
 $rows = @()
 foreach ($k in $Ranks) {
     Write-Host "k=$k ..."
-    $r = Invoke-DecodeRun @("--grc-rank", $k)
+    $r = Invoke-DecodeRun @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$k")
     $rows += [pscustomobject]@{
         rank        = $k
         decode_mean = $r.mean

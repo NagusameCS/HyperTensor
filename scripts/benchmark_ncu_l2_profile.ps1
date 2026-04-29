@@ -41,7 +41,7 @@ if (-not (Test-Path $Model)) {
     throw "Model not found: $Model"
 }
 
-$metrics = "l2_tex_hit_rate,dram__bytes_read.sum,dram__bytes_write.sum,gpu__time_duration.sum"
+$metrics = "lts__t_sector_hit_rate.pct,dram__bytes_read.sum,dram__bytes_write.sum,gpc__cycles_elapsed.max"
 
 # --- run helper --------------------------------------------------------------
 function Invoke-NcuRun {
@@ -54,7 +54,7 @@ function Invoke-NcuRun {
         "--csv",
         "--log-file", $tmp.FullName,
         "--",
-        $Exe, "-m", $Model, "-p", $Prompt, "-n", $Tokens, "--no-warmup"
+        $Exe, $Model, "-p", $Prompt, "-n", $Tokens, "--temp", "0"
     ) + $ExtraArgs
 
     Write-Host "[$Label] ncu $($args -join ' ')"
@@ -65,8 +65,8 @@ function Invoke-NcuRun {
 
     # Parse the per-kernel CSV; aggregate L2 hit rate (mean) and DRAM bytes (sum).
     $rows = Import-Csv $tmp.FullName
-    $hit  = ($rows | Where-Object { $_.'Metric Name' -eq 'l2_tex_hit_rate' }       | Measure-Object -Property 'Metric Value' -Average).Average
-    $dram = ($rows | Where-Object { $_.'Metric Name' -eq 'dram__bytes_read.sum' }  | Measure-Object -Property 'Metric Value' -Sum).Sum
+    $hit  = ($rows | Where-Object { $_.'Metric Name' -eq 'lts__t_sector_hit_rate.pct' }   | Measure-Object -Property 'Metric Value' -Average).Average
+    $dram = ($rows | Where-Object { $_.'Metric Name' -eq 'dram__bytes_read.sum' }         | Measure-Object -Property 'Metric Value' -Sum).Sum
     Remove-Item $tmp.FullName -Force
 
     return [pscustomobject]@{
@@ -80,7 +80,7 @@ function Invoke-NcuRun {
 $rows = @()
 $rows += Invoke-NcuRun "baseline" @()
 Start-Sleep -Seconds $CooldownSec
-$rows += Invoke-NcuRun "grc_k1024" @("--grc-rank", "1024")
+$rows += Invoke-NcuRun "grc_k1024" @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1024')
 
 # --- emit CSV ---------------------------------------------------------------
 $null = New-Item -ItemType Directory -Force -Path (Split-Path $OutCsv -Parent)

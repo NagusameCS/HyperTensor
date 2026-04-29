@@ -42,13 +42,15 @@ function Invoke-DecodeRun {
     $prompt = Get-PromptOfLength $Ctx
     $tps = @()
     for ($r = 0; $r -lt $Repeats; $r++) {
-        $args = @("-m", $Model, "-p", $prompt, "-n", $DecodeTokens, "--report-tps") + $ExtraArgs
-        $out  = & $Exe @args 2>&1
-        if ($LASTEXITCODE -ne 0) { throw "geodessical failed (ctx=$Ctx, repeat=$r): $out" }
-        # Expecting a "decode_tps=<num>" line in stdout. Adapt as needed.
-        $line = $out | Where-Object { $_ -match "decode_tps=" } | Select-Object -First 1
-        if (-not $line) { throw "no decode_tps in output (ctx=$Ctx, repeat=$r): $out" }
-        $val  = [double]([regex]::Match($line, "decode_tps=([0-9.]+)").Groups[1].Value)
+        $args = @($Model, "-p", $prompt, "-n", $DecodeTokens, "--temp", "0") + $ExtraArgs
+        $raw  = (& $Exe @args 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "geodessical failed (ctx=$Ctx, repeat=$r): $raw" }
+        $mDec = [regex]::Match($raw, 'Decode-only:\s*prefill\s*([\d.]+)\s*ms,\s*([\d.]+)\s*tok/s')
+        $mGd  = [regex]::Match($raw, '\[GD\]\s*(\d+)\s+tokens\s+in\s*([\d.]+)\s*ms\s*\(([\d.]+)\s*tok/s\)')
+        $val = $null
+        if ($mDec.Success) { $val = [double]$mDec.Groups[2].Value }
+        elseif ($mGd.Success) { $val = [double]$mGd.Groups[3].Value }
+        if ($null -eq $val) { throw "no decode tok/s in output (ctx=$Ctx, repeat=$r): $raw" }
         $tps += $val
         Start-Sleep -Seconds $CooldownSec
     }
@@ -65,7 +67,7 @@ foreach ($ctx in $Contexts) {
     Write-Host "ctx=$ctx baseline ..."
     $b = Invoke-DecodeRun $ctx @()
     Write-Host "ctx=$ctx grc_k$Rank ..."
-    $g = Invoke-DecodeRun $ctx @("--grc-rank", $Rank)
+    $g = Invoke-DecodeRun $ctx @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$Rank")
     $rows += [pscustomobject]@{
         context_tokens   = $ctx
         baseline_mean    = $b.mean

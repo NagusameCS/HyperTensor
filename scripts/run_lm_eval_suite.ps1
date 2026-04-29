@@ -20,6 +20,7 @@
 param(
     [string]$Model    = "C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
     [string]$Exe      = ".\build_host\geodessical.exe",
+    [string]$PythonExe = "python",
     [string]$ServerHost = "127.0.0.1",
     [int]   $ServerPort = 8081,
     [string[]]$Tasks  = @("gsm8k", "humaneval", "mbpp"),
@@ -32,9 +33,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 # --- prereq checks ----------------------------------------------------------
-$py = (Get-Command python -ErrorAction SilentlyContinue)
-if (-not $py) { throw "python not found on PATH" }
-$lmeval = (& python -m lm_eval --help 2>$null)
+if ($PythonExe -eq "python") {
+    $venvPy = Join-Path (Get-Location).Path ".venv\Scripts\python.exe"
+    if (Test-Path $venvPy) {
+        $PythonExe = $venvPy
+    }
+}
+if (-not (Get-Command $PythonExe -ErrorAction SilentlyContinue) -and -not (Test-Path $PythonExe)) {
+    throw "python executable not found: $PythonExe"
+}
+$lmeval = (& $PythonExe -m lm_eval --help 2>$null)
 if ($LASTEXITCODE -ne 0) {
     throw "lm-eval not installed in current python env. Run: pip install lm-eval"
 }
@@ -45,19 +53,23 @@ if (-not (Test-Path $Model)) { throw "Model not found: $Model" }
 function Start-GeodServer {
     param([string]$Label, [string[]]$ExtraArgs)
     $logFile = "lm_eval_$Label.log"
-    Write-Host "[$Label] starting server: $Exe -m $Model --serve --port $ServerPort $($ExtraArgs -join ' ')"
+    Write-Host "[$Label] starting server: $Exe $Model --serve --port $ServerPort $($ExtraArgs -join ' ')"
     $job = Start-Job -ScriptBlock {
         param($exe, $model, $port, $extra, $log)
-        & $exe -m $model --serve --port $port @extra *> $log
+        & $exe $model --serve --port $port @extra *> $log
     } -ArgumentList $Exe, $Model, $ServerPort, $ExtraArgs, $logFile
     # crude wait-for-ready: poll TCP
     $deadline = (Get-Date).AddSeconds(60)
     while ((Get-Date) -lt $deadline) {
         try {
             $tcp = New-Object System.Net.Sockets.TcpClient
-            $tcp.Connect($ServerHost, $ServerPort)
+            $iar = $tcp.BeginConnect($ServerHost, $ServerPort, $null, $null)
+            $ok = $iar.AsyncWaitHandle.WaitOne(1000)
+            if ($ok -and $tcp.Connected) {
+                $tcp.Close()
+                return $job
+            }
             $tcp.Close()
-            return $job
         } catch { Start-Sleep -Seconds 1 }
     }
     Stop-Job $job; Remove-Job $job
@@ -84,7 +96,7 @@ function Invoke-LmEval {
     )
     if ($Limit -gt 0) { $args += @("--limit", $Limit) }
 
-    & python @args
+    & $PythonExe @args
     if ($LASTEXITCODE -ne 0) { throw "lm-eval failed for $Label (exit $LASTEXITCODE)" }
 
     # lm-eval writes results_*.json under $outDir/.../results_*.json
@@ -99,7 +111,7 @@ $job = Start-GeodServer "baseline" @()
 try   { $results.baseline = Invoke-LmEval "baseline" }
 finally { Stop-GeodServer $job }
 
-$job = Start-GeodServer "grc_k1536" @("--grc-rank", "1536")
+$job = Start-GeodServer "grc_k1536" @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1536')
 try   { $results.grc_k1536 = Invoke-LmEval "grc_k1536" }
 finally { Stop-GeodServer $job }
 
