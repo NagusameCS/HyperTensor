@@ -256,6 +256,47 @@ waypoints sampled from the geodesic.  In one line: the implemented map is
 \boxed{\;\;g_{ij}(\theta)\;\xrightarrow{\eqref{eq:christoffel}}\;\Gamma^k_{ij}\;\xrightarrow{\eqref{eq:jacobi}}\;A(\lambda)\;\xrightarrow{\eqref{eq:magnus},\,\text{trunc.\,3}}\;\Phi(\lambda).\;\;}
 \label{eq:fisher-to-phi}
 \end{equation}
+
+\begin{figure}[h]\centering
+\begin{tikzpicture}[
+  node distance=4mm and 7mm,
+  every node/.style={font=\scriptsize, align=center},
+  blob/.style={
+    draw=black!60, line width=0.5pt,
+    rounded corners=2pt, inner sep=4pt,
+    minimum height=10mm, minimum width=20mm,
+  },
+  data/.style={blob, fill=black!4},
+  op/.style={blob, fill=black!10},
+  outnode/.style={blob, fill=black!18, line width=0.6pt},
+  arr/.style={-{Stealth[length=4pt]}, draw=black!60, line width=0.5pt},
+  side/.style={font=\tiny\itshape, text=black!60},
+]
+\node[data] (g) {Fisher metric\\$g_{ij}(\theta)$};
+\node[op, right=of g] (gamma) {Levi-Civita\\$\Gamma^k_{ij}$};
+\node[op, right=of gamma] (R) {Riemann tensor\\$R^k{}_{ijl}$};
+\node[op, right=of R] (A) {Jacobi generator\\$A(\lambda)\in\mathbb{R}^{2k\times 2k}$};
+\node[op, below=8mm of A] (Omega) {Magnus expansion\\$\Omega_1+\Omega_2+\Omega_3$};
+\node[outnode, left=of Omega] (Phi) {Magnus-3 propagator\\$\Phi(\lambda)$};
+\node[outnode, left=of Phi] (cache) {GTC record\\$\mathcal{R}$};
+
+\draw[arr] (g) -- node[above, side] {Eq.\eqref{eq:christoffel}} (gamma);
+\draw[arr] (gamma) -- node[above, side] {curvature} (R);
+\draw[arr] (R) -- node[above, side] {Eq.\eqref{eq:jacobi}} (A);
+\draw[arr] (A) -- (Omega);
+\draw[arr] (Omega) -- node[above, side] {trunc.\ at $\Omega_3$} (Phi);
+\draw[arr] (Phi) -- node[above, side] {Eq.\eqref{eq:gtc-correction}} (cache);
+\end{tikzpicture}
+\caption{The implemented Fisher-to-Jacobi chain.  The runtime never
+materialises the full curvature tensor; instead it samples waypoints,
+constructs the $2k\!\times\!2k$ Jacobi generator $A(\lambda)$ at each
+waypoint, integrates the Magnus expansion to third order, and stores the
+resulting propagator $\Phi(\lambda)$ in the GTC record.  Eq.\eqref{eq:gtc-correction}
+is the first-order Taylor expansion that consumes $\Phi(\lambda)$ at
+inference time.}
+\label{fig:fisher-to-jacobi}
+\end{figure}
+
 Eq.~\eqref{eq:gtc-correction} is then a first-order Taylor expansion of the
 flow with $\Phi(\lambda)$ in the linear coefficient slot, which is exactly
 what the cache stores.  The empirical anchor benchmarks measure the inverse
@@ -289,6 +330,68 @@ under load --- the resonance property. Sec.~\ref{sec:resonance} measures it.
 the library converges to a 92\% hit rate while storing 7.8\% of seen queries;
 on real LM clouds (Sec.~\ref{sec:coverage}) the hit-rate at 25\%-fraction cache
 is 90.4--91.5\%, scale-invariant.
+
+\begin{figure}[h]\centering
+\begin{tikzpicture}[
+  node distance=4mm and 8mm,
+  every node/.style={font=\scriptsize, align=center},
+  q/.style={
+    draw=black!60, fill=black!4, line width=0.5pt,
+    rounded corners=2pt, inner sep=4pt,
+    minimum height=8mm, minimum width=18mm,
+  },
+  op/.style={
+    draw=black!60, fill=black!10, line width=0.5pt,
+    rounded corners=2pt, inner sep=4pt,
+    minimum height=8mm, minimum width=18mm,
+  },
+  storenode/.style={
+    draw=black!60, fill=black!18, line width=0.6pt,
+    rounded corners=2pt, inner sep=4pt,
+    minimum height=8mm, minimum width=22mm,
+  },
+  decision/.style={
+    draw=black!60, fill=black!6, line width=0.5pt,
+    diamond, aspect=2.4, inner sep=2pt,
+    minimum height=8mm, minimum width=20mm,
+  },
+  arr/.style={-{Stealth[length=4pt]}, draw=black!60, line width=0.5pt},
+  side/.style={font=\tiny\itshape, text=black!55},
+]
+\node[q] (newq) {New query\\$x_0+\delta q$};
+\node[decision, right=of newq] (lookup) {validity check\\$\|\delta q\| < \hat\rho$?};
+\node[op, above right=4mm and 6mm of lookup] (taylor) {Eq.\eqref{eq:gtc-correction}\\$\mathcal{O}(k^2)$ matvec};
+\node[op, below right=4mm and 6mm of lookup] (full) {Full forward\\(verifier or cold)};
+\node[storenode, right=14mm of taylor] (out_hot) {Cached prediction\\$x(\lambda)+\Phi\,\delta q$};
+\node[storenode, right=14mm of full] (out_cold) {Materialised\\trajectory};
+
+\node[storenode, below=12mm of lookup] (lib) {GTC library\\$\{\mathcal{R}_n\}_{n=1}^N$};
+
+\node[op, right=12mm of out_cold] (insert) {Insert / refresh\\$\mathcal{R}_{N+1}$};
+\node[decision, below=of insert] (resonance) {batch of $B$\\correlated queries?};
+\node[op, left=of resonance] (batch) {Batched matvec\\$k\!\times\!k\!\times\!B$};
+
+\draw[arr] (newq) -- (lookup);
+\draw[arr] (lookup) -- node[above, side] {hit} (taylor);
+\draw[arr] (lookup) -- node[below, side] {miss} (full);
+\draw[arr] (taylor) -- (out_hot);
+\draw[arr] (full) -- (out_cold);
+\draw[arr] (lib.north) -- node[left, side] {nearest record} (lookup.south);
+\draw[arr] (out_cold) -- (insert);
+\draw[arr] (insert.south) -- (resonance);
+\draw[arr] (resonance) -- node[above, side] {yes (\S\ref{sec:resonance})} (batch);
+\draw[arr] (batch.west) -| (taylor.south);
+\draw[arr] (insert.west) to[bend left=15] (lib.east);
+\end{tikzpicture}
+\caption{Geodesic Trajectory Caching (GTC) at runtime.  A new query is
+checked against the validity radius $\hat\rho$ of the nearest cached
+record; on hit, the prediction is a single $\mathcal{O}(k^2)$ matrix-vector
+product (Eq.\eqref{eq:gtc-correction}); on miss, the full forward pass
+materialises a new trajectory which is inserted back into the library.
+A batch of correlated near-hits collapses into a single $k\!\times\!k\!\times\!B$
+matmul --- the resonance property measured in \S\ref{sec:resonance}.}
+\label{fig:gtc-architecture}
+\end{figure}
 
 \section{Connection to Block Attention Residuals}
 
@@ -405,6 +508,21 @@ error scales quadratically in $\varepsilon$ exactly per the Jacobi bound
 ($\varepsilon^\star(5\%)=0.05$, $\varepsilon^\star(10\%)=0.10$,
 $\varepsilon^\star(20\%)=0.20$). The harness is validated; the LM numbers
 below are not artefacts.
+
+\paragraph{Online vs.\ offline manifold density (Llama-3.1-8B).}
+A late-stage end-to-end run of the same Phase-1 pipeline on
+Llama-3.1-8B-Instruct (\texttt{axiom\_beta\_report.json}, 2026-04-28) keeps
+$102$~PCA components at the 95\% variance threshold, with axiom-set
+consistency $1.000$ and Fisher-blend $0.20$ on $128$~metric sample points
+and $400$~geodesic steps.  Sampling the runtime trajectory live
+(\texttt{cloud\_density\_summary.json}, $n{=}24$ online states) yields
+a nearest-neighbour distance distribution with mean $0.132$, median
+$0.093$, and 90th percentile $0.348$ in the cosine metric.  Both numbers
+are within the $\hat\rho$ band that GTC needs in order to achieve the
+$>$90\% coverage we report below: the online cloud is denser than the
+$\varepsilon{=}3.0$ working radius by a factor of ${\sim}10$, which is
+the empirical reason the coverage table is scale-invariant rather than
+falling off with $d$.
 
 \section{Coverage scaling across three models}
 \label{sec:coverage}

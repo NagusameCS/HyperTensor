@@ -1,5 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage{hypertensor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,backgrounds,calc}
 \addbibresource{refs.bib}
 
 \title{\textbf{Geodesic Projection: A Multi-Slot Compression Pipeline\\
@@ -94,7 +96,87 @@ produced numbers.
 % ───────────────── §2 ─────────────────
 \section{Cross-Architecture Manifold Evidence}
 \label{sec:manifold}
-The premise of GP is that the local activation manifold of a trained
+
+\begin{figure}[h]\centering
+\begin{tikzpicture}[
+  node distance=4mm and 6mm,
+  every node/.style={font=\scriptsize, align=center},
+  stage/.style={
+    draw=HTblue!70, fill=HTblue!8, line width=0.5pt,
+    rounded corners=2pt, inner sep=4pt, minimum height=8mm, minimum width=18mm,
+  },
+  slot/.style={
+    draw=HTred!70, fill=HTred!8, line width=0.5pt,
+    rounded corners=1pt, inner sep=3pt, minimum height=6mm, minimum width=14mm,
+  },
+  output/.style={
+    draw=HTgreen!70, fill=HTgreen!8, line width=0.5pt,
+    rounded corners=2pt, inner sep=4pt, minimum height=8mm, minimum width=22mm,
+  },
+  arr/.style={-{Stealth[length=4pt]}, draw=HTgrey, line width=0.5pt},
+  ghostarr/.style={-{Stealth[length=3pt]}, draw=HTgrey!50, dashed, line width=0.4pt},
+]
+% --- input
+\node[stage] (weights) {GGUF weights\\(Q4\_K\_M)};
+\node[stage, right=14mm of weights] (samples) {Activation\\samples};
+
+% --- 7 slots column
+\node[slot, right=12mm of weights, yshift=12mm] (s1) {$\Wmat_Q$};
+\node[slot, below=1.5mm of s1] (s2) {$\Wmat_K$};
+\node[slot, below=1.5mm of s2] (s3) {$\Wmat_V$};
+\node[slot, below=1.5mm of s3] (s4) {$\Wmat_O^\dagger$};
+\node[slot, below=1.5mm of s4] (s5) {FFN gate};
+\node[slot, below=1.5mm of s5] (s6) {FFN up};
+\node[slot, below=1.5mm of s6] (s7) {FFN down};
+
+% box around slots
+\begin{pgfonlayer}{background}
+\node[draw=HTred!50, dashed, fit=(s1)(s7), inner sep=3pt, label={[font=\scriptsize\itshape, HTred]above:7 slots / layer}] (slotbox) {};
+\end{pgfonlayer}
+
+% --- manifold fit
+\node[stage, right=10mm of slotbox] (mfit) {Manifold fit\\(PCA + Fisher)};
+\node[stage, below=4mm of mfit] (mcr) {MCR phase tag\\(Mix/Compress/Refine)};
+
+% --- per-layer rank
+\node[stage, right=10mm of mfit] (rank) {Per-layer\\rank $k_\ell$};
+
+% --- cache
+\node[output, below=8mm of rank] (cache) {Persistent\\geometry cache};
+
+% --- runtime
+\node[output, right=10mm of rank] (runtime) {Inference\\runtime};
+
+% --- arrows
+\draw[arr] (weights) -- (slotbox.west);
+\draw[arr] (samples.east) -- ++(4mm, 0) |- (mfit.west);
+\draw[arr] (slotbox.east) -- (mfit.west);
+\draw[arr] (mfit.south) -- (mcr.north);
+\draw[arr] (mcr.east) -| (rank.south);
+\draw[arr] (mfit.east) -- (rank.west);
+\draw[arr] (rank.south) -- (cache.north);
+\draw[arr] (cache.east) -| (runtime.south);
+\draw[arr] (rank.east) -- (runtime.west);
+
+% backwards: drift signal
+\draw[ghostarr] (runtime.north) to[bend left=30] node[above, font=\tiny, HTgrey] {drift / rejection (Oja, \S\ref{sec:online})} (mfit.north);
+
+\end{tikzpicture}
+\caption{End-to-end Geodesic Projection (GP) pipeline.  Per layer, the
+seven compressible weights (left, red) feed a manifold fit driven by
+both their Frobenius spectra and a small set of activation samples.  The
+fit produces (i) an MCR phase tag (Mix / Compress / Refine,
+\S\ref{sec:mcr-phase}) and (ii) a per-layer rank $k_\ell$ which together
+populate a persistent geometry cache.  At inference time, the runtime
+reads the compressed slots and the cache; rejected speculative tokens or
+drift signals feed back (dashed) into the online Oja update of the basis
+(\S\ref{sec:online}).  GRC (the empirical anchor in the companion paper)
+is the same pipeline restricted to the three attention slots
+$\{\Wmat_Q,\Wmat_K,\Wmat_V\}$ with $k_\ell$ uniform across layers.}
+\label{fig:gp-pipeline}
+\end{figure}
+
+\noindent The premise of GP is that the local activation manifold of a trained
 transformer has intrinsic dimension much smaller than the ambient model
 dim~$d$.  If that premise is false, low-rank weight projection should be
 uniformly destructive.  We ran the manifold-extraction pipeline of
@@ -123,6 +205,17 @@ linear-representation hypothesis~\cite{elhage2022superposition}.
 Activation-space intrinsic dim is necessary but not sufficient for the GP
 construction; the actual weight-space evidence is per-slot SVD spectra
 (\Cref{sec:spectra}).
+
+\paragraph{Fourth datapoint: Llama-3.1-8B at $d{=}4096$.}
+A 2026-04-28 run of the same Phase-1 pipeline on Llama-3.1-8B-Instruct
+(reported in \texttt{axiom\_beta\_report.json}) keeps $102$~PCA components
+at the same 95\% variance threshold --- $k_\text{int}/d = 102/4096 =
+2.49\%$.  This is the same order-of-magnitude regime as the smaller
+models; it is \emph{not} a per-architecture artefact.  Crucially, the
+empirical GRC operating point $k{=}1024$ in the companion paper sits
+\emph{ten times above} this intrinsic dimension, which is why the
++13.30\% PPL penalty is small enough to be cache-fit dominated rather
+than information-loss dominated.
 
 % ───────────────── §3 ─────────────────
 \section{The Seven Slots and Their Spectra}

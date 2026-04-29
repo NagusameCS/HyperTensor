@@ -232,6 +232,33 @@ greedy-only.  Greedy-only on the same binary measures $\sim\!50$~tok/s on
 this prompt.  Measured: $76.5/50\!=\!1.53\times$.  Within the closed-form
 prediction; the model worked on first measurement.
 
+\paragraph{Compression-cost curve.}
+Speculative decoding sits on top of the GP/GRC compression layer; the
+verifier and drafter both pay whatever throughput cost compression imposes,
+so understanding $T_V(k)$ matters for picking the operating rank.
+\Cref{fig:throughput-vs-rank} plots decode throughput as a function of
+compression rank $k$ on the companion paper's reference pack
+(\texttt{whitepaper\_pack\_20260427\_121815}, 4~prompt classes $\times$
+2~decode budgets, $n{=}8$~per~point).  The shape that matters for
+\Cref{eq:spec} is the \emph{peak at $k{=}1024$} (the cache-fit super-baseline),
+not the absolute numbers --- it tells the speculative scheduler that
+choosing the verifier rank below the natural $k_{95}$ of attention can
+\emph{accelerate} verification rather than slow it, which is why GRC and
+spec-decode compose multiplicatively rather than antagonistically
+(\Cref{sec:compose}).
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.85\linewidth]{../../docs/figures/paper-c/throughput_vs_rank.png}
+\caption{Decode throughput vs.\ compression rank $k$ on Llama-3.1-8B
+Q4\_K\_M, RTX~4070~Laptop, 4~prompt classes.  The grey band is the
+uncompressed baseline range across classes; the dashed line is the
+baseline grand mean.  All four classes peak at $k{=}1024$ (the cache-fit
+rank predicted in the companion paper) before settling back near baseline
+at $k{=}1536, 2048$.  This is the empirical input that calibrates
+$T_V(k)$ in \Cref{eq:spec}.}
+\label{fig:throughput-vs-rank}
+\end{figure}
+
 \subsection{The Instruct-Greedy-EOS Pathology}
 \label{sec:eos}
 

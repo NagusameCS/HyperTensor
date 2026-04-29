@@ -621,10 +621,34 @@ Roofline reading: this is a memory-bound regime where bytes-saved is the
 right axis to optimise.
 
 \subsection{Full spectral analysis (rank required for 95\% energy)}
+\label{app:spectra}
 
 We computed the full SVD of every attention and FFN weight in five layers
 ($L\in\{0,7,15,23,31\}$) of Llama-3.1-8B-Instruct after Q4\_K\_M
 dequantisation. The rank required to capture $95\%$ of $\norm{\Wmat}_F^2$:
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.95\linewidth]{../../docs/figures/spectra_attn_vs_ffn.png}
+\caption{Singular-value spectra of attention ($\Wmat_Q,\Wmat_K,\Wmat_V$
+concatenated, blue) versus FFN (gate, up, down concatenated, orange) for
+five layers of Llama-3.1-8B.  Attention curves drop ${\sim}3$ orders of
+magnitude inside the first 1\,500 components; FFN curves stay within one
+order of magnitude across the full $d{=}4096$ axis.  This is the geometric
+premise that justifies compressing attention exclusively (Fig.~\ref{fig:spectral_flatness}
+shows the same effect averaged across all 32 layers).}
+\label{fig:spectra-app}
+\end{figure}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.85\linewidth]{../../docs/figures/energy_capture.png}
+\caption{Cumulative Frobenius-energy capture vs.\ rank.  The 95\%
+threshold (dashed line) is reached at $k_{95}{\approx}1682$ for attention
+and $k_{95}{\approx}3345$ for FFN; the GRC operating point $k{=}1024$
+sits comfortably below the attention threshold (88--92\% energy retained
+at $k{=}1024$, accounting for the +13.30\% PPL penalty seen in
+\Cref{tab:headline}).}
+\label{fig:energy-capture}
+\end{figure}
 
 \begin{table}[h]\centering\footnotesize
 \caption{Per-matrix $k_{95}$ across five layers. The compression policy
@@ -662,6 +686,33 @@ reasoning/256  & $35.58\!\pm\!0.31$ & $35.22\!\pm\!2.42$ & 98.99\% & \textbf{85.
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.85\linewidth]{../../docs/figures/throughput_paired.png}
+\caption{Paired throughput visualisation behind the CI table above.
+Each pair of points is one prompt class $\times$ generated-token-budget
+condition; lines connect baseline and GRC ($k{=}1024$) measurements
+sharing the same prompt seed.  GRC variance is dominated by a single
+outlier-prone class (coding/256), consistent with our cache-fit
+explanation: the coding prompt has the highest token-to-token KV-traffic
+spread, which periodically displaces the projected $\Wmat_Q$ working set
+out of L2.}
+\label{fig:paired-throughput}
+\end{figure}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.85\linewidth]{../../docs/figures/layerwise_rank_needed.png}
+\caption{Per-layer rank required for 90\%, 95\% and 99\% Frobenius-energy
+retention across the 32 transformer blocks of Llama-3.1-8B.  The flat
+plateau between $L{=}5$ and $L{=}28$ shows that a \emph{single} compression
+rank (here $k{=}1024$) is geometry-justified for the bulk of the network ---
+the per-layer ``what would be needed for 95\%'' band sits in the
+$1\,400$--$1\,800$ range, and dropping to $k{=}1024$ trades a known small
+energy fraction for the cache-fit gain measured in \Cref{tab:headline}.
+Edge layers $L{\le}4$ and $L{\ge}29$ are spectrally stiffer and absorb
+most of the +13.30\% PPL penalty.}
+\label{fig:layerwise-rank}
+\end{figure}
 
 \subsection{Granular rank-Pareto sweep}
 \label{app:rank-pareto}
