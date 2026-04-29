@@ -1,0 +1,15 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'ott-gtc-manifold-runtime.blg'
+[36] biber-MSWIN64:342> INFO - === 
+[49] Biber.pm:421> INFO - Reading 'ott-gtc-manifold-runtime.bcf'
+[104] Biber.pm:1002> INFO - Found 19 citekeys in bib section 0
+[113] Biber.pm:4487> INFO - Processing section 0
+[121] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[130] bibtex.pm:1713> INFO - LaTeX decoding ...
+[164] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[251] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[251] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[251] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[251] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[258] bbl.pm:676> INFO - Writing 'ott-gtc-manifold-runtime.bbl' with encoding 'UTF-8'
+[266] bbl.pm:779> INFO - Output to ott-gtc-manifold-runtime.bbl

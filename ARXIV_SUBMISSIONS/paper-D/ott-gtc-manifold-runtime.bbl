@@ -450,6 +450,111 @@
       \field{pages}{147\bibrangedash 160}
       \range{pages}{14}
     \endentry
+    \entry{ansuini2019intrinsic}{inproceedings}{}{}
+      \name{author}{4}{}{%
+        {{hash=a756f5791c6653a6d76bd9be407e8b81}{%
+           family={Ansuini},
+           familyi={A\bibinitperiod},
+           given={Alessio},
+           giveni={A\bibinitperiod}}}%
+        {{hash=263ee6a0690c44152deeedfc171f05a8}{%
+           family={Laio},
+           familyi={L\bibinitperiod},
+           given={Alessandro},
+           giveni={A\bibinitperiod}}}%
+        {{hash=cfcd17e4bc613eaa10247633abddb07a}{%
+           family={Macke},
+           familyi={M\bibinitperiod},
+           given={Jakob\bibnamedelima H},
+           giveni={J\bibinitperiod\bibinitdelim H\bibinitperiod}}}%
+        {{hash=246bac659c370e85ed35de07b3d760a7}{%
+           family={Zoccolan},
+           familyi={Z\bibinitperiod},
+           given={Davide},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{602f9a59aa30ad3de7c73549be208427}
+      \strng{fullhash}{0b188906df4492fb299b4ea3ab489711}
+      \strng{fullhashraw}{0b188906df4492fb299b4ea3ab489711}
+      \strng{bibnamehash}{0b188906df4492fb299b4ea3ab489711}
+      \strng{authorbibnamehash}{0b188906df4492fb299b4ea3ab489711}
+      \strng{authornamehash}{602f9a59aa30ad3de7c73549be208427}
+      \strng{authorfullhash}{0b188906df4492fb299b4ea3ab489711}
+      \strng{authorfullhashraw}{0b188906df4492fb299b4ea3ab489711}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{NeurIPS}
+      \field{title}{Intrinsic dimension of data representations in deep neural networks}
+      \field{year}{2019}
+    \endentry
+    \entry{pope2021intrinsic}{inproceedings}{}{}
+      \name{author}{5}{}{%
+        {{hash=69cedf5c58524aa2f2557eca02e660e5}{%
+           family={Pope},
+           familyi={P\bibinitperiod},
+           given={Phillip},
+           giveni={P\bibinitperiod}}}%
+        {{hash=78c6e8f414f28c863790e381ab51a773}{%
+           family={Zhu},
+           familyi={Z\bibinitperiod},
+           given={Chen},
+           giveni={C\bibinitperiod}}}%
+        {{hash=c35741f1b246cf9dd778879a1c350c3b}{%
+           family={Abdelkader},
+           familyi={A\bibinitperiod},
+           given={Ahmed},
+           giveni={A\bibinitperiod}}}%
+        {{hash=60a7228eec51bdb9b0688a11bd6c8e6c}{%
+           family={Goldblum},
+           familyi={G\bibinitperiod},
+           given={Micah},
+           giveni={M\bibinitperiod}}}%
+        {{hash=3b1fea9d27f10122cd27336b3dc68ea7}{%
+           family={Goldstein},
+           familyi={G\bibinitperiod},
+           given={Tom},
+           giveni={T\bibinitperiod}}}%
+      }
+      \strng{namehash}{6f7e365c4b12acfe524b82b739ebbd76}
+      \strng{fullhash}{835b24a8c820a11673cf86f59b22698e}
+      \strng{fullhashraw}{835b24a8c820a11673cf86f59b22698e}
+      \strng{bibnamehash}{835b24a8c820a11673cf86f59b22698e}
+      \strng{authorbibnamehash}{835b24a8c820a11673cf86f59b22698e}
+      \strng{authornamehash}{6f7e365c4b12acfe524b82b739ebbd76}
+      \strng{authorfullhash}{835b24a8c820a11673cf86f59b22698e}
+      \strng{authorfullhashraw}{835b24a8c820a11673cf86f59b22698e}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{ICLR}
+      \field{title}{The intrinsic dimension of images and its impact on learning}
+      \field{year}{2021}
+    \endentry
+    \entry{papC2026spec}{unpublished}{}{}
+      \name{author}{1}{}{%
+        {{hash=b60ffadb66b20c1f4ef8fdd8f6c6cd05}{%
+           family={{HyperTensor Authors}},
+           familyi={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{fullhash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{fullhashraw}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{bibnamehash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{authorbibnamehash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{authornamehash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{authorfullhash}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \strng{authorfullhashraw}{b60ffadb66b20c1f4ef8fdd8f6c6cd05}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Companion paper, this submission}
+      \field{title}{Geodesic Speculative Decoding (companion paper)}
+      \field{year}{2026}
+    \endentry
     \entry{leviathan2023fast}{inproceedings}{}{}
       \name{author}{3}{}{%
         {{hash=9db8822626a6a2b5ab6b81e3c6943d22}{%
