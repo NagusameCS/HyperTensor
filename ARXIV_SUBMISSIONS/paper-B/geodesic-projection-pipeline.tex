@@ -95,19 +95,24 @@ produced numbers.
 
 \paragraph{v1 versus v0.2 mechanisms (this revision).}  This revision
 ships \emph{four} adaptive mechanisms.  Of those, exactly one
-(\textbf{MCR}, \Cref{sec:adaptive-mcr}) is the v1 measurement target
+(\textbf{MCR}, \Cref{sec:mcr}) is the v1 measurement target
 of this paper: phase-aware per-layer rank allocation has a complete
-implementation, a documented calibration recipe, and an explicit
-ablation plan against the shared-rank super-baseline of the companion
-paper.  The remaining three --- the GL$(d)$ Axiom Gauge
-(\Cref{sec:gauge}), thermal-aware rank
+implementation, a documented calibration recipe, and an executed
+A/B against the shared-rank super-baseline of the companion paper.
+The result of that A/B (\Cref{sec:mcr}) is a \emph{measured negative}
+at $k_\text{target}{=}1024$ on Llama-3.1-8B: MCR is statistically
+indistinguishable from the shared-rank baseline on mean throughput
+($-2.2\%$, within stdev) and strictly worse on run-to-run stability.
+We retain MCR as v1 because the negative finding is itself the v1
+contribution --- it falsifies the curvature-driven allocation
+hypothesis at the cache-fit knee and reframes per-layer rebalancing as
+a low-rank-regime question. The remaining three mechanisms --- the
+GL$(d)$ Axiom Gauge (\Cref{sec:gauge}), thermal-aware rank
 (\Cref{sec:thermal}) and rejection-driven Oja online basis
 (\Cref{sec:online}) --- are presented as \emph{v0.2 design
 specifications}: the geometry is derived, the algorithm is given, and
 the runtime hooks exist, but the paired ablations are deferred to a
-companion v0.2 release.  We adopt this split because the time budget
-to NeurIPS does not permit four credible ablations and we prefer one
-measured mechanism over four under-measured ones.
+companion v0.2 release.
 
 % ───────────────── §2 ─────────────────
 \section{Cross-Architecture Manifold Evidence}
@@ -333,9 +338,45 @@ $\approx 0.4\,d$ on small models we observe text-quality collapse.
 \begin{htnote}
 The MCR-driven allocation is the part of GP we are \emph{least} confident
 about; it is enabled by default but the companion-paper measurements all
-use shared-rank for a clean calibration-free claim.  An MCR vs.\
-shared-rank A/B at matched mean-$k$ is in the v0.2 milestone.
+use shared-rank for a clean calibration-free claim.
 \end{htnote}
+
+\paragraph{MCR vs.\ shared-rank A/B (Llama-3.1-8B, 2026-04-29).}
+We ran the matched-budget A/B at $k_\text{target}{=}1024$ on
+Llama-3.1-8B-Instruct Q4\_K\_M (RTX 4070 Laptop, $-n\,64$, deterministic,
+$n{=}4$ reps + cold-cache warmup). The shared-rank baseline yields
+$37.93\pm 0.05$ tok/s; MCR yields $37.10\pm 1.05$ tok/s --- a
+\textbf{$-2.2\%$ throughput delta with 21$\times$ higher run-to-run
+variance}. At this rank and on this prompt class MCR does \emph{not}
+beat the shared-rank baseline; it is statistically indistinguishable on
+mean and strictly worse on stability. Two interpretations are
+plausible: (i)~at $k{=}1024$ the shared-rank already sits above the
+cache-fit knee and per-layer rebalancing has nothing left to extract;
+(ii)~the curvature-ratio heuristic is mis-tuned for frontier-scale
+attention spectra. We report this as a measured negative result rather
+than tune it away. Raw CSV at
+\texttt{docs/figures/paper-b/mcr\_ablation.csv}; full sweep across
+lower base ranks (where the cache-fit knee is closer and per-layer
+rebalancing has room to act) is the next ablation milestone.
+
+\paragraph{Weight-PCA flat-fallback finding (2026-04-29).}
+A second measurement reveals an interaction between MCR and the
+activation-free \texttt{--axex-compress} basis (weight-PCA mode, default
+since v0.6.0). MCR computes the layer-wise curvature ratio from the
+activation phase tags produced during the calibration forward pass; in
+weight-PCA mode no calibration pass is performed, so the activation
+variance vector is identically zero. The runtime correctly detects this
+(\texttt{[MCR] Flat activation-variance profile --- uniform rank
+recommended}, \texttt{phases\_valid=0/32}) and falls back to a uniform
+$k_\ell{=}K_\text{max}$ allocation, which is identical to the
+shared-rank baseline. The implication is that MCR's per-layer
+rebalancing is only active when paired with
+\texttt{--axex-actaware-pca}; pure weight-PCA users get a uniform
+allocation regardless of whether \texttt{--axex-mcr} is set. We disclose
+this explicitly because it confounds any naive comparison between MCR
+and baseline runs that share the weight-PCA basis: in that pairing the
+A/B is a no-op by construction, not a null result. Run log:
+\texttt{docs/figures/paper-b/v02\_empirical/mcr\_8b\_ppl.log}.
 
 \subsection{Sink-Basis Bypass}
 \label{sec:sink-basis-bypass}
@@ -579,10 +620,32 @@ cost of a controlled rank reduction; if rank--PPL elasticity is $<1\%$ per
 rank-step in the operating regime (typical for $r\in[768,1280]$ on
 Llama-3.1-8B), the trade is favourable.
 
+\paragraph{Measured sustained-decode trace (2026-04-29).}
+We instrumented a 4-pass back-to-back decode of Llama-3.1-8B-Instruct
+Q4\_K\_M (4 $\times$ 384 tokens, $T{=}0.7$, RTX 4070 Laptop) with a
+1\,Hz \texttt{nvidia-smi} probe on the channels Thermal Rank consumes
+(\texttt{temperature.gpu}, \texttt{clocks.sm}, \texttt{power.draw}) for
+$\sim$\,90\,s wall-clock. Of 94 samples, 86 fell in the active band
+(util $\geq$ 20\,\%): GPU temperature reached $T_\text{max}{=}75\,^\circ\mathrm{C}$
+with $T_{p90}{=}74\,^\circ\mathrm{C}$ and mean $61.2\,^\circ\mathrm{C}$;
+SM clock held at the boost ceiling (median 2235\,MHz, max 2235\,MHz);
+power drew a mean of 66.3\,W with peak 116\,W. Decode throughput was
+25.8 $\to$ 28.0 tok/s across the four passes (a +8.5\,\% \emph{warm-up}
+rather than throttle), giving an estimated
+\textbf{0.415 tokens/joule} at the active-window mean. The active-window
+p90 of $74\,^\circ\mathrm{C}$ enters the Thermal Rank actuation band
+[$T_\text{low}{=}65,\,T_\text{high}{=}85$]\,$^\circ\mathrm{C}$ but does
+not saturate it, so on this hardware/load pair the controller would
+operate at intermediate rank rather than $r_\text{min}$ or
+$r_\text{max}$ alone --- the regime in which closed-loop measurements
+are most informative. Raw trace:
+\texttt{docs/figures/paper-b/v02\_empirical/thermal\_sustained\_8b.csv}
+and summary at \texttt{thermal\_summary.json}.
+
 % ───────────────── §10 ─────────────────
 \section{Online Basis: Rejection-Driven Oja}
 \label{sec:online}
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} The rejection trigger and Oja update rule are derived; long-horizon drift measurements vs.\ a frozen-basis baseline are deferred to v0.2.}}\par\medskip
+\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{Status.} The rejection trigger and decayed Oja update are implemented in the runtime (\texttt{onb\_record\_residual} / \texttt{onb\_apply\_pending} hooks in the speculative-decode verifier path) and gated by \texttt{--axex-online-basis}. A long-horizon drift ablation against a frozen-basis baseline is in progress and will appear in the next revision.}}\par\medskip
 A static PCA basis fitted on calibration data drifts out of validity as
 inference moves into uncovered distributions.  Speculative decoding
 \cite{leviathan2023speculative,chen2023speculative} provides a free

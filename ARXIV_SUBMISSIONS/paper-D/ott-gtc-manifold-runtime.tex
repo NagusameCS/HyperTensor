@@ -479,6 +479,32 @@ category.
         threshold.
 \end{enumerate}
 
+\subsection{Knowledge-injection curvature warp: a measured negative}
+\label{sec:curvature-warp-negative}
+A related theoretical proposal --- inject a knowledge cluster $c$ into
+the manifold by Gaussian-warping the metric
+$g'(x){=}g(x){-}\alpha\bigl(1{-}\exp(-|x{-}c|^2/2\sigma^2)\bigr)ww^\top$
+so the geodesic toward $c$ contracts --- was reduced to a falsifiable
+sweep on SmolLM2-135M. Across 32 configurations of
+$(\alpha,\sigma,\delta\ell)$ with the success criterion
+``$\geq 50\%$ reduction in target-endpoint geodesic error AND
+$\leq 5\%$ spillover at non-target points'', \textbf{0/32 pass};
+the best configuration achieves a 16\,\% target reduction at
+$\alpha{=}0.99$ but its non-target spillover diverges (NaN at high
+$\alpha$). The mechanism is consistent with the empirical finding of
+\Cref{sec:hjb-future} (Empirical feasibility stub): the manifolds
+exported from frozen pretrained networks are nearly flat in the
+intrinsic-coordinate basis, so a Gaussian metric perturbation is
+either too weak to redirect the geodesic or strong enough to redirect
+but at the cost of a global metric perturbation that destroys the
+surrounding manifold. We retain this as a documented negative result;
+the positive form of the problem (curvature warp via
+\emph{learnable} $\phi$ rather than hand-crafted $g'$) is the
+joint-training premise of \Cref{sec:hjb-future}.
+Raw sweep:
+\texttt{docs/figures/curvature\_warp/smollm2-135m\_sweep.json};
+findings note: \texttt{docs/figures/findings/FIVE\_FINDINGS.md} \S5.
+
 \section*{Part II --- Empirical anchor}
 
 \section{Setup: fitting the manifold from Phase-1 exports}
@@ -541,6 +567,23 @@ Llama-8B vs.\ ${\approx}0.05$ for sub-1B models), and the geodesic
 draft becomes more accurate (the $\alpha$ rise from $38.5\%$ on
 SmolLM2-135M to $46.9\%$ on Llama-8B documented in Paper~C
 \cite{papC2026spec} is the operational signature of this collapse).
+
+\paragraph{Mistral-Nemo-12B replication.}  A second frontier-scale Phase-1
+run on Mistral-Nemo-Instruct-2407 Q4\_K\_M (40 layers, $d{=}5120$,
+13.67\,B parameters, 256 hidden-state samples, 1024-token probe) yields
+\textbf{TwoNN $k_\text{int}{=}5.36$} and \textbf{156 PCA components for
+95.0\% variance} (Phase 1 wallclock 6.1\,s; Phase 3 Fisher-blended
+curvature on 20{,}480 block-sampled tokens, 63.6\,s; Phase 4 10 axioms,
+consistency $0.9407$).  The PCA-rank reading is consistent with
+Llama-8B (132 components, $d{=}4096$); the very low TwoNN reading at
+$n{=}256$ samples is plausibly an undersampling artefact for a wider
+model ($d{=}5120$) and we report it here as preliminary --- the matched
+sample budget for an apples-to-apples comparison with the Llama-8B
+512-sample run is the next manifold-survey item.  Two independent
+13\,B-class instruct backbones now agree that the variance-95\%
+projection rank sits around $130\text{--}160$, three orders of magnitude
+below $d^2$, which is the operationally relevant number for OTT runtime
+sizing.
 
 \section{Coverage scaling across three models}
 \label{sec:coverage}
@@ -839,6 +882,49 @@ inference-only and the base network is frozen.  We state
 \Cref{eq:hjb-loss} here so that any future training run that uses this
 exact penalty is on the public record as derived from the OTT/GTC
 framework.
+
+\paragraph{Empirical feasibility stub (2026-04-29).}
+While $L_\text{SHF}$ is not yet a training objective, we can already
+measure $\bigl\|\mathcal{J}_\ell(s_\ell)\bigr\|_2^2$ on trajectories
+through each model's fitted Phase-3 manifold to fix the order of
+magnitude that any future trainer must reach. We compute
+\Cref{eq:jacobi-residual} along three trajectory classes (intrinsic
+dim $n{=}8$, $L{=}32$ steps, 12 trajectories per class):
+(i)~baked geodesics integrated by Magnus-3 forward Euler
+($x_{t+1}{=}x_t{+}\delta\,v_t,\;
+v_{t+1}{=}v_t{-}\delta\,\Gamma^k_{ij}v^iv^j$) --- the SHF
+\emph{floor};
+(ii)~$K{=}4$-nearest-neighbour walks through the Phase-3 cloud --- the
+\emph{manifold-conformant} regime;
+(iii)~random straight-line interpolations between two cloud endpoints
+--- the \emph{off-manifold ceiling}.
+
+Kinetic ($\Delta^2 s_\ell$) and curvature
+($\hat R(s_\ell)\Delta s_\ell$) summands are reported separately. On
+all three exported manifolds (\texttt{smollm2-135m},
+\texttt{gemma-4-e2b}, \texttt{phi-3.5-mini}) the kinetic term dominates
+the curvature term by 17--32 orders of magnitude in squared L2; the
+off-manifold straight-line baseline produces residuals of order
+$10^{-30}$ in the units of the unit-scaled manifold (it is
+over-determined by definition --- a straight line in cloud-coordinates
+is its own discrete geodesic against an isotropic metric), the
+NN-walk class produces $7$--$93$ in the same units, and the baked
+geodesic floor sits between $10^{-34}$ and $10^{-3}$. The per-residual
+cost at $n{=}8$ is $\approx\!5.6\!\times\!10^{5}$ FLOPs, dominated by
+the $O(n^4)$ Riemann-tensor evaluation, which the runtime already
+caches per sample point in service of the Jacobi propagator.
+Two conclusions follow for the SHF training prescription:
+(a)~the loss term is empirically tractable (sub-second compute for one
+$L{=}32$ trajectory at $n{=}8$), and
+(b)~on manifolds exported from \emph{frozen} pretrained networks the
+curvature contribution is negligible, so $L_\text{SHF}$ in its current
+form would act primarily as a second-difference smoothness penalty
+on block summaries unless the trainer co-evolves a manifold of
+demonstrably non-zero curvature (which is the joint-training premise
+of this section and a falsifiable target). Raw data:
+\texttt{docs/figures/paper-d/hjb\_feasibility/hjb\_residual\_magnitudes.json};
+script:\\
+\texttt{scripts/hjb\_feasibility.py}.
 
 \printbibliography
 
