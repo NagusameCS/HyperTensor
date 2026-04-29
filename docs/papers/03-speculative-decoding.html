@@ -523,7 +523,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <code>ott_one_decode.bin</code>. At decode time, a hit on the table returns
     <em>(token, confidence)</em> in $O(1)$, the model forward is skipped. The
     intuition is the same as Paper 4 §2 (geodesic trajectory caching), but
-    here it is exposed as a runtime drafter rather than a research artifact.
+    here it is exposed as a runtime drafter rather than a research artefact.
     On a miss, the runtime falls back to the geodesic drafter of §2 and then
     the verifier.
   </p>

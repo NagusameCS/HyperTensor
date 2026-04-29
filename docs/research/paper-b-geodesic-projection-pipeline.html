@@ -99,7 +99,7 @@ implements. GP extends the companion-paper construction along three axes:</p>
 path for FFN down.</p></li>
 <li><p><strong>Per-layer rank</strong>: driven by a manifold-curvature-ratio (MCR)
 heuristic with a hard floor.</p></li>
-<li><p><strong>Persistent caching</strong>: a two-tier on-disk artifact (basis +
+<li><p><strong>Persistent caching</strong>: a two-tier on-disk artefact (basis +
 projected weights) validated by the depth-sink layer’s spectrum hash.</p></li>
 </ul>
 <p>Two things this paper does <em>not</em> do, and the reader should treat them
@@ -376,7 +376,7 @@ that shared-rank GP otherwise exhibits at very low <span class="math inline">\(k
 <h4>Geometry Cache and Depth-Sink Shortcut</h4>
 <p>Building GP bases from scratch on Llama-3.1-8B takes <span class="math inline">\(\sim\)</span>70 s on the
 reference GPU; on the 70B target it is extrapolated at <span class="math inline">\(\sim\)</span>70 min. The
-runtime persists two artifacts:</p>
+runtime persists two artefacts:</p>
 <ol>
 <li><p><code>ott_geometry.bin</code>: per-layer spectra, axiom set, depth-sink
 index, intrinsic-dim estimate, weight-blob hash; a few MB.</p></li>
