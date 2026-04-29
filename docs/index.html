@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HyperTensor Research — NagusameCS</title>
+<title>HyperTensor Research, NagusameCS</title>
 <meta name="description" content="Research papers under the HyperTensor project by William Ken Ohara Stewart (NagusameCS): low-rank attention compression, geodesic projection, geodesic speculative decoding, Organic Training Theory, and the GTC + OTT runtime anchor.">
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -233,66 +233,6 @@ footer a:hover { text-decoration: underline; }
   font-weight: 700;
 }
 
-/* ── QOL: hover preview panel (right side) ───────────── */
-#paper-preview {
-  position: fixed;
-  top: 50%; right: 1.5rem;
-  transform: translateY(-50%) translateX(20px);
-  width: 360px; max-height: 78vh;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 18px 48px rgba(0,0,0,0.13);
-  padding: 1.4rem 1.5rem;
-  font-size: 0.9rem; line-height: 1.6;
-  color: var(--text);
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.22s ease;
-  z-index: 200;
-  overflow-y: auto;
-}
-#paper-preview.show {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
-}
-#paper-preview .pp-tag {
-  display: inline-block;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.7rem; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--accent); background: var(--red-bg);
-  border: 1px solid #fac5c5;
-  padding: 0.2em 0.7em; border-radius: 1rem;
-  margin-bottom: 0.8rem;
-}
-#paper-preview .pp-title {
-  font-size: 1.05rem; font-weight: 700;
-  letter-spacing: -0.01em; line-height: 1.3;
-  margin-bottom: 0.6rem; color: var(--text);
-}
-#paper-preview .pp-abstract {
-  color: var(--text-soft); font-size: 0.88rem;
-  margin-bottom: 0.9rem;
-}
-#paper-preview .pp-extended {
-  border-top: 1px solid var(--border);
-  padding-top: 0.9rem; margin-bottom: 0.9rem;
-  font-size: 0.85rem; color: var(--text);
-}
-#paper-preview .pp-extended-label {
-  font-size: 0.68rem; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--accent); margin-bottom: 0.3rem;
-}
-#paper-preview .pp-meta {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.74rem; color: var(--text-soft);
-  display: flex; justify-content: flex-start;
-  border-top: 1px solid var(--border);
-  padding-top: 0.7rem;
-}
-@media (max-width: 1280px) { #paper-preview { display: none; } }
-
 /* ── QOL: back-to-top button ─────────────────────────── */
 /* Lives above the reader-settings toggle (bottom-right of every page),
    not next to it. The reader toggle is 44px tall at bottom: 1.1rem,
@@ -427,10 +367,10 @@ footer a:hover { text-decoration: underline; }
   <div class="hero-tag">HyperTensor Research</div>
   <h1 class="hero-title">Geometry-aware inference for large language models.</h1>
   <p class="hero-sub">
-    Seven short papers on what happens when you treat a trained transformer's weights
-    as a low-dimensional manifold, and design inference around that geometry instead
-    of around the ambient parameter count. One author, one consumer GPU, every claim
-    pinned to either a measurement or a clearly-marked open problem.
+    Doccumentation and Research of the HyperTensor project, focused on investigating
+    what happens when you treat a trained transformers weights as a low-dimensional
+    manifold, and design inference around that geometry instead of around the ambient
+    parameter count.
   </p>
   <p class="hero-meta">
     By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
@@ -470,7 +410,7 @@ footer a:hover { text-decoration: underline; }
 
      <a class="paper-card" href="papers/00-introduction.html"
        data-stats="4.9k words · 16 pages"
-       data-extended="Plain-English orientation: read this first if any term in the seven papers is unfamiliar. Closes with a per-paper one-paragraph summary and a vocabulary cheat-sheet.">
+       data-extended="plain orientation: read this first if any term in the seven papers is unfamiliar. Closes with a per-paper one-paragraph summary and a vocabulary cheat-sheet.">
       <div class="paper-head">
         <span class="paper-num">Paper 0</span>
         <span class="paper-version">background article</span>
@@ -480,7 +420,7 @@ footer a:hover { text-decoration: underline; }
         Long-form teaching article. Assumes no prior knowledge. Covers tensors, neural
         networks, transformers, attention, the KV cache, GPU bandwidth and cache
         hierarchy, quantisation and GGUF, PCA / SVD / Eckart&#8209;Young, manifolds and
-        intrinsic dimension, and ends with one plain-English summary per paper plus a
+        intrinsic dimension, and ends with one plain summary per paper plus a
         vocabulary cheat-sheet. Read this first if any term in the seven papers is
         unfamiliar.
       </p>
@@ -651,9 +591,9 @@ footer a:hover { text-decoration: underline; }
         <p class="paper-abstract">
           Speculative decoding with a Geodesic-Projection-compressed drafter
           against a full-precision verifier. The paper derives the
-          instruct-greedy-EOS pathology &mdash; under which the standard
+          instruct-greedy-EOS pathology ,  under which the standard
           $\min(1,P_V/P_D)$ acceptance rule collapses to unconditional
-          accept &mdash; and gives an EOS-aware acceptance rule that closes
+          accept ,  and gives an EOS-aware acceptance rule that closes
           it, with a first end-to-end measurement on a Q8_0 ChatML backbone.
         </p>
       </a>
@@ -668,8 +608,8 @@ footer a:hover { text-decoration: underline; }
         </div>
         <p class="paper-abstract">
           A Riemannian view of transformer inference, with measurements. The
-          paper sets the geometry &mdash; Fisher metric, Christoffel symbols,
-          Jacobi fields, Magnus-3 parallel transport &mdash; then anchors it
+          paper sets the geometry ,  Fisher metric, Christoffel symbols,
+          Jacobi fields, Magnus-3 parallel transport ,  then anchors it
           on three open-weight models (SmolLM2-135M, Phi-3.5-mini,
           Gemma-4-E2B), reporting cross-architecture intrinsic-dimension
           invariance and a 97&times; batched-Jacobi gain. Closes with an
@@ -688,7 +628,7 @@ footer a:hover { text-decoration: underline; }
 
 <footer>
   <p>
-    <strong>HyperTensor Project</strong> &mdash; William Ken Ohara Stewart (NagusameCS), 2026.
+    <strong>HyperTensor Project</strong> ,  William Ken Ohara Stewart (NagusameCS), 2026.
     <br>
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a> &middot;
     <a href="papers/whitepaper.html">Whitepaper</a> &middot;
@@ -696,19 +636,6 @@ footer a:hover { text-decoration: underline; }
     <a href="https://github.com/NagusameCS/HyperTensor/tree/main/ARXIV_SUBMISSIONS">arXiv LaTeX sources</a>
   </p>
 </footer>
-
-<aside id="paper-preview" aria-hidden="true">
-  <span class="pp-tag" id="pp-tag">Paper</span>
-  <h3 class="pp-title" id="pp-title">—</h3>
-  <p class="pp-abstract" id="pp-abstract">—</p>
-  <div class="pp-extended">
-    <div class="pp-extended-label">Why it matters</div>
-    <div id="pp-extended">—</div>
-  </div>
-  <div class="pp-meta">
-    <span id="pp-readtime">—</span>
-  </div>
-</aside>
 
 <button id="to-top" type="button" aria-label="Back to top" title="Back to top">&uarr;</button>
 
@@ -783,45 +710,7 @@ footer a:hover { text-decoration: underline; }
     });
   });
 
-  // 3) Hover preview panel.
-  var panel = document.getElementById('paper-preview');
-  var ppTag = document.getElementById('pp-tag');
-  var ppTitle = document.getElementById('pp-title');
-  var ppAbs = document.getElementById('pp-abstract');
-  var ppExt = document.getElementById('pp-extended');
-  var ppRead = document.getElementById('pp-readtime');
-  var hideTimer = null;
-
-  function show(c) {
-    if (window.innerWidth < 1280) return;
-    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-    var num = (c.querySelector('.paper-num') || {}).textContent || 'Paper';
-    var ver = (c.querySelector('.paper-version') || {}).textContent || '';
-    ppTag.textContent = ver ? (num + ' · ' + ver) : num;
-    ppTitle.textContent = (c.querySelector('.paper-title') || {}).textContent || '';
-    var abs = c.querySelector('.paper-abstract');
-    ppAbs.innerHTML = abs ? abs.innerHTML : '';
-    ppExt.textContent = c.getAttribute('data-extended') || '';
-    ppRead.textContent = c.getAttribute('data-stats') || c.getAttribute('data-readtime') || '';
-    panel.classList.add('show');
-    panel.setAttribute('aria-hidden', 'false');
-  }
-  function hide() {
-    hideTimer = setTimeout(function () {
-      panel.classList.remove('show');
-      panel.setAttribute('aria-hidden', 'true');
-    }, 120);
-  }
-  cards.forEach(function (c) {
-    c.addEventListener('mouseenter', function () { show(c); });
-    c.addEventListener('mouseleave', hide);
-    c.addEventListener('focus', function () { show(c); });
-    c.addEventListener('blur', hide);
-  });
-  panel.addEventListener('mouseenter', function () { if (hideTimer) clearTimeout(hideTimer); });
-  panel.addEventListener('mouseleave', hide);
-
-  // 4) Keyboard navigation: j/k or arrow keys, Enter to open, gg/G top/bottom.
+  // 3) Keyboard navigation: j/k or arrow keys, Enter to open, gg/G top/bottom.
   var focusIdx = -1;
   var lastG = 0;
   function focusCard(i) {
@@ -850,7 +739,7 @@ footer a:hover { text-decoration: underline; }
   // Make cards programmatically focusable while preserving anchor semantics.
   cards.forEach(function (c) { if (!c.hasAttribute('tabindex')) c.setAttribute('tabindex', '0'); });
 
-  // 5) Back-to-top button.
+  // 4) Back-to-top button.
   var toTop = document.getElementById('to-top');
   function onScroll() {
     if (window.scrollY > 600) toTop.classList.add('show');

@@ -1,4 +1,4 @@
-/* reader.js — injects the floating reader-controls panel and persists
+/* reader.js, injects the floating reader-controls panel and persists
    the user's choices to localStorage. Loaded on every paper page. */
 (function () {
   'use strict';
@@ -78,7 +78,6 @@
 
   // Apply BEFORE DOM ready to avoid flash on dark mode.
   var state = load();
-  var previewCache = Object.create(null);
   apply(state);
 
   function refreshDomEnhancements(root) {
@@ -248,13 +247,11 @@
     buildPanel();
   }
 
-  // ─── In-page link previews + broken multi-target anchor repair ──────
+  // ─── Broken multi-target anchor repair ──────
   // Pandoc renders \Cref{a,b,c} as a single anchor href="#a,b,c" which
   // resolves to nothing. We split such anchors into individual links at
   // load time so the rendered papers always navigate correctly even if
-  // the source LaTeX uses multi-target \Cref. We then attach a small
-  // hover preview that shows the heading + first paragraph of the
-  // target section.
+  // the source LaTeX uses multi-target \Cref.
   function labelFromId(id) {
     if (!id) return '';
     var s = id.replace(/^sec:|^app:|^tab:|^fig:/, '');
@@ -285,252 +282,8 @@
     });
   }
 
-  function getPreviewFor(id) {
-    var t = document.getElementById(id);
-    if (!t) return null;
-    // Use heading text if target is a section
-    var heading = t.querySelector('h1,h2,h3,h4,h5,h6');
-    var title = heading ? heading.textContent.trim() : (t.getAttribute('aria-label') || labelFromId(id));
-    // First paragraph after the heading (or inside the target itself)
-    var p = t.querySelector('p');
-    var snippet = p ? p.textContent.trim().slice(0, 280) : '';
-    if (snippet.length === 280) snippet += '\u2026';
-    var image = t.querySelector('img');
-    var label = 'In this paper';
-    if (/^tab:/.test(id)) label = 'Table';
-    else if (/^fig:/.test(id)) label = 'Figure';
-    else if (/^app:/.test(id)) label = 'Appendix';
-    else if (/^sec:/.test(id)) label = 'Section';
-    return {
-      label: label,
-      title: title,
-      snippet: snippet,
-      image: image ? image.getAttribute('src') : ''
-    };
-  }
-
-  function absolutizeUrl(raw) {
-    try { return new URL(raw, window.location.href).href; } catch (e) { return raw; }
-  }
-
-  function placeholderPreview(label, title, snippet) {
-    return {
-      label: label,
-      title: title,
-      snippet: snippet,
-      image: '',
-      imageAlt: ''
-    };
-  }
-
-  function guessImageFromDocument(doc, url) {
-    var img = doc.querySelector('meta[property="og:image"], meta[name="twitter:image"]');
-    if (img && img.getAttribute('content')) return absolutizeUrl(img.getAttribute('content'));
-    var bodyImg = doc.querySelector('figure img, article img, main img, img');
-    return bodyImg ? absolutizeUrl(bodyImg.getAttribute('src')) : '';
-  }
-
-  function previewFromDocument(doc, url) {
-    var title = '';
-    var titleEl = doc.querySelector('meta[property="og:title"], title, h1');
-    if (titleEl) title = (titleEl.getAttribute && titleEl.getAttribute('content')) || titleEl.textContent || '';
-    title = title.trim();
-    var meta = doc.querySelector('meta[name="description"], meta[property="og:description"]');
-    var snippet = meta ? (meta.getAttribute('content') || '') : '';
-    if (!snippet) {
-      var p = doc.querySelector('article p, main p, p');
-      snippet = p ? (p.textContent || '') : '';
-    }
-    snippet = snippet.trim().slice(0, 280);
-    if (snippet.length === 280) snippet += '\u2026';
-    return {
-      label: /research\//.test(url) ? 'Research paper' : 'Paper',
-      title: title || labelFromId(url.split('/').pop() || 'linked page'),
-      snippet: snippet,
-      image: guessImageFromDocument(doc, url),
-      imageAlt: title || 'Linked page preview'
-    };
-  }
-
-  function fetchDocumentPreview(url) {
-    var abs = absolutizeUrl(url);
-    if (previewCache[abs]) return previewCache[abs];
-    previewCache[abs] = fetch(abs, { credentials: 'same-origin' })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-      .then(function (html) {
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-        return previewFromDocument(doc, abs);
-      })
-      .catch(function () {
-        return placeholderPreview('Link', abs.replace(/^https?:\/\//, '').replace(/^file:\/\//, ''), 'Open linked page');
-      });
-    return previewCache[abs];
-  }
-
-  function getWikipediaPreview(url) {
-    var path = '';
-    try { path = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch (e) {}
-    return Promise.resolve({
-      label: 'Wikipedia',
-      title: path.replace(/_/g, ' ') || 'Wikipedia article',
-      snippet: 'Open linked reference in Wikipedia.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/320px-Wikipedia-logo-v2.svg.png',
-      imageAlt: 'Wikipedia logo'
-    });
-  }
-
-  function getPreviewData(a) {
-    var href = a.getAttribute('href') || '';
-    if (href.charAt(0) === '#' && href.length > 1) {
-      return Promise.resolve(getPreviewFor(href.slice(1)));
-    }
-    if (/\.html?(#.*)?$/i.test(href) && !/^https?:\/\//.test(href)) {
-      return fetchDocumentPreview(href);
-    }
-    if (/^https?:\/\/([a-z]+\.)?wikipedia\.org\//i.test(href)) {
-      return getWikipediaPreview(href);
-    }
-    if (/^https?:\/\//.test(href)) {
-      var url;
-      try { url = new URL(href); } catch (e) {
-        return Promise.resolve(null);
-      }
-      return Promise.resolve(placeholderPreview('External link', url.hostname.replace(/^www\./, ''), url.pathname + (url.search || '')));
-    }
-    return Promise.resolve(null);
-  }
-
-  function buildPreviewEl() {
-    var el = document.getElementById('ht-link-preview');
-    if (el) return el;
-    // Inject styles once. Mirrors the rule set in paper-style.css so the
-    // tooltip works on pages that don't load paper-style.css (e.g. home).
-    if (!document.getElementById('ht-link-preview-style')) {
-      var st = document.createElement('style');
-      st.id = 'ht-link-preview-style';
-      st.textContent = [
-        '#ht-link-preview{position:fixed;z-index:9999;max-width:420px;min-width:260px;',
-        'padding:.75rem .85rem;background:#fff;border:1px solid rgba(0,0,0,.12);',
-        'border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.14);font-size:.84rem;',
-        'line-height:1.45;color:#1a1a1a;pointer-events:none;opacity:0;',
-        'transform:translateY(-2px);transition:opacity .12s ease,transform .12s ease;',
-        'font-family:inherit;}',
-        '#ht-link-preview[data-open="1"]{opacity:1;transform:translateY(0);}',
-        '#ht-link-preview .ht-lp-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:.72rem;align-items:start;}',
-        '#ht-link-preview[data-has-image="1"] .ht-lp-shell{grid-template-columns:92px minmax(0,1fr);}',
-        '#ht-link-preview .ht-lp-thumb{display:none;width:92px;height:92px;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,#f4ede4,#efe2d2);border:1px solid rgba(0,0,0,.08);}',
-        '#ht-link-preview[data-has-image="1"] .ht-lp-thumb{display:block;}',
-        '#ht-link-preview .ht-lp-thumb img{display:block;width:100%;height:100%;object-fit:cover;}',
-        '#ht-link-preview .ht-lp-copy{min-width:0;}',
-        '#ht-link-preview .ht-lp-label{display:block;font-size:.68rem;font-weight:700;',
-        'letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:.3rem;}',
-        '#ht-link-preview .ht-lp-title{display:block;font-weight:700;margin-bottom:.34rem;font-size:.96rem;line-height:1.25;}',
-        '#ht-link-preview .ht-lp-snippet{color:#555;font-size:.82rem;line-height:1.5;}',
-        '@media (prefers-color-scheme: dark){',
-        ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview',
-        '   {background:#1c1c1c;color:#e8e8e8;border-color:rgba(255,255,255,.12);}',
-        ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#23201d,#1b1917);border-color:rgba(255,255,255,.1);}',
-        ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-label{color:#9a9a9a;}',
-        ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-snippet{color:#bdbdbd;}',
-        '}',
-        '[data-theme="dark"] #ht-link-preview{background:#1c1c1c;color:#e8e8e8;border-color:rgba(255,255,255,.12);}',
-        '[data-theme="dark"] #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#23201d,#1b1917);border-color:rgba(255,255,255,.1);}',
-        '[data-theme="dark"] #ht-link-preview .ht-lp-label{color:#9a9a9a;}',
-        '[data-theme="dark"] #ht-link-preview .ht-lp-snippet{color:#bdbdbd;}',
-        '[data-theme="sepia"] #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#efe0c7,#e5d3b2);border-color:rgba(60,47,27,.12);}'
-      ].join('');
-      document.head.appendChild(st);
-    }
-    el = document.createElement('div');
-    el.id = 'ht-link-preview';
-    el.setAttribute('role', 'tooltip');
-    el.innerHTML = '<div class="ht-lp-shell"><div class="ht-lp-thumb"><img alt=""></div><div class="ht-lp-copy"><span class="ht-lp-label"></span><span class="ht-lp-title"></span><span class="ht-lp-snippet"></span></div></div>';
-    document.body.appendChild(el);
-    return el;
-  }
-
-  function placePreview(el, mouseX, mouseY) {
-    var pad = 14;
-    var rect = el.getBoundingClientRect();
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var x = mouseX + 16;
-    var y = mouseY + 16;
-    if (x + rect.width + pad > vw) x = mouseX - rect.width - 16;
-    if (y + rect.height + pad > vh) y = mouseY - rect.height - 16;
-    if (x < pad) x = pad;
-    if (y < pad) y = pad;
-    el.style.left = x + 'px';
-    el.style.top  = y + 'px';
-  }
-
-  function attachLinkPreviews(root) {
-    var el = buildPreviewEl();
-    var hideTimer = null;
-    var showTimer = null;
-    var token = 0;
-
-    function render(data, evt, currentToken) {
-      if (!data || currentToken !== token) return;
-      var thumb = el.querySelector('.ht-lp-thumb img');
-      el.querySelector('.ht-lp-label').textContent = data.label || '';
-      el.querySelector('.ht-lp-title').textContent = data.title || '';
-      el.querySelector('.ht-lp-snippet').textContent = data.snippet || '';
-      if (data.image) {
-        thumb.src = data.image;
-        thumb.alt = data.imageAlt || data.title || 'Link preview image';
-        el.setAttribute('data-has-image', '1');
-      } else {
-        thumb.removeAttribute('src');
-        thumb.alt = '';
-        el.setAttribute('data-has-image', '0');
-      }
-      el.setAttribute('data-open', '1');
-      placePreview(el, evt.clientX || 0, evt.clientY || 0);
-    }
-
-    function show(a, evt) {
-      token += 1;
-      var currentToken = token;
-      getPreviewData(a).then(function (data) {
-        render(data, evt, currentToken);
-      });
-    }
-    function hide() { el.setAttribute('data-open', '0'); }
-
-    root.addEventListener('mouseover', function (e) {
-      var a = e.target && e.target.closest && e.target.closest('a[href]');
-      if (!a) return;
-      // skip nav, reader-toggle, page-internal nav we don't want to preview
-      if (a.closest('.nav-links') || a.classList.contains('reader-toggle')) return;
-      clearTimeout(hideTimer);
-      clearTimeout(showTimer);
-      showTimer = setTimeout(function () { show(a, e); }, 280);
-    });
-    root.addEventListener('mousemove', function (e) {
-      if (el.getAttribute('data-open') === '1') placePreview(el, e.clientX, e.clientY);
-    });
-    root.addEventListener('mouseout', function (e) {
-      var a = e.target && e.target.closest && e.target.closest('a[href]');
-      if (!a) return;
-      clearTimeout(showTimer);
-      hideTimer = setTimeout(hide, 80);
-    });
-    // hide on scroll/resize/keypress to stay unobtrusive
-    window.addEventListener('scroll', hide, { passive: true });
-    window.addEventListener('resize', hide);
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
-  }
-
   function initLinkUx() {
     refreshDomEnhancements(document);
-    // Skip the heavy hover handler on small screens (touch) to avoid
-    // accidental triggers from tap-and-hold.
-    if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      attachLinkPreviews(document);
-    }
   }
 
   if (document.readyState === 'loading') {

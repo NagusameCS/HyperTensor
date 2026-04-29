@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geodesic Trajectory Caching and the OTT Runtime Anchor — HyperTensor</title>
+<title>Geodesic Trajectory Caching and the OTT Runtime Anchor, HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/05-gtc-ott-runtime.html">
 <meta name="description" content="An empirically-anchored treatment of Geodesic Trajectory Caching (GTC) and the Organic Training Theory (OTT) runtime. We fit Riemannian structure on three LM activation manifolds, validate the Jacobi-correction contract, run a compressed record store at 5.96 KB/record and 30.9 µs/query, and anchor the OTT speculative-decode runtime at 38.5% acceptance / 76.5 tok/s on SmolLM2-135M-Instruct.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -78,7 +78,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 
 <section id="scope">
   <div class="callout warning">
-    <div class="callout-title">Scope &mdash; read first</div>
+    <div class="callout-title">Scope ,  read first</div>
     <p>
       Paper&nbsp;4 introduced Organic Training Theory (OTT) and Geodesic Trajectory
       Caching (GTC) as a <em>theoretical framework</em>. This paper is the
@@ -107,7 +107,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="abstract">
-  <span class="section-num">§0 — Abstract</span>
+  <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
   <div class="abstract-box">
     <p>
@@ -123,7 +123,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       the float64 roundoff floor. The compressed record store persists at
       <strong>5.96&nbsp;KB/record</strong>, with rank-5 propagator truncation
       exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
-      <strong>30.9&nbsp;µs/query</strong> &mdash; about $160\times$ under the
+      <strong>30.9&nbsp;µs/query</strong> ,  about $160\times$ under the
       Paper&nbsp;4 budget. The OTT speculative path on the C runtime closes the
       loop end to end: <code>geodesic_ready</code> at 38.5% acceptance and
       76.5&nbsp;tok/s on SmolLM2-135M-Instruct. We document the
@@ -136,7 +136,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="why">
-  <span class="section-num">§1 — Why this paper exists</span>
+  <span class="section-num">§1, Why this paper exists</span>
   <h2>The three-paper gap</h2>
   <p>
     Paper&nbsp;1 measures GP compression. Paper&nbsp;3 v0.3 measures speculative
@@ -158,7 +158,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="setup">
-  <span class="section-num">§2 — Setup</span>
+  <span class="section-num">§2, Setup</span>
   <h2>Fitting the manifold from Phase-1 exports</h2>
   <p>
     The runtime emits one global Christoffel tensor and a per-point metric
@@ -196,7 +196,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="coverage">
-  <span class="section-num">§3 — Coverage scaling across three models</span>
+  <span class="section-num">§3, Coverage scaling across three models</span>
   <h2>Scale-invariant within $\pm 0.5\%$</h2>
   <p>
     Coverage is the fraction of held-out activation cloud points within
@@ -233,14 +233,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="resonance">
-  <span class="section-num">§4 — Batch Jacobi resonance</span>
+  <span class="section-num">§4, Batch Jacobi resonance</span>
   <h2>$97\times$ at $B=10$, $60\times$ at $B=10{,}000$</h2>
   <p>
     The Jacobi propagator $\Phi(\lambda)$ is linear in the perturbation:
     $\delta x(\lambda) = \Phi(\lambda)\,\delta x(0) + \mathcal{O}(\|\delta x(0)\|^2)$.
     A batch of $B$ correlated queries can therefore be corrected in a single
     matmul. The throughput shape that follows is the "resonance" property of
-    Paper&nbsp;4 §4.5 &mdash; throughput rises rather than falls under load.
+    Paper&nbsp;4 §4.5 ,  throughput rises rather than falls under load.
   </p>
   <div class="table-wrap wide">
     <table>
@@ -258,7 +258,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     Source:
     <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/smollm2-135m_batch_jacobi.json"><code>smollm2-135m_batch_jacobi.json</code></a>.
     The Paper&nbsp;4 analytic estimates for these three regimes were
-    $2.7\times / 12.5\times / 7.0\times$ &mdash; the numpy-BLAS realisation
+    $2.7\times / 12.5\times / 7.0\times$ ,  the numpy-BLAS realisation
     exceeds them by 4&ndash;14$\times$ because the analytic estimate did not
     account for cache and SIMD effects on a real machine. The reconstruction
     error remains at the float64 roundoff floor across all batch sizes,
@@ -267,7 +267,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="store">
-  <span class="section-num">§5 — Compressed record store</span>
+  <span class="section-num">§5, Compressed record store</span>
   <h2>5.96 KB/record, 30.9 µs/query lookup</h2>
   <p>
     A trajectory record holds the embedding, contextual velocity, waypoint
@@ -275,18 +275,18 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     and the terminal logits. Naive storage would be hundreds of KB per record.
     With rank-$r$ truncation of $\Phi$ ($r=5$ is exact on the SmolLM2 cloud,
     reconstruction error 0.0) and waypoint subsampling, persisted records reach
-    <strong>5.96&nbsp;KB</strong> &mdash; roughly an order of magnitude under
+    <strong>5.96&nbsp;KB</strong> ,  roughly an order of magnitude under
     the Paper&nbsp;4 target of 50&ndash;80&nbsp;KB.
   </p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Quantity</th><th>Value</th><th>Paper 4 target</th></tr></thead>
       <tbody>
-        <tr><td>Records persisted</td><td class="num">24</td><td>&mdash;</td></tr>
-        <tr><td>Total <code>.npz</code> size</td><td class="num">143.0 KB</td><td>&mdash;</td></tr>
+        <tr><td>Records persisted</td><td class="num">24</td><td>, </td></tr>
+        <tr><td>Total <code>.npz</code> size</td><td class="num">143.0 KB</td><td>, </td></tr>
         <tr><td>Per-record size</td><td class="num"><strong>5.96 KB</strong></td><td class="num">50&ndash;80 KB</td></tr>
         <tr><td>Rank-5 $\Phi$ reconstruction error</td><td class="num">0.0</td><td>"rank $\approx 5$ is sufficient"</td></tr>
-        <tr><td>Build wall-clock (24 records, $k=8$)</td><td class="num">6.087 s</td><td>&mdash;</td></tr>
+        <tr><td>Build wall-clock (24 records, $k=8$)</td><td class="num">6.087 s</td><td>, </td></tr>
         <tr><td>Two-stage lookup (1 000 queries)</td><td class="num">31 ms total</td><td>&lt; 5 ms/query</td></tr>
         <tr><td>Per-query lookup latency</td><td class="num"><strong>30.9 µs</strong></td><td class="num">&lt; 5 ms ($\sim\!160\times$ under)</td></tr>
       </tbody>
@@ -299,7 +299,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     over a small candidate window. At 30.9&nbsp;µs the lookup is comfortably
     inside the Paper&nbsp;4 5&nbsp;ms budget.
   </p>
-  <h3>5.1 — Decode-step substitution: density caveat</h3>
+  <h3>5.1, Decode-step substitution: density caveat</h3>
   <p>
     The current 64-point Phase-1 export gives 100% lookup hits at
     $\varepsilon^\star = 3.0$ but 0% within the Jacobi validity radius
@@ -314,7 +314,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="ott-runtime">
-  <span class="section-num">§6 — OTT runtime anchor</span>
+  <span class="section-num">§6, OTT runtime anchor</span>
   <h2>$\alpha = 0.385$, $76.5$ tok/s, <code>geodesic_ready</code></h2>
   <p>
     The C host runtime in <code>host/main.c</code> ships an end-to-end OTT
@@ -342,7 +342,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ott_readiness_report.json"><code>ott_readiness_report.json</code></a>;
     a complete reproduction recipe is in §<a href="#repro">9</a>.
   </p>
-  <h3 id="egp">6.1 — The instruct-greedy-EOS pathology</h3>
+  <h3 id="egp">6.1, The instruct-greedy-EOS pathology</h3>
   <p>
     Earlier integrations of the speculative loop returned <em>zero tokens</em>
     against this instruct model. The cause: the verifier's argmax at position 0
@@ -368,10 +368,10 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <a href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c"><code>host/main.c</code></a>
     around <code>geodesic_speculative_generate_text</code>. We are not aware of
     a published treatment of this pathology and document it here primarily
-    because the §6 numbers are conditional on the fix being in place &mdash;
+    because the §6 numbers are conditional on the fix being in place , 
     removing it returns the loop to 0 tok/s.
   </p>
-  <h3 id="cache-consistency">6.2 — Geometry-cache consistency-equivalence</h3>
+  <h3 id="cache-consistency">6.2, Geometry-cache consistency-equivalence</h3>
   <p>
     The OTT readiness gate in earlier revisions failed when geometry was loaded
     from the persistent cache, because Phase&nbsp;4 (which writes
@@ -385,7 +385,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <code>consistency=1.0</code> on the warm-cache path that the gate now
     accepts.
   </p>
-  <h3 id="how-far">6.3 — How far from a perfect OTT</h3>
+  <h3 id="how-far">6.3, How far from a perfect OTT</h3>
   <p>
     "Perfect" has at least three reasonable definitions. We report the gap
     against each.
@@ -394,10 +394,10 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <table>
       <thead><tr><th>Definition of "perfect"</th><th>Current</th><th>Gap</th><th>Path</th></tr></thead>
       <tbody>
-        <tr><td>Pipeline runs end-to-end with status=geodesic_ready</td><td class="num">yes</td><td>&mdash;</td><td>done</td></tr>
+        <tr><td>Pipeline runs end-to-end with status=geodesic_ready</td><td class="num">yes</td><td>, </td><td>done</td></tr>
         <tr><td>$\alpha \ge 0.9$ on a 135M instruct model with same-model drafter</td><td class="num">$\alpha = 0.385$</td><td class="num">$+0.5$</td><td>Fix <code>--ott-perfect</code> (transformer-exact rollout, currently hangs in <code>llm_rollout_exact_greedy</code>); per-prompt OD bake</td></tr>
-        <tr><td>$\alpha = 1.0$ by construction (transformer-exact drafter)</td><td class="num">unreachable on this revision</td><td class="num">$+0.6$</td><td>Same as above &mdash; <code>--ott-perfect</code> is the realistic ceiling, not a heuristic search</td></tr>
-        <tr><td>Full Llama-3.1-8B sweep + AttnRes + KV-cache long-context</td><td>not measured</td><td>&mdash;</td><td>Gated on EC2 compute (approved, not yet executed)</td></tr>
+        <tr><td>$\alpha = 1.0$ by construction (transformer-exact drafter)</td><td class="num">unreachable on this revision</td><td class="num">$+0.6$</td><td>Same as above ,  <code>--ott-perfect</code> is the realistic ceiling, not a heuristic search</td></tr>
+        <tr><td>Full Llama-3.1-8B sweep + AttnRes + KV-cache long-context</td><td>not measured</td><td>, </td><td>Gated on EC2 compute (approved, not yet executed)</td></tr>
       </tbody>
     </table>
   </div>
@@ -414,7 +414,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="status">
-  <span class="section-num">§7 — Gap analysis vs Paper 4 claim list</span>
+  <span class="section-num">§7, Gap analysis vs Paper 4 claim list</span>
   <h2>12 of 17 measured</h2>
   <div class="table-wrap">
     <table>
@@ -446,13 +446,13 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     knowledge-injection), 2 measured partial (live-decode replacement,
     AttnRes), 1 universally open / deployment-resolved ($\phi$), 1 universally
     open / deployable surrogate ($v_0$). The Paper&nbsp;4 program is no longer
-    "framework only" &mdash; it is a framework with a verified core and a
+    "framework only" ,  it is a framework with a verified core and a
     short, named list of open items.
   </p>
 </section>
 
 <section id="novel">
-  <span class="section-num">§8 — What is genuinely new here</span>
+  <span class="section-num">§8, What is genuinely new here</span>
   <h2>Three small contributions</h2>
   <ol>
     <li><strong>Logit-excluding top-1 with min-response guard</strong> for
@@ -478,7 +478,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="repro">
-  <span class="section-num">§9 — Reproducing</span>
+  <span class="section-num">§9, Reproducing</span>
   <h2>Recipe</h2>
 <pre><code>git checkout d57162d  # OTT speculative ready commit
 .\build_host.ps1
@@ -502,7 +502,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="status-list">
-  <span class="section-num">§10 — Status / what's missing for v0.2 of this paper</span>
+  <span class="section-num">§10, Status / what's missing for v0.2 of this paper</span>
   <h2>Open items</h2>
   <ol>
     <li>Functional <code>--ott-perfect</code> (transformer-exact rollout).
@@ -530,7 +530,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="related">
-  <span class="section-num">§10.5 — Related work</span>
+  <span class="section-num">§10.5, Related work</span>
   <h2>Where this empirical anchor sits</h2>
   <p>
     Paper&nbsp;5 is the measurement layer underneath Paper&nbsp;4's theory.
@@ -553,9 +553,9 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       <strong>Speculative decoding.</strong> The OTT runtime anchor
       ($\alpha=0.385$, 76.5&nbsp;tok/s) sits in the speculative-decoding
       family (Leviathan&nbsp;et&nbsp;al. 2023; Chen&nbsp;et&nbsp;al. 2023;
-      Medusa, EAGLE). The compositional question — what changes when the
+      Medusa, EAGLE). The compositional question, what changes when the
       draft model is a Geodesic-Projection compressed twin rather than a
-      separate small model — is the subject of
+      separate small model, is the subject of
       <a href="03-speculative-decoding.html">Paper&nbsp;3</a>; this paper
       contributes the OTT runtime timing primitives and the per-query
       lookup cost (30.9&nbsp;µs).
@@ -585,7 +585,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="terms">
-  <span class="section-num">§10.6 — Terms</span>
+  <span class="section-num">§10.6, Terms</span>
   <h2>Where to find definitions</h2>
   <p>
     Paper&nbsp;5 reuses the glossaries in
@@ -595,16 +595,16 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     (PCA basis, projection slot, geometry cache, depth-sink), and
     <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
     (acceptance rate $\alpha$, draft/verifier, OneDecode, OTT).
-    Theory-side terms — manifold $\mathcal{M}_\theta$, intrinsic dimension
+    Theory-side terms, manifold $\mathcal{M}_\theta$, intrinsic dimension
     $k$, Fisher metric, Jacobi field, injectivity radius $\rho$,
-    diffeomorphism $\phi$ — are defined in
+    diffeomorphism $\phi$, are defined in
     <a href="04-organic-training-theory.html#abstract">Paper&nbsp;4 §0</a>
     and used here without redefinition.
   </p>
 </section>
 
 <section id="references">
-  <span class="section-num">§11 — References</span>
+  <span class="section-num">§11, References</span>
   <h2>Selected refs</h2>
   <ol>
     <li>Stewart, W. K. O., <em>Organic Training Theory and Geodesic Trajectory Caching</em>, this site, Paper 4, 2026.</li>

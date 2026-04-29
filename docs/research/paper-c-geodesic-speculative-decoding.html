@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance — HyperTensor Research</title>
-<meta name="description" content="Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance — research paper from the HyperTensor project (NagusameCS).">
+<title>Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance, HyperTensor Research</title>
+<meta name="description" content="Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance, research paper from the HyperTensor project (NagusameCS).">
 <meta name="robots" content="index, follow">
 <meta name="GPTBot" content="noindex, nofollow">
 <meta name="ClaudeBot" content="noindex, nofollow">
@@ -155,7 +155,7 @@ central empirical unknown of this paper.</p>
 <code>llm_generate_geodesic_speculative()</code> (declared in
 <code>runtime/nn/llm.h</code>) implementing the textbook draft-and-verify
 pattern with two specifics. <em>(i)</em> Drafter and verifier share KV
-cache structure but not weights—the drafter is the GP-compressed
+cache structure but not weights, the drafter is the GP-compressed
 model loaded once, the verifier is uncompressed and loaded once. Both
 resident in VRAM simultaneously is infeasible for an 8B model on 8 GB
 VRAM; speculative-decode-of-Llama-3.1-8B-with-itself requires either an
@@ -175,7 +175,7 @@ gain.</p>
 <p>On the reference RTX 4070 Laptop, baseline Llama-3.1-8B Q4_K_M decode
 is <span class="math inline">\(35.6\)</span> tok/s, so <span class="math inline">\(T_D^\text{full}{=}28.1\)</span> ms/token. At GP
 <span class="math inline">\(k{=}1024\)</span>, decode rises to <span class="math inline">\(37.8\)</span> tok/s
-(<span class="math inline">\(T_D^\text{GP}{=}26.5\)</span> ms/token—a <span class="math inline">\(5.7\%\)</span> saving). Verifier prefill
+(<span class="math inline">\(T_D^\text{GP}{=}26.5\)</span> ms/token, a <span class="math inline">\(5.7\%\)</span> saving). Verifier prefill
 at <span class="math inline">\(\gamma{=}4\)</span> on the same hardware is <span class="math inline">\(\approx 90\)</span> ms (extrapolated
 from the companion paper, not measured under spec).</p>
 <table>
@@ -217,7 +217,7 @@ the full 8B as verifier is <em>not</em> faster than just decoding the full
 GP. Speculative decoding helps when <span class="math inline">\(T_V\gg T_D\)</span>, the deployment shape
 “8B drafter on commodity GPU, 70B verifier on a server GPU” that we
 cannot currently test. <em>(ii)</em> On hypothetical hardware where a 70B
-verifier is the slow side, the GP saving on the drafter compounds—but
+verifier is the slow side, the GP saving on the drafter compounds, but
 only if <span class="math inline">\(\Delta\alpha\)</span> is small.</p>
 </section>
 <section id="sec:attnres" class="level2">
@@ -455,7 +455,7 @@ of the OTT/GTC companion paper.</p>
 <p>Bakes a geodesic flow
 map once over a vocabulary slice (default <span class="math inline">\(V_\text{bake}{=}2048\)</span>
 tokens) and persists it to <code>ott_one_decode.bin</code>. At decode
-time, a hit on the table returns (token, confidence) in <span class="math inline">\(O(1)\)</span>—the
+time, a hit on the table returns (token, confidence) in <span class="math inline">\(O(1)\)</span>, the
 model forward is skipped. On miss, fall back to the geodesic drafter
 and then the verifier.</p>
 </section>
@@ -483,7 +483,7 @@ rather than learned auxiliary heads.</p>
 <h2>Related Work</h2>
 <p>The exactness-preserving rejection rule is from Leviathan et al. <span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span> and Chen et al. <span class="citation" data-cites="chen2023speculative">(Chen et al. 2023)</span>.
 EAGLE <span class="citation" data-cites="li2024eagle">(Li et al. 2024)</span> and Medusa <span class="citation" data-cites="cai2024medusa">(Cai et al. 2024)</span> train auxiliary
-drafter heads against the same backbone; we do not—we use a
+drafter heads against the same backbone; we do not, we use a
 GP-compressed copy. This is closer to “self-speculative”
 decoding. Production runtimes (vLLM <span class="citation" data-cites="kwon2023vllm">(Kwon et al. 2023)</span>, TensorRT-LLM)
 ship speculative paths; we are not competing on raw tok/s, we are

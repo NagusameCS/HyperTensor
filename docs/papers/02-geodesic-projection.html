@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geodesic Projection: A Production Compression Pipeline — HyperTensor</title>
+<title>Geodesic Projection: A Production Compression Pipeline, HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/02-geodesic-projection.html">
 <meta name="description" content="The HyperTensor runtime's full multi-slot Geodesic Projection (GP) compression pipeline: per-layer per-matrix PCA bases, FFN-down SVD path, persistent geometry cache, and the cross-model evidence that the manifold structure GP exploits is a property of trained transformers, not of one model.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -106,7 +106,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="abstract">
-  <span class="section-num">§0 — Abstract</span>
+  <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
   <div class="abstract-box">
     <p>
@@ -125,9 +125,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       minutes to seconds on repeat runs, and <strong>(b)</strong> a depth-sink
       shortcut that lets the cache be probed without re-running the full
       axiom-discovery pass. The cross-architecture observation that motivates the
-      whole pipeline — that the local activation manifold of a trained transformer
-      is roughly $11–25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$
-      — reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
+      whole pipeline, that the local activation manifold of a trained transformer
+      is roughly $11–25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$, reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
       Phi-3.5-mini) using the manifold-extraction pipeline checked in under
       <a class="repo-link"
       href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>.
@@ -136,7 +135,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="glossary">
-  <span class="section-num">§0.5 — Glossary</span>
+  <span class="section-num">§0.5, Glossary</span>
   <h2>Terms</h2>
   <div class="table-wrap">
     <table>
@@ -158,12 +157,12 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="from-paper-1">
-  <span class="section-num">§1 — From Paper 1 to GP</span>
+  <span class="section-num">§1, From Paper 1 to GP</span>
   <h2>What Paper 1 measures, what GP generalises</h2>
   <p>
     Paper&nbsp;1 presents a deliberately narrow design: shared rank $k$ across layers,
     attention slots only ($Q$, $K$, $V$; $O$ skipped), no FFN compression, no quality
-    fine-tune. The narrowness is the point — it lets the calibration-free claim and the
+    fine-tune. The narrowness is the point, it lets the calibration-free claim and the
     super-baseline claim be tested without confounding from other compression knobs.
   </p>
   <p>
@@ -202,7 +201,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="manifold">
-  <span class="section-num">§2 — The cross-architecture manifold evidence</span>
+  <span class="section-num">§2, The cross-architecture manifold evidence</span>
   <h2>Why a low-rank basis exists at all</h2>
   <p>
     The premise of GP is that the local activation manifold of a trained transformer has
@@ -210,8 +209,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     false, low-rank weight projection should be uniformly destructive. The
     manifold-extraction pipeline checked in under <a class="repo-link"
     href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>
-    runs four phases on a model — manifold sampling, symmetry detection, curvature
-    estimation, and axiom-set extraction — and emits per-phase JSON. We summarise the
+    runs four phases on a model, manifold sampling, symmetry detection, curvature
+    estimation, and axiom-set extraction, and emits per-phase JSON. We summarise the
     Phase&nbsp;1 (intrinsic-dimensionality) and Phase&nbsp;4 (axiom-set) outputs below
     for three open-weight models.
   </p>
@@ -241,7 +240,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       "low-intrinsic-dimensionality of LLM activations" finding [refs&nbsp;1,&nbsp;2,&nbsp;7] on
       models that span an order of magnitude in $d$ (576 → 3,072) and three
       architectures (Llama-style decoder, Gemma-style hybrid, Phi-style decoder).
-      All three converge on $k_\text{int} \in \{11, 17, 25\}$ — that is, $k_\text{int} \ll d$
+      All three converge on $k_\text{int} \in \{11, 17, 25\}$, that is, $k_\text{int} \ll d$
       uniformly, and $k_\text{int}$ does <em>not</em> grow with $d$.
     </p>
     <p>
@@ -257,7 +256,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="spectra">
-  <span class="section-num">§3 — The seven slots and their spectra</span>
+  <span class="section-num">§3, The seven slots and their spectra</span>
   <h2>Why FFN-down gets a different code path</h2>
   <p>
     The seven compressible matrices in a Llama-style transformer block, with shapes for
@@ -291,7 +290,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <p>
     $W_\text{down}$ is the one slot where this construction is unsatisfying. Its
     eigenspectrum on Llama-3.1-8B is approximately flat over the first
-    $\sim$3,400 components — see Paper&nbsp;1 §10, Figure&nbsp;3 — meaning that
+    $\sim$3,400 components, see Paper&nbsp;1 §10, Figure&nbsp;3, meaning that
     truncating to $k = 1024$ drops more than 30% of its Frobenius energy on every layer
     we measured. For this reason the production code path for $W_\text{down}$ uses a
     direct
@@ -305,7 +304,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <h3>3.1 Per-slot spectra on Llama-3.1-8B (measured)</h3>
   <p>
     Singular-value spectra for all seven slots, computed by full SVD on the
-    dequantised Q4_K_M weights at layers $\{0, 7, 15, 23, 31\}$ — see
+    dequantised Q4_K_M weights at layers $\{0, 7, 15, 23, 31\}$, see
     <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/analysis/compute_spectra.py">scripts/analysis/compute_spectra.py</a>
     and the JSON output at
     <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
@@ -366,7 +365,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="rank-selection">
-  <span class="section-num">§4 — Per-layer rank selection (MCR/Ricci)</span>
+  <span class="section-num">§4, Per-layer rank selection (MCR/Ricci)</span>
   <h2>Allocating the rank budget</h2>
   <p>
     A naive scheme assigns the same $k$ to every layer. Paper&nbsp;1 uses this scheme.
@@ -407,7 +406,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="cache">
-  <span class="section-num">§5 — The geometry cache and the depth-sink shortcut</span>
+  <span class="section-num">§5, The geometry cache and the depth-sink shortcut</span>
   <h2>Turning a minutes-long startup into a seconds-long startup</h2>
   <p>
     Building the GP bases from scratch on Llama-3.1-8B takes roughly 70&nbsp;seconds on
@@ -417,9 +416,9 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     practical the runtime persists two artifacts:
   </p>
   <ol>
-    <li><code>ott_geometry.bin</code> — per-layer spectra, axioms, depth-sink index,
+    <li><code>ott_geometry.bin</code>, per-layer spectra, axioms, depth-sink index,
         intrinsic-dim estimate, weight-blob hash, integrity hash. Small (a few MB).</li>
-    <li><code>W_proj</code> cache (one file per slot per layer) — the projected weights
+    <li><code>W_proj</code> cache (one file per slot per layer), the projected weights
         themselves. Large; for Llama-3.1-8B at $k=1{,}536$ this is the 1,093&nbsp;MB
         figure cited in Paper&nbsp;1.</li>
   </ol>
@@ -429,7 +428,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   </p>
   <h3>5.1 The depth-sink shortcut</h3>
   <p>
-    Reloading the full geometry cache on a 70B model is not free — at minimum we want
+    Reloading the full geometry cache on a 70B model is not free, at minimum we want
     to verify the cache is not stale. The runtime's solution is the <em>depth-sink</em>
     layer: empirically, transformer activations saturate in effective dimensionality at
     a single layer roughly two-thirds of the way through the stack, and the spectrum at
@@ -450,11 +449,11 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="results">
-  <span class="section-num">§6 — Empirical anchor: Llama-3.1-8B Q4_K_M</span>
+  <span class="section-num">§6, Empirical anchor: Llama-3.1-8B Q4_K_M</span>
   <h2>Numbers GP shares with Paper 1, and what changes when knobs move</h2>
   <p>
-    The end-to-end numbers GP produces on its empirical anchor — Llama-3.1-8B-Instruct
-    Q4_K_M, RTX&nbsp;4070 Laptop, locked 30-second cooldown protocol — are the
+    The end-to-end numbers GP produces on its empirical anchor, Llama-3.1-8B-Instruct
+    Q4_K_M, RTX&nbsp;4070 Laptop, locked 30-second cooldown protocol, are the
     Paper&nbsp;1 numbers by construction, since GP at attention-only-shared-rank
     <em>is</em> the Paper&nbsp;1 configuration. We summarise them here with the GP
     framing rather than the calibration-free framing.
@@ -463,7 +462,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     <table>
       <thead><tr><th>Configuration</th><th>Decode tok/s<br>(% of baseline)</th><th>PPL (WikiText-2, 512&nbsp;tok)</th><th>$W_\text{proj}$ disk</th></tr></thead>
       <tbody>
-        <tr><td>Baseline (no GP)</td><td class="num">100.00%</td><td class="num">6.7902</td><td class="num">—</td></tr>
+        <tr><td>Baseline (no GP)</td><td class="num">100.00%</td><td class="num">6.7902</td><td class="num">, </td></tr>
         <tr><td>GP attn-only, shared $k = 1{,}024$</td><td class="num">106.27%</td><td class="num">10.9585&nbsp;(+61.39%)</td><td class="num">729 MB</td></tr>
         <tr><td>GP attn-only, shared $k = 1{,}536$</td><td class="num">97.55%</td><td class="num">7.6936&nbsp;(+13.30%)</td><td class="num">1,093 MB</td></tr>
         <tr><td>GP attn-only, $k = 2{,}048$ requested</td><td class="num">101.04%</td><td class="num">7.6936&nbsp;(+13.30%)</td><td class="num">1,093 MB</td></tr>
@@ -476,7 +475,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json</a>
     (date 2026-04-22). Two structural observations: (i) $k=1{,}024$ collapses
     quality (+61% PPL) because the K/V projection dimension on GQA-Llama-3.1-8B
-    is exactly $1{,}024$ &mdash; at $k=1{,}024$ the Q matrix is rank-deficient
+    is exactly $1{,}024$ ,  at $k=1{,}024$ the Q matrix is rank-deficient
     against its full $4{,}096$-dim, while K and V are at the boundary; (ii)
     $k=1{,}536$ and $k=2{,}048$ produce <em>identical</em> PPL because once
     $k \ge 1{,}024$ the K and V matrices are full-rank (lossless), so
@@ -485,7 +484,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     <code>AXEX_MANIFOLD_K_MAX</code> in
     <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>
     silently caps the stored basis. Operationally: $k=1{,}536$ is the Pareto
-    rank for this model on this protocol &mdash; $k=2{,}048$ is wasted memory
+    rank for this model on this protocol ,  $k=2{,}048$ is wasted memory
     and compute, $k=1{,}024$ is unsafe.
   </p>
   <h3>6.1 What is <em>not</em> in this table</h3>
@@ -504,7 +503,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="caveats">
-  <span class="section-num">§7 — Where GP costs more than it saves</span>
+  <span class="section-num">§7, Where GP costs more than it saves</span>
   <h2>Failure modes and contraindications</h2>
   <h3>7.1 Small $d$ (≤ 1024)</h3>
   <p>
@@ -515,7 +514,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     against this with the $k_\text{floor}$ in §<a href="#rank-selection">4</a>; in
     practice this means GP at $k_\text{floor} = 0.55 d \approx 320$ on SmolLM2 is
     near-lossless and at $k = 200$ it is broken. There is no useful compression to be
-    had on this model — the floor and the ceiling are too close together.
+    had on this model, the floor and the ceiling are too close together.
   </p>
   <h3>7.2 FFN-only configurations</h3>
   <p>
@@ -544,7 +543,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="reproduce">
-  <span class="section-num">§8 — Reproduction</span>
+  <span class="section-num">§8, Reproduction</span>
   <h2>Commands and expected output</h2>
   <p>
     The Paper&nbsp;1 reproduction recipe at <a class="repo-link"
@@ -565,7 +564,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="status">
-  <span class="section-num">§9 — Status</span>
+  <span class="section-num">§9, Status</span>
   <h2>What this paper is missing before it is finished</h2>
   <ol>
     <li>Multi-model end-to-end PPL and decode tok/s under the locked protocol
@@ -584,7 +583,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="related">
-  <span class="section-num">§9.5 — Related work</span>
+  <span class="section-num">§9.5, Related work</span>
   <h2>Where Geodesic Projection sits in literature</h2>
   <p>
     Paper&nbsp;1 §3.5 placed the single-slot $Q/K/V$ basis next to ASVD,
@@ -651,17 +650,17 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 </section>
 
 <section id="references">
-  <span class="section-num">§10 — References</span>
+  <span class="section-num">§10, References</span>
   <h2>Selected refs</h2>
   <ol>
-    <li>Cai, T. et al., <em>Isotropy in the Contextual Embedding Space</em> (ACL 2021) — activation low-dimensionality on language models.</li>
-    <li>Razzhigaev, A. et al., <em>The Shape of Learning: Anisotropy and Intrinsic Dimensions in Transformer-Based Models</em> (EACL 2023) — TwoNN/PCA intrinsic-dim across architectures.</li>
-    <li>Eckart, C. and Young, G., <em>The Approximation of One Matrix by Another of Lower Rank</em>, Psychometrika (1936) — optimality of truncated SVD.</li>
-    <li>Hu, E. et al., <em>LoRA: Low-Rank Adaptation of Large Language Models</em> (ICLR 2022) — low-rank decomposition of weight updates.</li>
-    <li>Williams, S. et al., <em>Roofline: An Insightful Visual Performance Model</em>, CACM (2009) — bandwidth/compute roofline.</li>
-    <li>Touvron, H. et al., <em>Llama 3 Herd of Models</em> (2024) — reference architecture.</li>
-    <li>Park, K. et al., <em>The Linear Representation Hypothesis</em> (2023) — supports the manifold premise of §2.</li>
-    <li>Kimi Team, <em>Block Attention Residuals</em> (arXiv:2603.15031, 2026) — cited for the AttnRes interaction discussed in <a href="03-speculative-decoding.html">Paper&nbsp;3</a>.</li>
+    <li>Cai, T. et al., <em>Isotropy in the Contextual Embedding Space</em> (ACL 2021), activation low-dimensionality on language models.</li>
+    <li>Razzhigaev, A. et al., <em>The Shape of Learning: Anisotropy and Intrinsic Dimensions in Transformer-Based Models</em> (EACL 2023), TwoNN/PCA intrinsic-dim across architectures.</li>
+    <li>Eckart, C. and Young, G., <em>The Approximation of One Matrix by Another of Lower Rank</em>, Psychometrika (1936), optimality of truncated SVD.</li>
+    <li>Hu, E. et al., <em>LoRA: Low-Rank Adaptation of Large Language Models</em> (ICLR 2022), low-rank decomposition of weight updates.</li>
+    <li>Williams, S. et al., <em>Roofline: An Insightful Visual Performance Model</em>, CACM (2009), bandwidth/compute roofline.</li>
+    <li>Touvron, H. et al., <em>Llama 3 Herd of Models</em> (2024), reference architecture.</li>
+    <li>Park, K. et al., <em>The Linear Representation Hypothesis</em> (2023), supports the manifold premise of §2.</li>
+    <li>Kimi Team, <em>Block Attention Residuals</em> (arXiv:2603.15031, 2026), cited for the AttnRes interaction discussed in <a href="03-speculative-decoding.html">Paper&nbsp;3</a>.</li>
   </ol>
 </section>
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>An Introduction to the HyperTensor Papers (For Readers With No Background) &mdash; HyperTensor</title>
+<title>An Introduction to the HyperTensor Papers (For Readers With No Background) ,  HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/00-introduction.html">
 <meta name="description" content="A long-form, no-prerequisite article that teaches every concept needed to read the four HyperTensor research papers: tensors, neural networks, transformers, attention, KV cache, quantization, low-rank decomposition, PCA and SVD, manifolds, intrinsic dimension, speculative decoding, and AttnRes.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -130,10 +130,10 @@ footer a { color: var(--blue); text-decoration: none; }
       <li><a href="#quant">Quantisation: shrinking weights without retraining</a></li>
       <li><a href="#linalg">Linear algebra interlude: PCA, SVD, low rank</a></li>
       <li><a href="#manifold">Manifolds and intrinsic dimension</a></li>
-      <li><a href="#paper1">Paper 1, in plain English</a></li>
-      <li><a href="#paper2">Paper 2, in plain English</a></li>
-      <li><a href="#paper3">Paper 3, in plain English</a></li>
-      <li><a href="#paper4">Paper 4, in plain English</a></li>
+      <li><a href="#paper1">Paper 1, the short version</a></li>
+      <li><a href="#paper2">Paper 2, the short version</a></li>
+      <li><a href="#paper3">Paper 3, the short version</a></li>
+      <li><a href="#paper4">Paper 4, the short version</a></li>
       <li><a href="#vocab">Vocabulary cheat-sheet</a></li>
     </ol>
   </div>
@@ -158,8 +158,8 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
   <p>
     A typical large language model holds a few thousand tensors at the same time. The
-    biggest of them are matrices of about $4{,}096 \times 4{,}096$ &mdash; roughly 17
-    million numbers each &mdash; and there are about a hundred such matrices per model.
+    biggest of them are matrices of about $4{,}096 \times 4{,}096$ ,  roughly 17
+    million numbers each ,  and there are about a hundred such matrices per model.
     That gives somewhere in the range of one to ten <em>billion</em> numbers in total.
     Storing them takes a few gigabytes of disk and memory. Doing arithmetic with all of
     them, every time the model writes one word, is the central engineering problem of
@@ -219,14 +219,14 @@ footer a { color: var(--blue); text-decoration: none; }
   <span class="section-num">&sect;3</span>
   <h2>Transformers in one long sitting</h2>
   <p>
-    Modern language models are not just any neural network &mdash; they are a specific
+    Modern language models are not just any neural network ,  they are a specific
     family called <a href="https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)" target="_blank" rel="noopener">transformers</a>,
     introduced in 2017. To follow the papers you need to know roughly what one
     transformer block contains, in what order, and what each part is for.
   </p>
   <p>
     A transformer takes in a sequence of <strong>tokens</strong>. A token is a small
-    piece of text &mdash; usually a word, sometimes a part of a word, sometimes a
+    piece of text ,  usually a word, sometimes a part of a word, sometimes a
     single character. The text "the quick brown fox" might tokenise as
     <code>["the", " quick", " brown", " fox"]</code>. Each token is mapped to a
     vector by a fixed lookup table called the <strong>embedding</strong>; this turns
@@ -262,7 +262,7 @@ footer a { color: var(--blue); text-decoration: none; }
     Llama-3.1-8B has 32 such blocks. Each token's vector has $d = 4{,}096$ entries.
     Each block's FFN expands this internally to $d_\text{ffn} = 14{,}336$ before
     contracting it back. Most of the model's parameters live in the FFN matrices,
-    not the attention matrices &mdash; about 70% of them, in fact. We will come back
+    not the attention matrices ,  about 70% of them, in fact. We will come back
     to this when we talk about why <a href="01-attention-compression.html">Paper&nbsp;1</a>
     deliberately ignores the FFN even though it is the bigger target.
   </p>
@@ -306,7 +306,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     Now suppose we are at token number $t$ and we want to decide how much each previous
     token (at position $i \le t$) should contribute. The model computes the inner
-    product $\langle q_t, k_i \rangle$ &mdash; a single scalar that is large when the
+    product $\langle q_t, k_i \rangle$ ,  a single scalar that is large when the
     two vectors point in similar directions and small or negative otherwise. It does
     this for every $i$, divides by $\sqrt{d_h}$ (a normalising constant), and applies a
     <strong>softmax</strong>:
@@ -323,8 +323,8 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
   <p>
     That is the entire attention mechanism. There is one more wrinkle: the model
-    actually does this with several "heads" in parallel &mdash; usually around 32 of
-    them &mdash; each with its own slice of $W_Q, W_K, W_V$. The slices are called
+    actually does this with several "heads" in parallel ,  usually around 32 of
+    them ,  each with its own slice of $W_Q, W_K, W_V$. The slices are called
     "head-wise". This is called <strong>multi-head attention</strong>; you can think of
     it as the model running 32 small attention computations in parallel, each looking
     at a different aspect of the previous tokens, and then concatenating their results.
@@ -356,7 +356,7 @@ footer a { color: var(--blue); text-decoration: none; }
         Llama-3.1).</li>
     <li>Apply softmax to those scores to get a probability distribution over the
         vocabulary.</li>
-    <li>Pick a token from that distribution &mdash; either greedily (highest
+    <li>Pick a token from that distribution ,  either greedily (highest
         probability) or by sampling.</li>
     <li>Append the picked token to the sequence and repeat from step 1.</li>
   </ol>
@@ -365,7 +365,7 @@ footer a { color: var(--blue); text-decoration: none; }
     you run it on a new prompt, you have to do the full pass on the entire prompt at
     once; that one-shot pass is called <strong>prefill</strong>. Every subsequent step
     only adds one new token at the end; that is the <strong>decode</strong> phase.
-    Prefill and decode have different performance shapes &mdash; prefill is
+    Prefill and decode have different performance shapes ,  prefill is
     compute-bound (lots of arithmetic on lots of tokens at once), decode is
     bandwidth-bound (one token's worth of arithmetic, but you still have to read the
     whole model from memory). Most of the latency a user feels comes from decode.
@@ -539,7 +539,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     The HyperTensor papers run PCA on the rows (or columns) of weight matrices to
     find the directions in which the weights themselves spread the most. The trick is
-    that this PCA is done on the <em>weights</em>, not on activations &mdash; that is
+    that this PCA is done on the <em>weights</em>, not on activations ,  that is
     what makes the scheme "calibration-free." There is no need to feed example text
     through the model to discover the basis.
   </p>
@@ -566,7 +566,7 @@ footer a { color: var(--blue); text-decoration: none; }
     classic example: globally it is a sphere, but a small patch around you looks like
     a plane and you can use ordinary two-dimensional maps for it. The number of
     coordinates needed to describe a small patch is the manifold's
-    <strong>dimension</strong> &mdash; in the Earth's case, two.
+    <strong>dimension</strong> ,  in the Earth's case, two.
   </p>
   <p>
     Why this matters: when a transformer processes a token, the resulting vector lives
@@ -605,7 +605,7 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="paper1">
   <span class="section-num">&sect;11</span>
-  <h2>Paper 1, in plain English</h2>
+  <h2>Paper 1, the short version</h2>
   <p>
     With the background in place, the headline result of
     <a href="01-attention-compression.html">Paper&nbsp;1</a> is short to state.
@@ -615,7 +615,7 @@ footer a { color: var(--blue); text-decoration: none; }
     matrices at inference time. The result is:
   </p>
   <ul>
-    <li>Decode runs at <strong>106.27%</strong> of baseline throughput &mdash; that is,
+    <li>Decode runs at <strong>106.27%</strong> of baseline throughput ,  that is,
         the model is faster compressed than uncompressed. (Statistically significant
         at $p \approx 10^{-10}$ under a paired bootstrap.)</li>
     <li>Quality is preserved at this $k$; perplexity rises only by about 13% at the
@@ -627,13 +627,13 @@ footer a { color: var(--blue); text-decoration: none; }
     attention weights for a block fit in L2 in a way that the full $d = 4{,}096$
     versions don't. The arithmetic of the projection adds a small amount of work, but
     the bandwidth savings dominate. The paper is careful to label this a
-    <em>hypothesis</em> &mdash; a direct measurement of L2 hit rates with a profiler
+    <em>hypothesis</em> ,  a direct measurement of L2 hit rates with a profiler
     like Nsight Compute is listed as future work, and would either confirm or
     falsify the cache argument.
   </p>
   <p>
     Things Paper&nbsp;1 deliberately does not do: it does not compress the FFN
-    (because the FFN's spectra are flat &mdash; see Paper&nbsp;2), it does not
+    (because the FFN's spectra are flat ,  see Paper&nbsp;2), it does not
     compress the output projection $W_O$ (because including it gave worse results
     under the calibration-free scheme), it does not run on multiple GPUs or models in
     that paper's headline (the cross-architecture evidence is in Paper&nbsp;2), and it
@@ -644,7 +644,7 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="paper2">
   <span class="section-num">&sect;12</span>
-  <h2>Paper 2, in plain English</h2>
+  <h2>Paper 2, the short version</h2>
   <p>
     <a href="02-geodesic-projection.html">Paper&nbsp;2</a> describes the full
     compression pipeline that the runtime ships with, of which Paper&nbsp;1 is one
@@ -660,8 +660,8 @@ footer a { color: var(--blue); text-decoration: none; }
   </ol>
   <p>
     Paper&nbsp;2 also presents the cross-architecture intrinsic-dim evidence I
-    described in section 10. That evidence is the reason the paper's premise &mdash;
-    "trained transformer activations sit on a low-dimensional manifold" &mdash; is
+    described in section 10. That evidence is the reason the paper's premise , 
+    "trained transformer activations sit on a low-dimensional manifold" ,  is
     not just an artifact of one model.
   </p>
   <p>
@@ -674,7 +674,7 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="paper3">
   <span class="section-num">&sect;13</span>
-  <h2>Paper 3, in plain English</h2>
+  <h2>Paper 3, the short version</h2>
   <p>
     <a href="03-speculative-decoding.html">Paper&nbsp;3</a> asks: if compression
     works (Paper&nbsp;1), and if the compression generalises across slots
@@ -707,7 +707,7 @@ footer a { color: var(--blue); text-decoration: none; }
 
 <section id="paper4">
   <span class="section-num">&sect;14</span>
-  <h2>Paper 4, in plain English</h2>
+  <h2>Paper 4, the short version</h2>
   <p>
     <a href="04-organic-training-theory.html">Paper&nbsp;4</a> is the theoretical
     companion. It tries to formalise what the empirical papers were doing, by
@@ -789,14 +789,14 @@ footer a { color: var(--blue); text-decoration: none; }
     front-to-back. A reasonable order:
   </p>
   <ol>
-    <li><a href="01-attention-compression.html">Paper&nbsp;1</a> &mdash; the empirical
+    <li><a href="01-attention-compression.html">Paper&nbsp;1</a> ,  the empirical
         anchor. Most concrete, most benchmark numbers, smallest set of new ideas.</li>
-    <li><a href="02-geodesic-projection.html">Paper&nbsp;2</a> &mdash; the
+    <li><a href="02-geodesic-projection.html">Paper&nbsp;2</a> ,  the
         production pipeline; reuses everything from Paper&nbsp;1 and adds the
         cross-architecture manifold evidence.</li>
-    <li><a href="03-speculative-decoding.html">Paper&nbsp;3</a> &mdash; the
+    <li><a href="03-speculative-decoding.html">Paper&nbsp;3</a> ,  the
         compositions; design and implementation, no end-to-end benchmarks yet.</li>
-    <li><a href="04-organic-training-theory.html">Paper&nbsp;4</a> &mdash; the
+    <li><a href="04-organic-training-theory.html">Paper&nbsp;4</a> ,  the
         theory. Read last and read sceptically; the paper itself recommends this
         order.</li>
   </ol>

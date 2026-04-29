@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geodesic Runtime Compression: a calibration-free, super-baseline attention compression — HyperTensor Research</title>
-<meta name="description" content="Geodesic Runtime Compression: a calibration-free, super-baseline attention compression — research paper from the HyperTensor project (NagusameCS).">
+<title>Geodesic Runtime Compression: a calibration-free, super-baseline attention compression, HyperTensor Research</title>
+<meta name="description" content="Geodesic Runtime Compression: a calibration-free, super-baseline attention compression, research paper from the HyperTensor project (NagusameCS).">
 <meta name="robots" content="index, follow">
 <meta name="GPTBot" content="noindex, nofollow">
 <meta name="ClaudeBot" content="noindex, nofollow">
@@ -76,8 +76,7 @@ four-level hierarchy:
 theory).
 <em>Geodesic Projection (GP)</em> is the overarching inference-time pipeline
 that factorises weights along their dominant geometric directions.
-<em>Geodesic Runtime Compression (GRC)</em> — the subject of this paper —
-is the attention-only subset of GP applied to <span class="math inline">\(\Wmat_Q,\Wmat_K,\Wmat_V\)</span> at
+<em>Geodesic Runtime Compression (GRC)</em>, the subject of this paper, is the attention-only subset of GP applied to <span class="math inline">\(\Wmat_Q,\Wmat_K,\Wmat_V\)</span> at
 load time, with no calibration and no fine-tuning.
 <em>OTT/GTC</em> (Organic Tensor Topology / Geodessical Tensor Cache) is the
 longer-term theoretical framework that views the projection bases as charts
@@ -425,9 +424,8 @@ BW_\text{HBM}\;\;(256\,\text{GB/s}) &amp; S(k)&gt;C_\text{L2},
 \end{cases}
 \label{eq:bweff}
 \end{equation}\]</span>
-with <span class="math inline">\(C_\text{L2}=32\)</span> MB on the test GPU. The transition is not sharp —
-L1/register pressure and KV-cache traffic spread it over a band of <span class="math inline">\(k\)</span>
-values — but the order of magnitude jump in <span class="math inline">\(BW_\text{eff}\)</span> at the
+with <span class="math inline">\(C_\text{L2}=32\)</span> MB on the test GPU. The transition is not sharp, L1/register pressure and KV-cache traffic spread it over a band of <span class="math inline">\(k\)</span>
+values, but the order of magnitude jump in <span class="math inline">\(BW_\text{eff}\)</span> at the
 crossing is what makes the super-baseline numerically possible: a <span class="math inline">\(\sim\!10\times\)</span>
 bandwidth gain pays for the additional projection FLOPs and still leaves
 headroom. Concretely, for our <span class="math inline">\(d{=}4096\)</span> Llama:
@@ -438,7 +436,7 @@ between regimes, consistent with the elevated variance reported in
 <a href="#app:extended" data-reference-type="ref+Label" data-reference="app:extended">12</a>. The cross-GPU predictions in <a href="#tab:predict" data-reference-type="ref+Label" data-reference="tab:predict">2</a> are
 obtained by inverting <a href="#eq:bweff" data-reference-type="ref+Label" data-reference="eq:bweff">[eq:bweff]</a>: solve for the largest <span class="math inline">\(k\)</span> with
 <span class="math inline">\(S(k)\le 0.75\,C_\text{L2}\)</span> (25% headroom for KV and residual).
-This is a falsifiable model, not a guarantee — a single Nsight Compute
+This is a falsifiable model, not a guarantee, a single Nsight Compute
 run reporting low <code>l2_tex_hit_rate</code> at <span class="math inline">\(k{=}1024\)</span> would refute it.</p>
 <div id="tab:predict">
 <table>
@@ -560,7 +558,7 @@ percentile-bootstrap with 10 000 resamples.</caption>
 <td style="text-align: left;">CI pack: coding 256</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.9767</td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 <td style="text-align: right;"><span class="math inline">\(-0.92\)</span></td>
 <td style="text-align: right;">0.417</td>
 <td style="text-align: left;">no sig. change</td>
@@ -569,7 +567,7 @@ percentile-bootstrap with 10 000 resamples.</caption>
 <td style="text-align: left;">CI pack: reasoning 256</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.9897</td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 <td style="text-align: right;"><span class="math inline">\(-0.31\)</span></td>
 <td style="text-align: right;">0.777</td>
 <td style="text-align: left;">no sig. change</td>
@@ -897,13 +895,13 @@ configurations sit comfortably inside the 8 188 MiB budget.</caption>
 <td style="text-align: left;">OS / display idle</td>
 <td style="text-align: right;"><span class="math inline">\({\sim}1\,136\)</span></td>
 <td style="text-align: right;"><span class="math inline">\({\sim}1\,136\)</span></td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 </tr>
 <tr>
 <td style="text-align: left;">Post-model upload</td>
 <td style="text-align: right;"><span class="math inline">\({\sim}5\,812\)</span></td>
 <td style="text-align: right;"><span class="math inline">\({\sim}5\,812\)</span></td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 </tr>
 <tr>
 <td style="text-align: left;">Active decode (sust.)</td>
@@ -921,14 +919,14 @@ configurations sit comfortably inside the 8 188 MiB budget.</caption>
 <td style="text-align: left;">Headroom</td>
 <td style="text-align: right;"><span class="math inline">\({\sim}1\,493\)</span></td>
 <td style="text-align: right;"><span class="math inline">\({\sim}1\,457\)</span></td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 </tr>
 </tbody>
 </table>
 <p>Runtime-reported model load: 226 weight tensors (4 684 MB) +
 scratch arena (513 MB) + KV cache and activations at 8K context
 (<span class="math inline">\({\sim}615\)</span> MB). The 1.09 GB on-disk <span class="math inline">\(\Wmat_\text{proj}\)</span> is only
-<em>partially</em> resident in VRAM during decode — the GPU-resident working
+<em>partially</em> resident in VRAM during decode, the GPU-resident working
 set uses only the active layer’s projected matrices, hence the small +36 MiB
 delta despite the large on-disk artefact.</p>
 </section>
@@ -999,7 +997,7 @@ right axis to optimise.</p>
 dequantisation. The rank required to capture <span class="math inline">\(95\%\)</span> of <span class="math inline">\(\norm{\Wmat}_F^2\)</span>:</p>
 <table>
 <caption>Per-matrix <span class="math inline">\(k_{95}\)</span> across five layers. The compression policy
-“attention only” is justified by construction — FFN matrices have
+“attention only” is justified by construction, FFN matrices have
 near-uniform spectra and would need <span class="math inline">\({\sim}3.4\times\)</span> the rank for the
 same energy capture.</caption>
 <thead>
@@ -1059,8 +1057,7 @@ same energy capture.</caption>
 <section id="confidence-interval-pack-12-rep" class="level3">
 <h3>Confidence-interval pack (12-rep)</h3>
 <table>
-<caption>Per-class CI bounds. GRC variance is <span class="math inline">\({\sim}6\times\)</span> baseline —
-<span class="math inline">\(\pm 2\)</span> tok/s vs. <span class="math inline">\(\pm 0.3\)</span> tok/s — because L2 residency varies with
+<caption>Per-class CI bounds. GRC variance is <span class="math inline">\({\sim}6\times\)</span> baseline, <span class="math inline">\(\pm 2\)</span> tok/s vs. <span class="math inline">\(\pm 0.3\)</span> tok/s, because L2 residency varies with
 prompt-induced access patterns. Worst-case lower-95% bound is 86% of
 baseline, well above the 67% gate.</caption>
 <thead>
@@ -1288,7 +1285,7 @@ the near-term roadmap.</caption>
 <tr>
 <td style="text-align: left;">Cross-hardware validation</td>
 <td style="text-align: left;">All measurements on RTX 4070 Laptop; <a href="#tab:predict" data-reference-type="ref+Label" data-reference="tab:predict">2</a> is calculated, not measured.</td>
-<td style="text-align: left;">Cache-fit cannot be claimed as general — only as observed on this GPU.</td>
+<td style="text-align: left;">Cache-fit cannot be claimed as general, only as observed on this GPU.</td>
 </tr>
 </tbody>
 </table>

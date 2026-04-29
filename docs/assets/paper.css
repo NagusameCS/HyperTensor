@@ -1,5 +1,5 @@
 /*
- * paper.css — shared polish layer for HyperTensor research papers.
+ * paper.css, shared polish layer for HyperTensor research papers.
  * Imported AFTER each paper's local <style> so it overrides on conflict.
  * Defines: hero stats, hero buttons, abstract box, gate cards, two-column
  * cards, polished table chrome, accent section numbers.

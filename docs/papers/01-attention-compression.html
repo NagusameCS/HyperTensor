@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HyperTensor / GRC — NagusameCS Research</title>
+<title>HyperTensor / GRC, NagusameCS Research</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/01-attention-compression.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -480,7 +480,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ ABSTRACT ════════════════ -->
 <section id="abstract">
-  <span class="section-num">§0 — Abstract</span>
+  <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
   <div class="abstract-box">
     <p>
@@ -488,7 +488,7 @@ section { animation: fadeUp .4s ease both; }
       not by arithmetic. The headline finding of this report is empirical and slightly
       uncomfortable: on an RTX 4070 Laptop, a <a class="term" href="https://en.wikipedia.org/wiki/Low-rank_approximation" target="_blank" rel="noopener" title="Approximating a matrix by one of lower rank.">low-rank</a> projection of the attention
       weight matrices runs <strong>faster than the uncompressed model</strong> at one
-      specific rank ($k=1024$, $k/d=0.25$) — 106.27% of baseline decode throughput,
+      specific rank ($k=1024$, $k/d=0.25$), 106.27% of baseline decode throughput,
       paired across 8 thermally-controlled runs ($t = 53.9$, $p \approx 10^{-10}$).
       Above that rank the speedup disappears, below it the model degrades. The simplest
       explanation is a GPU L2-cache-fit effect; we believe that explanation but cannot
@@ -501,7 +501,7 @@ section { animation: fadeUp .4s ease both; }
       $\mathbf{K} = \mathbf{W}_Q^\top\mathbf{W}_Q + \mathbf{W}_K^\top\mathbf{W}_K + \mathbf{W}_V^\top\mathbf{W}_V$
       and replace each $O(d^2)$ attention GEMV with a shared projection followed by a
       smaller $O(dk)$ multiply. The basis is built once, offline, from the model's own
-      weights — no calibration text, no gradients, no fine-tuning. This is a deliberate
+      weights, no calibration text, no gradients, no fine-tuning. This is a deliberate
       design <em>choice</em> relative to ASVD<a href="#ref-asvd"><sup>[3]</sup></a>,
       SliceGPT<a href="#ref-slicegpt"><sup>[2]</sup></a>, and FWSVD<a href="#ref-fwsvd"><sup>[4]</sup></a>
       (which all use calibration data); this report examines whether a calibration-free
@@ -512,7 +512,7 @@ section { animation: fadeUp .4s ease both; }
       cooldown protocol: at $k=1536$ ($k/d = 0.375$), GRC reaches <strong>97.55%</strong>
       of baseline decode throughput at a cost of <strong>+13.30%</strong> WikiText-2
       perplexity. At $k=1024$, throughput is the cited 106.27% but PPL collapses to
-      <strong>+61.39%</strong> (10.9585 vs baseline 6.7902) &mdash; the GQA K/V
+      <strong>+61.39%</strong> (10.9585 vs baseline 6.7902) ,  the GQA K/V
       projection dimension on Llama-3.1-8B is exactly 1024, so $k=1024$ is the
       lossless-K-and-V boundary at which the Q matrix is severely rank-deficient.
       $k=1536$ is the Pareto rank for this model. Seven
@@ -530,7 +530,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ GLOSSARY ════════════════ -->
 <section id="glossary">
-  <span class="section-num">§0.5 — Glossary</span>
+  <span class="section-num">§0.5, Glossary</span>
   <h2>Terms used in this report</h2>
   <p style="color:var(--text-soft);">
     Each term below is hyperlinked at first use. External links go to Wikipedia for
@@ -563,11 +563,11 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ FOR EVERYONE ════════════════ -->
 <section id="explainer">
-  <span class="section-num">§1 — Plain Language Summary</span>
+  <span class="section-num">§1, Plain summary</span>
   <h2>The Simple Version: What We Built and Why It Matters</h2>
 
   <div class="callout intuition">
-    <div class="callout-title">If you're new to AI &mdash; start here</div>
+    <div class="callout-title">If you're new to AI ,  start here</div>
     <p>This section explains everything without equations. Skip to §2 for the technical content.</p>
   </div>
 
@@ -575,8 +575,7 @@ section { animation: fadeUp .4s ease both; }
   <p>
     When you chat with an AI like Claude or ChatGPT, it generates one word (technically one
     <em>token</em>) at a time. To decide what word comes next, the model looks at all the previous
-    words and runs them through a very large mathematical function — called a neural network —
-    that contains billions of numbers called <strong>weights</strong>. These weights are what the
+    words and runs them through a very large mathematical function, called a neural network, that contains billions of numbers called <strong>weights</strong>. These weights are what the
     model "learned" during training: they encode grammar, facts, reasoning patterns, and the
     style of billions of documents.
   </p>
@@ -584,7 +583,7 @@ section { animation: fadeUp .4s ease both; }
     A modern 8-billion-parameter model stores about 4–5 gigabytes of weights, similar to a
     large movie file. Every single time the model generates one word, it has to read all of those
     weights from memory and do arithmetic with them. On a gaming GPU (like the one used in this
-    research), that arithmetic happens about 35 times per second — which is why AI chatbots feel
+    research), that arithmetic happens about 35 times per second, which is why AI chatbots feel
     roughly as fast as a human typist.
   </p>
 
@@ -592,7 +591,7 @@ section { animation: fadeUp .4s ease both; }
   <p>
     Making AI faster or making it run on smaller hardware requires <em>compression</em>: finding
     ways to represent those billions of weights in less space without making the model dumber.
-    Most existing compression methods — called quantisation — round each weight to fewer decimal
+    Most existing compression methods, called quantisation, round each weight to fewer decimal
     places (like rounding 3.14159 to 3.14). This works, but it has a limit: below a certain
     precision, the model degrades badly.
   </p>
@@ -601,20 +600,20 @@ section { animation: fadeUp .4s ease both; }
     insight: many of the weight matrices inside a transformer are "secretly simple." A 4096×4096
     matrix of numbers might look like it needs 16 million values to describe, but if the
     underlying mathematical structure is low-rank, you can describe it almost perfectly with far
-    fewer numbers — like describing a photo with 100 JPEG coefficients instead of 3 million pixels.
+    fewer numbers, like describing a photo with 100 JPEG coefficients instead of 3 million pixels.
   </p>
 
   <h3>What did we build?</h3>
   <p>
     GRC (Geodesic Runtime Compression) is a method that finds the "simple description" of the
-    <strong>attention weights</strong> — the part of the neural network responsible for deciding
+    <strong>attention weights</strong>, the part of the neural network responsible for deciding
     which previous words to pay attention to when generating the next one. It works like this:
   </p>
   <div class="callout intuition">
     <div class="callout-title">The intuition</div>
     <p>
       Imagine each weight matrix as a cloud of points in high-dimensional space. PCA
-      (Principal Component Analysis) finds the "main directions" in that cloud — the axes
+      (Principal Component Analysis) finds the "main directions" in that cloud, the axes
       along which the data varies the most. GRC projects all the attention weights onto those
       main directions. If 1,536 directions capture the important structure, we only need to
       store and compute with 1,536 numbers per token instead of 4,096.
@@ -624,7 +623,7 @@ section { animation: fadeUp .4s ease both; }
     The special thing about our method: <strong>we don't need any example text to find those
     directions.</strong> Most compression methods require running thousands of text samples
     through the model to figure out which weights matter. Our method reads only the weights
-    themselves — like finding the main structure of a sculpture by looking at it directly,
+    themselves, like finding the main structure of a sculpture by looking at it directly,
     rather than watching how shadows fall on it.
   </p>
 
@@ -654,7 +653,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ INTRODUCTION ════════════════ -->
 <section id="intro">
-  <span class="section-num">§2 — Introduction</span>
+  <span class="section-num">§2, Introduction</span>
   <h2>Introduction</h2>
   <p>
     The throughput of autoregressive transformer inference is limited primarily by memory
@@ -692,7 +691,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ BACKGROUND ════════════════ -->
 <section id="background">
-  <span class="section-num">§3 — Background</span>
+  <span class="section-num">§3, Background</span>
   <h2>Background: Transformers, Attention, and Memory Bandwidth</h2>
 
   <h3>3.1 Transformer Decoder Architecture</h3>
@@ -732,8 +731,7 @@ section { animation: fadeUp .4s ease both; }
     Consider a single decode step on an 8B-parameter model stored in Q4_K_M format (~4.9 GB).
     The GPU must read approximately 4.9 GB of weight data to generate one token. The RTX 4070
     Laptop GPU (AD106, 128-bit bus, 16 Gbps GDDR6) has a theoretical peak DRAM bandwidth of
-    <strong>256 GB/s</strong><a href="#ref-ada"><sup>[12]</sup></a>
-    — not the 336 GB/s figure of the desktop RTX 4070, which has a 192-bit bus and 21 Gbps
+    <strong>256 GB/s</strong><a href="#ref-ada"><sup>[12]</sup></a>, not the 336 GB/s figure of the desktop RTX 4070, which has a 192-bit bus and 21 Gbps
     memory. With this corrected number:
   </p>
   <div class="math-block">
@@ -742,7 +740,7 @@ section { animation: fadeUp .4s ease both; }
   <p>
     giving a theoretical decode ceiling of $\sim 52$ tok/s. We measure 35–36 tok/s, which
     means the implementation reaches roughly <strong>67–70%</strong> of theoretical peak
-    bandwidth—consistent with a well-tuned GEMV kernel on a memory-bound workload
+    bandwidth, consistent with a well-tuned GEMV kernel on a memory-bound workload
     <a href="#ref-roofline"><sup>[10]</sup></a><a href="#ref-llm-roofline"><sup>[11]</sup></a>.
     Compute utilisation derived from FLOPs/(peak FP16 throughput) is on the order of 1.5%,
     confirming the workload spends almost all of its time waiting on DRAM rather than computing.
@@ -783,7 +781,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ RELATED WORK ════════════════ -->
 <section id="related">
-  <span class="section-num">§3.5 — Related Work</span>
+  <span class="section-num">§3.5, Related Work</span>
   <h2>Where GRC Sits in the Literature</h2>
   <p>
     Compressing transformer weights for inference is a crowded subfield. The work most
@@ -802,7 +800,7 @@ section { animation: fadeUp .4s ease both; }
     ASVD<a href="#ref-asvd"><sup>[3]</sup></a> is a training-free SVD scheme that uses
     activation-aware weighting (so it is calibration-based by construction); FWSVD<a href="#ref-fwsvd"><sup>[4]</sup></a>
     extends this with Fisher-information weights. GRC's contribution relative to this line is
-    not a new decomposition—it is the deliberate stripping out of calibration to ask
+    not a new decomposition, it is the deliberate stripping out of calibration to ask
     whether the weight geometry alone is enough.
   </p>
   <p>
@@ -847,8 +845,8 @@ section { animation: fadeUp .4s ease both; }
     <div class="callout-title">In one sentence</div>
     <p>
       GRC is a deliberately minimal post-training low-rank scheme: shared basis, attention only,
-      no calibration. The point of the report is not the decomposition itself — that line of
-      work is mature — but the empirical observation that on a single consumer GPU there
+      no calibration. The point of the report is not the decomposition itself, that line of
+      work is mature, but the empirical observation that on a single consumer GPU there
       exists a rank where compressed inference is faster than uncompressed.
     </p>
   </div>
@@ -856,7 +854,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ METHOD ════════════════ -->
 <section id="method">
-  <span class="section-num">§4 — Method</span>
+  <span class="section-num">§4, Method</span>
   <h2>Method: Geodesic Runtime Compression</h2>
 
   <h3>4.1 Scope</h3>
@@ -864,13 +862,13 @@ section { animation: fadeUp .4s ease both; }
     GRC compresses only the attention projection weights $\{\mathbf{W}_Q^{(\ell)},
     \mathbf{W}_K^{(\ell)}, \mathbf{W}_V^{(\ell)}\}_{\ell=1}^{L}$.
     The output projection $\mathbf{W}_O^{(\ell)}$ is excluded (flag <code>--axex-skip-o</code>)
-    due to observed quality instability at 8B scale — a known limitation.
+    due to observed quality instability at 8B scale, a known limitation.
     FFN weights (gate, up, down projections) are left entirely uncompressed.
   </p>
   <p>
     The rationale for attention-only compression is empirical: attention weight matrices have
     sharply decaying singular spectra (a small number of large directions and many near-zero
-    ones), making them amenable to low-rank approximation — a structural fact also predicted
+    ones), making them amenable to low-rank approximation, a structural fact also predicted
     by recent theory<a href="#ref-kobayashi"><sup>[15]</sup></a>. FFN matrices behave like
     associative key/value memories<a href="#ref-geva"><sup>[14]</sup></a>, and their spectra
     are correspondingly flat; at useful compression ratios the Frobenius reconstruction error
@@ -947,9 +945,9 @@ section { animation: fadeUp .4s ease both; }
   </div>
   <p>
     The projection $\tilde{\mathbf{x}}$ (cost $O(dk)$) is <em>shared</em> across Q, K, V
-    in each layer — computed once, reused three times. Total FLOPs for attention
+    in each layer, computed once, reused three times. Total FLOPs for attention
     projections per token per layer drop from $O(3d^2)$ (full rank) to $O(4dk)$
-    (GRC). For $d=4096$, $k=1536$: from $\sim 50$M to $\sim 25$M FLOPs — roughly $2\times$ fewer.
+    (GRC). For $d=4096$, $k=1536$: from $\sim 50$M to $\sim 25$M FLOPs, roughly $2\times$ fewer.
   </p>
   <p>
     Crucially, however, the workload is memory-bandwidth limited, not FLOP-limited. The relevant
@@ -966,14 +964,14 @@ section { animation: fadeUp .4s ease both; }
     $$B_{\text{base}} = d^2 \times 0.5\,\text{bytes} \times 3 = 4096^2 \times 0.5 \times 3 \approx 25\text{ MB per layer}$$
   </div>
   <p>
-    At $k=1536$, GRC <em>loads more bytes</em> than the quantised baseline per layer — which
+    At $k=1536$, GRC <em>loads more bytes</em> than the quantised baseline per layer, which
     explains the slight throughput reduction to 97.55%. At $k=1024$:
   </p>
   <div class="math-block">
     $$B_{\text{GRC},k=1024} = 4096 \times 1024 \times 4 \times 3 \approx 50\text{ MB per layer}$$
   </div>
   <p>
-    Now GRC loads roughly $2\times$ the bytes of the quantised baseline per layer — yet measured
+    Now GRC loads roughly $2\times$ the bytes of the quantised baseline per layer, yet measured
     decode throughput is 106.27% of baseline. This is the central anomaly the rest of the report
     has to explain. We are not comparing identical kernels here:
     $\mathbf{W}_{\text{proj}}$ is stored as fp32 with no per-block scales, while baseline weights
@@ -997,7 +995,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ EXPERIMENTAL SETUP ════════════════ -->
 <section id="setup">
-  <span class="section-num">§5 — Experimental Setup</span>
+  <span class="section-num">§5, Experimental Setup</span>
   <h2>Experimental Setup</h2>
 
   <h3>5.1 Hardware</h3>
@@ -1012,7 +1010,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>GPU FP32 peak</td><td>40 TFLOPS (theoretical)</td></tr>
         <tr><td>GPU TDP (observed decode)</td><td>103–109 W</td></tr>
         <tr><td>GPU driver</td><td>595.79</td></tr>
-        <tr><td>CPU</td><td>AMD Ryzen 9 7940HS — 8c/16t, 4.0 GHz base, 5.2 GHz boost</td></tr>
+        <tr><td>CPU</td><td>AMD Ryzen 9 7940HS, 8c/16t, 4.0 GHz base, 5.2 GHz boost</td></tr>
         <tr><td>System RAM</td><td>32 GB DDR5-5200 (2×16 GB Kingston)</td></tr>
         <tr><td>Storage</td><td>2× Kingston SNV2S 2 TB NVMe SSD</td></tr>
         <tr><td>OS</td><td>Windows 11, CUDA host-mode runtime</td></tr>
@@ -1041,13 +1039,13 @@ section { animation: fadeUp .4s ease both; }
     All throughput measurements follow a locked protocol to prevent GPU thermal throttling from
     confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800–1400 MHz
     after sustained load, producing artificially low throughput readings (as low as 53% of true
-    baseline in early experiments — a measurement artefact, not a real effect).
+    baseline in early experiments, a measurement artefact, not a real effect).
   </p>
   <ul style="margin: 1rem 0 1rem 1.4rem; line-height: 2;">
     <li><strong>30-second GPU cooldown</strong> between every measurement run</li>
     <li><strong>Rank sweep runs first</strong> (while GPU is at thermal equilibrium)</li>
     <li>CI measurements: <strong>12 repetitions</strong> per configuration</li>
-    <li>PPL measurements: <strong>5 repetitions</strong> (deterministic — all identical)</li>
+    <li>PPL measurements: <strong>5 repetitions</strong> (deterministic, all identical)</li>
     <li>Starting GPU temperature: 38–41°C before each run</li>
     <li>GPU temperature during sustained decode: 59–61°C</li>
   </ul>
@@ -1061,7 +1059,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ RESULTS ════════════════ -->
 <section id="results">
-  <span class="section-num">§6 — Results</span>
+  <span class="section-num">§6, Results</span>
   <h2>Results</h2>
 
   <h3>6.1 Throughput: Rank Sweep</h3>
@@ -1160,7 +1158,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>6.3 Quality: Perplexity</h3>
   <p>
     WikiText-2 perplexity, evaluated with 512-token context windows at temperature=0 (greedy
-    decoding). Measurements are <strong>fully deterministic</strong> — identical values across all 5 runs.
+    decoding). Measurements are <strong>fully deterministic</strong>, identical values across all 5 runs.
   </p>
   <div class="table-wrap">
     <table>
@@ -1171,8 +1169,8 @@ section { animation: fadeUp .4s ease both; }
         <tr>
           <td>Baseline (Q4_K_M, no GRC)</td>
           <td class="num">6.7902</td>
-          <td class="num">—</td>
-          <td class="num">—</td>
+          <td class="num">, </td>
+          <td class="num">, </td>
         </tr>
         <tr>
           <td>GRC k=1024</td>
@@ -1187,7 +1185,7 @@ section { animation: fadeUp .4s ease both; }
           <td class="num" style="font-size:0.76rem">2405A3B6</td>
         </tr>
         <tr style="opacity:0.55; background:var(--bg-soft);">
-          <td>GRC k=2048 <em>(duplicate of k=1536 — see footnote)</em></td>
+          <td>GRC k=2048 <em>(duplicate of k=1536, see footnote)</em></td>
           <td class="num warn">7.6936</td>
           <td class="num warn">+13.30%</td>
           <td class="num" style="font-size:0.76rem">2405A3B6 (same)</td>
@@ -1218,7 +1216,7 @@ section { animation: fadeUp .4s ease both; }
       comparable to ASVD's published numbers despite using no calibration data. PPL is a
       distribution-level metric; its relationship to task performance is non-linear. Task-level
       evaluations (MMLU, HumanEval, TruthfulQA) were not performed in this cycle, and
-      <strong>perplexity at $k=1024$ — the throughput-optimal setting — has not been
+      <strong>perplexity at $k=1024$, the throughput-optimal setting, has not been
       measured</strong>. We flag this prominently because the headline 106.27% throughput
       number does not have a quality number attached to it.
     </p>
@@ -1231,11 +1229,11 @@ section { animation: fadeUp .4s ease both; }
         <tr><th>Stage</th><th>Baseline</th><th>GRC k=1536</th><th>Delta</th></tr>
       </thead>
       <tbody>
-        <tr><td>OS/display idle</td><td class="num">~1,136 MiB</td><td class="num">~1,136 MiB</td><td class="num">—</td></tr>
-        <tr><td>Post-model load</td><td class="num">~5,812 MiB</td><td class="num">~5,812 MiB</td><td class="num">—</td></tr>
+        <tr><td>OS/display idle</td><td class="num">~1,136 MiB</td><td class="num">~1,136 MiB</td><td class="num">, </td></tr>
+        <tr><td>Post-model load</td><td class="num">~5,812 MiB</td><td class="num">~5,812 MiB</td><td class="num">, </td></tr>
         <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702–6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
         <tr><td>Peak observed</td><td class="num">6,695 MiB</td><td class="num">6,731 MiB</td><td class="num">+36 MiB</td></tr>
-        <tr><td>Headroom (8,188 MiB total)</td><td class="num">~1,493 MiB</td><td class="num">~1,457 MiB</td><td class="num">—</td></tr>
+        <tr><td>Headroom (8,188 MiB total)</td><td class="num">~1,493 MiB</td><td class="num">~1,457 MiB</td><td class="num">, </td></tr>
       </tbody>
     </table>
   </div>
@@ -1247,7 +1245,7 @@ section { animation: fadeUp .4s ease both; }
       <tbody>
         <tr><td>Idle</td><td class="num">1.9 W</td><td class="num">2.3 W</td></tr>
         <tr><td>Model loading</td><td class="num">15.8 W</td><td class="num">15.9 W</td></tr>
-        <tr><td>PCA calibration (first run only)</td><td>—</td><td class="num">13–14 W (CPU-bound)</td></tr>
+        <tr><td>PCA calibration (first run only)</td><td>, </td><td class="num">13–14 W (CPU-bound)</td></tr>
         <tr><td>Decode (sustained)</td><td class="num">103–109 W</td><td class="num">103–109 W</td></tr>
       </tbody>
     </table>
@@ -1314,7 +1312,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ CACHE FIT EFFECT ════════════════ -->
 <section id="cache-effect">
-  <span class="section-num">§7 — A Working Hypothesis: Cache-Fit</span>
+  <span class="section-num">§7, A Working Hypothesis: Cache-Fit</span>
   <h2>Why the Compressed Model Runs Faster (We Think)</h2>
   <p>
     The most surprising finding in this report is that GRC at $k=1024$ measures 106.27% of
@@ -1381,7 +1379,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 
   <div class="callout intuition">
-    <div class="callout-title">Plain-language version</div>
+    <div class="callout-title">Plain version</div>
     <p>
       A larger book that lives on the desk is faster to consult than a smaller book scattered
       across ten shelves with index cards in between. Q4_K_M is the smaller-book-with-index-cards
@@ -1420,12 +1418,11 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ SPECTRAL JUSTIFICATION ════════════════ -->
 <section id="spectra">
-  <span class="section-num">§8 — Spectral Justification of Low-Rank Compression</span>
+  <span class="section-num">§8, Spectral Justification of Low-Rank Compression</span>
   <h2>Why Attention Compresses but FFN Does Not</h2>
   <p>
     A central premise of GRC is that attention weight matrices have rapidly-decaying singular
-    spectra — most of their Frobenius energy lies in a small fraction of singular directions —
-    while feed-forward (FFN) matrices do not. This section verifies that premise empirically by
+    spectra, most of their Frobenius energy lies in a small fraction of singular directions, while feed-forward (FFN) matrices do not. This section verifies that premise empirically by
     computing the full SVD of every attention and FFN weight matrix in five layers of
     Llama-3.1-8B-Instruct (Q4_K_M, dequantised to f32) and reports the rank required to capture
     a target fraction of $\|\mathbf{W}\|_F^2$.
@@ -1450,7 +1447,7 @@ section { animation: fadeUp .4s ease both; }
       <strong>Figure 8.2.</strong> Cumulative fraction of $\|\mathbf{W}\|_F^2$ captured by the
       top-$k$ singular components, all seven slots, all five sampled layers. Attention
       slots reach $\geq 95\%$ energy by $k \approx 635$&ndash;2,342; FFN slots require
-      $k \geq 3{,}199$ &mdash; close to full rank. Click slot names in the legend to
+      $k \geq 3{,}199$ ,  close to full rank. Click slot names in the legend to
       isolate individual matrix types. Source:
       <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/spectra_summary.json">docs/figures/spectra_summary.json</a>.
     </div>
@@ -1658,7 +1655,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ STATISTICAL SIGNIFICANCE ════════════════ -->
 <section id="statistics">
-  <span class="section-num">§9 — Statistical Significance of the Super-Baseline</span>
+  <span class="section-num">§9, Statistical Significance of the Super-Baseline</span>
   <h2>Hypothesis Tests on Throughput Gains</h2>
   <p>
     The headline claim is that GRC at $k=1024$ exceeds uncompressed baseline decode throughput.
@@ -1712,7 +1709,7 @@ section { animation: fadeUp .4s ease both; }
           <td>CI pack: coding 256-token</td>
           <td class="num">5</td>
           <td class="num">0.9767</td>
-          <td class="num">—</td>
+          <td class="num">, </td>
           <td class="num">−0.92</td>
           <td class="num">0.4173</td>
           <td class="warn">No significant change</td>
@@ -1721,7 +1718,7 @@ section { animation: fadeUp .4s ease both; }
           <td>CI pack: reasoning 256-token</td>
           <td class="num">5</td>
           <td class="num">0.9897</td>
-          <td class="num">—</td>
+          <td class="num">, </td>
           <td class="num">−0.31</td>
           <td class="num">0.7773</td>
           <td class="warn">No significant change</td>
@@ -1741,7 +1738,7 @@ section { animation: fadeUp .4s ease both; }
     </p>
     <p>
       The $k=1536$ result (ratio 0.9755, CI [0.9071, 1.0232]) <em>cannot</em> be distinguished
-      from baseline at $\alpha=0.05$ — which strengthens the near-lossless throughput claim:
+      from baseline at $\alpha=0.05$, which strengthens the near-lossless throughput claim:
       GRC at $k=1536$ is statistically equivalent to uncompressed inference on this hardware.
     </p>
   </div>
@@ -1749,7 +1746,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ THEORETICAL BOUND ════════════════ -->
 <section id="eckart-young">
-  <span class="section-num">§10 — Theoretical Bound: Eckart–Young vs GRC</span>
+  <span class="section-num">§10, Theoretical Bound: Eckart–Young vs GRC</span>
   <h2>How Far Is the Shared Basis from the Optimum?</h2>
   <p>
     The Eckart–Young–Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
@@ -1805,7 +1802,7 @@ section { animation: fadeUp .4s ease both; }
     </li>
     <li>
       <strong>Despite the gap, downstream quality is preserved.</strong> The CI pack runs (§6)
-      show 97.55% throughput retention and +13.30% PPL at $k=1536$ — well within the structural
+      show 97.55% throughput retention and +13.30% PPL at $k=1536$, well within the structural
       penalty budget. This indicates that the directions <em>missed</em> by the shared basis are
       lower-importance for next-token prediction than their singular values alone would suggest.
     </li>
@@ -1818,14 +1815,14 @@ section { animation: fadeUp .4s ease both; }
       separate projections $\mathbf{P}_Q, \mathbf{P}_K, \mathbf{P}_V$ would close the gap to the
       oracle bound at the cost of $3\times$ the projection storage. The fact that the shared
       basis still preserves task quality despite the gap indicates that calibration-free,
-      single-basis GRC is near a useful local optimum — not the global one.
+      single-basis GRC is near a useful local optimum, not the global one.
     </p>
   </div>
 </section>
 
 <!-- ════════════════ NOVELTY ════════════════ -->
 <section id="novelty">
-  <span class="section-num">§11 — Novel Contributions</span>
+  <span class="section-num">§11, Novel Contributions</span>
   <h2>What This Work Contributes</h2>
 
   <div class="grid-2">
@@ -1850,7 +1847,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ IMPACT ════════════════ -->
 <section id="impact">
-  <span class="section-num">§11.5 — Impact and Implications</span>
+  <span class="section-num">§11.5, Impact and Implications</span>
   <h2>Why This Might Matter (and Why It Might Not)</h2>
   <p>
     There is a real risk in research papers of overselling implications. We try to be careful
@@ -1889,7 +1886,7 @@ section { animation: fadeUp .4s ease both; }
   <p>
     If counter measurement attributes the speedup to register pressure, scheduler effects, or
     avoided dequantisation arithmetic rather than L2 fit, the practical recipe (low-rank
-    attention compression at deployment time) still works — it just becomes another
+    attention compression at deployment time) still works, it just becomes another
     instance of "format overhead matters" rather than a cache-architecture story. The
     calibration-free part remains useful in either case.
   </p>
@@ -1909,7 +1906,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ LIMITATIONS ════════════════ -->
 <section id="limitations">
-  <span class="section-num">§12 — Limitations</span>
+  <span class="section-num">§12, Limitations</span>
   <h2>Limitations</h2>
 
   <div class="callout warning">
@@ -1931,7 +1928,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Calibration-free basis construction</td><td class="pass">Demonstrated</td><td>Zero calibration data used</td></tr>
         <tr><td>Cross-hardware generality</td><td class="fail">Not demonstrated</td><td>Single GPU tested</td></tr>
         <tr><td>Cross-model generality</td><td class="fail">Not demonstrated</td><td>Phase 3 in progress</td></tr>
-        <tr><td>Quality at k=1024</td><td class="warn">Measured (+61.39% PPL)</td><td><a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/</a> &mdash; collapse explained by GQA K/V dim = 1024</td></tr>
+        <tr><td>Quality at k=1024</td><td class="warn">Measured (+61.39% PPL)</td><td><a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/</a> ,  collapse explained by GQA K/V dim = 1024</td></tr>
         <tr><td>Batch inference behaviour</td><td class="fail">Not demonstrated</td><td>Single-request decode only</td></tr>
         <tr><td>Long-context quality (4K–8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
         <tr><td>Task-level quality (MMLU, HumanEval)</td><td class="fail">Not demonstrated</td><td>Only PPL measured</td></tr>
@@ -1942,7 +1939,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>12.2 Known Technical Limitations</h3>
   <h4>Quality penalty (+13.30% PPL)</h4>
   <p>
-    Structural and unavoidable at k=1536 — it reflects information lost in projection from
+    Structural and unavoidable at k=1536, it reflects information lost in projection from
     $d=4096$ to $k=1536$. This stacks on top of the Q4_K_M quantisation penalty already present.
     Closing the gap requires either higher $k$ (reducing throughput benefit) or fine-tuning.
   </p>
@@ -1983,8 +1980,7 @@ section { animation: fadeUp .4s ease both; }
           <td>The cache-fit hypothesis (§7) is supported by access-pattern analysis and matches
               the predicted $k/d \approx 0.25$ optimum, but no hardware counter trace
               (e.g., Nsight Compute <code>l2_tex_hit_rate</code>) is included. The
-              cache-fit explanation is consistent with — but not directly verified by —
-              hardware events.</td>
+              cache-fit explanation is consistent with, but not directly verified by, hardware events.</td>
           <td>Without counter data, alternative micro-architectural explanations (e.g.,
               register-pressure relief, scheduler effects) cannot be ruled out.</td>
         </tr>
@@ -2011,7 +2007,7 @@ section { animation: fadeUp .4s ease both; }
               cache-fit predictions for RTX 4090, A100, H100 in Table 7.3 are calculated,
               not measured.</td>
           <td>Without cross-hardware data, the cache-fit principle cannot be claimed as
-              general — only as observed on this specific GPU.</td>
+              general, only as observed on this specific GPU.</td>
         </tr>
       </tbody>
     </table>
@@ -2025,7 +2021,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ FUTURE WORK ════════════════ -->
 <section id="future">
-  <span class="section-num">§13 — Future Work</span>
+  <span class="section-num">§13, Future Work</span>
   <h2>Future Work</h2>
 
   <h3>13.1 Cross-Hardware Cache-Fit Sweep</h3>
@@ -2040,15 +2036,15 @@ section { animation: fadeUp .4s ease both; }
   <h3>13.2 FFN Compression</h3>
   <p>
     FFN weights (gate, up, down projections; 14,336 × 4,096 for Llama-3.1-8B) have substantially
-    flatter singular value spectra than attention weights — low-rank approximation at $k/n = 3.5\%$
+    flatter singular value spectra than attention weights, low-rank approximation at $k/n = 3.5\%$
     explains only 3.5% of the Frobenius norm, making global SVD truncation unacceptably lossy.
   </p>
   <p>
-    Viable paths include: (a) <strong>block-diagonal decomposition</strong> — decompose each FFN
+    Viable paths include: (a) <strong>block-diagonal decomposition</strong>, decompose each FFN
     weight into $B$ blocks and compress each independently, finding local low-rank structure;
-    (b) <strong>input-adaptive sparse activation</strong> — identify and skip near-zero neurons
+    (b) <strong>input-adaptive sparse activation</strong>, identify and skip near-zero neurons
     per token (exploiting the superposition / monosemanticity structure); (c) <strong>FFN on
-    CPU + attention on GPU</strong> — keep FFN in system RAM and run it on CPU while GPU handles
+    CPU + attention on GPU</strong>, keep FFN in system RAM and run it on CPU while GPU handles
     attention-only GRC, accepting PCIe latency as a throughput tradeoff.
   </p>
 
@@ -2072,7 +2068,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>13.5 Quality Recovery via Distillation</h3>
   <p>
     The +13.30% PPL penalty is structural given the current calibration-free basis. A subsequent
-    few-shot distillation step — using the uncompressed model as teacher — could recover quality
+    few-shot distillation step, using the uncompressed model as teacher, could recover quality
     without full retraining, following the LoRA/QLoRA paradigm. The W_proj matrices are
     differentiable and could be fine-tuned directly.
   </p>
@@ -2080,7 +2076,7 @@ section { animation: fadeUp .4s ease both; }
 
 <!-- ════════════════ REPRODUCIBILITY ════════════════ -->
 <section id="reproduce">
-  <span class="section-num">§14 — Reproducibility</span>
+  <span class="section-num">§14, Reproducibility</span>
   <h2>Reproducing This Work</h2>
 
   <h3>11.1 Requirements</h3>
@@ -2144,7 +2140,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
 
 <!-- ════════════════ REFERENCES ════════════════ -->
 <section id="references">
-  <span class="section-num">§15 — References</span>
+  <span class="section-num">§15, References</span>
   <h2>References</h2>
   <ol style="padding-left:1.4rem; font-size:0.9rem; line-height:2.0;">
     <li id="ref-llama">
@@ -2236,7 +2232,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
 <!-- ════════════════ FOOTER ════════════════ -->
 <footer>
   <p>
-    <strong>HyperTensor / Geodesic Runtime Compression</strong> &mdash;
+    <strong>HyperTensor / Geodesic Runtime Compression</strong> , 
     by <strong>William Ken Ohara Stewart</strong> (NagusameCS), April 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HyperTensor — Whitepaper (all 7 engineering papers, back-to-back) — NagusameCS</title>
+<title>HyperTensor, Whitepaper (all 7 engineering papers, back-to-back), NagusameCS</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/whitepaper.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -344,7 +344,7 @@ footer.foot a { color: var(--text); }
 
 <header id="whitepaper-hero">
   <div class="tag">Whitepaper</div>
-  <h1>HyperTensor &mdash; the seven engineering papers, back-to-back.</h1>
+  <h1>HyperTensor ,  the seven engineering papers, back-to-back.</h1>
   <p>One scrollable document. Each paper is a chapter; cross-paper links resolve in-page.</p>
   <div class="stats" id="hero-stats">
     <span><strong id="stat-words">&hellip;</strong> words</span>
@@ -357,13 +357,13 @@ footer.foot a { color: var(--text); }
 <aside class="toc" aria-label="Table of contents">
   <h3>Chapters</h3>
   <ol id="toc-list">
-    <li><a href="#ch-00">Paper 0 &mdash; Introduction</a></li>
-    <li><a href="#ch-01">Paper 1 &mdash; Attention compression</a></li>
-    <li><a href="#ch-02">Paper 2 &mdash; Geodesic Projection</a></li>
-    <li><a href="#ch-03">Paper 3 &mdash; Speculative decoding</a></li>
-    <li><a href="#ch-04">Paper 4 &mdash; Organic Training Theory</a></li>
-    <li><a href="#ch-05">Paper 5 &mdash; GTC + OTT runtime</a></li>
-    <li><a href="#ch-06">Paper 6 &mdash; Adaptive compression</a></li>
+    <li><a href="#ch-00">Paper 0 ,  Introduction</a></li>
+    <li><a href="#ch-01">Paper 1 ,  Attention compression</a></li>
+    <li><a href="#ch-02">Paper 2 ,  Geodesic Projection</a></li>
+    <li><a href="#ch-03">Paper 3 ,  Speculative decoding</a></li>
+    <li><a href="#ch-04">Paper 4 ,  Organic Training Theory</a></li>
+    <li><a href="#ch-05">Paper 5 ,  GTC + OTT runtime</a></li>
+    <li><a href="#ch-06">Paper 6 ,  Adaptive compression</a></li>
   </ol>
 </aside>
 
@@ -376,7 +376,7 @@ footer.foot a { color: var(--text); }
 </div>
 
 <footer class="foot">
-  <p><strong>HyperTensor</strong> &mdash; William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
+  <p><strong>HyperTensor</strong> ,  William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
     <a href="../index.html">Home</a> &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></p>
 </footer>
@@ -518,7 +518,7 @@ footer.foot a { color: var(--text); }
       } else if (/^https?:\/\//.test(href) || href.charAt(0) === '#') {
         // leave as is
       } else if (href.indexOf('../') === 0 || href.charAt(0) === '/') {
-        // leave as is — these point outside the papers folder
+        // leave as is, these point outside the papers folder
       }
     });
   }
@@ -567,7 +567,7 @@ footer.foot a { color: var(--text); }
         var node = extractMain(doc);
         // Strip scripts (avoid double-execution / page lib clashes)
         [].forEach.call(node.querySelectorAll('script'), function (s) { s.remove(); });
-        // Strip per-paper inline <style> — body styles inherit from this page
+        // Strip per-paper inline <style>, body styles inherit from this page
         [].forEach.call(node.querySelectorAll('style'), function (s) { s.remove(); });
         // Strip per-paper aside/footer/nav if we fell back to body
         [].forEach.call(node.querySelectorAll('nav, footer, aside'), function (s) { s.remove(); });

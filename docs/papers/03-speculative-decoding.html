@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Composing Compression: Geodesic Speculative Decoding and Attention Residuals — HyperTensor</title>
+<title>Composing Compression: Geodesic Speculative Decoding and Attention Residuals, HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/03-speculative-decoding.html">
 <meta name="description" content="Design and runtime implementation of geodesic speculative decoding (compressed model as drafter against full-precision verifier) and Block Attention Residuals (Kimi 2026) under low-rank attention. v0.3 anchors the speculative path with first end-to-end measurements on SmolLM2-135M-Instruct: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -79,7 +79,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 
 <section id="scope">
   <div class="callout warning">
-    <div class="callout-title">Scope of this paper — read first (v0.3, 2026-04-27)</div>
+    <div class="callout-title">Scope of this paper, read first (v0.3, 2026-04-27)</div>
     <p>
       This paper documents the <em>design and runtime implementation</em> of two
       compositions on top of the GP runtime described in
@@ -99,8 +99,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       end-to-end empirical anchor. On SmolLM2-135M-Instruct (Q8_0, ChatML), the OTT
       stack reaches <code>status=geodesic_ready</code> with <strong>38.5%
       acceptance</strong> and <strong>76.5 tok/s</strong> end-to-end. See the new
-      §<a href="#measured">5.5 — First end-to-end measurements</a>. These are first
-      numbers on a 135M instruct model, not the full 8B sweep — the §<a
+      §<a href="#measured">5.5, First end-to-end measurements</a>. These are first
+      numbers on a 135M instruct model, not the full 8B sweep, the §<a
       href="#status">8</a> status list reflects what is and isn't yet measured.
     </p>
     <p>
@@ -115,7 +115,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="abstract">
-  <span class="section-num">§0 — Abstract</span>
+  <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
   <div class="abstract-box">
     <p>
@@ -139,7 +139,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="glossary">
-  <span class="section-num">§0.5 — Glossary</span>
+  <span class="section-num">§0.5, Glossary</span>
   <h2>Terms</h2>
   <div class="table-wrap">
     <table>
@@ -150,7 +150,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         <tr><td><strong>Draft length $\gamma$</strong></td><td>Number of tokens the drafter proposes per verifier step. Tuning parameter.</td></tr>
         <tr><td><strong>Verifier step cost $T_V$</strong></td><td>Cost of one forward pass of the verifier on the prefix + $\gamma$ proposed tokens.</td></tr>
         <tr><td><strong>Drafter step cost $T_D$</strong></td><td>Cost of one autoregressive token from the drafter.</td></tr>
-        <tr><td><strong>AttnRes</strong></td><td>Block Attention Residuals — replaces the standard PreNorm residual accumulation with a softmax-weighted sum over per-block summary vectors. Mitigates the $\mathcal{O}(\sqrt{L})$ residual-stream magnitude growth that vanilla PreNorm produces. Kimi Team, arXiv:2603.15031.</td></tr>
+        <tr><td><strong>AttnRes</strong></td><td>Block Attention Residuals, replaces the standard PreNorm residual accumulation with a softmax-weighted sum over per-block summary vectors. Mitigates the $\mathcal{O}(\sqrt{L})$ residual-stream magnitude growth that vanilla PreNorm produces. Kimi Team, arXiv:2603.15031.</td></tr>
         <tr><td><strong>$\sqrt{L}$ residual growth</strong></td><td>Empirical observation that PreNorm residual-stream magnitudes grow approximately as $\sqrt{L}$ in $L$ blocks because each block adds an approximately unit-variance update. AttnRes attenuates this. See ref&nbsp;[3].</td></tr>
         <tr><td><strong>KV-cache compression</strong></td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1–2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
       </tbody>
@@ -159,12 +159,12 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="motivation">
-  <span class="section-num">§1 — Why compose</span>
+  <span class="section-num">§1, Why compose</span>
   <h2>The throughput shape of speculative decoding under compression</h2>
   <p>
     Speculative decoding wins because the verifier amortises its forward-pass cost over
     multiple accepted tokens. Compression reduces the drafter's cost. These look
-    independent — and on first principles they are — but the interaction has a specific
+    independent, and on first principles they are, but the interaction has a specific
     shape that matters.
   </p>
   <p>
@@ -196,7 +196,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <p>
     The third factor is always $\geq 1$ (compression helps); the first two are always
     $\leq 1$ (compression hurts acceptance). The composition wins iff the third factor
-    dominates — and that depends on $T_V / T_D$ (verifier-to-drafter cost ratio) and on
+    dominates, and that depends on $T_V / T_D$ (verifier-to-drafter cost ratio) and on
     how much $\Delta\alpha$ compression actually causes. The Paper&nbsp;1 attention-only
     GP at $k = 1024$ has a measurable PPL cost we did not characterise (see Paper&nbsp;1
     §6); we therefore have <em>no</em> direct data on what $\Delta\alpha$ is in this
@@ -205,7 +205,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="implementation-spec">
-  <span class="section-num">§2 — Geodesic speculative decoding (implementation)</span>
+  <span class="section-num">§2, Geodesic speculative decoding (implementation)</span>
   <h2>What the runtime actually does</h2>
   <p>
     The runtime exposes
@@ -221,8 +221,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <li><strong>Drafter and verifier share KV cache structure but not weights.</strong>
         The drafter is the GP-compressed model loaded once; the verifier is the
         uncompressed model loaded once. Both are kept resident in VRAM, which on the
-        reference 8&nbsp;GB GPU constrains us to <em>one</em> 8B model at a time —
-        speculative decoding on Llama-3.1-8B with itself is not memory-feasible without
+        reference 8&nbsp;GB GPU constrains us to <em>one</em> 8B model at a time, speculative decoding on Llama-3.1-8B with itself is not memory-feasible without
         an additional VRAM tier. We therefore characterise the design with a thought
         experiment of "drafter = GP-compressed 8B; verifier = uncompressed 8B on a
         24&nbsp;GB-class GPU" and we are explicit that we have not run that hardware.</li>
@@ -238,7 +237,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     The runtime additionally supports running the drafter alone (the
     <code>--no-verifier</code> flag in the speculative path). This emits the
     GP-compressed model's output directly without rejection sampling. It is not a
-    speedup tool — that is just running the compressed model — but it is the calibration
+    speedup tool, that is just running the compressed model, but it is the calibration
     point we need to interpret the speculative numbers when they arrive: by comparing
     "drafter alone vs verifier alone vs spec(drafter, verifier)" at matched prompt and
     matched seed, we can decompose the effect into "compression cost" vs
@@ -257,15 +256,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="throughput-model">
-  <span class="section-num">§3 — Closed-form throughput estimates</span>
+  <span class="section-num">§3, Closed-form throughput estimates</span>
   <h2>What the model predicts before we run it</h2>
   <p>
     To make the prediction concrete we plug Paper&nbsp;1's measured numbers into the
-    speculative formula, with one piece — $\Delta\alpha$ — replaced by a range. On the
+    speculative formula, with one piece, $\Delta\alpha$, replaced by a range. On the
     reference RTX&nbsp;4070 Laptop, baseline Llama-3.1-8B-Q4_K_M decode is 35.6&nbsp;tok/s,
     so $T_D^\text{full} = 28.1$&nbsp;ms/token. With $k = 1024$ GP attention-only
-    compression, decode rises to 37.8&nbsp;tok/s ($T_D^\text{GP} = 26.5$&nbsp;ms/token —
-    a 5.7% saving). Verifier prefill at $\gamma = 4$ on the same hardware is roughly
+    compression, decode rises to 37.8&nbsp;tok/s ($T_D^\text{GP} = 26.5$&nbsp;ms/token, a 5.7% saving). Verifier prefill at $\gamma = 4$ on the same hardware is roughly
     $T_V \approx 90$&nbsp;ms (extrapolated from Paper&nbsp;1 §6's prefill numbers, not
     measured under spec).
   </p>
@@ -294,7 +292,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         full 8B as verifier is not faster than just decoding the full 8B directly,
         because the verifier is the bottleneck. This is independent of GP. Speculative
         decoding helps when $T_V \gg T_D$, which is true when verifier is on a much
-        bigger or higher-bandwidth tier than drafter — exactly the deployment shape
+        bigger or higher-bandwidth tier than drafter, exactly the deployment shape
         ("8B drafter on commodity GPU, 70B verifier on a server GPU") we cannot
         currently test.</li>
     <li>On a hypothetical hardware where a 70B verifier is the slow side, the GP saving
@@ -312,7 +310,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="attnres">
-  <span class="section-num">§4 — Attention Residuals under compression</span>
+  <span class="section-num">§4, Attention Residuals under compression</span>
   <h2>Where AttnRes might help and where it might amplify the error</h2>
   <p>
     Block AttnRes (Kimi Team, arXiv:2603.15031) replaces the standard PreNorm residual
@@ -375,7 +373,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="kv">
-  <span class="section-num">§5 — KV-cache compression</span>
+  <span class="section-num">§5, KV-cache compression</span>
   <h2>A footprint result, not a throughput result</h2>
   <p>
     The runtime additionally supports compressing the KV cache itself with the same
@@ -398,7 +396,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="measured">
-  <span class="section-num">§5.5 — First end-to-end measurements</span>
+  <span class="section-num">§5.5, First end-to-end measurements</span>
   <h2>SmolLM2-135M-Instruct, Q8_0, ChatML</h2>
   <p>
     The first end-to-end measurement of the OTT speculative path was completed on
@@ -412,9 +410,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         <tr><td>OTT readiness status</td><td class="num">geodesic_ready</td><td><code>ready=true, hybrid_ready=true, runtime_share=1.0, consistency=1.0</code></td></tr>
         <tr><td>Acceptance rate $\alpha$</td><td class="num">38.5%</td><td>5 geodesic-accepted / 13 total tokens; 8 verifier corrections</td></tr>
         <tr><td>End-to-end throughput</td><td class="num">76.5 tok/s</td><td>13 tokens in 170&nbsp;ms, batch=4, threshold=0.45</td></tr>
-        <tr><td>OD draft hits</td><td class="num">5</td><td>OneDecode table hits / 13 = 38.5% — same as overall acceptance on this prompt</td></tr>
+        <tr><td>OD draft hits</td><td class="num">5</td><td>OneDecode table hits / 13 = 38.5%, same as overall acceptance on this prompt</td></tr>
         <tr><td>SWARM-K hits</td><td class="num">0</td><td><code>--ott-swarm-k 8</code> currently crashes; tracked in §8.</td></tr>
-        <tr><td>Final adaptive batch</td><td class="num">4</td><td>Adaptive batch did not collapse below initial $\gamma$ — acceptance was stable</td></tr>
+        <tr><td>Final adaptive batch</td><td class="num">4</td><td>Adaptive batch did not collapse below initial $\gamma$, acceptance was stable</td></tr>
       </tbody>
     </table>
   </div>
@@ -426,7 +424,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     measured 76.5 tok/s gives an empirical $1.53\times$, within the
     closed-form prediction. The model worked on first measurement.
   </p>
-  <h3 id="egp">5.5.1 — The instruct-greedy-EOS pathology</h3>
+  <h3 id="egp">5.5.1, The instruct-greedy-EOS pathology</h3>
   <p>
     During first integration the speculative loop returned <em>zero tokens</em> on
     every prompt against the instruct model. The cause is unique to instruct-tuned
@@ -464,7 +462,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     a reader who removes <code>llm_topk_excluding</code> from the loop and re-runs
     will see 0 tok/s.
   </p>
-  <h3 id="reproduce">5.5.2 — Reproducing</h3>
+  <h3 id="reproduce">5.5.2, Reproducing</h3>
 <pre><code>git checkout d57162d  # OTT speculative ready commit
 .\build_host.ps1
 .\repair_ott.ps1 -ModelPath models\smollm2-135m-instruct-q8_0.gguf
@@ -482,7 +480,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="composition">
-  <span class="section-num">§6 — What composes and what doesn't</span>
+  <span class="section-num">§6, What composes and what doesn't</span>
   <h2>The frank table, with measurements deferred</h2>
   <p>
     We list the four composition cells and our prior expectation for each, with the
@@ -492,7 +490,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <table>
       <thead><tr><th>Composition</th><th>Mechanism</th><th>Prior expectation</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>GP × speculative decoding</td><td>Drafter $T_D$ drops; $\alpha$ may drop too</td><td>Wash on consumer hardware (verifier-bound); positive on tier-asymmetric setups</td><td>Measured on 135M-Instruct: $\alpha=0.385$, $1.53\times$ end-to-end — see §5.5</td></tr>
+        <tr><td>GP × speculative decoding</td><td>Drafter $T_D$ drops; $\alpha$ may drop too</td><td>Wash on consumer hardware (verifier-bound); positive on tier-asymmetric setups</td><td>Measured on 135M-Instruct: $\alpha=0.385$, $1.53\times$ end-to-end, see §5.5</td></tr>
         <tr><td>GP × AttnRes</td><td>Block-summary subspace narrows with $k$</td><td>Wash at moderate $k$; small loss at aggressive $k$</td><td>Implemented, not measured</td></tr>
         <tr><td>GP × KV-cache projection</td><td>Long-context VRAM saving</td><td>Useful at $\geq$ 8k context; irrelevant at decode-only protocols of Paper 1</td><td>Implemented, not measured at long context</td></tr>
         <tr><td>Speculative × AttnRes (without GP)</td><td>Same drafter and verifier path</td><td>Same as full speculative; AttnRes is orthogonal to the rejection mechanism</td><td>Implemented, not measured</td></tr>
@@ -507,7 +505,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="onedecode">
-  <span class="section-num">§6.5 — OneDecode, OTT-OD, and OTT-SWARM</span>
+  <span class="section-num">§6.5, OneDecode, OTT-OD, and OTT-SWARM</span>
   <h2>Three drafter modes shipped in the runtime but absent from earlier drafts</h2>
   <p>
     Earlier drafts of this paper described only the geodesic-projection drafter
@@ -523,7 +521,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     $V_{\text{bake}}=2048$ tokens, settable with
     <code>--one-decode-coverage&nbsp;N</code>) and persists it to
     <code>ott_one_decode.bin</code>. At decode time, a hit on the table returns
-    <em>(token, confidence)</em> in $O(1)$ — the model forward is skipped. The
+    <em>(token, confidence)</em> in $O(1)$, the model forward is skipped. The
     intuition is the same as Paper 4 §2 (geodesic trajectory caching), but
     here it is exposed as a runtime drafter rather than a research artifact.
     On a miss, the runtime falls back to the geodesic drafter of §2 and then
@@ -564,13 +562,13 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="related">
-  <span class="section-num">§7 — Related work</span>
+  <span class="section-num">§7, Related work</span>
   <h2>Lineage</h2>
   <ul>
     <li>Speculative decoding: Leviathan et al. 2023 (ref&nbsp;[1]); Chen et al. 2023
         (ref&nbsp;[2]). Both establish the exactness-preserving rejection rule we use.</li>
     <li>EAGLE (Li et al. 2024) and Medusa (Cai et al. 2024) train auxiliary drafter
-        heads against the same backbone; we do not — we use a GP-compressed copy of the
+        heads against the same backbone; we do not, we use a GP-compressed copy of the
         same backbone. This is closer to "self-speculative" decoding (Zhang et al.
         2023) than to head-style spec.</li>
     <li>vLLM and TensorRT-LLM ship production speculative decoding paths; we are not
@@ -583,7 +581,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="status">
-  <span class="section-num">§8 — Status</span>
+  <span class="section-num">§8, Status</span>
   <h2>What v0.3 has and what is still missing</h2>
   <p><strong>Now landed (v0.3):</strong></p>
   <ol>
@@ -623,7 +621,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="limitations">
-  <span class="section-num">§8.5 — Limitations</span>
+  <span class="section-num">§8.5, Limitations</span>
   <h2>What this paper does not establish</h2>
   <p>
     The v0.3 anchor is a single-model, single-hardware measurement, and the
@@ -691,17 +689,17 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 </section>
 
 <section id="references">
-  <span class="section-num">§9 — References</span>
+  <span class="section-num">§9, References</span>
   <h2>Selected refs</h2>
   <ol>
     <li>Leviathan, Y., Kalman, M., and Matias, Y., <em>Fast Inference from Transformers via Speculative Decoding</em>, ICML 2023.</li>
     <li>Chen, C., Borgeaud, S., et al., <em>Accelerating Large Language Model Decoding with Speculative Sampling</em>, arXiv:2302.01318, 2023.</li>
-    <li>Liu, H., Wang, X., et al., <em>Residual Stream Analysis in Pre-Norm Transformers</em>, NeurIPS 2024 — origin of the $\sqrt{L}$ growth observation.</li>
+    <li>Liu, H., Wang, X., et al., <em>Residual Stream Analysis in Pre-Norm Transformers</em>, NeurIPS 2024, origin of the $\sqrt{L}$ growth observation.</li>
     <li>Kimi Team, <em>Block Attention Residuals</em>, arXiv:2603.15031, 2026.</li>
     <li>Cai, T. et al., <em>Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads</em>, 2024.</li>
     <li>Li, Y. et al., <em>EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty</em>, 2024.</li>
     <li>Zhang, J. et al., <em>Draft &amp; Verify: Lossless Large Language Model Acceleration via Self-Speculative Decoding</em>, 2023.</li>
-    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression…</a>, 2026 — source of $T_D$ and PPL numbers used in §3.</li>
+    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression…</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
   </ol>
 </section>
 

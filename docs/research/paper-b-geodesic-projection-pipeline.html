@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut — HyperTensor Research</title>
-<meta name="description" content="Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut — research paper from the HyperTensor project (NagusameCS).">
+<title>Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut, HyperTensor Research</title>
+<meta name="description" content="Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut, research paper from the HyperTensor project (NagusameCS).">
 <meta name="robots" content="index, follow">
 <meta name="GPTBot" content="noindex, nofollow">
 <meta name="ClaudeBot" content="noindex, nofollow">
@@ -72,8 +72,8 @@ MathJax = {
 <div class="htnote">
 <p><strong>Project nomenclature.</strong> We use a four-level naming hierarchy throughout
 this paper series. <em>HyperTensor</em> is the project (compiler, runtime,
-kernels, theory). <em>Geodesic Projection (GP)</em> — the subject of this
-paper — is the inference-time pipeline that factorises every compressible
+kernels, theory). <em>Geodesic Projection (GP)</em>, the subject of this
+paper, is the inference-time pipeline that factorises every compressible
 weight along its dominant geometric directions. <em>Geodesic Runtime
 Compression (GRC)</em> is the attention-only subset of GP and is the empirical
 anchor of the companion paper. <em>OTT/GTC</em> is the Riemannian-manifold
@@ -104,7 +104,7 @@ projected weights) validated by the depth-sink layer’s spectrum hash.</p></li>
 </ul>
 <p>Two things this paper does <em>not</em> do, and the reader should treat them
 as scope limits. We do not provide multi-model end-to-end PPL/throughput
-sweeps—the empirical anchor remains the Llama-3.1-8B-Instruct Q4_K_M
+sweeps, the empirical anchor remains the Llama-3.1-8B-Instruct Q4_K_M
 number set from the companion paper. We do not yet report Llama-3.1-70B
 numbers: compute is approved, the run is queued, and the pack is not in this
 revision. Throughout we use the term <em>design-validated</em> for code paths
@@ -456,7 +456,7 @@ self-containment. Hardware: RTX 4070 Laptop, 32 MB L2.</p>
 <td style="text-align: left;">Baseline</td>
 <td style="text-align: right;">100.00</td>
 <td style="text-align: right;">6.7902</td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">, </td>
 </tr>
 <tr>
 <td style="text-align: left;">GP attn-only <span class="math inline">\(k{=}1024\)</span></td>
@@ -586,8 +586,8 @@ suffice; we normalise so <span class="math inline">\(\prod_i g_i^{1/d}=1\)</span
 <p>Once <span class="math inline">\(g^\star\)</span> is found it
 is baked into the compressed factors before GPU upload: stored
 <span class="math inline">\(\widetilde V_t[k][i]=S_kV_{k,i}\,g_i\)</span> (read), <span class="math inline">\(\widetilde
-U[i][k]=U_{i,k}/g_i\)</span> (write). The inference path—the two-GEMV
-<span class="math inline">\(\mathrm{tmp}=V_r^\top x\)</span>, <span class="math inline">\(\mathrm{out}=U_r\mathrm{tmp}\)</span>—is unchanged.
+U[i][k]=U_{i,k}/g_i\)</span> (write). The inference path, the two-GEMV
+<span class="math inline">\(\mathrm{tmp}=V_r^\top x\)</span>, <span class="math inline">\(\mathrm{out}=U_r\mathrm{tmp}\)</span>, is unchanged.
 This is the cleanest possible deployment: a free pre-compute step at
 calibration time, no runtime branch, no extra memory traffic.</p>
 </section>
@@ -627,7 +627,7 @@ coefficient <span class="math inline">\(\hat c_\text{rank}\)</span> (joules per 
 \lambda\,\hat c_\text{rank}\,p_\ell^{(r)}\bigl(R^{(r)}-r^\text{soft}_\ell\bigr),
 \quad r^\text{soft}_\ell=\sum_r p_\ell^{(r)}R^{(r)}.\]</span>
 The plan-level objective becomes <span class="math inline">\(\mathcal L_\text{recon}+\alpha\norm{r}_1
-+\lambda\,\hat c_\text{rank}\,r^\text{soft}\)</span>—a weighted blend of accuracy,
++\lambda\,\hat c_\text{rank}\,r^\text{soft}\)</span>, a weighted blend of accuracy,
 headroom, and energy.</p>
 </section>
 <section id="predicted-gain.-2" class="level7">
@@ -668,7 +668,7 @@ i.e. a rank-one tilt of <span class="math inline">\(\Pmat_t\)</span> <em>toward
 satisfies the Robbins–Monro conditions <span class="math inline">\(\sum\eta_t=\infty\)</span>,
 <span class="math inline">\(\sum\eta_t^2&lt;\infty\)</span> <span class="citation" data-cites="robbins1951sa">(Robbins and Monro 1951)</span>; default <span class="math inline">\(\eta_0=0.01\)</span>.
 Convergence to the leading eigenvectors of the running covariance is
-classical <span class="citation" data-cites="oja1982">(Oja 1982)</span>; what is new is the <em>trigger</em>—only
+classical <span class="citation" data-cites="oja1982">(Oja 1982)</span>; what is new is the <em>trigger</em>, only
 rejection residuals are fed in, by construction the directions the basis
 fails to capture.</p>
 </section>

@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────
-   reader.css — shared theme + Kindle-style reader controls
+   reader.css, shared theme + Kindle-style reader controls
    for the HyperTensor research site.
    Loaded AFTER each paper's inline <style> so the
    :root[data-…] selectors win on specificity.
@@ -139,7 +139,7 @@
 }
 :root[data-theme="dark"] .reader-btn[aria-pressed="true"] { color: #0f1115; }
 
-/* PDF / print button — second floating circle, sits to the left of the
+/* PDF / print button, second floating circle, sits to the left of the
    reader-settings toggle. Same shape, smaller text label. */
 .reader-toggle.pdf-toggle {
   right: calc(1.1rem + 56px);

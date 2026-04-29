@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Organic Training Theory and Geodesic Trajectory Caching — HyperTensor</title>
+<title>Organic Training Theory and Geodesic Trajectory Caching, HyperTensor</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/04-organic-training-theory.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -78,7 +78,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 
 <section id="framing">
   <div class="callout warning">
-    <div class="callout-title">Read this first — framing of this paper</div>
+    <div class="callout-title">Read this first, framing of this paper</div>
     <p>
       Papers&nbsp;1, 2, and 3 are <em>empirical</em>. They report measurements on real
       hardware running real LLMs. This paper is still primarily a
@@ -111,7 +111,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="abstract">
-  <span class="section-num">§0 — Abstract</span>
+  <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
   <div class="abstract-box">
     <p>
@@ -136,11 +136,11 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="renaming">
-  <span class="section-num">§0.5 — Naming</span>
+  <span class="section-num">§0.5, Naming</span>
   <h2>"GRC" disambiguation</h2>
   <p>
     The earlier draft of this paper used "GRC" for Geodesic Resonance Caching. Paper&nbsp;1
-    on this site uses "GRC" for Geodesic Runtime Compression — a different,
+    on this site uses "GRC" for Geodesic Runtime Compression, a different,
     implemented thing. To remove the collision, the trajectory-library idea is renamed
     in this paper to <strong>Geodesic Trajectory Caching (GTC)</strong>. The
     "resonance" terminology was always slightly metaphorical; the substantive content
@@ -150,7 +150,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="ott">
-  <span class="section-num">§1 — Organic Training Theory</span>
+  <span class="section-num">§1, Organic Training Theory</span>
   <h2>The manifold view</h2>
   <p>
     Let $\theta \in \mathbb{R}^P$ be the trained weights. Define
@@ -172,13 +172,13 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="gtc">
-  <span class="section-num">§2 — Geodesic Trajectory Caching</span>
+  <span class="section-num">§2, Geodesic Trajectory Caching</span>
   <h2>Storing geodesics, correcting cheaply</h2>
   <p>
     Each completed inference produces a full geodesic trajectory, not just an answer.
-    We propose storing these trajectories — the embedding, contextual velocity,
+    We propose storing these trajectories, the embedding, contextual velocity,
     waypoint sequence, Jacobi propagator $J(\lambda) \in \mathbb{R}^{k \times k}$, an
-    injectivity radius estimate, and the terminal logits — in a library indexed by
+    injectivity radius estimate, and the terminal logits, in a library indexed by
     nearest-neighbour search. New queries within the validity radius are served by a
     single $\mathcal{O}(k^2)$ matrix-vector product:
   </p>
@@ -187,7 +187,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </div>
   <p>
     The Jacobi equation is linear, so a batch of similar queries can be corrected in a
-    single matmul — a "resonance" effect where throughput rises rather than falls
+    single matmul, a "resonance" effect where throughput rises rather than falls
     under load. The simulation suite verifies linearity (err $7.3 \times 10^{-13}$),
     superposition ($1.6 \times 10^{-17}$), and exactness in flat regions ($5.6 \times
     10^{-17}$). On a synthetic mixture-of-Gaussians query distribution, the library
@@ -196,7 +196,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="attnres">
-  <span class="section-num">§3 — Connection to Attention Residuals</span>
+  <span class="section-num">§3, Connection to Attention Residuals</span>
   <h2>AttnRes as depth-wise geodesic segment selection</h2>
   <p>
     Block AttnRes (Kimi&nbsp;Team, arXiv:2603.15031) replaces fixed PreNorm residual
@@ -217,7 +217,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="formal-addendum">
-  <span class="section-num">§3.5 — Formal Addendum (Conditional)</span>
+  <span class="section-num">§3.5, Formal Addendum (Conditional)</span>
   <h2>Assumption-explicit theorem templates</h2>
   <div class="callout info">
     <div class="callout-title">Scope of this addendum</div>
@@ -306,7 +306,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="open">
-  <span class="section-num">§4 — Open problems</span>
+  <span class="section-num">§4, Open problems</span>
   <h2>What remains open</h2>
   <p>
     The original draft's five blockers are no longer all in the same category.
@@ -381,7 +381,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="limitations">
-  <span class="section-num">§5 — Limitations</span>
+  <span class="section-num">§5, Limitations</span>
   <h2>What this paper is not</h2>
   <p>
     Paper&nbsp;4 is the theory layer of the OTT/GTC programme. The boundaries
@@ -427,9 +427,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <li>
       <strong>AttnRes + GTC joint training is unsolved.</strong> The
       connection in §3 is read in one direction only: AttnRes weights are
-      interpretable as geodesic-segment selection. The reverse — training
+      interpretable as geodesic-segment selection. The reverse, training
       AttnRes to be Jacobi-smooth against a GTC library so that the
-      correction objective and the training objective agree — is open as a
+      correction objective and the training objective agree, is open as a
       training problem.
     </li>
     <li>
@@ -448,7 +448,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </section>
 
 <section id="terms">
-  <span class="section-num">§6 — Terms</span>
+  <span class="section-num">§6, Terms</span>
   <h2>Where to find definitions</h2>
   <p>
     For brevity Paper&nbsp;4 reuses the glossary tables in
@@ -458,15 +458,15 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     (PCA basis, projection slot, geometry cache, depth-sink), and
     <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
     (acceptance rate $\alpha$, draft/verifier, OneDecode). Terms specific to
-    this paper — manifold $\mathcal{M}_\theta$, intrinsic dimension $k$,
+    this paper, manifold $\mathcal{M}_\theta$, intrinsic dimension $k$,
     Fisher-information metric, geodesic, Jacobi field, injectivity radius
     $\rho$, exponential map $\exp_p$, parallel transport, diffeomorphism
-    $\phi$ — are introduced inline at first use.
+    $\phi$, are introduced inline at first use.
   </p>
 </section>
 
 <section id="references">
-  <span class="section-num">§7 — References</span>
+  <span class="section-num">§7, References</span>
   <h2>Selected refs</h2>
   <ol>
     <li>Stewart, W. K. O., <em>Geodesic Trajectory Caching and the OTT Runtime Anchor</em>, this site, Paper&nbsp;5 v0.1, 2026.</li>
