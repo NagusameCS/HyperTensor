@@ -276,6 +276,26 @@ choosing the verifier rank below the natural $k_{95}$ of attention can
 spec-decode compose multiplicatively rather than antagonistically
 (\Cref{sec:compose}).
 
+\paragraph{Spec-decode acceptance under low-rank compression
+(2026-04-29).}  A direct $\alpha$ vs.\ $k$ sweep on Llama-3.1-8B-Instruct
+Q4\_K\_M (RTX 4070 Laptop, $-n{=}64$, $\gamma{=}2$, deterministic, attn-only,
+skip-O) produced a partial result: at $k{\in}\{128, 256\}$ the geodesic
+draft acceptance rate \emph{collapses to $\alpha\approx 0\%$ on most
+prompts} (1 of 4 prompts at $k{=}256$ retained $\alpha{=}56.2\%$;
+the other 7 ran $\alpha{=}0\%$).  Decode throughput remained
+healthy ($31$--$36$ tok/s), so the failure mode is verifier rejection,
+not compute starvation.  At $k{=}512$ the cold-cache PCA exceeded a
+$15{:}00$ wallclock budget and the run was abandoned; the wproj cache
+required to make $k{=}512$ feasible at warm-cache cost is in the cache
+backlog.  The headline number ($\alpha{=}46.9\%$ at $k{=}\infty$, no
+GP compression) remains; the negative finding is that
+\textbf{geodesic spec-decode and aggressive GP compression do not
+compose at low $k$}, which contradicts the multiplicative-composition
+hypothesis above and re-opens a calibration question for v0.2: at what
+$k$ does the compressed-attention basis still preserve the geodesic
+draft's first-token alignment?  Raw partial CSV at
+\texttt{docs/figures/paper-c/tv\_of\_k\_sweep\_partial.csv}.
+
 \begin{figure}[h]\centering
 \includegraphics[width=0.85\linewidth]{../../docs/figures/paper-c/throughput_vs_rank.png}
 \caption{Decode throughput vs.\ compression rank $k$ on Llama-3.1-8B

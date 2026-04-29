@@ -811,11 +811,54 @@ in \Cref{tab:headline}.}
 \input{../../docs/data/decode_length_sweep.tex}
 \end{table}
 
-We do not claim a context-length sweep beyond the 128/256 split:
-fresh measurements at 1k/2k/4k contexts require cold-cache GRC compresses
-($\sim$30\,min/condition on the test laptop) and are deferred to follow-up
-work.  The pack-derived split above is reported as a sensitivity check, not
-as a substitute for a real context sweep.
+\subsection{Context-length sweep}
+\label{sec:ctx-sweep}
+
+A dedicated 128/512/1024/2048/4096-token context sweep on the same RTX
+4070 Laptop (Llama-3.1-8B Q4\_K\_M, $n{=}5$ samples per cell, $-n\,16$
+decode budget) confirms that GRC's throughput uplift is essentially flat in
+context length across the warm-cache regime tested.
+
+\begin{table}[h]\centering\footnotesize
+\caption{Decode tok/s vs.\ context length (RTX 4070 Laptop, Q4\_K\_M, $n{=}5$).}
+\label{tab:ctx-sweep}
+\begin{tabular}{rrrr}
+\toprule
+Context (tok) & Baseline tok/s & GRC $k{=}1024$ tok/s & ratio \\
+\midrule
+128  & $35.86 \pm 0.27$  & $38.16 \pm 0.36$ & $1.064$ \\
+512  & $35.58 \pm 0.37$  & $38.06 \pm 0.27$ & $1.070$ \\
+1024 & $35.80 \pm 0.45$  & $37.38 \pm 1.13$ & $1.044$ \\
+2048 & $35.52 \pm 0.05$  & $38.06 \pm 0.25$ & $1.072$ \\
+4096 & $35.44 \pm 0.15$  & $37.38 \pm 0.65$ & $1.055$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ratio is stable in $[1.044, 1.072]$ over a $32{\times}$ context-length
+range, consistent with the cache-fit hypothesis: once weight-PCA reduces
+the attention working set below the 32\,MB L2 capacity, the win is
+context-independent at these decode budgets. Source CSV at
+\texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/docs\_data/context\_length\_sweep.csv}.
+
+\subsection{Second-device portability}
+\label{sec:second-device}
+
+Beyond the headline 4070-Laptop numbers we rebuilt the binary on a
+second physical machine (Arch Linux 6.19, RTX 3050 6\,GB, sm\_86, zig
+0.14, CUDA 13) using \texttt{scripts/campaign/build\_remote\_arch\_cuda.sh}
+and reproduced the post-PCA decode pipeline. The 3050 cannot be compared
+apples-to-apples on Q4\_K\_M Llama-3.1-8B because the supervisor-bounded
+cold-cache PCA at $k{=}1024$ exceeds the test window ($\sim$96\,min for 32
+layers); we instead validated correctness with $k{=}256/512$ and Q8\_0,
+which overflows the 6\,GB VRAM at baseline (2.7\,tok/s) and recovers
+on-GPU residency once the wproj cache lands.
+
+This is a portability and reproducibility check, \emph{not} a cross-tier
+GPU sweep --- a 4090/A100/H100 evaluation remains future work and is the
+single largest open item before this paper is submission-ready.
+Cross-device run logs and binaries are archived under
+\texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/}.
 
 \subsection{Validation-gate summary}
 
