@@ -663,6 +663,56 @@ reasoning/256  & $35.58\!\pm\!0.31$ & $35.22\!\pm\!2.42$ & 98.99\% & \textbf{85.
 \end{tabular}
 \end{table}
 
+\subsection{Granular rank-Pareto sweep}
+\label{app:rank-pareto}
+
+The headline numbers in \Cref{tab:headline} are read from the
+\texttt{rank\_sweep} stage of the reference pack, which evaluates four
+prompt classes (coding, reasoning, factual, creative) at two
+generated-token lengths (128, 256) for each compression rank.  Aggregating
+those raw samples ($n{=}8$ per condition) gives the Pareto curve in
+\Cref{tab:rank-pareto}; the snippet is regenerated from
+\texttt{benchmarks/whitepaper\_pack\_20260427\_121815/rank\_sweep\_raw.csv}
+by \texttt{scripts/build\_rank\_pareto\_snippet.py}.
+
+\begin{table}[h]\centering\footnotesize
+\caption{Decode tok/s by rank ($n{=}8$ samples per row, 4~prompts $\times$
+2~token lengths).  Ratio is mean GRC throughput divided by the same-pack
+baseline mean.}
+\label{tab:rank-pareto}
+\input{../../docs/data/rank_pareto.tex}
+\end{table}
+
+The peak at $k{=}1024$ (ratio $1.063\times$) and the dip-then-recovery at
+$k{=}1536, 2048$ are the empirical signature of the cache-fit regime
+described in \Cref{sec:cachefit}.  Variance grows with rank, again
+consistent with the working-set/L2 boundary becoming the rate-limiting
+factor.
+
+\subsection{Decode-length sensitivity}
+\label{app:decode-length}
+
+To check that the throughput numbers are not an artefact of the specific
+generated-token budget, \Cref{tab:decode-length} splits the same
+\texttt{rank\_sweep} samples by decode length (128 vs.\ 256 tokens).
+Snippet emitted by \texttt{scripts/build\_decode\_length\_snippet.py} from
+the same source CSV.
+
+\begin{table}[h]\centering\footnotesize
+\caption{Decode tok/s grouped by generated-token budget ($n{=}4$ prompts
+per cell, mean$\pm$stdev).  The $k{=}1024$ super-baseline is stable across
+both budgets; the $k{=}1536$ row inherits the per-prompt variance reported
+in \Cref{tab:headline}.}
+\label{tab:decode-length}
+\input{../../docs/data/decode_length_sweep.tex}
+\end{table}
+
+We do not claim a context-length sweep beyond the 128/256 split:
+fresh measurements at 1k/2k/4k contexts require cold-cache GRC compresses
+($\sim$30\,min/condition on the test laptop) and are deferred to follow-up
+work.  The pack-derived split above is reported as a sensitivity check, not
+as a substitute for a real context sweep.
+
 \subsection{Validation-gate summary}
 
 The whitepaper-pack harness emits seven automated gates evaluated by
