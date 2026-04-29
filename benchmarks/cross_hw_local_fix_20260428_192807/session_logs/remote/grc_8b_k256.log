@@ -1,0 +1,271 @@
+
+  ██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+███████████████████████████████ ██████████████████████████████
+██████████████████████████████   █████████████████████████████
+█████████████████████████████     ████████████████████████████
+████████████████████████████       ███████████████████████████
+███████████████████████████         ██████████████████████████
+████████████████████████████       ███████████████████████████
+████████████████████████████       ███████████████████████████
+█████████████████████████████     ████████████████████████████
+█████████████████████████████     ████████████████████████████
+██████████████████    ███████    █████████   █████████████████
+██████████████████       █████   █████       █████████████████
+██████████████████        ████   ████        █████████████████
+████████████████          ████   ███          ████████████████
+████████████████           ██    ███          ████████████████
+█████████████████          ██    ██           ████████████████
+████████████████████                       ███████████████████
+███████████████████████                 ██████████████████████
+██████████████████████████          ██████████████████████████
+██████████████████████████   █████    ████████████████████████
+███████████████████      █████████████   █████████████████████
+███████████████████████████         ██████████████████████████
+██████████████████████████          ██████████████████████████
+███████████████████████████   ██  ████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+
+  Geodessical v0.6.0 "Synapse"
+
+[AXEX] --axex-compress: defaulting to weight-PCA basis (use --axex-actaware-pca to opt into the legacy path).
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
+[SMP] 32 CPUs online (31 workers + BSP)
+[GD] Loading model: /root/models/llama31-8b-q8_0.gguf
+[GD] Mapped 8145 MB
+[LLM] Loading model from buffer: 8145 MB
+[LLM] Parsing GGUF...
+[GGUF] Version 3, 292 tensors, 33 KV pairs
+[LLM] rms_epsilon=0.000010
+[LLM] Model: Meta Llama 3.1 8B Instruct (llama)
+[LLM] 32 layers, 4096-dim, 128256 vocab, 32 heads (8 KV), head_dim=128
+[LLM] About to map tensors...
+[LLM] token_embd.weight: type=8 dims=[4096,128256]
+[LLM] Tensor mapping complete: 32 layers
+[LLM] Tensors mapped, building vocab...
+[LLM] Vocab: 128256 tokens, BOS=128000, EOS=128009
+[LLM] Tokenizer: BPE
+[LLM] Vocab built (128256 tokens), allocating scratch...
+[LLM] Allocating 513 MB scratch arena
+[LLM] Model loaded successfully! Ready for inference.
+[FLASH-ATTN] Initialized: tile=32x32, scratch=41216 bytes
+[CUDA] Initialized: 1 device(s), 5705 MB free
+[GPU] VRAM free: 5705 MB, scratch: 557 KB
+[GPU] Layer 18: VRAM tight (1601MB free, 221MB needed) → CPU offload
+[GPU] Uploaded 128 weight tensors (5042 MB) to VRAM
+[GPU] GPU-resident forward pass ready (total VRAM: 5460 MB)
+[LLM] Backend: cuda (GPU-accelerated)
+[GD] Model loaded in 1132 ms
+[GD] Model: Meta Llama 3.1 8B Instruct
+[OTT-DISK] Loaded 256 hidden states from ott_hs_disk.dat
+[AXIOM-BETA-3] Loaded Phase-3 geometry from disk (ott_geometry.bin).
+[OTT-VOCI] Built vocab PCA index: 128256/128256 tokens, k=127 (62.1MB)
+[OTT-VOCI] Saved vocab index: 128256 tokens, k=127 → ott_vocab_idx.bin
+[AXIOM-BETA-3] Starting autonomous axiomatic survey...
+[AXIOM-BETA-3] Model: Meta Llama 3.1 8B Instruct (llama), dim=4096, layers=32, vocab=128256
+[AXIOM-BETA-3] Reusing cached geometry (phases 1-4 skipped)
+[AXIOM-BETA-3] Phase 5: skipped (geometry from disk cache)
+[AXIOM-BETA-3] Phase 5: speedup=1.0x (projected), 0.0 ms
+[AXIOM-BETA-3] Complete: 18.5 ms total
+
+[AXIOM-BETA-3] === Summary ==========================
+  Intrinsic dim : 0 (TwoNN=0.00, PCA=127 components)
+  Symmetry      : score=0.0000, generators=0, invariant=0
+  Curvature     : mean=0.000000, max=0.000000, high-curv=0
+  Fisher metric : trace_mean=0.0000, det_log_mean=0.0000
+  Axioms        : 0 (consistency=0.0000, oracle=0)
+  Geodesic pilot: speedup=1.0x
+  Cache reuse   : yes
+  Total time    : 18 ms
+[AXIOM-BETA-3] ======================================
+[AXIOM-BETA-3] Report: axiom_beta_report.json
+[AXEX-MANIFOLD] Skip-O mode: O_proj preserved at full rank (Q/K/V compressed only)
+[AXEX-MANIFOLD] Weight-PCA mode: Pt = top-k eigenvectors of K=Σ W^T W (maximises weight energy, no calib data needed)
+[AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)
+[AXEX-MANIFOLD] Weight-PCA: skipping calibration forward passes (using K=Σ W^T W eigenvectors)
+[AXEX-MANIFOLD] Capture diagnostic: 0/32 layers have valid samples, all_valid[0]=0, sample[0] norm2=0.0000
+[AXEX-MANIFOLD] Layer 0: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 0: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 1: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 1: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 2: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 2: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 3: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 3: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 4: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 4: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 5: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 5: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 6: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 6: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 7: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 7: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Per-layer PCA: 8/32 layers done
+[AXEX-MANIFOLD] Layer 8: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 8: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 9: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 9: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 10: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 10: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 11: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 11: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 12: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 12: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 13: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 13: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 14: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 14: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 15: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 15: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Per-layer PCA: 16/32 layers done
+[AXEX-MANIFOLD] Layer 16: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 16: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 17: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 17: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 18: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 18: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 19: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 19: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 20: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 20: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 21: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 21: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 22: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 22: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 23: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 23: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Per-layer PCA: 24/32 layers done
+[AXEX-MANIFOLD] Layer 24: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 24: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 25: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 25: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 26: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 26: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 27: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 27: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 28: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 28: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 29: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 29: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 30: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 30: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Layer 31: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 31: running weight-PCA eigvec (k=256)...
+[AXEX-MANIFOLD] Per-layer PCA: 32/32 layers done
+[AXEX-MANIFOLD-LW] L0 Q       : [4096×4096]→[4096×256]  energy=64.75% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L0 K       : [1024×4096]→[1024×256]  energy=84.15% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L0 V       : [1024×4096]→[1024×256]  energy=29.43% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L1 Q       : [4096×4096]→[4096×256]  energy=37.84% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L1 K       : [1024×4096]→[1024×256]  energy=64.41% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L1 V       : [1024×4096]→[1024×256]  energy=23.30% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L2 Q       : [4096×4096]→[4096×256]  energy=21.33% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L2 K       : [1024×4096]→[1024×256]  energy=46.15% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L2 V       : [1024×4096]→[1024×256]  energy=30.92% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L3 Q       : [4096×4096]→[4096×256]  energy=20.93% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L3 K       : [1024×4096]→[1024×256]  energy=48.23% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L3 V       : [1024×4096]→[1024×256]  energy=25.51% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L4 Q       : [4096×4096]→[4096×256]  energy=26.60% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L4 K       : [1024×4096]→[1024×256]  energy=51.24% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L4 V       : [1024×4096]→[1024×256]  energy=28.41% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L5 Q       : [4096×4096]→[4096×256]  energy=25.95% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L5 K       : [1024×4096]→[1024×256]  energy=48.01% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L5 V       : [1024×4096]→[1024×256]  energy=30.52% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L6 Q       : [4096×4096]→[4096×256]  energy=27.79% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L6 K       : [1024×4096]→[1024×256]  energy=49.38% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L6 V       : [1024×4096]→[1024×256]  energy=28.07% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L7 Q       : [4096×4096]→[4096×256]  energy=28.38% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L7 K       : [1024×4096]→[1024×256]  energy=51.67% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L7 V       : [1024×4096]→[1024×256]  energy=35.85% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L8 Q       : [4096×4096]→[4096×256]  energy=29.17% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L8 K       : [1024×4096]→[1024×256]  energy=51.09% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L8 V       : [1024×4096]→[1024×256]  energy=29.89% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L9 Q       : [4096×4096]→[4096×256]  energy=28.99% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L9 K       : [1024×4096]→[1024×256]  energy=49.72% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L9 V       : [1024×4096]→[1024×256]  energy=33.72% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L10 Q       : [4096×4096]→[4096×256]  energy=27.42% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L10 K       : [1024×4096]→[1024×256]  energy=49.32% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L10 V       : [1024×4096]→[1024×256]  energy=36.01% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L11 Q       : [4096×4096]→[4096×256]  energy=26.60% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L11 K       : [1024×4096]→[1024×256]  energy=51.01% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L11 V       : [1024×4096]→[1024×256]  energy=38.34% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L12 Q       : [4096×4096]→[4096×256]  energy=25.34% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L12 K       : [1024×4096]→[1024×256]  energy=51.10% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L12 V       : [1024×4096]→[1024×256]  energy=33.82% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L13 Q       : [4096×4096]→[4096×256]  energy=27.66% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L13 K       : [1024×4096]→[1024×256]  energy=55.73% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L13 V       : [1024×4096]→[1024×256]  energy=30.31% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L14 Q       : [4096×4096]→[4096×256]  energy=25.55% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L14 K       : [1024×4096]→[1024×256]  energy=52.87% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L14 V       : [1024×4096]→[1024×256]  energy=27.99% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L15 Q       : [4096×4096]→[4096×256]  energy=25.37% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L15 K       : [1024×4096]→[1024×256]  energy=48.24% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L15 V       : [1024×4096]→[1024×256]  energy=20.95% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L16 Q       : [4096×4096]→[4096×256]  energy=21.25% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L16 K       : [1024×4096]→[1024×256]  energy=49.91% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L16 V       : [1024×4096]→[1024×256]  energy=23.67% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L17 Q       : [4096×4096]→[4096×256]  energy=24.18% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L17 K       : [1024×4096]→[1024×256]  energy=50.00% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L17 V       : [1024×4096]→[1024×256]  energy=21.15% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L18 Q       : [4096×4096]→[4096×256]  energy=17.64% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L18 K       : [1024×4096]→[1024×256]  energy=49.48% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L18 V       : [1024×4096]→[1024×256]  energy=29.51% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L19 Q       : [4096×4096]→[4096×256]  energy=19.37% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L19 K       : [1024×4096]→[1024×256]  energy=44.11% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L19 V       : [1024×4096]→[1024×256]  energy=29.06% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L20 Q       : [4096×4096]→[4096×256]  energy=18.07% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L20 K       : [1024×4096]→[1024×256]  energy=46.05% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L20 V       : [1024×4096]→[1024×256]  energy=26.43% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L21 Q       : [4096×4096]→[4096×256]  energy=19.53% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L21 K       : [1024×4096]→[1024×256]  energy=46.11% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L21 V       : [1024×4096]→[1024×256]  energy=24.32% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L22 Q       : [4096×4096]→[4096×256]  energy=16.04% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L22 K       : [1024×4096]→[1024×256]  energy=43.50% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L22 V       : [1024×4096]→[1024×256]  energy=27.09% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L23 Q       : [4096×4096]→[4096×256]  energy=15.47% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L23 K       : [1024×4096]→[1024×256]  energy=42.15% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L23 V       : [1024×4096]→[1024×256]  energy=26.54% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L24 Q       : [4096×4096]→[4096×256]  energy=17.71% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L24 K       : [1024×4096]→[1024×256]  energy=42.93% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L24 V       : [1024×4096]→[1024×256]  energy=28.17% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L25 Q       : [4096×4096]→[4096×256]  energy=18.80% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L25 K       : [1024×4096]→[1024×256]  energy=39.20% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L25 V       : [1024×4096]→[1024×256]  energy=28.39% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L26 Q       : [4096×4096]→[4096×256]  energy=19.78% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L26 K       : [1024×4096]→[1024×256]  energy=48.07% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L26 V       : [1024×4096]→[1024×256]  energy=20.63% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L27 Q       : [4096×4096]→[4096×256]  energy=18.35% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L27 K       : [1024×4096]→[1024×256]  energy=43.61% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L27 V       : [1024×4096]→[1024×256]  energy=31.84% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L28 Q       : [4096×4096]→[4096×256]  energy=19.84% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L28 K       : [1024×4096]→[1024×256]  energy=46.76% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L28 V       : [1024×4096]→[1024×256]  energy=21.40% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L29 Q       : [4096×4096]→[4096×256]  energy=18.65% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L29 K       : [1024×4096]→[1024×256]  energy=41.89% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L29 V       : [1024×4096]→[1024×256]  energy=24.32% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L30 Q       : [4096×4096]→[4096×256]  energy=32.10% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L30 K       : [1024×4096]→[1024×256]  energy=55.74% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L30 V       : [1024×4096]→[1024×256]  energy=26.23% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L31 Q       : [4096×4096]→[4096×256]  energy=29.76% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L31 K       : [1024×4096]→[1024×256]  energy=51.72% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] L31 V       : [1024×4096]→[1024×256]  energy=29.39% (k/n=6.25%)
+[AXEX-MANIFOLD-LW] Total: 96 matrices | 3072 MB → 192 MB (93.8% reduction)
+[AXEX-MANIFOLD] Layerwise geodesic projection: 96 matrices compressed
+[AXEX-MANIFOLD] Saved W_proj cache: ott_wproj_cache_DE35ABDA.bin (96 matrices)
+[AXEX-MANIFOLD] Pt F16 contiguous (64.00 MB) → GPU L2 persist ready
+[AXEX-MANIFOLD] Pt Q4_0 contiguous (18.00 MB, 46.00 MB saved vs F16)
+[AXEX-MANIFOLD-LW] Uploaded 32 per-layer Pt matrices to GPU
+[AXEX-MANIFOLD] Uploaded 70 W_proj matrices to GPU (Q8_0 fp16-scale, ~4× less VRAM)
+[GPU] Manifold GP: Pt + 70 W_proj matrices uploaded to GPU
+[GPU] Freed 433 MB raw Q/K/V/O/gate/up GPU buffers (51 tensors) — GP manifold path active (k=256)
+[GD] Prompt: "hello"
+[GD] Generating 16 tokens...
+
+timeout: the monitored command dumped core

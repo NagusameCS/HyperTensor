@@ -1,0 +1,150 @@
+
+  ██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+███████████████████████████████ ██████████████████████████████
+██████████████████████████████   █████████████████████████████
+█████████████████████████████     ████████████████████████████
+████████████████████████████       ███████████████████████████
+███████████████████████████         ██████████████████████████
+████████████████████████████       ███████████████████████████
+████████████████████████████       ███████████████████████████
+█████████████████████████████     ████████████████████████████
+█████████████████████████████     ████████████████████████████
+██████████████████    ███████    █████████   █████████████████
+██████████████████       █████   █████       █████████████████
+██████████████████        ████   ████        █████████████████
+████████████████          ████   ███          ████████████████
+████████████████           ██    ███          ████████████████
+█████████████████          ██    ██           ████████████████
+████████████████████                       ███████████████████
+███████████████████████                 ██████████████████████
+██████████████████████████          ██████████████████████████
+██████████████████████████   █████    ████████████████████████
+███████████████████      █████████████   █████████████████████
+███████████████████████████         ██████████████████████████
+██████████████████████████          ██████████████████████████
+███████████████████████████   ██  ████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+
+  Geodessical v0.6.0 "Synapse"
+
+[AXEX] --axex-compress: defaulting to weight-PCA basis (use --axex-actaware-pca to opt into the legacy path).
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
+[SMP] 32 CPUs online (31 workers + BSP)
+[GD] Loading model: /root/models/llama31-8b-q8_0.gguf
+[GD] Mapped 8145 MB
+[LLM] Loading model from buffer: 8145 MB
+[LLM] Parsing GGUF...
+[GGUF] Version 3, 292 tensors, 33 KV pairs
+[LLM] rms_epsilon=0.000010
+[LLM] Model: Meta Llama 3.1 8B Instruct (llama)
+[LLM] 32 layers, 4096-dim, 128256 vocab, 32 heads (8 KV), head_dim=128
+[LLM] About to map tensors...
+[LLM] token_embd.weight: type=8 dims=[4096,128256]
+[LLM] Tensor mapping complete: 32 layers
+[LLM] Tensors mapped, building vocab...
+[LLM] Vocab: 128256 tokens, BOS=128000, EOS=128009
+[LLM] Tokenizer: BPE
+[LLM] Vocab built (128256 tokens), allocating scratch...
+[LLM] Allocating 513 MB scratch arena
+[LLM] Model loaded successfully! Ready for inference.
+[FLASH-ATTN] Initialized: tile=32x32, scratch=41216 bytes
+[CUDA] Initialized: 1 device(s), 5705 MB free
+[GPU] VRAM free: 5705 MB, scratch: 557 KB
+[GPU] Layer 18: VRAM tight (1601MB free, 221MB needed) → CPU offload
+[GPU] Uploaded 128 weight tensors (5042 MB) to VRAM
+[GPU] GPU-resident forward pass ready (total VRAM: 5460 MB)
+[LLM] Backend: cuda (GPU-accelerated)
+[GD] Model loaded in 1130 ms
+[GD] Model: Meta Llama 3.1 8B Instruct
+[JIT] AVX2 GEMV 4096x4096 compiled (1096 bytes)
+[JIT] AVX2 GEMV 1024x4096 compiled (1096 bytes)
+[JIT] AVX2 GEMV 14336x4096 compiled (1096 bytes)
+[JIT] AVX2 GEMV 4096x14336 compiled (1096 bytes)
+[OTT-SINK] layer=4 mean_pairwise_cos=0.3218
+[OTT-SINK] layer=9 mean_pairwise_cos=0.4263
+[OTT-SINK] layer=14 mean_pairwise_cos=0.5379
+[OTT-SINK] layer=19 mean_pairwise_cos=0.6500
+[OTT-SINK] layer=24 mean_pairwise_cos=0.5700
+[OTT-SINK] layer=29 mean_pairwise_cos=0.4123
+[OTT-SINK] layer=31 mean_pairwise_cos=0.2773
+[OTT-SINK] best-diversity layer=31 (mean_cos=0.2773, 7 candidates tested)
+[AXIOM-BETA-3] Starting autonomous axiomatic survey...
+[AXIOM-BETA-3] Model: Meta Llama 3.1 8B Instruct (llama), dim=4096, layers=32, vocab=128256
+[AXIOM-BETA-3] Phase 1: Manifold Identification...
+[AXIOM-P1] Progress: 32/256 samples (12%)
+[OTT-DISK] Saved 32 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 64/256 samples (25%)
+[OTT-DISK] Saved 64 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 96/256 samples (38%)
+[OTT-DISK] Saved 96 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 128/256 samples (50%)
+[OTT-DISK] Saved 128 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 160/256 samples (62%)
+[OTT-DISK] Saved 160 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 192/256 samples (75%)
+[OTT-DISK] Saved 192 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 224/256 samples (88%)
+[OTT-DISK] Saved 224 hidden states to ott_hs_disk.dat
+[AXIOM-P1] Progress: 256/256 samples (100%)
+[OTT-DISK] Saved 256 hidden states to ott_hs_disk.dat
+[AXIOM-BETA-3] Phase 1: ID=13, PCA=127 components (95.0% var), 248738.7 ms
+[OTT-DISK] Saved 256 hidden states to ott_hs_disk.dat
+[OTT-VOCI] Built vocab PCA index: 128256/128256 tokens, k=127 (62.1MB)
+[AXIOM-BETA-3] Phase 2: Symmetry Extraction (dequant)...
+[AXIOM-BETA-3] Phase 2: score=0.9552, generators=256, 180.8 ms
+[AXIOM-BETA-3] Phase 3: Curvature (Fisher-blended metric)...
+[AXIOM-P3] Block-sampled 16768 tokens (k_local=131, blk_w=7)
+[OTT-CH-DBG-v2] rc_ch=0 rc_curv=0 max_R=5.2 ch_n=1 ch_dim=127
+[AXIOM-BETA-3] Phase 3: mean_R=5.178929, max_R=5.178929, high-curv=0, Fisher=yes, 121448.0 ms
+[OTT-DISK] Saved 256 hidden states to ott_hs_disk.dat
+[AXIOM-BETA-3] Phase 4: Axiom Formalization (geo-derived)...
+[AXIOM-BETA-3] Phase 4: 26 axioms, consistency=0.9270, oracle_calls=35, 19053.6 ms
+[AXIOM-BETA-3] Phase-3 geometry saved to ott_geometry.bin
+[AXIOM-BETA-3] Phase 5: Geodesic Pilot (real metric)...
+[AXIOM-BETA-3] Phase 5: speedup=0.0x (projected), 0.0 ms
+[AXIOM-BETA-3] Complete: 409067.8 ms total
+
+[AXIOM-BETA-3] === Summary ==========================
+  Intrinsic dim : 13 (TwoNN=12.59, PCA=127 components)
+  Symmetry      : score=0.9552, generators=256, invariant=2687
+  Curvature     : mean=5.178929, max=5.178929, high-curv=0
+  Fisher metric : trace_mean=558382.2798, det_log_mean=1057.1330
+  Axioms        : 26 (consistency=0.9270, oracle=35)
+  Geodesic pilot: speedup=0.0x
+  Cache reuse   : no
+  Total time    : 409067 ms
+[AXIOM-BETA-3] ======================================
+[AXIOM-BETA-3] Report: axiom_beta_report.json
+[AXEX-MANIFOLD] Skip-O mode: O_proj preserved at full rank (Q/K/V compressed only)
+[AXEX-MANIFOLD] Weight-PCA mode: Pt = top-k eigenvectors of K=Σ W^T W (maximises weight energy, no calib data needed)
+[AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)
+[AXEX-MANIFOLD] Weight-PCA: skipping calibration forward passes (using K=Σ W^T W eigenvectors)
+[AXEX-MANIFOLD] Capture diagnostic: 0/32 layers have valid samples, all_valid[0]=0, sample[0] norm2=0.0000
+[AXEX-MANIFOLD] Layer 0: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 0: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 1: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 1: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 2: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 2: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 3: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 3: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 4: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 4: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 5: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 5: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 6: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 6: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Layer 7: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 7: running weight-PCA eigvec (k=1024)...
+[AXEX-MANIFOLD] Per-layer PCA: 8/32 layers done
+[AXEX-MANIFOLD] Layer 8: dequantizing weights for weight-PCA...
+[AXEX-MANIFOLD] Layer 8: running weight-PCA eigvec (k=1024)...

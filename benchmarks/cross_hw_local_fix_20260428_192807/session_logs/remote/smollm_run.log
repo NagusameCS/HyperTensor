@@ -1,0 +1,82 @@
+
+  ██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+███████████████████████████████ ██████████████████████████████
+██████████████████████████████   █████████████████████████████
+█████████████████████████████     ████████████████████████████
+████████████████████████████       ███████████████████████████
+███████████████████████████         ██████████████████████████
+████████████████████████████       ███████████████████████████
+████████████████████████████       ███████████████████████████
+█████████████████████████████     ████████████████████████████
+█████████████████████████████     ████████████████████████████
+██████████████████    ███████    █████████   █████████████████
+██████████████████       █████   █████       █████████████████
+██████████████████        ████   ████        █████████████████
+████████████████          ████   ███          ████████████████
+████████████████           ██    ███          ████████████████
+█████████████████          ██    ██           ████████████████
+████████████████████                       ███████████████████
+███████████████████████                 ██████████████████████
+██████████████████████████          ██████████████████████████
+██████████████████████████   █████    ████████████████████████
+███████████████████      █████████████   █████████████████████
+███████████████████████████         ██████████████████████████
+██████████████████████████          ██████████████████████████
+███████████████████████████   ██  ████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+██████████████████████████████████████████████████████████████
+
+  Geodessical v0.6.0 "Synapse"
+
+[AXEX] --axex-compress: defaulting to weight-PCA basis (use --axex-actaware-pca to opt into the legacy path).
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=0
+[SMP] 32 CPUs online (31 workers + BSP)
+[GD] Loading model: /root/models/smollm2-135m-instruct-q8_0.gguf
+[GD] Mapped 138 MB
+[LLM] Loading model from buffer: 138 MB
+[LLM] Parsing GGUF...
+[GGUF] Version 3, 272 tensors, 37 KV pairs
+[LLM] rms_epsilon=0.000010
+[LLM] Model: Smollm2 135M 8k Lc100K Mix1 Ep2 (llama)
+[LLM] 30 layers, 576-dim, 49152 vocab, 9 heads (3 KV), head_dim=64
+[LLM] About to map tensors...
+[LLM] token_embd.weight: type=8 dims=[576,49152]
+[LLM] Note: output.weight tied to token_embd
+[LLM] Tensor mapping complete: 30 layers
+[LLM] Tensors mapped, building vocab...
+[LLM] Vocab: 49152 tokens, BOS=1, EOS=2
+[LLM] Tokenizer: BPE
+[LLM] Vocab built (49152 tokens), allocating scratch...
+[LLM] Allocating 90 MB scratch arena
+[LLM] Model loaded successfully! Ready for inference.
+[FLASH-ATTN] Initialized: tile=32x32, scratch=41216 bytes
+[CUDA] Initialized: 1 device(s), 5705 MB free
+[GPU] VRAM free: 5705 MB, scratch: 198 KB
+[GPU] Uploaded 211 weight tensors (136 MB) to VRAM
+[GPU] GPU-resident forward pass ready (total VRAM: 262 MB)
+[LLM] Backend: cuda (GPU-accelerated)
+[GD] Model loaded in 262 ms
+[GD] Model: Smollm2 135M 8k Lc100K Mix1 Ep2
+[AXEX-MANIFOLD] Loaded W_proj cache: ott_wproj_cache_915B16D6.bin (90 matrices, skipping axiom-beta + calibration)
+[AXEX-COMPRESS] Note: rank 512 is large for dim=576 (89% of min_mn) — first-run compression will be slow; cached for subsequent runs.
+[AXEX-MANIFOLD] Skip-O mode: O_proj preserved at full rank (Q/K/V compressed only)
+[AXEX-MANIFOLD] Weight-PCA mode: Pt = top-k eigenvectors of K=Σ W^T W (maximises weight energy, no calib data needed)
+[AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)
+[AXEX-MANIFOLD] Pt F16 contiguous (16.88 MB) → GPU L2 persist ready
+[AXEX-MANIFOLD] Pt Q4_0 contiguous (4.75 MB, 12.13 MB saved vs F16)
+[AXEX-MANIFOLD-LW] Uploaded 30 per-layer Pt matrices to GPU
+[AXEX-MANIFOLD] Uploaded 90 W_proj matrices to GPU (Q8_0 fp16-scale, ~4× less VRAM)
+[GPU] Manifold GP: Pt + 90 W_proj matrices uploaded to GPU
+[GPU] Freed 16 MB raw Q/K/V/O/gate/up GPU buffers (90 tensors) — GP manifold path active (k=512)
+[GD] Prompt: "the quick brown fox"
+[GD] Generating 16 tokens...
+
+[error generating response]
