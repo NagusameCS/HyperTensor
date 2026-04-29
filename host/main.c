@@ -319,6 +319,10 @@ typedef struct {
     int         axex_no_actaware;    /* 1 = disable column-norm reweighting (pure h-PCA) */
     int         axex_skip_o;         /* 1 = skip O_proj compression (it uses wrong basis anyway) */
     int         axex_weight_pca;     /* 1 = use weight-gram eigenvectors (no calib data needed) */
+    int         axex_actaware_pca;   /* 1 = explicit opt-in to legacy calibration-aware PCA path
+                                      *     (axpca_compute_topk_weighted). Off by default since
+                                      *     this path can hang for >10 min on Llama-class models.
+                                      *     Use --axex-actaware-pca to opt in for ablations. */
     /* Research features */
     int         axex_real_curvature; /* 1 = use true Ricci signal to set per-layer ranks */
     int         axex_learn_plan;     /* 1 = run differentiable rank plan optimisation after SVD */
@@ -707,6 +711,13 @@ static int parse_args(int argc, char **argv, GD_args_t *args) {
              * This maximises weight energy ||W Pt^T||_F^2 directly.
              * No calibration data needed when combined with --axex-skip-calib. */
             args->axex_weight_pca = 1;
+        } else if (strcmp(argv[i], "--axex-actaware-pca") == 0) {
+            /* Opt back into the legacy calibration-aware PCA path
+             * (axpca_compute_topk_weighted on column-rescaled X). Off by
+             * default because this path can stall for >10 min and silently
+             * exit on Llama-class models — see benchmark_runtime_status_*.md.
+             * Provided for reproducibility / ablation only. */
+            args->axex_actaware_pca = 1;
         } else if (strcmp(argv[i], "--axex-ffn-compress") == 0) {
             /* SVD compress gate/up/down only — no axiom survey, no manifold PCA.
              * Fast path: enables the cuBLAS batched GEMV for gate+up without
@@ -2817,6 +2828,28 @@ int main(int argc, char **argv) {
     if (parse_args(argc, argv, &args) < 0) {
         print_usage(argv[0]);
         return 1;
+    }
+
+    /* ── GRC default-path normalisation (2026-04-28) ──────────────────────
+     * The legacy actaware/calibration-aware PCA branch (axpca_compute_topk_
+     * weighted called with column-rescaled X) silently stalls for 10+ min
+     * on Llama-class models and exits non-zero before producing a Pt basis.
+     * Make --axex-compress default to the calibration-free weight-gram
+     * eigenvector path (--axex-weight-pca), which is mathematically a close
+     * relative (eigenvectors of Σ W^T W vs. eigenvectors of Xc^T Xc · Σ W^T W)
+     * and finishes in seconds.
+     *
+     * Opt back into the legacy path with --axex-actaware-pca for reproducing
+     * earlier numbers / ablations. Setting --axex-no-actaware also keeps the
+     * X-based code path active (pure h-PCA, no col-norm rescaling).
+     */
+    if (args.axex_compress &&
+        !args.axex_weight_pca &&
+        !args.axex_actaware_pca &&
+        !args.axex_no_actaware) {
+        kprintf("[AXEX] --axex-compress: defaulting to weight-PCA basis "
+                "(use --axex-actaware-pca to opt into the legacy path).\n");
+        args.axex_weight_pca = 1;
     }
 
     /* Initialize HAL (CPU detection, thread pool) */

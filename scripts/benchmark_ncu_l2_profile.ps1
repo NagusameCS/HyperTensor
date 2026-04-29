@@ -80,7 +80,7 @@ function Invoke-NcuRun {
 $rows = @()
 $rows += Invoke-NcuRun "baseline" @()
 Start-Sleep -Seconds $CooldownSec
-$rows += Invoke-NcuRun "grc_k1024" @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1024')
+$rows += Invoke-NcuRun "grc_k1024" @('--axex-compress','--axex-attn-only','--axex-weight-pca','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1024')
 
 # --- emit CSV ---------------------------------------------------------------
 $null = New-Item -ItemType Directory -Force -Path (Split-Path $OutCsv -Parent)

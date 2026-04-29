@@ -58,8 +58,9 @@ function Start-GeodServer {
         param($exe, $model, $port, $extra, $log)
         & $exe $model --serve --port $port @extra *> $log
     } -ArgumentList $Exe, $Model, $ServerPort, $ExtraArgs, $logFile
-    # crude wait-for-ready: poll TCP
-    $deadline = (Get-Date).AddSeconds(60)
+    # wait-for-ready: TCP first (port bound), then HTTP /v1/models actually answers
+    $deadline = (Get-Date).AddSeconds(180)
+    $httpReady = $false
     while ((Get-Date) -lt $deadline) {
         try {
             $tcp = New-Object System.Net.Sockets.TcpClient
@@ -67,13 +68,24 @@ function Start-GeodServer {
             $ok = $iar.AsyncWaitHandle.WaitOne(1000)
             if ($ok -and $tcp.Connected) {
                 $tcp.Close()
-                return $job
+                # TCP up; now poll /v1/models until HTTP layer actually responds
+                try {
+                    $resp = Invoke-WebRequest -Uri "http://$ServerHost`:$ServerPort/v1/models" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+                    if ($resp.StatusCode -eq 200) { $httpReady = $true; break }
+                } catch {
+                    # HTTP not yet serving — keep polling
+                }
+            } else {
+                $tcp.Close()
             }
-            $tcp.Close()
-        } catch { Start-Sleep -Seconds 1 }
+        } catch { }
+        Start-Sleep -Seconds 2
     }
-    Stop-Job $job; Remove-Job $job
-    throw "geodessical server failed to come up within 60s ($logFile)"
+    if (-not $httpReady) {
+        Stop-Job $job; Remove-Job $job
+        throw "geodessical server failed to answer /v1/models within 180s ($logFile)"
+    }
+    return $job
 }
 
 function Stop-GeodServer { param($job) Stop-Job $job; Remove-Job $job -Force }
@@ -111,7 +123,7 @@ $job = Start-GeodServer "baseline" @()
 try   { $results.baseline = Invoke-LmEval "baseline" }
 finally { Stop-GeodServer $job }
 
-$job = Start-GeodServer "grc_k1536" @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1536')
+$job = Start-GeodServer "grc_k1536" @('--axex-compress','--axex-attn-only','--axex-weight-pca','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank','1536')
 try   { $results.grc_k1536 = Invoke-LmEval "grc_k1536" }
 finally { Stop-GeodServer $job }
 

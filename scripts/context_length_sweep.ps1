@@ -67,7 +67,7 @@ foreach ($ctx in $Contexts) {
     Write-Host "ctx=$ctx baseline ..."
     $b = Invoke-DecodeRun $ctx @()
     Write-Host "ctx=$ctx grc_k$Rank ..."
-    $g = Invoke-DecodeRun $ctx @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$Rank")
+    $g = Invoke-DecodeRun $ctx @('--axex-compress','--axex-attn-only','--axex-weight-pca','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$Rank")
     $rows += [pscustomobject]@{
         context_tokens   = $ctx
         baseline_mean    = $b.mean

@@ -101,7 +101,7 @@ run_ncu_if_present() {
 
   ncu --metrics lts__t_sector_hit_rate.pct,dram__bytes_read.sum --target-processes all --csv --log-file "$OUT_DIR/docs_data/ncu_baseline_raw.csv" -- "$EXE" "$MODEL" -p "The quick brown fox jumps over the lazy dog." -n 10 --temp 0 > "$log" 2>&1
   sleep "$COOLDOWN_SEC"
-  ncu --metrics lts__t_sector_hit_rate.pct,dram__bytes_read.sum --target-processes all --csv --log-file "$OUT_DIR/docs_data/ncu_grc1024_raw.csv" -- "$EXE" "$MODEL" -p "The quick brown fox jumps over the lazy dog." -n 10 --temp 0 --axex-compress --axex-skip-o --axex-compress-rank 1024 >> "$log" 2>&1
+  ncu --metrics lts__t_sector_hit_rate.pct,dram__bytes_read.sum --target-processes all --csv --log-file "$OUT_DIR/docs_data/ncu_grc1024_raw.csv" -- "$EXE" "$MODEL" -p "The quick brown fox jumps over the lazy dog." -n 10 --temp 0 --axex-compress --axex-attn-only --axex-weight-pca --axex-skip-o --axex-compress-rank 1024 >> "$log" 2>&1
 
   python - "$OUT_DIR/docs_data/ncu_baseline_raw.csv" "$OUT_DIR/docs_data/ncu_grc1024_raw.csv" "$OUT_DIR/docs_data/ncu_l2_profile.csv" <<'PY'
 import csv,sys
@@ -149,7 +149,7 @@ PY
       sleep "$COOLDOWN_SEC"
 
       local gout="$OUT_DIR/logs/context_${ctx}_grc1024.txt"
-      "$EXE" "$MODEL" -p "$prompt" -n 64 --temp 0 --axex-compress --axex-skip-o --axex-compress-rank 1024 > "$gout" 2>&1
+      "$EXE" "$MODEL" -p "$prompt" -n 64 --temp 0 --axex-compress --axex-attn-only --axex-weight-pca --axex-skip-o --axex-compress-rank 1024 > "$gout" 2>&1
       local gtps; gtps=$(extract_tps "$gout")
       gsum=$(python - <<PY
 print($gsum + float('$gtps'))
@@ -204,7 +204,7 @@ PY
     local s=0
     for _ in $(seq 1 $reps); do
       local out="$OUT_DIR/logs/rank_${k}.txt"
-      "$EXE" "$MODEL" -p "$prompt" -n 64 --temp 0 --axex-compress --axex-skip-o --axex-compress-rank "$k" > "$out" 2>&1
+      "$EXE" "$MODEL" -p "$prompt" -n 64 --temp 0 --axex-compress --axex-attn-only --axex-weight-pca --axex-skip-o --axex-compress-rank "$k" > "$out" 2>&1
       local tps; tps=$(extract_tps "$out")
       s=$(python - <<PY
 print($s + float('$tps'))
@@ -249,7 +249,7 @@ run_lm_eval_if_available() {
   kill "$pid_base" >/dev/null 2>&1 || true
   wait "$pid_base" 2>/dev/null || true
 
-  "$EXE" "$MODEL" --serve --port "$port" --axex-compress --axex-skip-o --axex-compress-rank 1536 > "$OUT_DIR/logs/geod_server_grc1536.log" 2>&1 &
+  "$EXE" "$MODEL" --serve --port "$port" --axex-compress --axex-attn-only --axex-weight-pca --axex-skip-o --axex-compress-rank 1536 > "$OUT_DIR/logs/geod_server_grc1536.log" 2>&1 &
   local pid_grc=$!
   sleep 5
   python -m lm_eval --model local-completions --model_args "base_url=http://127.0.0.1:${port}/v1/completions,model=geodessical" --tasks gsm8k,humaneval,mbpp --num_fewshot 0 --output_path "$OUT_DIR/lm_eval_out_grc1536" --log_samples "${limit_args[@]}" >> "$log" 2>&1 || true

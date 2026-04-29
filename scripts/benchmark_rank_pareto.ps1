@@ -30,9 +30,10 @@ if (-not (Test-Path $Exe))   { throw "Executable not found: $Exe" }
 if (-not (Test-Path $Model)) { throw "Model not found: $Model" }
 
 function Invoke-DecodeRun {
-    param([string[]]$ExtraArgs)
+    param([string[]]$ExtraArgs, [int]$Reps = -1)
+    if ($Reps -lt 0) { $Reps = $Repeats }
     $tps = @()
-    for ($r = 0; $r -lt $Repeats; $r++) {
+    for ($r = 0; $r -lt $Reps; $r++) {
         $args = @($Model, "-p", $Prompt, "-n", $DecodeTokens, "--temp", "0") + $ExtraArgs
         $raw  = (& $Exe @args 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "geodessical failed: $raw" }
@@ -43,7 +44,7 @@ function Invoke-DecodeRun {
         elseif ($mGd.Success) { $val = [double]$mGd.Groups[3].Value }
         if ($null -eq $val) { throw "no decode tok/s in output: $raw" }
         $tps += $val
-        Start-Sleep -Seconds $CooldownSec
+        if ($r + 1 -lt $Reps) { Start-Sleep -Seconds $CooldownSec }
     }
     $mean = ($tps | Measure-Object -Average).Average
     $std  = if ($tps.Count -gt 1) {
@@ -57,10 +58,15 @@ Write-Host "baseline ..."
 $base = Invoke-DecodeRun @()
 
 # --- per-rank ---------------------------------------------------------------
+# Each new $k triggers ~30 min of cold weight-PCA (computed once, cached to
+# disk in ott_wproj_cache_*.bin). Do a 1-rep warmup pass first so the real
+# measurement runs against a warm cache; otherwise std pollutes wildly.
 $rows = @()
 foreach ($k in $Ranks) {
-    Write-Host "k=$k ..."
-    $r = Invoke-DecodeRun @('--axex-compress','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$k")
+    Write-Host "k=$k warmup (1 rep, populates wproj cache) ..."
+    $null = Invoke-DecodeRun @('--axex-compress','--axex-attn-only','--axex-weight-pca','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$k") -Reps 1
+    Write-Host "k=$k measurement ..."
+    $r = Invoke-DecodeRun @('--axex-compress','--axex-attn-only','--axex-weight-pca','--axiom-skip-geodesic','--axex-skip-o','--axex-compress-rank',"$k")
     $rows += [pscustomobject]@{
         rank        = $k
         decode_mean = $r.mean
