@@ -418,6 +418,19 @@ shared basis are lower-importance for next-token prediction than their
 singular values alone would suggest.  Per-matrix bases are an obvious next
 step (\Cref{sec:future}).
 
+\begin{figure}[h]\centering
+\includegraphics[width=0.92\linewidth]{../../docs/figures/paper-a/ey_per_layer_k1024.png}
+\caption{Per-layer EY oracle vs.\ GRC at $k=1024$ on
+Llama-3.1-8B Q4\_K\_M (layers $\{0,15,31\}$, slots $\{Q,K,V\}$).
+The shared-basis penalty is concentrated in $V$, with $Q$ and $K$ paying
+a smaller multiplicative cost; this is consistent with $V$ carrying
+broader-spectrum content than the rotation-bound $Q,K$ pair, and motivates
+the per-matrix-basis future-work item.  Source data:
+\texttt{docs/figures/eckart\_young\_bound.json};
+extracted by \texttt{scripts/extract\_ey\_per\_layer.py}.}
+\label{fig:ey-per-layer}
+\end{figure}
+
 % ───────────────────── §9 Limitations ─────────────────────
 \section{Limitations}
 \label{sec:limits}
@@ -634,7 +647,7 @@ concatenated, blue) versus FFN (gate, up, down concatenated, orange) for
 five layers of Llama-3.1-8B.  Attention curves drop ${\sim}3$ orders of
 magnitude inside the first 1\,500 components; FFN curves stay within one
 order of magnitude across the full $d{=}4096$ axis.  This is the geometric
-premise that justifies compressing attention exclusively (Fig.~\ref{fig:spectral_flatness}
+premise that justifies compressing attention exclusively (Fig.~\ref{fig:spectra-app}
 shows the same effect averaged across all 32 layers).}
 \label{fig:spectra-app}
 \end{figure}

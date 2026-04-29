@@ -166,7 +166,7 @@ produced numbers.
 seven compressible weights (left, red) feed a manifold fit driven by
 both their Frobenius spectra and a small set of activation samples.  The
 fit produces (i) an MCR phase tag (Mix / Compress / Refine,
-\S\ref{sec:mcr-phase}) and (ii) a per-layer rank $k_\ell$ which together
+\S\ref{sec:adaptive-mcr}) and (ii) a per-layer rank $k_\ell$ which together
 populate a persistent geometry cache.  At inference time, the runtime
 reads the compressed slots and the cache; rejected speculative tokens or
 drift signals feed back (dashed) into the online Oja update of the basis
