@@ -1,0 +1,22 @@
+{
+  "model": "Meta-Llama-3.1-8B-Instruct-Q4_K_M",
+  "gpu": "RTX 4070 Laptop (sm_89, 32 MB L2)",
+  "ncu_version": "2026.1.0.0",
+  "decode_tokens_profiled": 16,
+  "kernels_profiled": "all (--launch-count 200 --launch-skip 50)",
+  "baseline": {
+    "weighted_l2_hit_rate_gemv_pct": 17.000413851861268,
+    "total_dram_read_MB_per_kernel_avg": 19.8971968,
+    "n_kernel_groups": 11
+  },
+  "k1024_skip_o": {
+    "weighted_l2_hit_rate_gemv_pct": 16.292885244473336,
+    "total_dram_read_MB_per_kernel_avg": 18.192837541666666,
+    "n_kernel_groups": 13
+  },
+  "headline": {
+    "l2_hit_rate_baseline_pct": 17.0,
+    "l2_hit_rate_k1024_pct": 16.29,
+    "absolute_improvement_pct_points": -0.71
+  }
+}

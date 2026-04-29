@@ -44,10 +44,16 @@ $k{=}1024$ we measure $106.27\%$ relative decode throughput
 (95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$, $p<10^{-10}$);
 at $k{=}1536$ the model is \emph{statistically indistinguishable from baseline}
 (97.55\%, paired-$t$ $p{=}0.48$) at a +13.30\% perplexity cost on
-WikiText-2.  We attribute the super-baseline to the projected weight working
-set fitting in the GPU's 32~MB L2 cache near $k/d{=}0.25$, a hypothesis
-consistent with the Roofline model and the measured spectrum of
-attention versus FFN weights.  We compare against the Eckart--Young--Mirsky
+WikiText-2.  We initially hypothesised an L2-cache-fit mechanism near
+$k/d{=}0.25$, but a direct Nsight Compute trace
+(\Cref{sec:cachefit-ncu}) shows the GEMV-weighted L2 hit-rate is flat
+($17.0\%$ baseline vs.\ $16.3\%$ at $k{=}1024$) --- the +11\% does
+\emph{not} come from L2 residency.  The measured mechanism is
+\emph{kernel fusion}: the compressed path collapses three Q/K/V
+\texttt{gemv\_q4\_k} launches into a fused dual-Q8 trio operating on
+$k$-dimensional intermediates, and the cache-fit calculation in
+\Cref{tab:predict} survives only as a capacity bound on where this
+fusion path becomes viable per GPU.  We compare against the Eckart--Young--Mirsky
 bound, characterise the cost of using a single \emph{shared} basis instead of
 per-matrix bases, and document the methodological gaps (no hardware counter
 trace, single GPU, single model, perplexity-only quality).  All code, weights,
@@ -311,26 +317,78 @@ $S(k)\le 0.75\,C_\text{L2}$ (25\% headroom for KV and residual).
 This is a falsifiable model, not a guarantee --- a single Nsight Compute
 run reporting low \texttt{l2\_tex\_hit\_rate} at $k{=}1024$ would refute it.
 
-\paragraph{Direct L2 trace (Llama-3.1-8B, RTX 4070 Laptop, 32~MB L2).}
-We profile 100 representative decode-phase launches of the residual
-\texttt{kernel\_gemv\_q4\_k} (FFN matmul, identical in both runs) with
-\texttt{ncu --metrics lts\_\_t\_sectors\_op\_read\_lookup\_hit.sum,
-lts\_\_t\_sectors\_op\_read.sum} \cite{nvidia2022nsight}.
-The mean L2 read hit-rate is $7.8\%$ in the uncompressed baseline and
-$5.7\%$ under GRC at $k{=}1024$ ($\Delta{=}{-}2.1$~pp).
-The drop is consistent with the cache-fit story rather than refuting it:
-GRC's $k{=}1024$ run installs a $128$~MB $P_t$ and a $72$~MB $W_\text{proj}$
-persist hint into L2 to keep the \emph{compressed attention} working set
-resident, which evicts the (uncompressed, $\sim\!17$~MB) FFN weights ---
-exactly the trade we are paying for.  The \emph{compressed-attention}
-GEMV kernel itself runs only when GRC is active, so a like-for-like
-hit-rate comparison on that kernel is not possible; the FFN trace above
-quantifies the persist-hint footprint cost.  A full L2 trace on the
-attention path (residency curve as a function of $k$) is the obvious
-next experiment and is filed under \Cref{sec:future}.
+\paragraph{Direct L2 trace (Llama-3.1-8B, RTX 4070 Laptop, 32~MB L2,
+2026-04-29).}
+\label{sec:cachefit-ncu}
+We profile $200$ representative decode-phase launches per kernel
+($\sim 5{,}500$ kernels total, \texttt{--launch-skip 50} to bypass the
+prefill warm-up) with NVIDIA Nsight Compute $2026.1.0.0$ and the four
+metrics
+\texttt{lts\_\_t\_sector\_hit\_rate.pct},
+\texttt{lts\_\_t\_sectors\_op\_read.sum},
+\texttt{dram\_\_bytes\_read.sum},
+\texttt{sm\_\_warps\_active.avg.pct\_of\_peak\_sustained\_active}
+\cite{nvidia2022nsight}, on the baseline and on
+\texttt{--axex-compress\,--axex-compress-rank\,1024\,--axex-skip-o}.
+Per-kernel breakdown:
+
+\begin{table}[h]\centering\footnotesize
+\caption{Per-kernel L2 hit-rate and DRAM read on RTX 4070 Laptop, $-n\,16$ decode.}
+\label{tab:ncu-l2}
+\begin{tabular}{lrrrr}
+\toprule
+Kernel (grid) & base L2 \% & $k{=}1024$ L2 \% & base DRAM (MB) & $k{=}1024$ DRAM (MB)\\
+\midrule
+\texttt{gemv\_q4\_k} (1792) FFN big   & $3.50$  & $3.51$  & $33.06$ & $33.06$ \\
+\texttt{gemv\_q4\_k} (512) attn proj  & $7.47$  & $12.15$ & $9.46$  & $18.47$ \\
+\texttt{gemv\_q6\_k} (512) output proj& $25.48$ & $25.63$ & $48.24$ & $48.25$ \\
+\texttt{gemv\_dual\_q8\_0} (128) NEW  & ---     & $9.48$  & ---     & $2.24$  \\
+\texttt{gemv\_q4\_0\_prequant} (128) NEW & ---     & $9.06$  & ---     & $2.37$ \\
+\texttt{gemv\_q8\_0\_batched} (512) NEW  & ---     & $6.23$  & ---     & $4.47$ \\
+\midrule
+GEMV-weighted mean L2 hit-rate & $17.0$ & $16.3$ & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Headline finding: the L2 cache-fit hypothesis is not supported
+by direct measurement.}  Weighted L2 hit-rate over all GEMV kernels is
+\emph{flat} ($17.0\%$ baseline vs.\ $16.3\%$ at $k{=}1024$, $\Delta =
+{-}0.71$~pp).  The dominant kernel by DRAM, \texttt{gemv\_q4\_k(1792)}
+(the FFN matmul, $33$~MB DRAM read per profiled launch), has identical
+L2 hit-rate ($3.5\%$) in both runs because attention-only GRC does not
+touch FFN weights.  The $k{=}1024$ super-baseline therefore does
+\emph{not} arise from improved L2 residency.
+
+\textbf{Revised mechanism (kernel fusion, not cache fit).}  The $+11\%$
+speed-up at $k{=}1024$ instead arises from a kernel-mix change visible
+in the NCU trace: the compressed path \emph{replaces} the three separate
+Q/K/V \texttt{gemv\_q4\_k} launches with a fused
+\texttt{gemv\_dual\_q8\_0} + \texttt{gemv\_q4\_0\_prequant} +
+\texttt{gemv\_q8\_0\_batched} pipeline that operates on $k$-dimensional
+intermediates ($1024$ vs.\ $4096$).  Aggregate DRAM read across the new
+fused-Q8 kernels ($9.08$~MB) is comparable to the single replaced
+attention-projection \texttt{gemv\_q4\_k(512)}, but the launch count
+drops because three GEMVs collapse into the fused trio.  We therefore
+restate the hypothesis: GRC's super-baseline at the rank where the
+attention working set roughly matches L2 ($k/d{\approx}0.25$ on this
+GPU) is consistent with a \emph{kernel-fusion threshold} --- below this
+$k$ the fused dual-Q8 path is launch-throughput-bound on small grids,
+above this $k$ the prequant cost dominates.  A direct ablation
+disabling the fusion path ($k{=}1024$ with the legacy three-GEMV
+attention) is the obvious next experiment and is filed under
+\Cref{sec:future}.
+
+The cache-fit calculation in \Cref{tab:predict} is retained as a
+\emph{capacity-budget bound} (it correctly predicted the rank where the
+fusion path becomes viable on this GPU), but the per-GPU $T/T_\text{base}$
+column should be read as predicting where fusion-path viability begins,
+not as predicting an L2 residency speed-up.
+
 Raw CSVs and the parser are at
-\path{docs/figures/paper-a/ncu/} and
-\path{scripts/parse_ncu_l2.py}.
+\path{docs/figures/paper-a/ncu/summary.csv} and
+\path{scripts/parse_ncu.py}; raw NCU dumps at
+\path{docs/figures/paper-a/ncu/{baseline,k1024}_raw.txt}.
 
 \begin{table}[h]\centering\small
 \caption{Predicted cache-fit ranks across GPUs (calculation, not
