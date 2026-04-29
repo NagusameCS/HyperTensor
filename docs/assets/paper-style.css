@@ -139,6 +139,7 @@ nav {
 }
 .stat-num.good { color: var(--green); }
 .stat-num.warn { color: var(--accent); }
+.stat-num.info { color: #8a5b16; }
 .stat-label {
   display: block;
   font-size: 0.78rem;

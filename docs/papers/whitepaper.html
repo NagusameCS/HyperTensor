@@ -99,8 +99,10 @@ header#whitepaper-hero p {
 }
 header#whitepaper-hero .stats {
   display: inline-flex; gap: 1.4rem;
+  flex-wrap: wrap;
   font-size: 0.82rem; color: var(--text-soft);
   margin-top: 1rem;
+  justify-content: center;
 }
 header#whitepaper-hero .stats strong { color: var(--text); }
 
@@ -128,6 +130,43 @@ header#whitepaper-hero .stats strong { color: var(--text); }
   }
 }
 @media (max-width: 1099px) { aside.toc { display: none; } }
+
+.toc-dots {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .toc-dots {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.75rem;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    backdrop-filter: blur(12px);
+    z-index: 120;
+  }
+  .toc-dots a {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: rgba(92,92,92,0.24);
+    border: 1px solid transparent;
+    text-indent: -9999px;
+    overflow: hidden;
+  }
+  .toc-dots a.active {
+    background: var(--accent);
+    border-color: rgba(192,57,43,0.2);
+    transform: scale(1.12);
+  }
+}
 
 aside.toc h3 {
   font-size: 0.72rem; font-weight: 700;
@@ -204,6 +243,42 @@ section.chapter:first-child { border-top: none; padding-top: 1rem; margin-top: 0
 .chapter-body .callout { border-left: 3px solid var(--accent); background: var(--bg-soft); border-radius: 0 8px 8px 0; padding: 1rem 1.2rem; margin: 1.4rem 0; font-size: 0.93rem; }
 .chapter-body .callout-title { font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; color: var(--accent); }
 
+.chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+.chapter-card {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  padding: 1rem 1.05rem;
+  text-decoration: none;
+}
+.chapter-card strong {
+  display: block;
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+.chapter-card span {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+.chapter-ref-block + .chapter-ref-block {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+.chapter-ref-copy {
+  font-size: 0.92rem;
+  color: var(--text-soft);
+  margin-bottom: 1rem;
+}
+
 a {
   color: inherit;
   text-decoration: underline;
@@ -273,8 +348,7 @@ footer.foot a { color: var(--text); }
   <p>One scrollable document. Each paper is a chapter; cross-paper links resolve in-page.</p>
   <div class="stats" id="hero-stats">
     <span><strong id="stat-words">&hellip;</strong> words</span>
-    <span><strong id="stat-lines">&hellip;</strong> lines</span>
-    <span><strong id="stat-pages">&hellip;</strong> pp (A4)</span>
+    <span><strong id="stat-pages">&hellip;</strong> pages</span>
   </div>
 </header>
 
@@ -296,6 +370,8 @@ footer.foot a { color: var(--text); }
 <main id="chapters" aria-busy="true">
   <!-- Chapters injected at runtime from sibling paper files. -->
 </main>
+
+<nav class="toc-dots" id="toc-dots" aria-label="Whitepaper progress"></nav>
 
 </div>
 
@@ -320,6 +396,10 @@ footer.foot a { color: var(--text); }
     { id: 'ch-05', file: '05-gtc-ott-runtime.html',      num: 'Paper 5', title: 'GTC and the OTT Runtime Anchor',                              meta: 'v0.1 \u00b7 2026-04-27',      words: 3076 },
     { id: 'ch-06', file: '06-adaptive-compression.html', num: 'Paper 6', title: 'Adaptive Compression \u2014 Phase, Gauge, Thermal, Online',   meta: 'v0.1 \u00b7 2026-04-27',      words: 3846 }
   ];
+  var references = [];
+  var NAV_ITEMS = [{ id: 'ch-contents', label: 'Contents' }]
+    .concat(CHAPTERS.map(function (c) { return { id: c.id, label: c.num }; }))
+    .concat([{ id: 'ch-references', label: 'References' }]);
 
   // ── Render hero stats from total ──
   function fmtWords(n) {
@@ -328,11 +408,83 @@ footer.foot a { color: var(--text); }
   }
   var totalWords = CHAPTERS.reduce(function (s, c) { return s + c.words; }, 0);
   document.getElementById('stat-words').textContent = fmtWords(totalWords);
-  document.getElementById('stat-lines').textContent = Math.round(totalWords / 11).toLocaleString();
   document.getElementById('stat-pages').textContent = Math.round(totalWords / 300);
+
+  function buildNav() {
+    var tocList = document.getElementById('toc-list');
+    var tocDots = document.getElementById('toc-dots');
+    tocList.innerHTML = '';
+    tocDots.innerHTML = '';
+    NAV_ITEMS.forEach(function (item) {
+      var li = document.createElement('li');
+      li.innerHTML = '<a href="#' + item.id + '">' + item.label + '</a>';
+      tocList.appendChild(li);
+      var dot = document.createElement('a');
+      dot.href = '#' + item.id;
+      dot.textContent = item.label;
+      dot.title = item.label;
+      dot.setAttribute('aria-label', item.label);
+      tocDots.appendChild(dot);
+    });
+  }
+
+  function buildContentsSection() {
+    var sec = document.createElement('section');
+    sec.className = 'chapter';
+    sec.id = 'ch-contents';
+    sec.innerHTML =
+      '<div class="chapter-marker">Frontmatter</div>' +
+      '<h1 class="chapter-title">Table of contents</h1>' +
+      '<p class="chapter-meta">Seven engineering papers in sequence, plus a consolidated references section at the end.</p>' +
+      '<div class="chapter-body">' +
+        '<p>Read straight through as a single whitepaper, or jump to the standalone paper pages when you need isolated citations, a shorter share link, or a cleaner print surface.</p>' +
+        '<div class="chapter-grid">' +
+          CHAPTERS.map(function (c) {
+            var pages = Math.max(1, Math.round(c.words / 300));
+            return '<a class="chapter-card" href="#' + c.id + '">' +
+              '<strong>' + c.num + '</strong>' +
+              '<span>' + c.title + '</span>' +
+              '<span>' + fmtWords(c.words) + ' words · ' + pages + ' pages</span>' +
+            '</a>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    chaptersEl.appendChild(sec);
+  }
+
+  function buildReferencesSection() {
+    var sec = document.createElement('section');
+    sec.className = 'chapter';
+    sec.id = 'ch-references';
+    sec.innerHTML =
+      '<div class="chapter-marker">Backmatter</div>' +
+      '<h1 class="chapter-title">Bibliography and references</h1>' +
+      '<p class="chapter-meta">Reference lists collected from each standalone paper so the main chapters stay focused on the argument.</p>' +
+      '<div class="chapter-body" id="chapter-references-body"><p class="chapter-loading">Collecting reference sections…</p></div>';
+    chaptersEl.appendChild(sec);
+  }
+
+  function renderReferencesSection() {
+    var body = document.getElementById('chapter-references-body');
+    if (!body) return;
+    if (!references.length) {
+      body.innerHTML = '<div class="chapter-error">No reference sections were found in the source papers.</div>';
+      return;
+    }
+    body.innerHTML = references.map(function (entry) {
+      return '<section class="chapter-ref-block">' +
+        '<div class="chapter-marker">' + entry.num + '</div>' +
+        '<h2>' + entry.title + '</h2>' +
+        '<p class="chapter-ref-copy">Source: <a href="' + entry.file + '">' + entry.file + '</a></p>' +
+        entry.html +
+      '</section>';
+    }).join('');
+  }
 
   // ── Build chapter shells ──
   var chaptersEl = document.getElementById('chapters');
+  buildNav();
+  buildContentsSection();
   CHAPTERS.forEach(function (c) {
     var sec = document.createElement('section');
     sec.className = 'chapter';
@@ -419,6 +571,16 @@ footer.foot a { color: var(--text); }
         [].forEach.call(node.querySelectorAll('style'), function (s) { s.remove(); });
         // Strip per-paper aside/footer/nav if we fell back to body
         [].forEach.call(node.querySelectorAll('nav, footer, aside'), function (s) { s.remove(); });
+        var refs = node.querySelector('#references');
+        if (refs) {
+          references.push({
+            num: chapter.num,
+            title: chapter.title,
+            file: chapter.file,
+            html: refs.outerHTML
+          });
+          refs.remove();
+        }
         rewriteAnchorIds(node, chapter.id);
         rewriteCrossLinks(node);
         // Replace the loading placeholder with the actual fragment children
@@ -434,41 +596,46 @@ footer.foot a { color: var(--text); }
   }
 
   // Fetch all in parallel; typeset MathJax once everything has landed.
+  buildReferencesSection();
   Promise.all(CHAPTERS.map(injectChapter)).then(function () {
     chaptersEl.setAttribute('aria-busy', 'false');
+    renderReferencesSection();
+    if (window.HyperTensorReader && window.HyperTensorReader.refresh) {
+      window.HyperTensorReader.refresh(chaptersEl);
+    }
     if (window.MathJax && window.MathJax.typesetPromise) {
       window.MathJax.typesetPromise([chaptersEl]).catch(function () { /* tolerate render errors */ });
-    }
-    // Re-run reader.js link-preview repair on the freshly injected DOM
-    // (reader.js binds event delegation on document, so previews already
-    // work — but multi-anchor repair only ran on initial DOMContentLoaded).
-    if (window.HyperTensorReader && window.HyperTensorReader.refresh) {
-      window.HyperTensorReader.refresh();
     }
     // Activate-on-scroll TOC highlighting
     initTocSpy();
   });
 
+  function setActiveNav(id) {
+    var links = [].slice.call(document.querySelectorAll('aside.toc a[href^="#"], .toc-dots a[href^="#"]'));
+    links.forEach(function (link) {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+    });
+  }
+
   // ── TOC scroll-spy ──
   function initTocSpy() {
-    var links = [].slice.call(document.querySelectorAll('aside.toc a[href^="#ch-"]'));
+    var links = [].slice.call(document.querySelectorAll('aside.toc a[href^="#"], .toc-dots a[href^="#"]'));
     if (!('IntersectionObserver' in window) || !links.length) return;
     var byId = {};
-    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = true; });
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
-        var a = byId[e.target.id];
-        if (!a) return;
+        if (!byId[e.target.id]) return;
         if (e.isIntersecting) {
-          links.forEach(function (l) { l.classList.remove('active'); });
-          a.classList.add('active');
+          setActiveNav(e.target.id);
         }
       });
     }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
-    CHAPTERS.forEach(function (c) {
-      var s = document.getElementById(c.id);
+    NAV_ITEMS.forEach(function (item) {
+      var s = document.getElementById(item.id);
       if (s) io.observe(s);
     });
+    setActiveNav('ch-contents');
   }
 })();
 </script>

@@ -189,6 +189,51 @@ article.paper-body figure img {
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+article.paper-body figure.paper-diagram {
+  background: linear-gradient(180deg, var(--bg-soft), var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+}
+article.paper-body figure.paper-diagram svg {
+  width: 100%;
+  height: auto;
+}
+article.paper-body figure.paper-diagram .box {
+  fill: var(--bg);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+article.paper-body figure.paper-diagram .accent {
+  fill: var(--red-bg);
+  stroke: var(--accent);
+}
+article.paper-body figure.paper-diagram .support {
+  fill: var(--blue-bg);
+  stroke: var(--blue);
+}
+article.paper-body figure.paper-diagram .good {
+  fill: var(--green-bg);
+  stroke: var(--green);
+}
+article.paper-body figure.paper-diagram .arrow {
+  stroke: var(--text-soft);
+  stroke-width: 2.5;
+  fill: none;
+  marker-end: url(#arrowhead);
+}
+article.paper-body figure.paper-diagram text {
+  fill: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+article.paper-body figure.paper-diagram .small {
+  font-size: 18px;
+  fill: var(--text-soft);
+}
+article.paper-body figure.paper-diagram .label {
+  font-size: 22px;
+  font-weight: 700;
+}
 article.paper-body figcaption {
   font-size: 0.85rem;
   color: var(--text-soft);

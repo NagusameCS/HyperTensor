@@ -146,7 +146,7 @@ h2 {
 }
 .paper-stat-num.good { color: var(--green); }
 .paper-stat-num.warn { color: var(--accent); }
-.paper-stat-num.info { color: var(--blue); }
+.paper-stat-num.info { color: #8a5b16; }
 .paper-stat-label { color: var(--text-soft); font-size: 0.74rem; }
 
 .thread {
@@ -287,11 +287,10 @@ footer a:hover { text-decoration: underline; }
 #paper-preview .pp-meta {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.74rem; color: var(--text-soft);
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: flex-start;
   border-top: 1px solid var(--border);
   padding-top: 0.7rem;
 }
-#paper-preview .pp-meta .pp-cta { color: var(--accent); font-weight: 700; }
 @media (max-width: 1280px) { #paper-preview { display: none; } }
 
 /* ── QOL: back-to-top button ─────────────────────────── */
@@ -453,9 +452,6 @@ footer a:hover { text-decoration: underline; }
     <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
       Research papers <span class="count">4</span>
     </button>
-    <a class="tab-btn whitepaper-btn" href="papers/whitepaper.html">
-      Whitepaper <span class="count">all 7 in one</span>
-    </a>
   </div>
 
   <div id="tab-engineering" class="tab-panel active" role="tabpanel">
@@ -472,8 +468,8 @@ footer a:hover { text-decoration: underline; }
 
   <div class="papers">
 
-    <a class="paper-card" href="papers/00-introduction.html"
-       data-stats="4.9k words · 449 lines · 16 pp (A4)"
+     <a class="paper-card" href="papers/00-introduction.html"
+       data-stats="4.9k words · 16 pages"
        data-extended="Plain-English orientation: read this first if any term in the seven papers is unfamiliar. Closes with a per-paper one-paragraph summary and a vocabulary cheat-sheet.">
       <div class="paper-head">
         <span class="paper-num">Paper 0</span>
@@ -490,8 +486,8 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/01-attention-compression.html"
-       data-stats="8.4k words · 762 lines · 28 pp (A4)"
+     <a class="paper-card" href="papers/01-attention-compression.html"
+       data-stats="8.4k words · 28 pages"
        data-extended="Headline measurement: 106.27% of baseline decode tok/s on Llama-3.1-8B at k=1024 with PCA-only Q/K/V compression, n=300 prompts, p ≈ 10⁻¹⁰. Caveat: penalty grows quickly above k=1024 (+13.30% PPL at k=1536); the speedup hypothesis is L2 fit, not algorithmic.">
       <div class="paper-head">
         <span class="paper-num">Paper 1</span>
@@ -507,8 +503,8 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/02-geodesic-projection.html"
-       data-stats="4.2k words · 378 lines · 14 pp (A4)"
+     <a class="paper-card" href="papers/02-geodesic-projection.html"
+       data-stats="4.2k words · 14 pages"
        data-extended="Generalises Paper 1 to all attention slots plus FFN up/gate (PCA) and FFN down (SVD). Persistent geometry cache lets a fitted manifold serve every quantisation level. Deployment envelope: 1,093 MB W_proj on the 8B Q4_K_M build, fits a single 8 GB GPU.">
       <div class="paper-head">
         <span class="paper-num">Paper 2</span>
@@ -524,8 +520,8 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/03-speculative-decoding.html"
-       data-stats="4.1k words · 372 lines · 14 pp (A4)"
+     <a class="paper-card" href="papers/03-speculative-decoding.html"
+       data-stats="4.1k words · 14 pages"
        data-extended="First end-to-end speculative anchor: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready on SmolLM2-135M-Instruct. Documents the instruct-greedy-EOS pathology and its fix; AttnRes (Kimi 2026) composes additively over the compression draft.">
       <div class="paper-head">
         <span class="paper-num">Paper 3</span>
@@ -542,8 +538,8 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/04-organic-training-theory.html"
-       data-stats="2.5k words · 228 lines · 8 pp (A4)"
+     <a class="paper-card" href="papers/04-organic-training-theory.html"
+       data-stats="2.5k words · 8 pages"
        data-extended="Theory layer for the OTT runtime: Riemannian latent-space inference, geodesic trajectory caching, batched Jacobi correction. Two universal-construction theorems remain open; the OTT deployment manifolds in this repo have a narrower certificate-backed closure.">
       <div class="paper-head">
         <span class="paper-num">Paper 4</span>
@@ -559,8 +555,8 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
-    <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
-       data-stats="3.1k words · 280 lines · 10 pp (A4)"
+     <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
+       data-stats="3.1k words · 10 pages"
        data-extended="Empirical companion to Paper 4. 12 of 17 testable claims now have a measured value, including 97× batched-Jacobi at B=10, 30.9 µs/q lookup, 5.96 KB/record, and the same 38.5% / 76.5 tok/s OTT runtime anchor as Paper 3.">
       <div class="paper-head">
         <span class="paper-num">Paper 5</span>
@@ -577,8 +573,8 @@ footer a:hover { text-decoration: underline; }
         replicable measured result.
       </p>
     </a>
-    <a class="paper-card" href="papers/06-adaptive-compression.html"
-       data-stats="3.8k words · 350 lines · 13 pp (A4)"
+     <a class="paper-card" href="papers/06-adaptive-compression.html"
+       data-stats="3.8k words · 13 pages"
        data-extended="Adaptive layer atop Paper 1+2. MCR phase-aware rank with attention-sink bypass; Axiom Gauge diagonal-g over the GL(d) residual-stream symmetry (zero inference overhead); Thermal Rank with NVML and a tokens-per-joule policy gradient; Online Basis Oja-rule updates fired by speculative rejections. v0.1 design + impl, measurements deferred.">
       <div class="paper-head">
         <span class="paper-num">Paper 6</span>
@@ -606,7 +602,7 @@ footer a:hover { text-decoration: underline; }
     <div class="papers">
 
       <a class="paper-card" href="research/paper-a-grc-attention-compression.html"
-         data-stats="4.5k words · 411 lines · 15 pp (A4)"
+        data-stats="4.5k words · 15 pages"
          data-extended="Calibration-free PCA basis on Q/K/V Gram. Headline 106.27% of baseline at k=1024 on Llama-3.1-8B / RTX 4070, p ~ 10⁻¹⁰. New: explicit Roofline equations, k_int(d) cross-architecture invariance table, k=1536 warmup-proxy relabel of the previous k=2048 row.">
         <div class="paper-head">
           <span class="paper-num">Paper A</span>
@@ -625,7 +621,7 @@ footer a:hover { text-decoration: underline; }
       </a>
 
       <a class="paper-card" href="research/paper-b-geodesic-projection-pipeline.html"
-         data-stats="3.3k words · 298 lines · 11 pp (A4)"
+        data-stats="3.3k words · 11 pages"
          data-extended="Per-layer rank via MCR with constrained-budget KKT water-filling. New in v1.0: a dedicated subsection on the Sink-Basis Bypass (append the dominant residual-stream direction to the PCA basis when coverage drops below ε), and the Two-Thirds Dimensionality Saturation Rule that turns the geometry-cache integrity check into a single-layer probe.">
         <div class="paper-head">
           <span class="paper-num">Paper B</span>
@@ -645,7 +641,7 @@ footer a:hover { text-decoration: underline; }
       </a>
 
       <a class="paper-card" href="research/paper-c-geodesic-speculative-decoding.html"
-         data-stats="2.3k words · 209 lines · 8 pp (A4)"
+        data-stats="2.3k words · 8 pages"
          data-extended="OTT-aware verifier composition over a GP-compressed drafter. EOS pathology: under instruct-greedy, P_D(EOS) → 1, the standard min(1, P_V/P_D) acceptance collapses to unconditional accept; we derive the explicit failure mode and the EOS-aware fix.">
         <div class="paper-head">
           <span class="paper-num">Paper C</span>
@@ -663,7 +659,7 @@ footer a:hover { text-decoration: underline; }
       </a>
 
       <a class="paper-card" href="research/paper-d-ott-gtc-manifold-runtime.html"
-         data-stats="3.7k words · 339 lines · 12 pp (A4)"
+        data-stats="3.7k words · 12 pages"
          data-extended="Theory + measurement anchor. New in v1.0: explicit Fisher-metric → Christoffel → Jacobi → Magnus-3 propagator chain, k_int(d) invariance table in §1, and a closing 'Future Work: HJB-Regularised Joint Training' section that publishes the SHF loss equation L_task + λ Σ ||Δ²s + R̂(s)Δs||² so any future training run using it must cite this paper.">
         <div class="paper-head">
           <span class="paper-num">Paper D</span>
@@ -711,7 +707,6 @@ footer a:hover { text-decoration: underline; }
   </div>
   <div class="pp-meta">
     <span id="pp-readtime">—</span>
-    <span class="pp-cta">click to open &rarr;</span>
   </div>
 </aside>
 

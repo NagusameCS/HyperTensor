@@ -17,7 +17,24 @@ MathJax = {
     inlineMath: [['$','$'],['\\(','\\)']],
     displayMath: [['$$','$$'],['\\[','\\]']],
     tags: 'ams',
-    processEscapes: true
+    processEscapes: true,
+    macros: {
+      Wmat: '{\\mathbf{W}}',
+      Kmat: '{\\mathbf{K}}',
+      Pmat: '{\\mathbf{P}}',
+      Qmat: '{\\mathbf{Q}}',
+      Vmat: '{\\mathbf{V}}',
+      R: '{\\mathbb{R}}',
+      norm: ['{\\lVert #1 \\rVert}', 1],
+      inner: ['{\\langle #1, #2 \\rangle}', 2],
+      rank: '{\\operatorname{rank}}',
+      diag: '{\\operatorname{diag}}',
+      tr: '{\\operatorname{tr}}',
+      Cov: '{\\operatorname{Cov}}',
+      Var: '{\\operatorname{Var}}',
+      argmax: '{\\operatorname*{arg\\,max}}',
+      argmin: '{\\operatorname*{arg\\,min}}'
+    }
   },
   svg: { fontCache: 'global' }
 };
@@ -91,6 +108,35 @@ geometry of the weights, with zero calibration?</em> We answer it with a single
 fully reproducible measurement on consumer hardware, and find that the
 calibration-free choice is not just acceptable but, at one specific
 hardware-cache-fit rank, faster than the uncompressed model.</p>
+<figure class="paper-diagram">
+<svg viewBox="0 0 920 240" role="img" aria-label="GRC pipeline overview">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="currentColor"></polygon>
+    </marker>
+  </defs>
+  <rect class="box" x="24" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="accent" x="254" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="support" x="484" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="good" x="714" y="56" width="180" height="118" rx="14"></rect>
+  <line class="arrow" x1="204" y1="115" x2="254" y2="115"></line>
+  <line class="arrow" x1="434" y1="115" x2="484" y2="115"></line>
+  <line class="arrow" x1="664" y1="115" x2="714" y2="115"></line>
+  <text class="label" x="114" y="95" text-anchor="middle">Full Q/K/V</text>
+  <text class="small" x="114" y="126" text-anchor="middle">baseline attention</text>
+  <text class="small" x="114" y="150" text-anchor="middle">weights streamed from VRAM</text>
+  <text class="label" x="344" y="95" text-anchor="middle">Joint Gram</text>
+  <text class="small" x="344" y="126" text-anchor="middle">calibration-free PCA basis</text>
+  <text class="small" x="344" y="150" text-anchor="middle">shared across Q, K, and V</text>
+  <text class="label" x="574" y="95" text-anchor="middle">Projected Q/K/V</text>
+  <text class="small" x="574" y="126" text-anchor="middle">smaller attention working set</text>
+  <text class="small" x="574" y="150" text-anchor="middle">same runtime, fewer bytes</text>
+  <text class="label" x="804" y="95" text-anchor="middle">Cache-fit Window</text>
+  <text class="small" x="804" y="126" text-anchor="middle">L2-fit hypothesis at k=1024</text>
+  <text class="small" x="804" y="150" text-anchor="middle">measured super-baseline decode</text>
+</svg>
+<figcaption>Conceptual summary of Paper A: weight-only geometry builds a shared PCA basis, the basis shrinks the attention working set, and the runtime gain is hypothesised to appear when that projected working set fits the GPU cache hierarchy.</figcaption>
+</figure>
 <section id="contributions." class="level5">
 <h5>Contributions.</h5>
 <ol>

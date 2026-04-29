@@ -15,6 +15,29 @@
     graphs: 'static' // static by default; user can opt into interactive graphs
   };
 
+  var HT_MATH_MACROS = {
+    Wmat: '{\\mathbf{W}}',
+    Kmat: '{\\mathbf{K}}',
+    Pmat: '{\\mathbf{P}}',
+    Qmat: '{\\mathbf{Q}}',
+    Vmat: '{\\mathbf{V}}',
+    R: '{\\mathbb{R}}',
+    norm: ['{\\lVert #1 \\rVert}', 1],
+    inner: ['{\\langle #1, #2 \\rangle}', 2],
+    rank: '{\\operatorname{rank}}',
+    diag: '{\\operatorname{diag}}',
+    tr: '{\\operatorname{tr}}',
+    Cov: '{\\operatorname{Cov}}',
+    Var: '{\\operatorname{Var}}',
+    argmax: '{\\operatorname*{arg\\,max}}',
+    argmin: '{\\operatorname*{arg\\,min}}'
+  };
+
+  if (window.MathJax) {
+    window.MathJax.tex = window.MathJax.tex || {};
+    window.MathJax.tex.macros = Object.assign({}, HT_MATH_MACROS, window.MathJax.tex.macros || {});
+  }
+
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
@@ -55,12 +78,18 @@
 
   // Apply BEFORE DOM ready to avoid flash on dark mode.
   var state = load();
+  var previewCache = Object.create(null);
   apply(state);
+
+  function refreshDomEnhancements(root) {
+    repairMultiAnchors(root || document);
+  }
 
   // Public API so page-level scripts can query reader preferences.
   window.HyperTensorReader = {
     getState: function () { return Object.assign({}, state); },
-    interactiveGraphsEnabled: function () { return (state.graphs || DEFAULTS.graphs) === 'interactive'; }
+    interactiveGraphsEnabled: function () { return (state.graphs || DEFAULTS.graphs) === 'interactive'; },
+    refresh: function (root) { refreshDomEnhancements(root || document); }
   };
 
   // Favicon: site-wide GitHub avatar. Injected once if absent so we don't
@@ -266,12 +295,112 @@
     var p = t.querySelector('p');
     var snippet = p ? p.textContent.trim().slice(0, 280) : '';
     if (snippet.length === 280) snippet += '\u2026';
+    var image = t.querySelector('img');
     var label = 'In this paper';
     if (/^tab:/.test(id)) label = 'Table';
     else if (/^fig:/.test(id)) label = 'Figure';
     else if (/^app:/.test(id)) label = 'Appendix';
     else if (/^sec:/.test(id)) label = 'Section';
-    return { label: label, title: title, snippet: snippet };
+    return {
+      label: label,
+      title: title,
+      snippet: snippet,
+      image: image ? image.getAttribute('src') : ''
+    };
+  }
+
+  function absolutizeUrl(raw) {
+    try { return new URL(raw, window.location.href).href; } catch (e) { return raw; }
+  }
+
+  function placeholderPreview(label, title, snippet) {
+    return {
+      label: label,
+      title: title,
+      snippet: snippet,
+      image: '',
+      imageAlt: ''
+    };
+  }
+
+  function guessImageFromDocument(doc, url) {
+    var img = doc.querySelector('meta[property="og:image"], meta[name="twitter:image"]');
+    if (img && img.getAttribute('content')) return absolutizeUrl(img.getAttribute('content'));
+    var bodyImg = doc.querySelector('figure img, article img, main img, img');
+    return bodyImg ? absolutizeUrl(bodyImg.getAttribute('src')) : '';
+  }
+
+  function previewFromDocument(doc, url) {
+    var title = '';
+    var titleEl = doc.querySelector('meta[property="og:title"], title, h1');
+    if (titleEl) title = (titleEl.getAttribute && titleEl.getAttribute('content')) || titleEl.textContent || '';
+    title = title.trim();
+    var meta = doc.querySelector('meta[name="description"], meta[property="og:description"]');
+    var snippet = meta ? (meta.getAttribute('content') || '') : '';
+    if (!snippet) {
+      var p = doc.querySelector('article p, main p, p');
+      snippet = p ? (p.textContent || '') : '';
+    }
+    snippet = snippet.trim().slice(0, 280);
+    if (snippet.length === 280) snippet += '\u2026';
+    return {
+      label: /research\//.test(url) ? 'Research paper' : 'Paper',
+      title: title || labelFromId(url.split('/').pop() || 'linked page'),
+      snippet: snippet,
+      image: guessImageFromDocument(doc, url),
+      imageAlt: title || 'Linked page preview'
+    };
+  }
+
+  function fetchDocumentPreview(url) {
+    var abs = absolutizeUrl(url);
+    if (previewCache[abs]) return previewCache[abs];
+    previewCache[abs] = fetch(abs, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        return previewFromDocument(doc, abs);
+      })
+      .catch(function () {
+        return placeholderPreview('Link', abs.replace(/^https?:\/\//, '').replace(/^file:\/\//, ''), 'Open linked page');
+      });
+    return previewCache[abs];
+  }
+
+  function getWikipediaPreview(url) {
+    var path = '';
+    try { path = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch (e) {}
+    return Promise.resolve({
+      label: 'Wikipedia',
+      title: path.replace(/_/g, ' ') || 'Wikipedia article',
+      snippet: 'Open linked reference in Wikipedia.',
+      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/320px-Wikipedia-logo-v2.svg.png',
+      imageAlt: 'Wikipedia logo'
+    });
+  }
+
+  function getPreviewData(a) {
+    var href = a.getAttribute('href') || '';
+    if (href.charAt(0) === '#' && href.length > 1) {
+      return Promise.resolve(getPreviewFor(href.slice(1)));
+    }
+    if (/\.html?(#.*)?$/i.test(href) && !/^https?:\/\//.test(href)) {
+      return fetchDocumentPreview(href);
+    }
+    if (/^https?:\/\/([a-z]+\.)?wikipedia\.org\//i.test(href)) {
+      return getWikipediaPreview(href);
+    }
+    if (/^https?:\/\//.test(href)) {
+      var url;
+      try { url = new URL(href); } catch (e) {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve(placeholderPreview('External link', url.hostname.replace(/^www\./, ''), url.pathname + (url.search || '')));
+    }
+    return Promise.resolve(null);
   }
 
   function buildPreviewEl() {
@@ -283,33 +412,42 @@
       var st = document.createElement('style');
       st.id = 'ht-link-preview-style';
       st.textContent = [
-        '#ht-link-preview{position:fixed;z-index:9999;max-width:380px;min-width:220px;',
-        'padding:.7rem .85rem;background:#fff;border:1px solid rgba(0,0,0,.12);',
-        'border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.12);font-size:.84rem;',
+        '#ht-link-preview{position:fixed;z-index:9999;max-width:420px;min-width:260px;',
+        'padding:.75rem .85rem;background:#fff;border:1px solid rgba(0,0,0,.12);',
+        'border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.14);font-size:.84rem;',
         'line-height:1.45;color:#1a1a1a;pointer-events:none;opacity:0;',
         'transform:translateY(-2px);transition:opacity .12s ease,transform .12s ease;',
         'font-family:inherit;}',
         '#ht-link-preview[data-open="1"]{opacity:1;transform:translateY(0);}',
+        '#ht-link-preview .ht-lp-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:.72rem;align-items:start;}',
+        '#ht-link-preview[data-has-image="1"] .ht-lp-shell{grid-template-columns:92px minmax(0,1fr);}',
+        '#ht-link-preview .ht-lp-thumb{display:none;width:92px;height:92px;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,#f4ede4,#efe2d2);border:1px solid rgba(0,0,0,.08);}',
+        '#ht-link-preview[data-has-image="1"] .ht-lp-thumb{display:block;}',
+        '#ht-link-preview .ht-lp-thumb img{display:block;width:100%;height:100%;object-fit:cover;}',
+        '#ht-link-preview .ht-lp-copy{min-width:0;}',
         '#ht-link-preview .ht-lp-label{display:block;font-size:.68rem;font-weight:700;',
         'letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:.3rem;}',
-        '#ht-link-preview .ht-lp-title{display:block;font-weight:600;margin-bottom:.3rem;}',
-        '#ht-link-preview .ht-lp-snippet{color:#555;font-size:.82rem;}',
+        '#ht-link-preview .ht-lp-title{display:block;font-weight:700;margin-bottom:.34rem;font-size:.96rem;line-height:1.25;}',
+        '#ht-link-preview .ht-lp-snippet{color:#555;font-size:.82rem;line-height:1.5;}',
         '@media (prefers-color-scheme: dark){',
         ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview',
         '   {background:#1c1c1c;color:#e8e8e8;border-color:rgba(255,255,255,.12);}',
+        ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#23201d,#1b1917);border-color:rgba(255,255,255,.1);}',
         ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-label{color:#9a9a9a;}',
         ' :root:not([data-theme="light"]):not([data-theme="sepia"]) #ht-link-preview .ht-lp-snippet{color:#bdbdbd;}',
         '}',
         '[data-theme="dark"] #ht-link-preview{background:#1c1c1c;color:#e8e8e8;border-color:rgba(255,255,255,.12);}',
+        '[data-theme="dark"] #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#23201d,#1b1917);border-color:rgba(255,255,255,.1);}',
         '[data-theme="dark"] #ht-link-preview .ht-lp-label{color:#9a9a9a;}',
-        '[data-theme="dark"] #ht-link-preview .ht-lp-snippet{color:#bdbdbd;}'
+        '[data-theme="dark"] #ht-link-preview .ht-lp-snippet{color:#bdbdbd;}',
+        '[data-theme="sepia"] #ht-link-preview .ht-lp-thumb{background:linear-gradient(135deg,#efe0c7,#e5d3b2);border-color:rgba(60,47,27,.12);}'
       ].join('');
       document.head.appendChild(st);
     }
     el = document.createElement('div');
     el.id = 'ht-link-preview';
     el.setAttribute('role', 'tooltip');
-    el.innerHTML = '<span class="ht-lp-label"></span><span class="ht-lp-title"></span><span class="ht-lp-snippet"></span>';
+    el.innerHTML = '<div class="ht-lp-shell"><div class="ht-lp-thumb"><img alt=""></div><div class="ht-lp-copy"><span class="ht-lp-label"></span><span class="ht-lp-title"></span><span class="ht-lp-snippet"></span></div></div>';
     document.body.appendChild(el);
     return el;
   }
@@ -332,23 +470,33 @@
     var el = buildPreviewEl();
     var hideTimer = null;
     var showTimer = null;
+    var token = 0;
 
-    function show(a, evt) {
-      var href = a.getAttribute('href') || '';
-      var data = null;
-      if (href.charAt(0) === '#' && href.length > 1) {
-        data = getPreviewFor(href.slice(1));
-      } else if (/^https?:\/\//.test(href)) {
-        var url;
-        try { url = new URL(href); } catch (e) { return; }
-        data = { label: 'External link', title: url.hostname.replace(/^www\./, ''), snippet: url.pathname + (url.search || '') };
+    function render(data, evt, currentToken) {
+      if (!data || currentToken !== token) return;
+      var thumb = el.querySelector('.ht-lp-thumb img');
+      el.querySelector('.ht-lp-label').textContent = data.label || '';
+      el.querySelector('.ht-lp-title').textContent = data.title || '';
+      el.querySelector('.ht-lp-snippet').textContent = data.snippet || '';
+      if (data.image) {
+        thumb.src = data.image;
+        thumb.alt = data.imageAlt || data.title || 'Link preview image';
+        el.setAttribute('data-has-image', '1');
+      } else {
+        thumb.removeAttribute('src');
+        thumb.alt = '';
+        el.setAttribute('data-has-image', '0');
       }
-      if (!data) return;
-      el.querySelector('.ht-lp-label').textContent   = data.label;
-      el.querySelector('.ht-lp-title').textContent   = data.title;
-      el.querySelector('.ht-lp-snippet').textContent = data.snippet;
       el.setAttribute('data-open', '1');
       placePreview(el, evt.clientX || 0, evt.clientY || 0);
+    }
+
+    function show(a, evt) {
+      token += 1;
+      var currentToken = token;
+      getPreviewData(a).then(function (data) {
+        render(data, evt, currentToken);
+      });
     }
     function hide() { el.setAttribute('data-open', '0'); }
 
@@ -377,7 +525,7 @@
   }
 
   function initLinkUx() {
-    repairMultiAnchors(document);
+    refreshDomEnhancements(document);
     // Skip the heavy hover handler on small screens (touch) to avoid
     // accidental triggers from tap-and-hold.
     if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {

@@ -17,7 +17,24 @@ MathJax = {
     inlineMath: [['$','$'],['\\(','\\)']],
     displayMath: [['$$','$$'],['\\[','\\]']],
     tags: 'ams',
-    processEscapes: true
+    processEscapes: true,
+    macros: {
+      Wmat: '{\\mathbf{W}}',
+      Kmat: '{\\mathbf{K}}',
+      Pmat: '{\\mathbf{P}}',
+      Qmat: '{\\mathbf{Q}}',
+      Vmat: '{\\mathbf{V}}',
+      R: '{\\mathbb{R}}',
+      norm: ['{\\lVert #1 \\rVert}', 1],
+      inner: ['{\\langle #1, #2 \\rangle}', 2],
+      rank: '{\\operatorname{rank}}',
+      diag: '{\\operatorname{diag}}',
+      tr: '{\\operatorname{tr}}',
+      Cov: '{\\operatorname{Cov}}',
+      Var: '{\\operatorname{Var}}',
+      argmax: '{\\operatorname*{arg\\,max}}',
+      argmin: '{\\operatorname*{arg\\,min}}'
+    }
   },
   svg: { fontCache: 'global' }
 };
@@ -72,6 +89,35 @@ the activation cloud of a trained model occupies a low-dimensional submanifold
 of the embedding space; estimates put intrinsic dimension at <span class="math inline">\(k\!\approx\!30\)</span>–<span class="math inline">\(50\)</span>
 even when ambient <span class="math inline">\(d\in\{4096,8192\}\)</span>
 <span class="citation" data-cites="elhage2022superposition nakkiran2021deep">(<span class="nocase">Elhage et al.</span> 2022; Nakkiran et al. 2021)</span>.</p>
+<figure class="paper-diagram">
+<svg viewBox="0 0 920 240" role="img" aria-label="OTT and GTC runtime overview">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="currentColor"></polygon>
+    </marker>
+  </defs>
+  <rect class="box" x="20" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="accent" x="250" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="support" x="480" y="56" width="180" height="118" rx="14"></rect>
+  <rect class="good" x="710" y="56" width="180" height="118" rx="14"></rect>
+  <line class="arrow" x1="200" y1="115" x2="250" y2="115"></line>
+  <line class="arrow" x1="430" y1="115" x2="480" y2="115"></line>
+  <line class="arrow" x1="660" y1="115" x2="710" y2="115"></line>
+  <text class="label" x="110" y="95" text-anchor="middle">Activation Cloud</text>
+  <text class="small" x="110" y="126" text-anchor="middle">low intrinsic manifold</text>
+  <text class="small" x="110" y="150" text-anchor="middle">inside a wide residual space</text>
+  <text class="label" x="340" y="95" text-anchor="middle">Geometric Operators</text>
+  <text class="small" x="340" y="126" text-anchor="middle">Fisher, Christoffel, Jacobi</text>
+  <text class="small" x="340" y="150" text-anchor="middle">Magnus-3 transport map</text>
+  <text class="label" x="570" y="95" text-anchor="middle">GTC Record Store</text>
+  <text class="small" x="570" y="126" text-anchor="middle">trajectory + correction cache</text>
+  <text class="small" x="570" y="150" text-anchor="middle">indexed by local geometry</text>
+  <text class="label" x="800" y="95" text-anchor="middle">Runtime Correction</text>
+  <text class="small" x="800" y="126" text-anchor="middle">fast reuse of nearby paths</text>
+  <text class="small" x="800" y="150" text-anchor="middle">without full recomputation</text>
+</svg>
+<figcaption>Paper D connects the abstract geometry to the runtime story: learn the local manifold, build transport operators, cache those trajectories, then reuse them as first-order corrections during inference.</figcaption>
+</figure>
 <section id="cross-architecture-k_mathrmint-invariance." class="level5">
 <h5>Cross-architecture <span class="math inline">\(k_{\mathrm{int}}\)</span> invariance.</h5>
 <p>Running our manifold-extraction pipeline on three open transformers of
