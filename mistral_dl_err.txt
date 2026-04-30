@@ -1,0 +1,1 @@
+Fetching 1 files:   0%|          | 0/1 [00:00<?, ?it/s]Downloading 'mistral-7b-v0.1.Q4_K_M.gguf' to 'C:\Users\legom\models\mistral-7b-v0.1\.cache\huggingface\download\rAdFtzyS6dBYqo0ywrkBjjqajgw=.ce6253d2e91adea0c35924b38411b0434fa18fcb90c52980ce68187dbcbbe40c.incomplete'

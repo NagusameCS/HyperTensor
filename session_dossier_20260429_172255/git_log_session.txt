@@ -1,0 +1,289 @@
+﻿7418a3e 2026-04-29 17:22:34 -0600 papers: first-person voice + curvature-warp 0/12 cross-model strengthening
+- Replace 'The author thanks/the author's' with first-person 'I thank/my' across paper-A/B/C acknowledgements and docs/WHITEPAPER.md (4 occurrences). Sole-author byline metadata unchanged.
+
+- paper-D §curvature-warp-negative: upgrade single-model 0/32 sweep with cross-model 0/12 replication (3 architectures x 2 protocols x 2 intrinsic dims) from docs/figures/curvature_warp/cross_model_summary.json. v2 covariant variant produces NEGATIVE target improvements on Phi-3.5-mini, NaN on Phi-3.5-mini v1 n=6. Strengthens negative conclusion.
+
+- paper-D gap-table: update curvature-warp row to 'negative: 0/32 single-model + 0/12 cross-model'.
+
+- paper-B Thermal Rank fbox: change 'v0.2 design specification ... deferred to v0.2' to 'v0.2 status' citing the new sustained-decode trace; only closed-loop A/B remains as next step.
+
+---
+72b0619 2026-04-29 17:20:30 -0600 Papers A/C + benches: cross-HW ctx sweep, RTX 3050 portability, MCR negative, T_V(k) partial
+Paper A: context-length sweep table (128-4096 tok, ratio 1.044-1.072) and second-device portability paragraph (Arch + RTX 3050 sm_86 zig 0.14 CUDA 13). 18pp.
+
+Paper C: spec-decode acceptance under low-rank compression. At k in {128,256} alpha collapses to ~0% on most prompts (1/4 prompts at k=256 retained alpha=56.2%); k=512 cold PCA exceeded 15min budget. Decode tps healthy (31-36 tok/s) so failure mode is verifier rejection. Negative finding: geodesic spec-decode and aggressive GP compression do not compose at low k. 8pp.
+
+Bench: scripts/bench_mcr_ablation.py (n=64, 4 reps each) producing measured negative MCR result (ratio 0.978, 21x higher variance) at k=1024. scripts/bench_tv_of_k.py producing partial T_V(k) data; cold-PCA timeout at k=512.
+
+Data: docs/figures/paper-b/mcr_ablation.csv + summary.json; docs/figures/paper-c/tv_of_k_sweep_partial.csv; docs/figures/paper-d/mistral-nemo-12b/axiom_beta_report.json (k_int=5.36, 156 PCA, 10 axioms cons=0.9407, 13.67B params).
+
+---
+d4fef86 2026-04-29 17:19:00 -0600 v0.2 empiricalization: HJB feasibility stub + Thermal sustained trace + MCR weight-PCA disclosure
+- scripts/hjb_feasibility.py: discrete Jacobi residual on Phase-3 manifolds for smollm2-135m, gemma-4-e2b, phi-3.5-mini across baked geodesic / NN-walk / random-straight trajectory classes. Outputs floor/conformant/off-manifold magnitudes and kinetic-vs-curvature decomposition. Finding: kinetic term dominates curvature by 17-32 orders of magnitude on frozen-network manifolds.
+
+- scripts/analyze_thermal.py: nvidia-smi CSV -> thermal_summary.{json,md} with active-window stats, sustained-decode drift, throughput drift, and tokens-per-joule estimate.
+
+- docs/figures/paper-b/v02_empirical/: 4-pass back-to-back 384-tok decode of Llama-3.1-8B Q4_K_M, 1Hz nvidia-smi sample. T_p90=74C reaches Thermal Rank actuation band [65,85]C; mean 27.5 tok/s @ 66.3W -> 0.415 tok/J. MCR run captures Flat activation-variance fallback in weight-PCA mode.
+
+- docs/figures/paper-d/hjb_feasibility/: per-model SHF residual magnitudes; FLOPs per residual at n=8 ~5.6e5.
+
+- paper-B (geodesic-projection-pipeline.tex): MCR section adds weight-PCA flat-fallback paragraph; Thermal section adds measured sustained-decode trace paragraph.
+
+- paper-D (ott-gtc-manifold-runtime.tex): HJB section adds Empirical feasibility stub paragraph with SHF magnitudes; Open Problems adds Knowledge-injection curvature warp negative-result subsection citing 0/32 sweep.
+
+---
+6fcf605 2026-04-28 23:20:09 -0600 ec2 paperA: zig cc drop -I/usr/include, add isystem multiarch for cblas, _GNU_SOURCE
+
+---
+0456963 2026-04-28 23:00:58 -0600 Cross-device: full FULL_REPORT.md with all runs, logs linked, analysis
+
+---
+5c4475b 2026-04-28 22:57:06 -0600 Cross-device: smollm row resolved (4070 +44.9%); diagnose greedy-EOS edge case
+* host/main.c: distinguish n==0 (model emitted EOS first) from n<0 (real failure).
+  Old generic '[error generating response]' was misleading for SmolLM2-135M+greedy.
+  New message points users to --temp 0.7 or longer prompt.
+* Cross-device table updated: 4070 SmolLM2-135M Q8_0 baseline 270.8 -> GRC k=512 392.3 tok/s (+44.87%).
+* Analyser indexes split smollm_local_baseline.log + smollm_local_fix.log.
+* Remote 3050 smollm rerun launched but Cloudflare tunnel persistently down for retrieval (websocket: bad handshake); will pull next session.
+* 8B 3050 SIGSEGV remains pending remote debug (genuine pre-existing CUDA-glue bug).
+* Adds remote launchers/diag scripts (run_remote_smollm[_baseline].sh, check_smollm.sh, check_remote.sh, diag_crash.sh).
+
+---
+beb90d9 2026-04-28 22:26:57 -0600 Cross-device validation: 4070 GRC +11% (38.4 vs 34.6 tok/s); 3050 actaware fix unblocks compression pipeline (3072->192 MB, 93.8%); add poller + analyser scripts
+
+---
+8868ad5 2026-04-28 22:06:28 -0600 Cross-device validation summary (4070 Laptop Q4_K_M vs RTX 3050 Q8_0)
+
+---
+6ef5aea 2026-04-28 20:48:38 -0600 Paper D: Llama-3.1-8B intrinsic-dim k=20 frontier-scale measurement
+Adds frontier-scale Phase-1 manifold parameters paragraph to Sec measurement-anchor: TwoNN k_int=19.96, 132 PCA components for 95.1% variance, 40 axioms with consistency 0.9499. This is the lower edge of the Ansuini-Pope k~30-50 band, consistent with the smoothness-scaling hypothesis: k_int/d collapses from ~0.05 (sub-1B models) to 0.005 (Llama-8B), and the Paper-C alpha rise (38.5% to 46.9%) is the operational signature. Adds ansuini2019intrinsic, pope2021intrinsic, and Paper-C cross-reference to refs.bib.
+
+---
+122b8c3 2026-04-28 20:47:53 -0600 GRC: default --axex-compress to weight-PCA path; cross-HW infra
+* host/main.c: --axex-compress now auto-selects weight-PCA basis (calibration-
+  free, finishes in seconds). The legacy actaware/calibration-aware path
+  (axpca_compute_topk_weighted on column-rescaled X) silently stalls 10+min
+  on Llama-class models. Opt back into it with new --axex-actaware-pca flag.
+  Pure h-PCA (--axex-no-actaware) also keeps the legacy code path active.
+
+* scripts/run_lm_eval_suite.ps1: Start-GeodServer now polls /v1/models over
+  HTTP (180s deadline) instead of just TCP-connect (60s) — fixes early
+  timeout when model load takes >60s.
+
+* scripts/benchmark_rank_pareto.ps1: per-rank cache warmup pass (Repeats=1)
+  before measurement, so the >30min cold weight-PCA recompute does not
+  pollute the std of the real run.
+
+* scripts/campaign/build_remote_arch_cuda.sh: new idempotent CUDA build
+  recipe for Arch + zig 0.14 + openblas + nvcc sm_86 → builds and atomically
+  swaps in geodessical with cuda_kernels.so.
+
+* scripts/campaign/remote_arch_suite.sh, context_length_sweep.ps1,
+  benchmark_ncu_l2_profile.ps1: pass --axex-attn-only --axex-weight-pca
+  explicitly so behaviour is identical pre/post-default-flip.
+
+* benchmarks/cross_hw_local_fix_20260428_192807/: 50-run local context sweep
+  on RTX 4070 Laptop confirming GRC k=1024 +4.4-7.2% across ctx 128-4096.
+
+---
+2415889 2026-04-28 20:46:47 -0600 Paper C: Llama-3.1-8B alpha=46.9% spec-decode datapoint
+Eight-prompt sweep on Llama-3.1-8B-Instruct Q4_K_M, gamma=2, threshold=0.45, n=64 tokens per prompt, deterministic decode (temp=0). Geodesic verifier accepts drafts at alpha=46.9% with sigma=0.0 across prompts -- the rate is set by residual-stream geometry, not prompt content. Calibrated WITHOUT the OneDecode prefetch table (which fails to bake on Llama-8B under the present runtime; tracked in Sec status). Headline updated; Sec measured gets a Llama-8B paragraph showing alpha rises from 38.5% (SmolLM2-135M) to 46.9% (Llama-8B), consistent with the manifold-smoothness hypothesis.
+
+Closes audit gap #4 (Paper C frontier-model alpha).
+
+---
+3cc349f 2026-04-28 20:39:21 -0600 Paper B: reframe to MCR-only-measured for v1; Gauge/Thermal/Oja as v0.2 specs
+Adds explicit v1-vs-v0.2 split in Sec 1 scope-limit paragraph and stamps v0.2 design-spec boxes on the start of Sec 8 (Axiom Gauge), Sec 9 (Thermal Rank), Sec 10 (Online Basis). Ships one measured mechanism (MCR) instead of four under-measured ones to stay credible inside the NeurIPS time budget.
+
+---
+a385c24 2026-04-28 20:36:21 -0600 Paper A: real NCU L2 trace on Llama-3.1-8B (cache-fit hypothesis test)
+Captured 100 decode-phase launches of kernel_gemv_q4_k each in baseline and GRC k=1024 modes. Mean L2 hit rate 7.84% baseline vs 5.74% GRC (delta -2.09pp). Drop is consistent with persist-hint pressure from Pt (128MB) and W_proj (72MB) evicting FFN weights -- the bandwidth trade is real and visible. Updates Sec 6 with measured trace, Sec App.J with comparison plot, refines limitations from 'no L2 trace' to 'partial L2 trace, attention path remains open'.
+
+Closes audit gap #3a (NCU L2 trace).
+
+---
+c45b1ac 2026-04-28 19:42:16 -0600 Papers A-D: update contact email to nagusamecs@gmail.com
+
+---
+4b21925 2026-04-28 19:39:40 -0600 ﻿Papers A & B: fix broken refs + Paper A per-layer EY analysis
+Quick-wins from the post-integration audit:
+
+Paper A
+- Fix undefined ref fig:spectral_flatness -> fig:spectra-app (line 637)
+- New scripts/extract_ey_per_layer.py reads docs/figures/eckart_young_bound.json
+  and emits a per-layer EY-vs-GRC bar chart at k=1024 (the cache-fit optimum)
+- New Figure ey-per-layer in Sec. ey: shows the shared-basis penalty is
+  concentrated in V slots (Q/K pay smaller multiplicative cost), motivating
+  per-matrix bases as the future-work direction
+- New CSV docs/figures/paper-a/ey_per_layer.csv exports the per-(layer,k,slot)
+  oracle vs GRC numbers so readers can reproduce Table ey directly
+
+Paper B
+- Fix undefined ref sec:mcr-phase -> sec:adaptive-mcr in pipeline-figure caption
+  (was the same bug the build log was warning about)
+
+Both papers now build with zero "undefined references" warnings.
+
+---
+5b1bf6d 2026-04-28 19:32:16 -0600 ﻿Papers A-D: visual + empirical integrations across the suite
+Paper A (16 pp, was 14): embeds 3 figures into the appendix
+- spectra_attn_vs_ffn.png after Sec. spectral analysis
+- energy_capture.png alongside k95 table
+- throughput_paired.png and layerwise_rank_needed.png in CI section
+
+Paper B (11 pp, was 10): adds the missing pipeline diagram (TikZ)
+- 7-slot -> manifold fit -> MCR phase tag -> per-layer rank ->
+  persistent cache -> runtime, with drift feedback loop
+- New paragraph integrating axiom_beta_report.json: Llama-3.1-8B
+  intrinsic dim k_int=102 (2.49 percent of d=4096), confirming
+  cross-arch invariance of the manifold-dim claim now extends to d=4096
+
+Paper C (8 pp, was 7): adds the missing throughput-cost curve
+- New scripts/plot_paper_c_throughput_vs_rank.py renders matplotlib
+  PNG + PDF from rank_sweep_raw.csv (4 prompt classes, n=8 per point)
+- Embedded as Figure 2; calibrates T_V(k) in Eq. (1-2) and shows the
+  cache-fit peak at k=1024 that justifies multiplicative composition
+  of GRC and speculative decoding
+
+Paper D (13 pp, was 12): adds two TikZ flowcharts + density anchor
+- Fisher metric -> Christoffel -> Riemann -> Magnus-3 propagator chain
+  diagram alongside Eq. (fisher-to-phi)
+- GTC runtime architecture: validity check, hot/cold paths, library
+  insertion, batch resonance loop
+- New paragraph integrating axiom_beta + cloud_density_summary online
+  data: 24 online states, NN-distance mean 0.132 / p90 0.348, validating
+  why coverage is scale-invariant
+
+Aggregate page count delta: +5 pages of content with substantive
+visual/empirical additions across all four papers.
+
+---
+020ba8e 2026-04-28 19:11:12 -0600 ﻿Paper A: empirical anchors from canonical pack (rank-Pareto, decode-length, quality)
+Adds three appendix snippets generated from benchmarks/whitepaper_pack_20260427_121815/:
+- rank_pareto.{csv,tex}: granular Pareto k=0/1024/1536/2048 (n=8 samples each)
+- decode_length_sweep.{csv,tex}: 128 vs 256 generated tokens, all conditions
+- quality_anchor.{csv,tex}: WikiText-2 PPL + per-prompt decode CIs
+
+Snippet builders in scripts/build_{rank_pareto,decode_length,quality_anchor}_snippet.py
+are deterministic re-aggregations of the canonical pack raw CSVs.
+
+Paper A appendix gains two new subsections (rank-Pareto sweep, decode-length
+sensitivity) inputting these snippets; rebuilt PDF goes from 13 to 14 pages.
+
+Bench 1 (NCU L2 profile) deferred: profiler driver returns ResourceUnavailable
+on RTX 40-series Laptop even with HKLM RmProfilingAdminOnly=0; needs reboot.
+Bench 2 lm-eval deferred: geodessical /v1/chat is not OpenAI-compatible,
+needs a thin shim before lm-eval can drive it. Quality is anchored via the
+5-rep WikiText-2 PPL run already in the canonical pack.
+
+---
+96b97fc 2026-04-28 18:58:25 -0600 docs: drop em dashes from whitepaper chapter titles
+
+---
+d2a7cf8 2026-04-28 18:54:10 -0600 docs: british english prose sweep across papers
+
+---
+d321f43 2026-04-28 18:45:01 -0600 docs: drop link preview, humanise hero, em-dash sweep
+
+---
+3428394 2026-04-28 18:25:34 -0600 docs: refine whitepaper and research reader UX
+
+---
+4b2f663 2026-04-28 18:12:04 -0600 backup: benchmark orchestration before web changes
+
+---
+50dd15d 2026-04-28 16:51:43 -0600 site: render arXiv PDFs, link them locally + GH source, prune AI-tone copy
+- Built all four arXiv PDFs from current LaTeX (paper-A/B/C/D, ~340-410 KB).
+  Copied to docs/research/pdfs/ for direct download from the static site.
+- docs/research/paper-{a,b,c,d}.html: PDF link now points to the in-site
+  copy; TeX source link points at the LaTeX file on GitHub; added an
+  'arXiv tree' link to the per-paper folder.
+- docs/index.html: dropped the GRC/GTC 'Naming note' (already covered by
+  Paper 1's glossary). Replaced the 'Reader controls (theme, font size...)'
+  AI-tone footer note. Replaced the single 'Markdown source' footer link
+  with two: 'Engineering paper sources' (docs/papers/) and 'arXiv LaTeX
+  sources' (ARXIV_SUBMISSIONS/) on GitHub.
+- docs/papers/02-geodesic-projection.html, 03-speculative-decoding.html:
+  removed the 'Paper N of 4 - HyperTensor Research' footer line.
+- docs/research/paper-b: 'Source data:' caption is now one line and the
+  path is a clickable link to legacy/axiom_vis on GitHub.
+- docs/research/paper-a: linked benchmarks/whitepaper_pack_20260427_121815/
+  and scripts/validation_cycle.ps1 inline.
+- docs/research/paper-d: linked all six scripts/gtc/*.py table entries.
+- docs/papers/05: linked Leviathan/Chen/Medusa/EAGLE arXiv refs.
+- docs/papers/06: linked Three Phases of Transformers + StreamingLLM.
+
+---
+f5e8abe 2026-04-28 16:45:09 -0600 site: drop AI-tone subtitle/notes; A4 word/line/page stats; mega whitepaper page
+- index.html: 'in two voices' subtitle, tab-blurb, research-thread note,
+  source note, and 'Research thread' framing line removed.
+- index.html: minute-estimates replaced with computed A4 stats
+  (300 w/p, 11 w/L) for all 11 paper cards, sourced from file contents.
+- index.html: third tab 'Whitepaper - all 7 in one' linking to the new
+  unified page; preview/chip JS reads data-stats with data-readtime
+  fallback so nothing breaks if older attrs reappear.
+- papers/whitepaper.html (new): a single mega-page that fetches each
+  engineering paper at runtime, lifts <main>, prefixes ids per chapter
+  to avoid collisions, rewrites cross-paper hrefs to in-page anchors,
+  and renders all seven back-to-back as chapters with sticky TOC,
+  scroll-spy, and total ~31k words / ~104 pp (A4) header.
+
+---
+3db445a 2026-04-28 16:38:49 -0600 ux: hide kbd-tip text (handlers preserved), cohesive link styling (text-color + accent-tinted underline, dotted for in-page anchors, external-link arrow), hover preview tooltip on hyperlinks (auto-injected styles, dark/light aware), and a JS shim that splits pandoc's broken multi-target Cref anchors (e.g. #sec:a,sec:b) into individual working links; also hand-fix the three rendered occurrences in papers A and B
+
+---
+3a9790a 2026-04-28 16:34:20 -0600 arXiv readiness: rewrite home-page research blurbs, strip 'arXiv-style PDF' wording, rename non-academic section heads (Papers B,C), add TikZ pipeline figure to Paper D, add 4 honest-or-fail benchmark scripts (NCU L2 / lm-eval / context sweep / rank Pareto) with CSV+\input-able .tex emitters, and pre-submission checklist in ARXIV_SUBMISSIONS/README.md
+
+---
+e3d53b3 2026-04-28 15:12:24 -0600 Research-paper rendering, tabbed home page, and 4 new content gems
+Content (LaTeX, ARXIV_SUBMISSIONS):
+- Paper A: Roofline formalisation, nomenclature htnote, FFN-flat
+  geometric reading, k=1536 warmup-proxy relabel of the k=2048 row,
+  k_int(d) cross-architecture invariance table.
+- Paper B: MCR constrained-budget formulation with KKT water-filling,
+  geometric reading of attention/FFN asymmetry, Oja decayed-update
+  derivation with explicit projector lift, NEW Sink-Basis Bypass
+  subsection (append dominant residual direction to PCA basis when
+  coverage drops below eps), NEW Two-Thirds Dimensionality Saturation
+  Rule as an O(1) cache-integrity probe.
+- Paper C: nomenclature htnote, EOS-pathology derivation showing
+  P_D(EOS) -> 1 collapses min(1, P_V/P_D) acceptance, sec:ottmodes label.
+- Paper D: hypertensor banner + nomenclature htnote, k_int(d) invariance
+  table in intro, full Fisher-metric to Christoffel to Jacobi to Magnus-3
+  derivation, magnus1954 bibliography entry, NEW Future Work section
+  publishing the HJB-regularised SHF loss.
+
+Build / submission tree:
+- Renamed all four main.tex to descriptive names.
+- Removed the duplicate arxiv/ working tree; ARXIV_SUBMISSIONS/ is now
+  the single self-contained source-of-truth.
+- hypertensor.sty: reorder amssymb / amsthm / newtxmath to avoid Bbbk
+  and openbox redefinition errors on TeXLive 2026.
+- Compiled all four PDFs via TinyTeX + biber.
+
+Figures: scripts/make_paper_figures.py emits super_baseline, roofline,
+spectral_flatness, eos_pathology figures.
+
+Web site:
+- Removed the floating Print/PDF button (reader.js).
+- Added Engineering / Research tabs on the home page; choice persists in
+  localStorage and honours #engineering / #research hash links.
+- New docs/research/ with four standalone HTML renders of the LaTeX
+  papers via pandoc + MathJax, styled by docs/assets/research-paper.css
+  and docs/assets/research-paper.template.html so the research papers
+  share the visual language of the engineering papers.
+- scripts/render_research_papers.sh rebuilds the four research HTMLs.
+
+---
+e869e8c 2026-04-28 11:11:05 -0600 Address pre-submission review: fix Paper C placeholder, biber-aware latexmk, restore main.tex naming
+
+---
+8a56565 2026-04-28 10:54:04 -0600 Include arXiv LaTeX sources (papers A-D main.tex)
+
+---
+c89db45 2026-04-28 10:53:38 -0600 Add arXiv submissions (papers A-D), fix paper 6 CSS, remove robots.txt
+
+---
+9d3b176 2026-04-28 09:03:57 -0600 Update index.html
+
+---

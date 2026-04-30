@@ -78,10 +78,6 @@ GP and is the empirical anchor for the throughput measurements below;
 of GP that motivates the OneDecode / OTT-OD / OTT-SWARM drafter modes
 briefly described in <a href="#sec:ottmodes" data-reference-type="ref+Label" data-reference="sec:ottmodes">8</a>.</p>
 </div>
-<p><strong>Keywords:</strong> speculative decoding, low-rank compression,
-exactness-preserving sampling, instruction-tuned models, EOS handling,
-geodesic trajectory caching.</p>
-<hr />
 <section id="sec:why" class="level2">
 <h2>Why Compose</h2>
 <p>Speculative decoding wins because the verifier amortises its forward-pass
@@ -556,13 +552,6 @@ benchmarks (MMLU, GSM8K, HumanEval) on the accepted-token sequence. The
 closed-form throughput model in <a href="#sec:closedform" data-reference-type="ref+Label" data-reference="sec:closedform">3</a> uses
 companion-paper numbers extrapolated to this drafter; whether those
 extrapolations transfer is the central uncertainty.</p>
-</section>
-</section>
-<section id="acknowledgements" class="level2 unnumbered">
-<h2 class="unnumbered">Acknowledgements</h2>
-<p>I thank the open-source SmolLM2 release that made fast
-end-to-end iteration possible and the existing speculative-decoding
-literature on which the rejection rule is based.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-cai2024medusa" class="csl-entry" role="listitem">
 Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <em><span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads</em>. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
@@ -583,6 +572,7 @@ Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <em><span>EAGLE</s
 Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
 </div>
 </div>
+</section>
 </section>
 </article>
 

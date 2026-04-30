@@ -1,15 +1,15 @@
 [0] Config.pm:328> INFO - This is Biber 2.21
 [0] Config.pm:331> INFO - Logfile is 'geodesic-speculative-decoding.blg'
-[41] biber-MSWIN64:342> INFO - === 
-[54] Biber.pm:421> INFO - Reading 'geodesic-speculative-decoding.bcf'
-[115] Biber.pm:1002> INFO - Found 6 citekeys in bib section 0
-[125] Biber.pm:4487> INFO - Processing section 0
-[134] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
-[145] bibtex.pm:1713> INFO - LaTeX decoding ...
-[180] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
-[236] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
-[236] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[236] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
-[236] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
-[240] bbl.pm:676> INFO - Writing 'geodesic-speculative-decoding.bbl' with encoding 'UTF-8'
-[244] bbl.pm:779> INFO - Output to geodesic-speculative-decoding.bbl
+[45] biber-MSWIN64:342> INFO - === 
+[60] Biber.pm:421> INFO - Reading 'geodesic-speculative-decoding.bcf'
+[128] Biber.pm:1002> INFO - Found 6 citekeys in bib section 0
+[139] Biber.pm:4487> INFO - Processing section 0
+[148] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[160] bibtex.pm:1713> INFO - LaTeX decoding ...
+[206] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[285] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[285] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[286] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[286] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[290] bbl.pm:676> INFO - Writing 'geodesic-speculative-decoding.bbl' with encoding 'UTF-8'
+[295] bbl.pm:779> INFO - Output to geodesic-speculative-decoding.bbl

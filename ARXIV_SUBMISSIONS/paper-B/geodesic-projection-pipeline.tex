@@ -675,7 +675,12 @@ cost of a controlled rank reduction; if rank--PPL elasticity is $<1\%$ per
 rank-step in the operating regime (typical for $r\in[768,1280]$ on
 Llama-3.1-8B), the trade is favourable.
 
-\paragraph{Measured sustained-decode trace (2026-04-29).}
+\paragraph{Telemetry trace, sustained decode (2026-04-29).}
+This trace is a one-sided telemetry capture of an unmodified frozen-rank
+run, not a closed-loop A/B against the Thermal Rank controller. It
+characterises the operating envelope the controller would see; the paired
+controller-on vs. controller-off ablation is listed as an open
+measurement in \Cref{sec:limitations}.
 We instrumented a 4-pass back-to-back decode of Llama-3.1-8B-Instruct
 Q4\_K\_M (4 $\times$ 384 tokens, $T{=}0.7$, RTX 4070 Laptop) with a
 1\,Hz \texttt{nvidia-smi} probe on the channels Thermal Rank consumes

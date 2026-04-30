@@ -1,15 +1,15 @@
 [0] Config.pm:328> INFO - This is Biber 2.21
 [0] Config.pm:331> INFO - Logfile is 'ott-gtc-manifold-runtime.blg'
-[39] biber-MSWIN64:342> INFO - === 
-[51] Biber.pm:421> INFO - Reading 'ott-gtc-manifold-runtime.bcf'
-[107] Biber.pm:1002> INFO - Found 19 citekeys in bib section 0
-[116] Biber.pm:4487> INFO - Processing section 0
-[125] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
-[136] bibtex.pm:1713> INFO - LaTeX decoding ...
-[183] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
-[282] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
-[282] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[282] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
-[282] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
-[290] bbl.pm:676> INFO - Writing 'ott-gtc-manifold-runtime.bbl' with encoding 'UTF-8'
-[298] bbl.pm:779> INFO - Output to ott-gtc-manifold-runtime.bbl
+[41] biber-MSWIN64:342> INFO - === 
+[53] Biber.pm:421> INFO - Reading 'ott-gtc-manifold-runtime.bcf'
+[126] Biber.pm:1002> INFO - Found 19 citekeys in bib section 0
+[137] Biber.pm:4487> INFO - Processing section 0
+[146] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[156] bibtex.pm:1713> INFO - LaTeX decoding ...
+[192] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[291] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[291] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[291] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[291] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[300] bbl.pm:676> INFO - Writing 'ott-gtc-manifold-runtime.bbl' with encoding 'UTF-8'
+[309] bbl.pm:779> INFO - Output to ott-gtc-manifold-runtime.bbl

@@ -1,0 +1,20 @@
+{
+  "model": "Meta-Llama-3.1-8B-Instruct-Q4_K_M",
+  "prompt": "Explain the second law of thermodynamics in one paragraph.",
+  "n_decode": 64,
+  "baseline": {
+    "n": 4,
+    "mean": 39.275,
+    "stdev": 0.04999999999999716,
+    "min": 39.2,
+    "max": 39.3
+  },
+  "mcr": {
+    "n": 4,
+    "mean": 39.225,
+    "stdev": 0.04999999999999716,
+    "min": 39.2,
+    "max": 39.3
+  },
+  "mcr_over_baseline": 0.9987269255251433
+}

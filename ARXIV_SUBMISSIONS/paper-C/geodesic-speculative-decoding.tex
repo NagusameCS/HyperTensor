@@ -2,13 +2,13 @@
 \usepackage{hypertensor}
 \addbibresource{refs.bib}
 
-\title{\textbf{Geodesic Speculative Decoding under Compression}\\[0.4em]
+\title{Geodesic Speculative Decoding under Compression\\[0.4em]
 \large Throughput Models, the Instruct-Greedy-EOS Pathology, and First Measurements
 on a Q8\_0 ChatML Backbone}
 \author{William Ken Ohara Stewart\\
 \small NagusameCS Independent Research\\
 \small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}}
-\date{April 2026}
+\date{April 2026 (v0.1)}
 
 \begin{document}
 \maketitle
@@ -55,12 +55,9 @@ that compose with the speculative path and reuse the geodesic-trajectory
 cache infrastructure of the OTT/GTC paper.
 \end{abstract}
 
-\noindent\textbf{Keywords:} speculative decoding, low-rank compression,
-exactness-preserving sampling, instruction-tuned models, EOS handling,
-geodesic trajectory caching.
-
+\clearpage
 \tableofcontents
-\bigskip\hrule\bigskip
+\clearpage
 
 % =================================================================
 \section{Why Compose}
@@ -467,10 +464,6 @@ closed-form throughput model in \Cref{sec:closedform} uses
 companion-paper numbers extrapolated to this drafter; whether those
 extrapolations transfer is the central uncertainty.
 
-\section*{Acknowledgements}
-I thank the open-source SmolLM2 release that made fast
-end-to-end iteration possible and the existing speculative-decoding
-literature on which the rejection rule is based.
-
+\clearpage
 \printbibliography
 \end{document}

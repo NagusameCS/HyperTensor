@@ -762,9 +762,14 @@ cost of a controlled rank reduction; if rank–PPL elasticity is <span class="ma
 rank-step in the operating regime (typical for <span class="math inline">\(r\in[768,1280]\)</span> on
 Llama-3.1-8B), the trade is favourable.</p>
 </section>
-<section id="measured-sustained-decode-trace-2026-04-29." class="level7">
-<p class="heading">Measured sustained-decode trace (2026-04-29).</p>
-<p>We instrumented a 4-pass back-to-back decode of Llama-3.1-8B-Instruct
+<section id="telemetry-trace-sustained-decode-2026-04-29." class="level7">
+<p class="heading">Telemetry trace, sustained decode (2026-04-29).</p>
+<p>This trace is a one-sided telemetry capture of an unmodified frozen-rank
+run, not a closed-loop A/B against the Thermal Rank controller. It
+characterises the operating envelope the controller would see; the paired
+controller-on vs. controller-off ablation is listed as an open
+measurement in <a href="#sec:limitations" data-reference-type="ref+Label" data-reference="sec:limitations">[sec:limitations]</a>.
+We instrumented a 4-pass back-to-back decode of Llama-3.1-8B-Instruct
 Q4_K_M (4 <span class="math inline">\(\times\)</span> 384 tokens, <span class="math inline">\(T{=}0.7\)</span>, RTX 4070 Laptop) with a
 1 Hz <code>nvidia-smi</code> probe on the channels Thermal Rank consumes
 (<code>temperature.gpu</code>, <code>clocks.sm</code>, <code>power.draw</code>) for

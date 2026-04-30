@@ -1,0 +1,53 @@
+
+  ╔═══════════════════════════════════════════╗
+  ║  Geodessical v0.6.0 "Synapse"              ║
+  ║  High-Performance AI Inference Runtime    ║
+  ╚═══════════════════════════════════════════╝
+
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=1
+[SMP] 16 CPUs online (15 workers + BSP)
+[GD] Loading model: C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\blobs\7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c
+[GD] Mapped 4692 MB
+[LLM] Loading model from buffer: 4692 MB
+[LLM] Parsing GGUF...
+[GGUF] Version 3, 292 tensors, 33 KV pairs
+[LLM] rms_epsilon=0.000010
+[LLM] Model: Meta Llama 3.1 8B Instruct (llama)
+[LLM] 32 layers, 4096-dim, 128256 vocab, 32 heads (8 KV), head_dim=128
+[LLM] About to map tensors...
+[LLM] token_embd.weight: type=12 dims=[4096,128256]
+[LLM] Tensor mapping complete: 32 layers
+[LLM] Tensors mapped, building vocab...
+[LLM] Vocab: 128256 tokens, BOS=128000, EOS=128009
+[LLM] Tokenizer: BPE
+[LLM] Vocab built (128256 tokens), allocating scratch...
+[LLM] Allocating 513 MB scratch arena
+[LLM] Model loaded successfully! Ready for inference.
+[FLASH-ATTN] Initialized: tile=32x32, scratch=41216 bytes
+[CUDA] Initialized: 1 device(s), 7056 MB free
+[GPU] VRAM free: 7056 MB, scratch: 557 KB
+[GPU] Uploaded 226 weight tensors (4684 MB) to VRAM
+[GPU] GPU-resident forward pass ready (total VRAM: 5861 MB)
+[LLM] Backend: cuda (GPU-accelerated)
+[GD] Model loaded in 1976 ms
+[GD] Model: Meta Llama 3.1 8B Instruct
+[GD] Prompt: "Write a detailed explanation of how transformers use attention mechanisms"
+[GD] Generating 200 tokens...
+
+[GPU] batch-prefill scratch: n=19 dim=4096 ff=14336 (~3 MB)
+Transformers are a type of neural network architecture that has revolutionized the field of natural language processing (NLP) and other sequence-to-sequence tasks. One of the key components of the transformer architecture is the attention mechanism, which allows the model to focus on specific parts of the input sequence when generating the output. In this explanation, we'll dive into the details of how transformers use attention mechanisms.
+
+**Background: Traditional Sequence-to-Sequence Models**
+
+Before we dive into the transformer architecture, let's briefly review traditional sequence-to-sequence models. These models typically use a combination of recurrent neural networks (RNNs) and encoder-decoder architectures to process input sequences and generate output sequences. The encoder processes the input sequence and generates a fixed-length vector representation, which is then fed into the decoder to generate the output sequence.
+
+However, traditional sequence-to-sequence models have several limitations. They are prone to vanishing gradients, which can make it difficult to train deep models. They also have difficulty handling
+[200 tok, 35.4 tok/s, prefill 524 ms, 16 cpus]
+
+
+[GD] 200 tokens in 6182 ms (32.4 tok/s)
+[GD] Decode-only: prefill 524.0 ms, 35.4 tok/s
+[TpF] N=8310M  b_p=0.592 B/param  model=4693MB
+[TpF] ideal: TpF_c=6.017e-11 tok/FLOP  TpF_m=2.032e-10 tok/B
+[TpF] @ 35.4 tok/s: 587.95 GFLOPS (1.47% of 40 TFLOPS peak)
+[TpF] @ 35.4 tok/s: 174.1 GB/s HBM (51.81% of 336 GB/s peak)  eta_tok=0.518
