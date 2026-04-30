@@ -1,0 +1,175 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{hu2021lora}{misc}{}{}
+      \name{author}{7}{}{%
+        {{hash=2caa9c8b9345c7ff48bd935e48a8b30c}{%
+           family={Hu},
+           familyi={H\bibinitperiod},
+           given={Edward},
+           giveni={E\bibinitperiod}}}%
+        {{hash=1701c0f05662e92cf52cfc8c16437496}{%
+           family={Shen},
+           familyi={S\bibinitperiod},
+           given={Yelong},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=ab0fdbc1586103dda7ac5e0852e5b2c3}{%
+           family={Wallis},
+           familyi={W\bibinitperiod},
+           given={Phillip},
+           giveni={P\bibinitperiod}}}%
+        {{hash=eaa5cc98b7f19b4ce07c832213a13b9d}{%
+           family={Allen-Zhu},
+           familyi={A\bibinithyphendelim Z\bibinitperiod},
+           given={Zeyuan},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=0d2c91b24f885b22d373a892a768abc8}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Yuanzhi},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=b654b88ecd4c3ff1ea29da275bce701c}{%
+           family={Wang},
+           familyi={W\bibinitperiod},
+           given={Shean},
+           giveni={S\bibinitperiod}}}%
+        {{hash=05d71a9c5e7ac79222e01a55af0ccb93}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Weizhu},
+           giveni={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{8fcfdd5fdd9173d2f9c3355fe41f9090}
+      \strng{fullhash}{829225a3a14dea7d197dc95e84bcecf3}
+      \strng{fullhashraw}{829225a3a14dea7d197dc95e84bcecf3}
+      \strng{bibnamehash}{829225a3a14dea7d197dc95e84bcecf3}
+      \strng{authorbibnamehash}{829225a3a14dea7d197dc95e84bcecf3}
+      \strng{authornamehash}{8fcfdd5fdd9173d2f9c3355fe41f9090}
+      \strng{authorfullhash}{829225a3a14dea7d197dc95e84bcecf3}
+      \strng{authorfullhashraw}{829225a3a14dea7d197dc95e84bcecf3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{{LoRA}: Low-Rank Adaptation of Large Language Models}
+      \field{year}{2021}
+      \verb{eprint}
+      \verb 2106.09685
+      \endverb
+    \endentry
+    \entry{sun2024massive}{misc}{}{}
+      \name{author}{4}{}{%
+        {{hash=9279d295e99390a720420d4c23368f5c}{%
+           family={Sun},
+           familyi={S\bibinitperiod},
+           given={Mingjie},
+           giveni={M\bibinitperiod}}}%
+        {{hash=ce10870c303bf2f78994acd2df305b39}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Xinlei},
+           giveni={X\bibinitperiod}}}%
+        {{hash=0288715a83a3349e44f9292c5c2149f7}{%
+           family={Kolter},
+           familyi={K\bibinitperiod},
+           given={J.\bibnamedelimi Zico},
+           giveni={J\bibinitperiod\bibinitdelim Z\bibinitperiod}}}%
+        {{hash=f7eda249dc15ce9f452344ec95bbcc67}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Zhuang},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{fullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{fullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \strng{bibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorbibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authornamehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{authorfullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorfullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{Massive Activations in Large Language Models}
+      \field{year}{2024}
+      \verb{eprint}
+      \verb 2402.17762
+      \endverb
+    \endentry
+    \entry{xiao2024streamingllm}{misc}{}{}
+      \name{author}{5}{}{%
+        {{hash=7a3f6a85b02eee6009c886a606c4e6f2}{%
+           family={Xiao},
+           familyi={X\bibinitperiod},
+           given={Guangxuan},
+           giveni={G\bibinitperiod}}}%
+        {{hash=074caf23cc82a3b80220324f240e9327}{%
+           family={Tian},
+           familyi={T\bibinitperiod},
+           given={Yuandong},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=66db6054d8a6a56f06869a9ce69a9086}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Beidi},
+           giveni={B\bibinitperiod}}}%
+        {{hash=873e4e07ff73d563d2651d20ffaf99e0}{%
+           family={Han},
+           familyi={H\bibinitperiod},
+           given={Song},
+           giveni={S\bibinitperiod}}}%
+        {{hash=c97f53fdeeb04c28de19e3324cb4bc0a}{%
+           family={Lewis},
+           familyi={L\bibinitperiod},
+           given={Mike},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{744bbbf486f11f7b1465fa1d31514a89}
+      \strng{fullhash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{fullhashraw}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{bibnamehash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authorbibnamehash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authornamehash}{744bbbf486f11f7b1465fa1d31514a89}
+      \strng{authorfullhash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authorfullhashraw}{4203a1082563db9917ee3596ca36b9d2}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{Efficient Streaming Language Models with Attention Sinks}
+      \field{year}{2024}
+      \verb{eprint}
+      \verb 2309.17453
+      \endverb
+    \endentry
+  \enddatalist
+  \missing{merity2017wikitext}
+\endrefsection
+\endinput
+

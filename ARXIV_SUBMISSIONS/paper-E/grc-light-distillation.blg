@@ -1,0 +1,18 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'grc-light-distillation.blg'
+[39] biber-MSWIN64:342> INFO - === 
+[51] Biber.pm:421> INFO - Reading 'grc-light-distillation.bcf'
+[112] Biber.pm:1002> INFO - Found 4 citekeys in bib section 0
+[123] Biber.pm:4487> INFO - Processing section 0
+[132] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[148] bibtex.pm:1713> INFO - LaTeX decoding ...
+[186] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[231] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[231] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[231] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[231] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[233] bbl.pm:676> INFO - Writing 'grc-light-distillation.bbl' with encoding 'UTF-8'
+[235] bbl.pm:779> INFO - Output to grc-light-distillation.bbl
+[235] Biber.pm:132> WARN - Duplicate entry key: 'magnus1954' in file 'refs.bib', skipping ...
+[235] Biber.pm:132> WARN - I didn't find a database entry for 'merity2017wikitext' (section 0)
+[236] Biber.pm:134> INFO - WARNINGS: 2

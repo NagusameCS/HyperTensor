@@ -1207,6 +1207,49 @@
       \field{pages}{80\bibrangedash 83}
       \range{pages}{4}
     \endentry
+    \entry{sun2024massive}{misc}{}{}
+      \name{author}{4}{}{%
+        {{hash=9279d295e99390a720420d4c23368f5c}{%
+           family={Sun},
+           familyi={S\bibinitperiod},
+           given={Mingjie},
+           giveni={M\bibinitperiod}}}%
+        {{hash=ce10870c303bf2f78994acd2df305b39}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Xinlei},
+           giveni={X\bibinitperiod}}}%
+        {{hash=0288715a83a3349e44f9292c5c2149f7}{%
+           family={Kolter},
+           familyi={K\bibinitperiod},
+           given={J.\bibnamedelimi Zico},
+           giveni={J\bibinitperiod\bibinitdelim Z\bibinitperiod}}}%
+        {{hash=f7eda249dc15ce9f452344ec95bbcc67}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Zhuang},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{fullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{fullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \strng{bibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorbibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authornamehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{authorfullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorfullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{Massive Activations in Large Language Models}
+      \field{year}{2024}
+      \verb{eprint}
+      \verb 2402.17762
+      \endverb
+    \endentry
     \entry{elhage2022superposition}{misc}{}{}
       \true{moreauthor}
       \true{morelabelname}

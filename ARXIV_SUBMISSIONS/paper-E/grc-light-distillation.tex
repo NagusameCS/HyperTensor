@@ -1,0 +1,168 @@
+\documentclass[11pt]{article}
+\usepackage{hypertensor}
+\graphicspath{{figures/}}
+\addbibresource{refs.bib}
+
+\title{Light Distillation for Calibration-Permitted Low-Rank \\
+       Attention Compression\\
+       {\large An optional companion to GRC}}
+\author{HyperTensor Research}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+\hypertensorbanner
+
+\begin{abstract}
+\noindent
+Paper~A introduced GRC, a calibration-free shared-basis low-rank
+projection of attention weights that is fast on consumer GPUs
+($+6.27\%$ throughput at $k{=}1024$ on Llama-3.1-8B Q4\_K\_M, RTX~4070
+Laptop) but pays a measured $+13.30\%$ perplexity penalty at the
+quality-preserving rank $k{=}1536$. This companion paper introduces an
+optional, opt-in distillation step that recovers a configurable
+fraction of that penalty in exchange for a few hundred forward passes
+on a small calibration corpus. The contribution is a protocol, not new
+math: per-layer rank-$r$ LoRA adapters \cite{hu2021lora} fit on the
+teacher-student logit residual after GRC projection, with sink-channel
+exemption \cite{sun2024massive,xiao2024streamingllm} as an orthogonal
+quality lever. We describe the design, the runtime path that allows
+distillation to remain optional (the calibration-free GRC path stays
+the default and the distilled adapters are mergeable), and the
+empirical protocol that an EC2 GPU run should follow. \emph{Status:
+this paper is a scaffold. Empirical results, baselines and ablations
+will be filled in once the distillation runner has executed on
+appropriate hardware. Section~\ref{sec:status} tracks the gating
+items.}
+\end{abstract}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+\section{Motivation}
+\label{sec:motivation}
+
+Paper~A is deliberately calibration-free: GRC requires no data, no
+fine-tuning, no per-deployment configuration beyond a single rank knob.
+That property is valuable for the deployment surface it targets
+(consumer GPUs, ad-hoc compression, no MLOps stack), and the empirical
+trade is that there is a quality floor set by the joint Gram spectrum
+itself. On Llama-3.1-8B-Instruct the floor at $k{=}1024$ is roughly the
+bottom $9\%$ of joint Q+K+V energy ($k_{95}{\approx}1682$), and the
+realised perplexity penalty is $+13.30\%$ at $k{=}1536$ on WikiText-2
+\cite{merity2017wikitext}. Paper~A's Limitations section decomposes
+that penalty into intrinsic floor and reducible implementation choice.
+
+This paper exercises the largest reducible lever, light distillation,
+behind an opt-in flag. The design constraint is that turning it on
+must not break Paper~A's runtime path; turning it off must reproduce
+Paper~A's numbers exactly.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Phase 1: GRC projection (unchanged from Paper~A)}
+For each attention block, build the shared basis $\Pmat_t$ from the
+joint Gram of $\Wmat_Q, \Wmat_K, \Wmat_V$ and form the projected
+weights $\Wmat_X^\prime = \Wmat_X \Pmat_k \Pmat_k^\top$. Optionally,
+exempt the top-$T$ highest-L2 columns from projection (sink-aware GRC,
+see Paper~A Table~6 / \texttt{sink\_channel\_pilot.json}). This phase
+is pure NumPy and runs on any host.
+
+\subsection{Phase 2: Teacher-student LoRA correction (new)}
+Fit per-layer rank-$r$ LoRA adapters
+$\Amat_X \in \mathbb{R}^{m \times r}$, $\Bmat_X \in \mathbb{R}^{r \times d}$
+for $X \in \{Q, K, V\}$ such that
+$$
+\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X
+$$
+minimises a teacher-student logit MSE over a small calibration corpus
+(target: 5{,}000 to 10{,}000 tokens, sequence length 512, batch 8;
+500-step schedule on AdamW with $\eta{=}10^{-4}$, weight decay $0$,
+cosine LR with warmup-100). The teacher is the original uncompressed
+model; the student is the projected model with frozen
+$\Wmat_X^\prime$ and trainable $(\Amat_X, \Bmat_X)$. Only the
+attention QKV adapters are fit; output projection $\Wmat_O$ and FFN
+weights remain at baseline. This holds the parameter budget below
+$3rdL = 3 \cdot 8 \cdot 4096 \cdot 32 \approx 3.1\,\text{M}$ trainable
+weights for $L{=}32$ layers and $r{=}8$, two orders of magnitude below
+full LoRA fine-tuning.
+
+\subsection{Phase 3: Merge and ship}
+The trained LoRA factors are folded into the projected weights
+($\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X$) and re-quantised
+to Q4\_K\_M via the standard llama.cpp quantize path. The runtime
+loads the resulting GGUF unchanged; no runtime code changes are
+needed. If the user disables distillation, Paper~A's pipeline runs
+unmodified.
+
+\section{Implementation status}
+\label{sec:status}
+
+\begin{itemize}
+\item \textbf{Done.} Phase~1 reference implementation in
+\texttt{scripts/analysis/sink\_channel\_grc.py} and
+\texttt{scripts/grc\_distill.py} (NumPy; CPU-only).
+\item \textbf{Done.} Sink-channel pilot (Paper~A Table~6) showing
+calibration-free sink exemption alone yields 1 to 3\% relative
+reconstruction-error improvement at $k\in\{512,1024,1536\}$.
+\item \textbf{Pending.} Phase~2 PyTorch runner. Requires a GPU host
+with at least one A100 / L40S / H100 to hold the teacher in BF16 with
+gradient activations. EC2 \texttt{g5.xlarge} or \texttt{g6.xlarge} is
+sufficient for an 8B model.
+\item \textbf{Pending.} WikiText-2 PPL evaluation on the merged
+artifact. The expected operating regimes:
+\begin{enumerate}
+  \item Vanilla GRC at $k{=}1024$: $+13.30\%$ PPL (Paper~A baseline).
+  \item Sink-aware GRC at $k{=}1024$, $T{=}32$: predicted $+12.5\%$
+        to $+13.0\%$ (small effect; the calibration-free magnitude proxy
+        weakly correlates with runtime sink channels).
+  \item Distilled GRC at $k{=}1024$, $r{=}8$, 5{,}000-token corpus:
+        target $+5\%$ to $+8\%$ PPL (50 to 60\% gap closure).
+  \item Distilled sink-aware GRC at $k{=}1024$, $T{=}32$, $r{=}8$:
+        target $+3\%$ to $+5\%$.
+\end{enumerate}
+These targets are predictions, not measurements. The paper will be
+updated with measured numbers once the runner has executed.
+\item \textbf{Pending.} Throughput re-measurement on the distilled
+artifact. Hypothesis: throughput is unchanged from vanilla GRC,
+because the merged adapters do not alter the kernel-fusion path
+(\Cref{sec:fusion-fit}). If measurement contradicts the hypothesis,
+that becomes a result.
+\end{itemize}
+
+\section{Why distillation does not break the fusion path}
+\label{sec:fusion-fit}
+
+Paper~A established that the GRC throughput improvement comes from
+kernel fusion: three $\texttt{gemv\_q4\_k}$ calls collapse into a
+fused $\texttt{gemv\_dual\_q8\_0}$ trio operating on
+$k$-dimensional intermediates. The fusion-viability condition is that
+the projected weights $\Wmat_X^\prime$ have rank $k$. The merged
+weights $\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X$ in general
+have rank $k + r$ (when $r \le m - k$), but the $\Amat_X \Bmat_X$
+term has rank exactly $r$ and is small; the runtime can either
+(a) treat $\hat{\Wmat}_X$ as a full-rank matrix and lose fusion (the
+$+6.27\%$ throughput gain reverts), (b) keep $\Wmat_X^\prime$ on the
+fused path and run the LoRA correction as a separate small
+matmul-add (cost $\sim r/k$ of the main GEMV; negligible at $r{=}8$,
+$k{=}1024$), or (c) re-quantise the merged $\hat{\Wmat}$ to Q4\_K\_M
+at rank $k$ via a second SVD pass and accept the merge-loss. Default
+recommendation is (b); (c) is reserved for the lowest-VRAM target
+where adapter storage matters.
+
+\section{Reproducibility}
+\label{sec:repro}
+
+The reference Phase-1 code lives in
+\texttt{scripts/analysis/sink\_channel\_grc.py} and
+\texttt{scripts/grc\_distill.py}. The Phase-2 runner will live in
+\texttt{scripts/grc\_distill\_runner.py} (PyTorch + transformers) and
+the EC2 driver in \texttt{scripts/ec2\_paperE\_distill/}. A complete
+empirical reproduction will be published alongside the populated
+results once the runner has executed.
+
+\printbibliography
+
+\end{document}

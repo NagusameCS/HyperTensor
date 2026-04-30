@@ -564,6 +564,34 @@ extracted by \texttt{scripts/extract\_ey\_per\_layer.py}.}
 \label{fig:ey-per-layer}
 \end{figure}
 
+\begin{table}[h]\centering\footnotesize
+\caption{Sink-channel-aware GRC pilot. Top-$T$ highest-L2 columns of
+$W_Q,W_K,W_V$ are kept exact; GRC is applied to the residual. Numbers
+are the mean relative-Frobenius-squared reconstruction-error
+\emph{improvement} (positive means lower error than vanilla GRC) over
+layers $\{0,15,31\}$ of Llama-3.1-8B-Instruct, in two settings:
+``same $k$'' (extra parameters granted ``for free'') and
+``param-matched'' (rank lowered to $k_\text{eq} = k - \lceil T(m_q{+}m_k{+}m_v)/(d{+}m_q{+}m_k{+}m_v)\rceil$
+to absorb the $T(m_q{+}m_k{+}m_v)$ extra exact-column parameters).
+Source: \texttt{scripts/analysis/sink\_channel\_grc.py},
+\texttt{docs/figures/paper-a/sink\_channel\_pilot.json}.}
+\label{tab:sink-pilot}
+\begin{tabular}{@{}rrrrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{$k=512$} & \multicolumn{2}{c}{$k=1024$} & \multicolumn{2}{c}{$k=1536$}\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+$T$ & same-$k$ & param-m. & same-$k$ & param-m. & same-$k$ & param-m.\\
+\midrule
+1  & $+0.10\%$ & $+0.01\%$ & $+0.10\%$ & $+0.01\%$ & $+0.17\%$ & $+0.10\%$\\
+2  & $+0.23\%$ & $+0.06\%$ & $+0.25\%$ & $+0.09\%$ & $+0.33\%$ & $+0.19\%$\\
+4  & $+0.49\%$ & $+0.22\%$ & $+0.53\%$ & $+0.28\%$ & $+0.74\%$ & $+0.53\%$\\
+8  & $+0.82\%$ & $+0.37\%$ & $+0.88\%$ & $+0.46\%$ & $+1.14\%$ & $+0.78\%$\\
+16 & $+1.47\%$ & $+0.58\%$ & $+1.57\%$ & $+0.74\%$ & $+2.02\%$ & $+1.32\%$\\
+32 & $+2.63\%$ & $+0.86\%$ & $+2.78\%$ & $+1.13\%$ & $+3.50\%$ & $+2.07\%$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Limitations}
 \label{sec:limits}
 
@@ -592,6 +620,39 @@ than a principled boundary, and the root cause has not been deeply
 investigated.
 \item The runtime is CUDA-only and requires an NVIDIA GPU with at least
 $8$~GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.
+\item \textbf{The $+13.30\%$ perplexity gap at $k{=}1536$ is partly an
+intrinsic floor and partly a deliberate design choice.} An Eckart, Young
+and Mirsky calculation against the joint Gram spectrum sets the floor:
+operating at $k{=}1024$ throws away the bottom ${\approx}9\%$ of energy
+($k_{95}{\approx}1682$), so a non-zero perplexity penalty is unavoidable
+without retraining. The remainder is reducible by changes that the
+current paper deliberately does not pursue, in order to preserve
+calibration-free operation, the shared-basis fused dual-Q8 kernel path,
+and a uniform per-layer rank that keeps memory layout predictable.
+Specifically: (i) per-layer adaptive rank, exploiting the fact that
+$k_{95}$ varies across layers, would close 30 to 50\% of the gap at the
+cost of variable shapes that complicate kernel fusion; (ii) per-matrix
+bases ($\Pmat_Q,\Pmat_K,\Pmat_V$ each on its own optimal subspace, the
+strict EYM optimum) would close 40 to 60\% of the gap at the cost of
+$3\times$ projection storage and loss of the dual-Q8 fused path; (iii)
+sink-channel exemption, motivated by the Massive Activations literature
+\cite{sun2024massive}, in its calibration-free weight-only form
+(top-$T$ highest-L2 columns of $W_Q,W_K,W_V$ kept exact, GRC applied to
+the residual) closes a measured 1 to 3\% of the relative reconstruction
+error at $k\in\{512,1024,1536\}$ on layers $\{0,15,31\}$ of
+Llama-3.1-8B-Instruct (see \Cref{tab:sink-pilot}; pilot data
+\texttt{docs/figures/paper-a/sink\_channel\_pilot.json}). This is real
+but smaller than the literature suggests because the massive-activation
+phenomenon lives in the runtime hidden state, not in the weight
+columns; a calibrated variant (a few hundred forward passes to identify
+the sink channels at inference time) is expected to recover
+substantially more, and is queued as follow-up; and (iv) running GRC in
+FP16 before re-quantising to Q4\_K\_M would close 10 to 25\% of the gap
+by avoiding stacked rounding error, at the cost of higher peak memory
+during compression. We treat the headline $+13.30\%$ as an upper bound
+on the cost of the calibration-free, fusion-friendly, uniform-rank
+operating point, not as the cost of low-rank attention compression in
+general.
 \end{itemize}
 
 \section{Future Work}

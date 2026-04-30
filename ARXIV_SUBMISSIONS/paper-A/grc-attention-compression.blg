@@ -1,17 +1,17 @@
 [0] Config.pm:328> INFO - This is Biber 2.21
 [0] Config.pm:331> INFO - Logfile is 'grc-attention-compression.blg'
-[43] biber-MSWIN64:342> INFO - === 
-[57] Biber.pm:421> INFO - Reading 'grc-attention-compression.bcf'
-[132] Biber.pm:1002> INFO - Found 29 citekeys in bib section 0
-[144] Biber.pm:4487> INFO - Processing section 0
-[155] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
-[168] bibtex.pm:1713> INFO - LaTeX decoding ...
-[218] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
-[437] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[437] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
-[437] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
-[437] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
-[452] bbl.pm:676> INFO - Writing 'grc-attention-compression.bbl' with encoding 'UTF-8'
-[467] bbl.pm:779> INFO - Output to grc-attention-compression.bbl
-[467] Biber.pm:132> WARN - Duplicate entry key: 'magnus1954' in file 'refs.bib', skipping ...
-[467] Biber.pm:134> INFO - WARNINGS: 1
+[53] biber-MSWIN64:342> INFO - === 
+[68] Biber.pm:421> INFO - Reading 'grc-attention-compression.bcf'
+[137] Biber.pm:1002> INFO - Found 30 citekeys in bib section 0
+[146] Biber.pm:4487> INFO - Processing section 0
+[154] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[163] bibtex.pm:1713> INFO - LaTeX decoding ...
+[200] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[387] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[387] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[387] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[388] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[409] bbl.pm:676> INFO - Writing 'grc-attention-compression.bbl' with encoding 'UTF-8'
+[432] bbl.pm:779> INFO - Output to grc-attention-compression.bbl
+[432] Biber.pm:132> WARN - Duplicate entry key: 'magnus1954' in file 'refs.bib', skipping ...
+[432] Biber.pm:134> INFO - WARNINGS: 1
