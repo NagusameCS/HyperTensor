@@ -368,18 +368,17 @@ down to <span class="math inline">\(k{=}1536\)</span>. Rows requested at <span c
 the <span class="math inline">\(k{=}1536\)</span> configuration with cold caches, and we report them only as
 a cache-warmup proxy. Identical PPL is the expected (and observed)
 consequence.</span></p>
-<section id="reading-the-table." class="level5">
-<h5>Reading the table.</h5>
-<p>At <span class="math inline">\(k{=}1024\)</span> decode runs faster than baseline. The perplexity at this rank
-is severely degraded by <span class="math inline">\(61.4\%\)</span>, and the cause is structural rather than
-spectral. Llama-3.1 uses Grouped-Query Attention, so <span class="math inline">\(\Wmat_K\)</span> and
-<span class="math inline">\(\Wmat_V\)</span> already have natural rank at most <span class="math inline">\(1024\)</span> on this model
-(<span class="math inline">\(1024\times4096\)</span> shape). Compressing further than that natural rank
-discards information that the model relies on. At <span class="math inline">\(k{=}1536\)</span> the natural
-rank is preserved, throughput is statistically indistinguishable from
-baseline as shown in <a href="#sec:stats" data-reference-type="ref+Label" data-reference="sec:stats">7</a>, and the perplexity penalty drops
-to a near-deployment-acceptable <span class="math inline">\(13.30\%\)</span>.</p>
-</section>
+<p>The throughput-perplexity trade is structurally controlled by Grouped-Query
+Attention. Llama-3.1 stores <span class="math inline">\(\Wmat_K\)</span> and <span class="math inline">\(\Wmat_V\)</span> at shape <span class="math inline">\(1024\times4096\)</span>,
+so their natural rank is already capped at <span class="math inline">\(1024\)</span>. Compressing to <span class="math inline">\(k{=}1024\)</span>
+runs faster than baseline but discards information the model relies on,
+producing a <span class="math inline">\(61.4\%\)</span> perplexity penalty that is not a property of the
+construction but of operating below the GQA-imposed natural rank. At
+<span class="math inline">\(k{=}1536\)</span> the natural rank is preserved, throughput is statistically
+indistinguishable from baseline as shown in <a href="#sec:stats" data-reference-type="ref+Label" data-reference="sec:stats">7</a>, and the
+perplexity penalty drops to a near-deployment-acceptable <span class="math inline">\(13.30\%\)</span>. The
+<span class="math inline">\(k{=}2048\)</span> row matches <span class="math inline">\(k{=}1536\)</span> because the runtime caps the stored basis
+at <span class="math inline">\(K_\text{max}{=}1536\)</span>.</p>
 </section>
 <section id="sec:cachefit" class="level2">
 <h2>Cache-Fit Hypothesis</h2>

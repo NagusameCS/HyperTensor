@@ -298,16 +298,17 @@ a cache-warmup proxy.  Identical PPL is the expected (and observed)
 consequence.}
 \end{table}
 
-\paragraph{Reading the table.}
-At $k{=}1024$ decode runs faster than baseline. The perplexity at this rank
-is severely degraded by $61.4\%$, and the cause is structural rather than
-spectral. Llama-3.1 uses Grouped-Query Attention, so $\Wmat_K$ and
-$\Wmat_V$ already have natural rank at most $1024$ on this model
-($1024\times4096$ shape). Compressing further than that natural rank
-discards information that the model relies on. At $k{=}1536$ the natural
-rank is preserved, throughput is statistically indistinguishable from
-baseline as shown in \Cref{sec:stats}, and the perplexity penalty drops
-to a near-deployment-acceptable $13.30\%$.
+The throughput-perplexity trade is structurally controlled by Grouped-Query
+Attention. Llama-3.1 stores $\Wmat_K$ and $\Wmat_V$ at shape $1024\times4096$,
+so their natural rank is already capped at $1024$. Compressing to $k{=}1024$
+runs faster than baseline but discards information the model relies on,
+producing a $61.4\%$ perplexity penalty that is not a property of the
+construction but of operating below the GQA-imposed natural rank. At
+$k{=}1536$ the natural rank is preserved, throughput is statistically
+indistinguishable from baseline as shown in \Cref{sec:stats}, and the
+perplexity penalty drops to a near-deployment-acceptable $13.30\%$. The
+$k{=}2048$ row matches $k{=}1536$ because the runtime caps the stored basis
+at $K_\text{max}{=}1536$.
 
 % ───────────────────── §6 Cache-fit hypothesis ─────────────────────
 \section{Cache-Fit Hypothesis}

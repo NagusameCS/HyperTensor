@@ -4,118 +4,110 @@
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,backgrounds,calc}
 \addbibresource{refs.bib}
 
-\title{\textbf{Geodesic Projection: A Multi-Slot Compression Pipeline\\
-with Adaptive Phase-, Gauge-, Thermal-, and Drift-Aware Extensions}}
+\title{Geodesic Projection: a multi-slot compression pipeline\\
+with adaptive phase, gauge, thermal, and drift extensions}
 \author{William Ken Ohara Stewart\\
 \small NagusameCS Independent Research\\
-\small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}}
-\date{April 2026}
+\small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}\\
+\small Version 0.1, April 2026}
+\date{}
 
 \begin{document}
 \maketitle
-\hypertensorbanner
-
-\begin{htnote}
-\textbf{Project nomenclature.}  We use a four-level naming hierarchy throughout
-this paper series.  \textit{HyperTensor} is the project (compiler, runtime,
-kernels, theory).  \textit{Geodesic Projection (GP)}, the subject of this
-paper, is the inference-time pipeline that factorises every compressible
-weight along its dominant geometric directions.  \textit{Geodesic Runtime
-Compression (GRC)} is the attention-only subset of GP and is the empirical
-anchor of the companion paper.  \textit{OTT/GTC} is the Riemannian-manifold
-theoretical framework built on top of GP and is treated separately.  In short:
-GRC $\subset$ GP $\subset$ HyperTensor, and OTT/GTC is the theoretical
-superstructure that explains why GP works.
-\end{htnote}
 
 \begin{abstract}
 \noindent
-We describe \emph{Geodesic Projection} (GP), the full multi-slot
-calibration-free compression pipeline implemented in the
-\texttt{geodessical} runtime, and four adaptive extensions that turn GP from a
-static rank-$k$ scheme into a phase-, gauge-, thermal-, and drift-aware one.
-GP generalises the attention-only construction of the companion paper
-to all seven compressible weight matrices in a transformer block
-(\(Q,K,V,O\), FFN up/gate/down) with a per-slot decomposition strategy
-chosen from the slot's measured singular spectrum, a manifold-curvature-driven
-per-layer rank allocation, and a persistent two-tier on-disk geometry +
-projected-weight cache validated by a single ``depth-sink'' layer hash.
-We then describe four orthogonal adaptive layers shipped on top of GP:
-(i)~\emph{MCR phase-aware rank allocation} that detects the empirical
-Mix/Compress/Refine layer phases and re-budgets rank;
-(ii)~\emph{Axiom Gauge}, an exact $\mathrm{GL}(d)$ residual-stream gauge
-optimisation that strictly lowers the total tail-energy of low-rank
-factorisations and is bakeable, zero-cost at inference;
-(iii)~\emph{Thermal Rank} and a tokens-per-joule diffplan term that couple
-rank to NVML-reported temperature and power; and
-(iv)~\emph{Online Basis}, a rejection-driven Oja~\cite{oja1982} update that
-revises the basis only when speculative-decode rejections expose drift.
-We present the cross-architecture activation-manifold evidence
-(intrinsic dim $11$--$25$ on three open-weight models with $d\in\{576,1536,3072\}$)
-and full per-slot SVD spectra on Llama-3.1-8B that motivate the design,
-and we are explicit about which results are \emph{measured} (the static-GP
-empirical anchor) vs.\ \emph{design-validated} (the four adaptive
-extensions, whose first measurement sweep is the v0.2 milestone).
+Geodesic Projection (GP) is a calibration-free multi-slot weight
+compression pipeline implemented in the \texttt{geodessical} runtime. GP
+extends the attention-only construction of the companion paper to all
+seven compressible matrices of a transformer block ($Q,K,V,O$ and the
+FFN up, gate, down projections) with a per-slot decomposition chosen
+from each slot's singular spectrum, a manifold-curvature-driven
+per-layer rank allocation, and a persistent two-tier on-disk cache
+validated by a single depth-sink layer hash. On top of static GP we
+describe four orthogonal adaptive mechanisms: MCR phase-aware rank
+allocation, an exact $\mathrm{GL}(d)$ residual-stream gauge
+optimisation, a thermal-rank controller with a tokens-per-joule
+plan term, and a rejection-driven Oja update for the basis. Cross-architecture
+intrinsic-dimensionality measurements ($11$ to $25$ across three
+open-weight models with $d\in\{576,1536,3072\}$, plus a fourth point
+on Llama-3.1-8B at $d{=}4096$) and full per-slot SVD spectra on
+Llama-3.1-8B motivate the design. The static-GP measurement on
+Llama-3.1-8B-Instruct~Q4\_K\_M is reproduced from the companion paper.
+The four adaptive layers are reported as design-validated, with one
+(MCR) carrying a measured null at the cache-fit knee. We are explicit
+about which numbers are measured and which are predicted.
 \end{abstract}
 
-\noindent\textbf{Keywords:} transformer compression, low-rank factorisation,
-manifold geometry, residual-stream gauge, thermal-aware inference, online PCA,
-Oja's rule.
-
+\clearpage
 \tableofcontents
-\bigskip\hrule\bigskip
+\clearpage
 
 % =================================================================
 \part{The Geodesic Projection Pipeline}
 
 % ───────────────── §1 ─────────────────
 \section{Introduction and Scope}
-The companion paper isolates a single design choice (calibration-free
-attention-only fixed-rank compression) and reports an end-to-end measurement
-on Llama-3.1-8B-Instruct~Q4\_K\_M.  Geodesic Projection is the
-\emph{full} compression pipeline that the \texttt{geodessical} runtime
-implements.  GP extends the companion-paper construction along three axes:
-\begin{itemize}
-\item \textbf{Slot coverage}: $Q,K,V,O$, FFN up/gate, and a dedicated SVD
-path for FFN down.
-\item \textbf{Per-layer rank}: driven by a manifold-curvature-ratio (MCR)
-heuristic with a hard floor.
-\item \textbf{Persistent caching}: a two-tier on-disk artifact (basis +
-projected weights) validated by the depth-sink layer's spectrum hash.
-\end{itemize}
-Two things this paper does \emph{not} do, and the reader should treat them
-as scope limits.  We do not provide multi-model end-to-end PPL/throughput
-sweeps, the empirical anchor remains the Llama-3.1-8B-Instruct~Q4\_K\_M
-number set from the companion paper.  We do not yet report Llama-3.1-70B
-numbers: compute is approved, the run is queued, and the pack is not in this
-revision.  Throughout we use the term \emph{design-validated} for code paths
-that exist, run without error, and are consistent with the implemented
-behaviour of their components, but for which no end-to-end benchmark has
-produced numbers.
+The companion paper isolates a single design choice, calibration-free
+attention-only fixed-rank compression, and reports an end-to-end
+measurement on Llama-3.1-8B-Instruct~Q4\_K\_M~\cite{stewart2026grc}.
+Geodesic Projection is the full compression pipeline that the
+\texttt{geodessical} runtime implements. It extends the companion-paper
+construction along three axes, discussed below in turn.
 
-\paragraph{v1 versus v0.2 mechanisms (this revision).}  This revision
-ships \emph{four} adaptive mechanisms.  Of those, exactly one
-(\textbf{MCR}, \Cref{sec:mcr}) is the v1 measurement target
-of this paper: phase-aware per-layer rank allocation has a complete
-implementation, a documented calibration recipe, and an executed
-A/B against the shared-rank super-baseline of the companion paper.
-The result of that A/B (\Cref{sec:mcr}) is a \emph{measured null}
-at $k_\text{target}{=}1024$ on Llama-3.1-8B: in a clean repeat with
-no co-resident workloads MCR matches the shared-rank baseline within
-run-to-run noise ($-0.13\%$, $1{\times}$ variance).  An earlier
-contaminated pass spuriously suggested $-2.2\%$ with $21{\times}$
+\subsection{Project nomenclature}
+We use a four-level naming hierarchy across this paper series.
+HyperTensor is the project (compiler, runtime, kernels, theory).
+Geodesic Projection, the subject of this paper, is the inference-time
+pipeline that factorises every compressible weight along its dominant
+geometric directions. Geodesic Runtime Compression (GRC) is the
+attention-only subset of GP and is the construction measured by the
+companion paper. OTT and GTC are the Riemannian-manifold theoretical
+framework that motivates GP and are treated separately. The set
+inclusion is GRC $\subset$ GP $\subset$ HyperTensor, with OTT and GTC
+as the theoretical superstructure.
+
+\subsection{Three axes of extension}
+The companion paper compresses three slots ($Q,K,V$) at a single
+uniform rank with no calibration data. GP generalises along three axes.
+\textit{Slot coverage}: GP compresses all seven slots, $Q$, $K$, $V$,
+$O$, FFN up, FFN gate, and FFN down on a dedicated SVD path. \textit{Per-layer
+rank}: a manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
+hard floor. \textit{Persistent caching}: a two-tier on-disk artifact stores
+the basis and the projected weights and is validated by a single depth-sink
+layer spectrum hash.
+
+\subsection{Scope of this revision}
+This revision does not provide multi-model end-to-end PPL or throughput
+sweeps. The static-GP measurement is single-model, single-hardware, and
+is reproduced from the companion paper. Llama-3.1-70B numbers are not
+included; compute is approved and the run is queued. We use the term
+design-validated for code paths that exist, run without error, and are
+consistent with their components, but for which no end-to-end benchmark
+has produced numbers in this revision.
+
+\subsection{Status of the four adaptive mechanisms}
+This revision ships four adaptive mechanisms. Of those, exactly one
+(MCR, \Cref{sec:mcr}) is the measurement target of this paper.
+Phase-aware per-layer rank allocation has a complete implementation, a
+documented calibration recipe, and an executed A/B against the
+shared-rank baseline of the companion paper. The result of that A/B is
+a measured null at $k_\text{target}{=}1024$ on Llama-3.1-8B. In a clean
+repeat with no co-resident workloads, MCR matches the shared-rank
+baseline within run-to-run noise ($-0.13\%$, $1{\times}$ variance). An
+earlier contaminated pass spuriously suggested $-2.2\%$ with $21{\times}$
 variance; the variance ratio was the contamination signal and the
-measurement was retaken.  We retain MCR as v1 because the null finding
-at the cache-fit knee is itself the v1 contribution, it shows that
-phase-aware rebalancing neither helps nor hurts above the knee, and
-reframes the open question as a low-$k$ sweep where the knee is
-closer. The remaining three mechanisms, the
-GL$(d)$ Axiom Gauge (\Cref{sec:gauge}), thermal-aware rank
-(\Cref{sec:thermal}) and rejection-driven Oja online basis
-(\Cref{sec:online}), are presented as \emph{v0.2 design
-specifications}: the geometry is derived, the algorithm is given, and
-the runtime hooks exist, but the paired ablations are deferred to a
-companion v0.2 release.
+measurement was retaken. The null finding at the cache-fit knee is
+itself the contribution. Phase-aware rebalancing neither helps nor
+hurts above the knee, and the open question becomes a sweep at lower
+base ranks where the knee is closer.
+
+The remaining three mechanisms, the GL$(d)$ Axiom Gauge
+(\Cref{sec:gauge}), thermal-aware rank (\Cref{sec:thermal}) and the
+rejection-driven Oja online basis (\Cref{sec:online}), are presented as
+v0.2 design specifications. The geometry is derived, the algorithm is
+given, and the runtime hooks exist, but the paired ablations are
+deferred to a companion v0.2 release.
 
 % ───────────────── §2 ─────────────────
 \section{Cross-Architecture Manifold Evidence}
@@ -194,7 +186,7 @@ fit produces (i) an MCR phase tag (Mix / Compress / Refine,
 populate a persistent geometry cache.  At inference time, the runtime
 reads the compressed slots and the cache; rejected speculative tokens or
 drift signals feed back (dashed) into the online Oja update of the basis
-(\S\ref{sec:online}).  GRC (the empirical anchor in the companion paper)
+(\S\ref{sec:online}).  GRC (the construction measured in the companion paper)
 is the same pipeline restricted to the three attention slots
 $\{\Wmat_Q,\Wmat_K,\Wmat_V\}$ with $k_\ell$ uniform across layers.}
 \label{fig:gp-pipeline}
@@ -230,16 +222,16 @@ Activation-space intrinsic dim is necessary but not sufficient for the GP
 construction; the actual weight-space evidence is per-slot SVD spectra
 (\Cref{sec:spectra}).
 
-\paragraph{Fourth datapoint: Llama-3.1-8B at $d{=}4096$.}
+\paragraph{Fourth measurement: Llama-3.1-8B at $d{=}4096$.}
 A 2026-04-28 run of the same Phase-1 pipeline on Llama-3.1-8B-Instruct
-(reported in \texttt{axiom\_beta\_report.json}) keeps $102$~PCA components
-at the same 95\% variance threshold, $k_\text{int}/d = 102/4096 =
-2.49\%$.  This is the same order-of-magnitude regime as the smaller
-models; it is \emph{not} a per-architecture artefact.  Crucially, the
-empirical GRC operating point $k{=}1024$ in the companion paper sits
-\emph{ten times above} this intrinsic dimension, which is why the
-+13.30\% PPL penalty is small enough to be cache-fit dominated rather
-than information-loss dominated.
+(reported in \texttt{axiom\_beta\_report.json}) keeps $102$ PCA components
+at the same 95\% variance threshold, so $k_\text{int}/d = 102/4096 =
+2.49\%$. This is the same order-of-magnitude regime as the smaller models
+and is not a per-architecture artefact. The empirical GRC operating
+point $k{=}1024$ in the companion paper sits ten times above this
+intrinsic dimension, which is consistent with the $13.30\%$ PPL penalty
+at $k{=}1536$ being cache-fit dominated rather than information-loss
+dominated.
 
 % ───────────────── §3 ─────────────────
 \section{The Seven Slots and Their Spectra}
@@ -271,35 +263,37 @@ $W_\text{down}$   & [4096, 14336]  & 3{,}345 & 3{,}863 & 0.490 \\
 \end{tabular}
 \end{table}
 
-\paragraph{Asymmetry.}  Attention slots are highly compressible ($k_{95}\approx
-0.4$--$0.5\,d$) and retain $\sim$80\% of energy at $k{=}1024$.  FFN slots
-require $k_{95}\approx 0.8\,d$ and lose $\sim$50\% of Frobenius energy at
-$k{=}1024$.  This is the quantitative version of the qualitative
-``FFN is flat'' claim~\cite{geva2021ffn}.  We give $W_\text{down}$ a dedicated
-SVD path rather than the Gram-eigendecomposition route used for the other
-six slots: the construction is mathematically equivalent in the rank-truncated
-limit but numerically more stable when the spectrum is approximately flat
-\cite{golub2013matrix}.
+\paragraph{Asymmetry between attention and FFN.}
+Attention slots are highly compressible ($k_{95}\approx 0.4$ to $0.5\,d$)
+and retain about $80\%$ of energy at $k{=}1024$. FFN slots require
+$k_{95}\approx 0.8\,d$ and lose about half of Frobenius energy at
+$k{=}1024$. This is the quantitative version of the qualitative
+``FFN is flat'' observation in Geva~et~al.~\cite{geva2021ffn}. We give
+$W_\text{down}$ a dedicated SVD path rather than the
+Gram-eigendecomposition route used for the other six slots, because
+the construction is mathematically equivalent in the rank-truncated
+limit but numerically more stable when the spectrum is approximately
+flat~\cite{golub2013matrix,eckart1936}.
 
 \paragraph{Geometric reading of the asymmetry.}
-Attention and FFN solve different problems.  The attention block is a
-routing circuit: $\Wmat_Q,\Wmat_K$ project tokens into a similarity space
-whose discriminative directions are concentrated in a few hundred
+Attention and FFN solve different problems. The attention block is a
+routing circuit: $\Wmat_Q,\Wmat_K$ project tokens into a similarity
+space whose discriminative directions are concentrated in a few hundred
 coordinates (head subspaces plus the residual stream's preferred basis),
 and $\Wmat_V,\Wmat_O$ assemble a context-conditional message in that
-low-rank space.  Routing is structurally low-rank because the number of
-``things being routed about'' is small relative to $d$.  The FFN, by
-contrast, behaves as a key-value memory bank \cite{geva2021ffn}: each FFN
-column responds to a localised input pattern, so a high-quality FFN must
-span a high-dimensional set of keys.  Removing FFN directions removes
-individual memories; removing attention directions removes (at worst)
-routing fidelity, partially recoverable from the residual stream.  This
-predicts both the empirical $\sim\!3.4\times$ rank gap between
+low-rank space. Routing is structurally low-rank because the number of
+things being routed is small relative to $d$. The FFN, by contrast,
+behaves as a key-value memory bank~\cite{geva2021ffn}, with each FFN
+column responding to a localised input pattern, so a high-quality FFN
+must span a high-dimensional set of keys. Removing FFN directions removes
+individual memories, while removing attention directions removes routing
+fidelity that is partially recoverable from the residual stream. The
+predicted consequences are the roughly $3.4\times$ rank gap between
 FFN and attention $k_{95}/d$ and the runtime observation that aggressive
 FFN low-rank truncation is unstable at 8B scale while attention
-truncation is benign down to $k{=}1024$.  GP therefore treats $W_\text{up}$
-and $W_\text{gate}$ with a high-floor strategy and isolates $W_\text{down}$
-on its dedicated SVD path.
+truncation remains benign down to $k{=}1024$. GP therefore treats
+$W_\text{up}$ and $W_\text{gate}$ with a high-floor strategy and isolates
+$W_\text{down}$ on its own SVD path.
 
 % ───────────────── §4 ─────────────────
 \section{Per-Layer Rank Selection (MCR)}
@@ -338,11 +332,11 @@ with $K_\text{max}{=}1536$ (\texttt{AXEX\_MANIFOLD\_K\_MAX}) and
 $k_\text{floor}\approx 0.55\,d$.  The floor matters more than the cap; below
 $\approx 0.4\,d$ on small models we observe text-quality collapse.
 
-\begin{htnote}
-The MCR-driven allocation is the part of GP we are \emph{least} confident
-about; it is enabled by default but the companion-paper measurements all
-use shared-rank for a clean calibration-free claim.
-\end{htnote}
+MCR-driven allocation is the part of GP we are least confident about.
+It is enabled by default, but the companion-paper measurements all use
+shared rank for a clean calibration-free claim. The remainder of this
+section reports the matched-budget A/B and a confound caused by the
+weight-PCA basis path.
 
 \paragraph{MCR vs.\ shared-rank A/B (Llama-3.1-8B, 2026-04-29).}
 We ran the matched-budget A/B at $k_\text{target}{=}1024$ on
@@ -427,13 +421,13 @@ Llama-3.1-8B at $k{=}1536$.
 \end{enumerate}
 Both caches are keyed on $(\textsf{model digest},\textsf{flag set},k)$.
 
-\paragraph{The Two-Thirds Dimensionality Saturation Rule.}
-Reloading the full geometry cache on a 70B model is not free; we want
-only to verify the cache is not stale.  The runtime defines the
-\emph{depth-sink} as the single layer where the cumulative
-explained-variance curve of the residual stream first flattens to within
-$10^{-3}$ of its plateau.  Across the four open transformers we have
-inspected this layer sits at depth $\ell^\star\!\approx\!2L/3$:
+\subsection{The Two-Thirds Dimensionality Saturation Rule}
+Reloading the full geometry cache on a 70B model is not free, but we
+only need to verify that the cache is not stale. The runtime defines
+the \textit{depth-sink} as the single layer where the cumulative
+explained-variance curve of the residual stream first flattens to
+within $10^{-3}$ of its plateau. Across the four open transformers we
+have inspected, this layer sits near depth $\ell^\star\approx 2L/3$:
 \begin{center}\small
 \begin{tabular}{lcc}\toprule
 model & layers $L$ & depth-sink $\ell^\star$\\\midrule
@@ -442,22 +436,48 @@ Gemma-2-2B     & 26 & 19\\
 Phi-3.5-mini   & 32 & 22\\
 Qwen-2.5-7B    & 32 & 22\\\bottomrule
 \end{tabular}\end{center}
-We call this empirical observation the \textbf{Two-Thirds Dimensionality
-Saturation Rule} and exploit it as an $O(1)$ proxy for the otherwise
-$O(L)$ cache-integrity check: the integrity probe reads only the
-depth-sink layer's spectrum and recomputes it on the fly
-($<200$~ms on Llama-3.1-8B, vs.\ $\sim$70~s for the full sweep).  The
-rule is a property of these four models, not a theorem; we expect it to
-hold approximately on architectures whose residual stream is
-rank-saturating, and to break on mixture-of-experts or extremely shallow
-stacks.
+We call this empirical observation the \textit{Two-Thirds Dimensionality
+Saturation Rule}. The name is ours and the observation is, to our knowledge,
+first reported here. The rule is exploited as an $O(1)$ proxy for the
+otherwise $O(L)$ cache-integrity check: the integrity probe reads only the
+depth-sink layer's spectrum and recomputes it on the fly (under $200$ ms on
+Llama-3.1-8B against about $70$ s for the full sweep).
+
+The data motivating the rule are these four spectra. In each model the
+cumulative explained variance of the residual stream rises monotonically
+from layer $0$, accelerates through the early Mix phase, and settles
+into a plateau where successive layers add less than $10^{-3}$ of
+total energy. The first layer at the plateau is the depth-sink. Across
+the four architectures the ratio $\ell^\star/L$ is
+$\{21/32,\,19/26,\,22/32,\,22/32\}=\{0.656,\,0.731,\,0.688,\,0.688\}$,
+which clusters near $2/3$ with a spread of about $0.04$ either side.
+We interpret the regularity as a property of the residual-stream
+geometry: the early Mix layers populate the basis, the middle Compress
+layers add nearly orthogonal directions, and once the basis saturates
+the later Refine layers reuse existing directions rather than
+generating new ones. The depth-sink is therefore the first layer at
+which the residual stream stops growing dimensionally, which is also
+the earliest layer whose spectrum is sensitive to corruption of any
+upstream basis. That makes its hash a sufficient probe for cache
+staleness.
+
+The rule is a property of these four models, not a theorem. We expect
+it to hold approximately on architectures whose residual stream is
+rank-saturating, and to break on mixture-of-experts and on extremely
+shallow stacks where saturation never completes. The 70B Llama-3.1
+run queued for v0.2 will add a fifth point. If the ratio holds within
+$\pm 0.05$ across that addition we will keep the rule as a default
+setting and expose the depth-sink layer index as a tunable for
+out-of-distribution architectures. If it fails, the integrity probe
+falls back to a full-sweep check, costing the seventy seconds.
 
 % ───────────────── §6 ─────────────────
-\section{Empirical Anchor: Static-GP Numbers}
+\section{Static-GP measurement on Llama-3.1-8B}
 \label{sec:anchor}
-GP at attention-only-shared-rank \emph{is} the companion-paper configuration,
-so its end-to-end numbers are reproduced here under the GP framing for
-self-containment.  Hardware: RTX~4070 Laptop, 32~MB L2.
+GP at attention-only-shared-rank reproduces the companion-paper
+configuration, so its end-to-end numbers are reproduced here under the
+GP framing for self-containment. Hardware is an RTX~4070 Laptop with
+$32$ MB of L2.
 
 \begin{table}[h]\centering\small
 \caption{End-to-end GP numbers on Llama-3.1-8B-Instruct Q4\_K\_M.}
@@ -465,7 +485,7 @@ self-containment.  Hardware: RTX~4070 Laptop, 32~MB L2.
 \toprule
 Configuration & Decode (\%base) & PPL & $W_\text{proj}$ disk \\
 \midrule
-Baseline & 100.00 & 6.7902 &, \\
+Baseline & 100.00 & 6.7902 & n/a \\
 GP attn-only $k{=}1024$ & 106.27 & 10.96 (+61.4\%) & 729 MB \\
 GP attn-only $k{=}1536$ & 97.55  & 7.69 (+13.30\%) & 1{,}093 MB \\
 GP attn-only $k{=}2048$ requested & 101.04 & 7.69 (+13.30\%) & 1{,}093 MB \\
@@ -549,7 +569,7 @@ prediction holds is the v0.2 measurement.
 % ───────────────── §8 ─────────────────
 \section{Axiom Gauge: $\mathrm{GL}(d)$ Gauge-Optimal Compression}
 \label{sec:gauge}
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 design specification.} This section derives the gauge-optimal basis and gives the algorithm. End-to-end PPL/throughput ablation against MCR-only is deferred to a companion v0.2 release.}}\par\medskip
+This section is a v0.2 design specification. The gauge-optimal basis is derived and the algorithm is given. The end-to-end PPL and throughput ablation against MCR-only is deferred to a companion v0.2 release.
 The transformer residual stream carries an exact gauge symmetry.  For any
 invertible $G\in\mathrm{GL}(d)$, the substitution
 $x\!\mapsto\!Gx,\ W^\text{read}\!\mapsto\!W^\text{read}G^{-1},\
@@ -588,7 +608,12 @@ with strong per-feature scale asymmetry, $\geq 20\%$ is plausible.
 % ───────────────── §9 ─────────────────
 \section{Thermal Rank and Tokens-per-Joule}
 \label{sec:thermal}
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{v0.2 status.} The thermal control law and J/token objective are given here; a 90-second sustained-decode telemetry trace on Llama-3.1-8B Q4\_K\_M is reported in the ``Measured sustained-decode trace'' paragraph below. A closed-loop A/B against an unthrottled baseline (i.e.\ rank held fixed at $r_\text{max}$ while the controller is permitted to actuate) remains the next step.}}\par\medskip
+This section gives the thermal control law and the tokens-per-joule
+objective. A 90-second sustained-decode telemetry trace on Llama-3.1-8B
+Q4\_K\_M is reported below. A closed-loop A/B against an unthrottled
+baseline (rank held fixed at $r_\text{max}$ while the controller is
+permitted to actuate) remains the next step.
+
 On the reference RTX~4070 Laptop, sustained Llama-3.1-8B inference reaches
 $\sim 85\,^\circ\mathrm{C}$ within $\sim 30$~s and the boost clock is
 clamped; tok/s falls to 50--60\% of cold-start.  Earlier work clamps the
@@ -652,7 +677,7 @@ and summary at \texttt{thermal\_summary.json}.
 % ───────────────── §10 ─────────────────
 \section{Online Basis: Rejection-Driven Oja}
 \label{sec:online}
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textbf{Status.} The rejection trigger and decayed Oja update are implemented in the runtime (\texttt{onb\_record\_residual} / \texttt{onb\_apply\_pending} hooks in the speculative-decode verifier path) and gated by \texttt{--axex-online-basis}. A long-horizon drift ablation against a frozen-basis baseline is in progress and will appear in the next revision.}}\par\medskip
+The rejection trigger and the decayed Oja update are implemented in the runtime (the \texttt{onb\_record\_residual} and \texttt{onb\_apply\_pending} hooks in the speculative-decode verifier path) and are gated by \texttt{--axex-online-basis}. A long-horizon drift ablation against a frozen-basis baseline is in progress and will appear in the next revision.
 A static PCA basis fitted on calibration data drifts out of validity as
 inference moves into uncovered distributions.  Speculative decoding
 \cite{leviathan2023speculative,chen2023speculative} provides a free
@@ -714,7 +739,7 @@ runtime-flag-gated and individually disabling.
 \section{Limitations}
 \label{sec:limits}
 \begin{itemize}
-\item The static-GP empirical anchor is single-model, single-GPU, single
+\item The static-GP measurement is single-model, single-GPU, single
 quantisation (Llama-3.1-8B-Instruct~Q4\_K\_M, RTX~4070 Laptop, dequantised
 to fp32).  No cross-hardware or cross-model end-to-end measurement is
 included for the adaptive layers.
@@ -736,7 +761,7 @@ to be a net win.  We have not characterised this with a full sweep.
 
 \section{Reproduction}
 \label{sec:repro}
-Static-GP empirical anchor: see the companion paper's reproduction recipe
+static-GP measurement: see the companion paper's reproduction recipe
 at \url{https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md}.
 Cross-model intrinsic-dim numbers are reproducible via:
 
@@ -751,15 +776,9 @@ The four adaptive extensions are reachable via:
 \texttt{--axex-online-basis}, with sub-flags documented in
 \texttt{runtime/nn/axiom\_exploit.h}.
 
-\section*{Acknowledgements}
-I thank the open-source \texttt{llama.cpp} \cite{ggerganov2023gguf}
-community.  The MCR phase-detection borrows the Mix/Compress/Refine
-terminology from recent training-dynamics literature; the residual-stream
-gauge has been observed across multiple architectures
-\cite{elhage2022superposition}; the StreamingLLM attention-sink
-construction \cite{xiao2023streamingllm} motivated the sink-bypass
-extension; Oja's rule \cite{oja1982} is classical.
+\section*{}
 
+\clearpage
 \printbibliography
 
 \end{document}
