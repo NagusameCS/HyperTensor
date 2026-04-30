@@ -564,34 +564,3 @@
       \field{title}{Streaming PCA: matching matrix Bernstein and near-optimal finite sample guarantees for Oja's algorithm}
       \field{year}{2016}
     \endentry
-    \entry{ggerganov2023kquants}{misc}{}{}
-      \name{author}{2}{}{%
-        {{hash=04310eba93e5dc1c0adb659291d1aeca}{%
-           family={Gerganov},
-           familyi={G\bibinitperiod},
-           given={Georgi},
-           giveni={G\bibinitperiod}}}%
-        {{hash=576ef1aee5c54d4b18323e9cb071d5f9}{%
-           family={{{\tt llama.cpp} contributors}},
-           familyi={_\bibinitperiod}}}%
-      }
-      \strng{namehash}{5667d60a51f33702f5b03f382919f188}
-      \strng{fullhash}{5667d60a51f33702f5b03f382919f188}
-      \strng{fullhashraw}{5667d60a51f33702f5b03f382919f188}
-      \strng{bibnamehash}{5667d60a51f33702f5b03f382919f188}
-      \strng{authorbibnamehash}{5667d60a51f33702f5b03f382919f188}
-      \strng{authornamehash}{5667d60a51f33702f5b03f382919f188}
-      \strng{authorfullhash}{5667d60a51f33702f5b03f382919f188}
-      \strng{authorfullhashraw}{5667d60a51f33702f5b03f382919f188}
-      \field{sortinit}{1}
-      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{howpublished}{\url{https://github.com/ggerganov/llama.cpp/pull/1684}}
-      \field{title}{{llama.cpp} k-quants ({Q4\_K\_M}, {Q5\_K\_M}, {Q6\_K}) Format Specification}
-      \field{year}{2023}
-    \endentry
-  \enddatalist
-\endrefsection
-\endinput
-

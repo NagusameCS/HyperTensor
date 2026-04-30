@@ -1,5 +1,6 @@
 \documentclass[11pt]{article}
 \usepackage{hypertensor}
+\graphicspath{{figures/}}
 \addbibresource{refs.bib}
 
 \title{Geodesic Speculative Decoding under Compression\\[0.4em]
@@ -59,7 +60,6 @@ cache infrastructure of the OTT/GTC paper.
 \tableofcontents
 \clearpage
 
-% =================================================================
 \section{Why Compose}
 \label{sec:why}
 Speculative decoding wins because the verifier amortises its forward-pass
@@ -98,7 +98,6 @@ the third factor dominates; that depends on $T_V/T_D$ and on $\Delta\alpha$.
 Whether GP at $k{=}1024$ moves $\alpha$ by more than a few percent is the
 central empirical unknown of this paper.
 
-% =================================================================
 \section{Implementation}
 The runtime exposes
 \texttt{llm\_generate\_geodesic\_speculative()} (declared in
@@ -120,7 +119,6 @@ The runtime additionally supports running the drafter alone
 model's output directly, isolating compression cost from speculative
 gain.
 
-% =================================================================
 \section{Closed-Form Throughput Estimates}
 \label{sec:closedform}
 On the reference RTX~4070 Laptop, baseline Llama-3.1-8B Q4\_K\_M decode
@@ -154,7 +152,6 @@ cannot currently test.  \emph{(ii)}~On hypothetical hardware where a 70B
 verifier is the slow side, the GP saving on the drafter compounds, but
 only if $\Delta\alpha$ is small.
 
-% =================================================================
 \section{Attention Residuals under Compression}
 \label{sec:attnres}
 Block Attention Residuals (AttnRes) replaces the standard PreNorm
@@ -189,7 +186,6 @@ compression ($k/d<0.3$), driven by softmax noise in the AttnRes mixing
 weights.  Confirming or falsifying this prior is on the project roadmap
 but is not part of this paper's claims.
 
-% =================================================================
 \section{KV-Cache Compression}
 The runtime supports compressing the KV cache itself with the same
 per-layer basis $U^{(\ell,K/V)}$ used for $W_K,W_V$
@@ -203,7 +199,6 @@ on read.  We have not measured long-context behaviour.  PagedAttention
 \cite{kwon2023vllm} is an orthogonal mechanism that we do not interact
 with.
 
-% =================================================================
 \section{First End-to-End Measurements}
 \label{sec:measured}
 \textbf{Setup.}  SmolLM2-135M-Instruct Q8\_0, ChatML template, host binary
@@ -335,7 +330,7 @@ retained energy fraction crosses $45$\%, but this is a prediction,
 not a measurement.
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.85\linewidth]{../../docs/figures/paper-c/throughput_vs_rank.png}
+\includegraphics[width=0.85\linewidth]{throughput_vs_rank.png}
 \caption{Decode throughput vs.\ compression rank $k$ on Llama-3.1-8B
 Q4\_K\_M, RTX~4070~Laptop, 4~prompt classes.  The grey band is the
 uncompressed baseline range across classes; the dashed line is the
@@ -421,7 +416,6 @@ git checkout d57162d
 Output ends with \texttt{[SPEC] Done: N tokens (..., acceptance\_rate=...)}
 and writes \texttt{ott\_readiness\_report.json}.
 
-% =================================================================
 \section{What Composes and What Does Not}
 \label{sec:compose}
 \begin{table}[h]\centering\small
@@ -438,7 +432,6 @@ Spec $\times$ AttnRes     & Same drafter and verifier path & Same as full specul
 \end{tabularx}
 \end{table}
 
-% =================================================================
 \section{OneDecode, OTT-OD, OTT-SWARM}
 \label{sec:ottmodes}
 The runtime additionally ships three drafter modes that compose with the
@@ -469,7 +462,6 @@ None of the three has the closed-form throughput model of
 \Cref{sec:closedform} yet; they are listed as
 \emph{implemented, not measured}.
 
-% =================================================================
 \section{Related Work}
 The exactness-preserving rejection rule is from Leviathan et~al.\
 \cite{leviathan2023speculative} and Chen et~al.\ \cite{chen2023speculative}.
@@ -482,7 +474,6 @@ characterising the interaction with compression.  AttnRes is implemented
 independently here.  StreamingLLM \cite{xiao2023streamingllm}'s sink-token
 treatment is referenced but orthogonal.
 
-% =================================================================
 \section{Limitations}
 \label{sec:status}
 \paragraph{Open issues.}

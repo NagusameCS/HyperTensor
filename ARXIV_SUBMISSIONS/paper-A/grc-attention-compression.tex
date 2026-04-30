@@ -1,5 +1,6 @@
 \documentclass[11pt]{article}
 \usepackage{hypertensor}
+\graphicspath{{figures/}}
 \addbibresource{refs.bib}
 
 \title{\textbf{Calibration-Free Low-Rank Attention Compression\\
@@ -44,7 +45,6 @@ weights, and protocols for direct reproduction.
 \tableofcontents
 \clearpage
 
-% ───────────────────── §1 Introduction ─────────────────────
 \section{Introduction}
 \label{sec:intro}
 Decoder-only transformer inference at batch size~1 is overwhelmingly
@@ -126,7 +126,6 @@ a universal property of decoder-only transformers and not an artefact of
 one architecture. This is the geometric premise on which both GRC and the
 OTT runtime (\Cref{sec:background}, companion Paper~D) are built.
 \FloatBarrier
-% ───────────────────── §2 Background ─────────────────────
 \section{Background and Related Work}
 \label{sec:background}
 
@@ -189,7 +188,6 @@ causal link between the two literatures, but the empirical alignment is the
 reason we expect the GRC effect to transfer across architectures rather
 than being a Llama-specific quirk.
 
-% ───────────────────── §3 Method ─────────────────────
 \section{Method: Geometric Rank Compression (GRC)}
 \label{sec:method}
 
@@ -234,7 +232,6 @@ is $4\times$ reduction on Q (which dominates).
 \end{itemize}
 \FloatBarrier
 
-% ───────────────────── §4 Experimental setup ─────────────────────
 \section{Experimental Setup}
 \label{sec:setup}
 
@@ -262,7 +259,6 @@ was acquired after the protocol was fixed, and the same eight-condition
 pack is used throughout.
 \FloatBarrier
 
-% ───────────────────── §5 Results ─────────────────────
 \section{Results}
 \label{sec:results}
 
@@ -310,7 +306,6 @@ perplexity penalty drops to a near-deployment-acceptable $13.30\%$. The
 $k{=}2048$ row matches $k{=}1536$ because the runtime caps the stored basis
 at $K_\text{max}{=}1536$.
 
-% ───────────────────── §6 Cache-fit hypothesis ─────────────────────
 \section{Cache-Fit Hypothesis}
 \label{sec:cachefit}
 We posit that the super-baseline at $k{=}1024$ is a cache working-set effect.
@@ -496,7 +491,6 @@ unacceptable information. Compressing attention globally is benign at
 $k\geq1536$ on this model.
 \FloatBarrier
 
-% ───────────────────── §7 Statistical tests ─────────────────────
 \section{Statistical Significance}
 \label{sec:stats}
 We treat each (condition, repetition) pair as a paired sample against a
@@ -525,7 +519,6 @@ width, and the Wilcoxon signed-rank test \cite{wilcoxon1945} concurs
 be distinguished from baseline at $\alpha{=}0.05$, which strengthens the
 near-lossless throughput claim.
 
-% ───────────────────── §8 Eckart-Young ─────────────────────
 \section{Theoretical Bound: Eckart--Young vs.\ Shared Basis}
 \label{sec:ey}
 The Eckart--Young--Mirsky theorem \cite{eckart1936} gives
@@ -559,7 +552,7 @@ singular values alone would suggest.  Per-matrix bases are an obvious next
 step (\Cref{sec:future}).
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.92\linewidth]{../../docs/figures/paper-a/ey_per_layer_k1024.png}
+\includegraphics[width=0.92\linewidth]{ey_per_layer_k1024.png}
 \caption{Per-layer EY oracle vs.\ GRC at $k=1024$ on
 Llama-3.1-8B Q4\_K\_M (layers $\{0,15,31\}$, slots $\{Q,K,V\}$).
 The shared-basis penalty is concentrated in $V$, with $Q$ and $K$ paying
@@ -571,7 +564,6 @@ extracted by \texttt{scripts/extract\_ey\_per\_layer.py}.}
 \label{fig:ey-per-layer}
 \end{figure}
 
-% ───────────────────── §9 Limitations ─────────────────────
 \section{Limitations}
 \label{sec:limits}
 
@@ -602,7 +594,6 @@ investigated.
 $8$~GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.
 \end{itemize}
 
-% ───────────────────── §10 Future ─────────────────────
 \section{Future Work}
 \label{sec:future}
 The highest-priority follow-up is a cross-hardware sweep on RTX~4090, A100,
@@ -616,7 +607,6 @@ or CPU-offload) since global SVD is unacceptably lossy.  Quality recovery via
 LoRA-style \cite{hu2021lora} fine-tuning on top of the projected weights
 should bring the +13.30\% PPL gap toward zero.
 
-% ───────────────────── §11 Reproducibility ─────────────────────
 \section{Reproducibility}
 A complete reproduction package, including expected output CSVs,
 binary artefacts and step-by-step protocol, is published on the
@@ -782,7 +772,7 @@ We computed the full SVD of every attention and FFN weight in five layers
 dequantisation. The rank required to capture $95\%$ of $\norm{\Wmat}_F^2$:
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.95\linewidth]{../../docs/figures/spectra_attn_vs_ffn.png}
+\includegraphics[width=0.95\linewidth]{spectra_attn_vs_ffn.png}
 \caption{Singular-value spectra of attention ($\Wmat_Q,\Wmat_K,\Wmat_V$
 concatenated, blue) versus FFN (gate, up, down concatenated, orange) for
 five layers of Llama-3.1-8B.  Attention curves drop ${\sim}3$ orders of
@@ -794,7 +784,7 @@ shows the same effect averaged across all 32 layers).}
 \end{figure}
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.85\linewidth]{../../docs/figures/energy_capture.png}
+\includegraphics[width=0.85\linewidth]{energy_capture.png}
 \caption{Cumulative Frobenius-energy capture vs.\ rank.  The 95\%
 threshold (dashed line) is reached at $k_{95}{\approx}1682$ for attention
 and $k_{95}{\approx}3345$ for FFN; the GRC operating point $k{=}1024$
@@ -842,7 +832,7 @@ reasoning/256  & $35.58\!\pm\!0.31$ & $35.22\!\pm\!2.42$ & 98.99\% & \textbf{85.
 \end{table}
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.85\linewidth]{../../docs/figures/throughput_paired.png}
+\includegraphics[width=0.85\linewidth]{throughput_paired.png}
 \caption{Paired throughput visualisation behind the CI table above.
 Each pair of points is one prompt class $\times$ generated-token-budget
 condition; lines connect baseline and GRC ($k{=}1024$) measurements
@@ -855,7 +845,7 @@ out of L2.}
 \end{figure}
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.85\linewidth]{../../docs/figures/layerwise_rank_needed.png}
+\includegraphics[width=0.85\linewidth]{layerwise_rank_needed.png}
 \caption{Per-layer rank required for 90\%, 95\% and 99\% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B.  The flat
 plateau between $L{=}5$ and $L{=}28$ shows that a \emph{single} compression
@@ -869,7 +859,7 @@ most of the +13.30\% PPL penalty.}
 \end{figure}
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.85\linewidth]{../../docs/figures/paper-a/ncu/l2_hit_rate_comparison.png}
+\includegraphics[width=0.85\linewidth]{l2_hit_rate_comparison.png}
 \caption{Direct Nsight Compute trace of L2 read hit-rate on the residual
 \texttt{kernel\_gemv\_q4\_k} (FFN matmul, identical in both runs) for 100
 representative decode-phase launches each on Llama-3.1-8B Q4\_K\_M, RTX 4070
@@ -1001,7 +991,6 @@ exhibits early end-of-sequence on \emph{both} the baseline and the
 is therefore a SmolLM2 sampling-mode property, not a runtime regression.
 The \texttt{--temp 0.7} numbers above are the apples-to-apples
 comparison.
-
 
 \label{sec:second-device}
 

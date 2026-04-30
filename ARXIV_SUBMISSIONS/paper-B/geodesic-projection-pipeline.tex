@@ -43,10 +43,8 @@ about which numbers are measured and which are predicted.
 \tableofcontents
 \clearpage
 
-% =================================================================
 \part{The Geodesic Projection Pipeline}
 
-% ───────────────── §1 ─────────────────
 \section{Introduction and Scope}
 The companion paper isolates a single design choice, calibration-free
 attention-only fixed-rank compression, and reports an end-to-end
@@ -125,7 +123,6 @@ v0.2 design specifications. The geometry is derived, the algorithm is
 given, and the runtime hooks exist, but the paired ablations are
 deferred to a companion v0.2 release.
 
-% ───────────────── §2 ─────────────────
 \section{Cross-Architecture Manifold Evidence}
 \label{sec:manifold}
 
@@ -250,7 +247,6 @@ intrinsic dimension, which is consistent with the $13.30\%$ PPL penalty
 at $k{=}1536$ being cache-fit dominated rather than information-loss
 dominated.
 
-% ───────────────── §3 ─────────────────
 \section{The Seven Slots and Their Spectra}
 \label{sec:spectra}
 
@@ -312,7 +308,6 @@ truncation remains benign down to $k{=}1024$. GP therefore treats
 $W_\text{up}$ and $W_\text{gate}$ with a high-floor strategy and isolates
 $W_\text{down}$ on its own SVD path.
 
-% ───────────────── §4 ─────────────────
 \section{Per-Layer Rank Selection (MCR)}
 \label{sec:mcr}
 
@@ -424,7 +419,6 @@ which is zero by construction.  Empirically the bypass fires on $3{-}7\%$
 of layers and eliminates the rare ``first-token spike'' in perplexity
 that shared-rank GP otherwise exhibits at very low $k$.
 
-% ───────────────── §5 ─────────────────
 \section{Geometry Cache and Depth-Sink Shortcut}
 \label{sec:cache}
 Building GP bases from scratch on Llama-3.1-8B takes $\sim$70~s on the
@@ -488,7 +482,6 @@ setting and expose the depth-sink layer index as a tunable for
 out-of-distribution architectures. If it fails, the integrity probe
 falls back to a full-sweep check, costing the seventy seconds.
 
-% ───────────────── §6 ─────────────────
 \section{Static-GP measurement on Llama-3.1-8B}
 \label{sec:anchor}
 GP at attention-only-shared-rank reproduces the companion-paper
@@ -514,7 +507,6 @@ The $k{=}2048$ row produces \emph{identical} PPL to $k{=}1536$ because
 \texttt{AXEX\_MANIFOLD\_K\_MAX} silently caps the stored basis; it
 also matches the disk footprint.
 
-% =================================================================
 \part{Adaptive Extensions}
 
 The four mechanisms below address four distinct invariance failures of
@@ -555,7 +547,6 @@ Speculative-decode rejections directly measure drift. &
 \end{tabularx}
 \end{table}
 
-% ───────────────── §7 ─────────────────
 \section{MCR Phase-Aware Rank Allocation}
 \label{sec:adaptive-mcr}
 For each layer~$\ell$, compute the per-feature variance of captured hidden
@@ -589,7 +580,6 @@ improvement scales with $\sigma^2_\text{Mix}/\sigma^2_\text{Compress}$,
 typically $\sim 5\times$ in published variance profiles.  Whether the
 prediction holds is the v0.2 measurement.
 
-% ───────────────── §8 ─────────────────
 \section{Axiom Gauge: $\mathrm{GL}(d)$ Gauge-Optimal Compression}
 \label{sec:gauge}
 This section is a v0.2 design specification. The gauge-optimal basis is derived and the algorithm is given. The end-to-end PPL and throughput ablation against MCR-only is deferred to a companion v0.2 release.
@@ -628,7 +618,6 @@ calibration time, no runtime branch, no extra memory traffic.
 feature scales the gain is modest ($\lesssim 5\%$ tail energy); for models
 with strong per-feature scale asymmetry, $\geq 20\%$ is plausible.
 
-% ───────────────── §9 ─────────────────
 \section{Thermal Rank and Tokens-per-Joule}
 \label{sec:thermal}
 This section gives the thermal control law and the tokens-per-joule
@@ -702,7 +691,6 @@ are most informative. Raw trace:
 \texttt{docs/figures/paper-b/v02\_empirical/thermal\_sustained\_8b.csv}
 and summary at \texttt{thermal\_summary.json}.
 
-% ───────────────── §10 ─────────────────
 \section{Online Basis: Rejection-Driven Oja}
 \label{sec:online}
 The rejection trigger and the decayed Oja update are implemented in the
@@ -812,7 +800,6 @@ function of $t$. A visual of the drift-distance trajectory will
 accompany the v0.2 release; the empty trajectory plot would be
 premature here and is intentionally omitted.
 
-% =================================================================
 \part{Composition, Limitations, Reproduction}
 
 \section{How the Four Mechanisms Compose}

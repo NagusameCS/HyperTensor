@@ -288,12 +288,36 @@ echo "[remote] === Paper-B end `$(date -u) ==="
     if (-not $tarballRemote) { Warn "Polling deadline reached without END marker. Pulling whatever exists." }
 
     Log "Pulling artifacts..."
-    & scp @sshOpts "ubuntu@${publicIp}:/tmp/paperB_remote.log" "$LocalOutDir\paperB_remote.log" 2>&1 | Out-Null
-    & scp @sshOpts "ubuntu@${publicIp}:/tmp/paperB_nohup.log"  "$LocalOutDir\paperB_nohup.log"  2>&1 | Out-Null
-    & scp @sshOpts "ubuntu@${publicIp}:/opt/hypertensor/paperB_*.tar.gz" "$LocalOutDir\" 2>&1 | Out-Null
-    & scp -r @sshOpts "ubuntu@${publicIp}:/opt/hypertensor/results_paperB_$gpuName" "$LocalOutDir\" 2>&1 | Out-Null
+    function ScpGet($src, $dst, $recurse=$false) {
+        $scpArgs = if ($recurse) { @('-r') + $sshOpts } else { $sshOpts }
+        $out = & scp @scpArgs $src $dst 2>&1
+        if ($LASTEXITCODE -eq 0) { Log "  scp OK: $src" }
+        else { Warn "  scp FAILED ($LASTEXITCODE): $src — $($out -join ' ')" }
+    }
+    ScpGet "ubuntu@${publicIp}:/tmp/paperB_remote.log"            "$LocalOutDir\paperB_remote.log"
+    ScpGet "ubuntu@${publicIp}:/tmp/paperB_nohup.log"             "$LocalOutDir\paperB_nohup.log"
+    # tarball — get remote path first so we can scp by exact name (avoids glob issues)
+    $tarballs = & ssh @sshOpts "ubuntu@$publicIp" "ls /opt/hypertensor/paperB_*.tar.gz 2>/dev/null" 2>$null
+    if ($tarballs) {
+        foreach ($tb in ($tarballs | Where-Object { $_.Trim() })) {
+            $fname = Split-Path $tb.Trim() -Leaf
+            ScpGet "ubuntu@${publicIp}:$($tb.Trim())" "$LocalOutDir\$fname"
+        }
+    } else {
+        Warn "  No tarball found on remote — benchmark may not have finished."
+    }
+    # full results dir (individual arm logs)
+    ScpGet "ubuntu@${publicIp}:/opt/hypertensor/results_paperB_$gpuName" "$LocalOutDir\" -recurse $true
 
-    Get-ChildItem $LocalOutDir -Recurse | Select-Object FullName,Length | Format-Table -AutoSize | Out-String | Write-Host
+    Log "Local artifacts in $LocalOutDir :"
+    Get-ChildItem $LocalOutDir -Recurse -File | ForEach-Object {
+        "  {0,-60} {1,10} bytes" -f $_.FullName.Replace($LocalOutDir,"").TrimStart("\"), $_.Length
+    } | Write-Host
+
+    # Verify tarball
+    $localTar = Get-ChildItem "$LocalOutDir\paperB_*.tar.gz" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($localTar) { Ok "Tarball downloaded: $($localTar.Name) ($($localTar.Length) bytes)" }
+    else            { Warn "No tarball in $LocalOutDir — check scp errors above." }
 
     if (-not $tarballRemote) { Warn "Remote did not finish; partial artifacts pulled." }
     else { Ok "Remote pipeline completed successfully." }
