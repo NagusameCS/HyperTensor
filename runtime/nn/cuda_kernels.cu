@@ -19,6 +19,7 @@
 #include <cuda_fp16.h>
 #include <cublas_v2.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -2507,6 +2508,33 @@ CUDA_API int ck_init(void) {
     cudaError_t err = cudaGetDeviceCount(&count);
     if (err != cudaSuccess || count == 0) return -1;
     cudaSetDevice(0);
+
+    /* Optional Exp B (Paper A P2) hook: AXEX_L2_PERSISTING_BYTES=<n>
+     * If set to a positive integer, call cudaDeviceSetLimit(
+     *   cudaLimitPersistingL2CacheSize, n) before any stream is created so
+     * the device-level carveout is in force for the entire process. This
+     * lets us measure GRC speed-up under a clean L2 partition on A100/H100
+     * (Paper A, sec:falsification, P2). Off by default. */
+    const char *l2env = getenv("AXEX_L2_PERSISTING_BYTES");
+    if (l2env && l2env[0]) {
+        char *endp = NULL;
+        unsigned long long bytes = strtoull(l2env, &endp, 10);
+        if (endp && endp != l2env && bytes > 0) {
+            cudaDeviceProp prop;
+            if (cudaGetDeviceProperties(&prop, 0) == cudaSuccess) {
+                size_t cap = (size_t)prop.persistingL2CacheMaxSize;
+                size_t req = (size_t)bytes;
+                if (cap > 0 && req > cap) req = cap;
+                cudaError_t lerr = cudaDeviceSetLimit(
+                    cudaLimitPersistingL2CacheSize, req);
+                printf("[CUDA] AXEX_L2_PERSISTING_BYTES=%llu -> "
+                       "cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, "
+                       "%zu) (cap %zu) -> %s\n",
+                       (unsigned long long)bytes, req, cap,
+                       lerr == cudaSuccess ? "ok" : cudaGetErrorString(lerr));
+            }
+        }
+    }
 
     /* Create streams for compute/transfer overlap */
     cudaStreamCreate(&stream_compute);
