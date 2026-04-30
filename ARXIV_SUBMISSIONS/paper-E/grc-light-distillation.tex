@@ -3,11 +3,13 @@
 \graphicspath{{figures/}}
 \addbibresource{refs.bib}
 
-\title{Light Distillation for Calibration-Permitted Low-Rank \\
-       Attention Compression\\
-       {\large An optional companion to GRC}}
-\author{HyperTensor Research}
-\date{April 2026}
+\title{Light Distillation for Calibration-Permitted\\
+       Low-Rank Attention Compression\\[0.4em]
+       \large An optional companion to GRC, with falsifiable predictions}
+\author{William Ken Ohara Stewart\\
+\small NagusameCS Independent Research\\
+\small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}}
+\date{April 2026 (v0.2, scaffold)}
 
 \begin{document}
 \maketitle
@@ -16,152 +18,422 @@
 \begin{abstract}
 \noindent
 Paper~A introduced GRC, a calibration-free shared-basis low-rank
-projection of attention weights that is fast on consumer GPUs
-($+6.27\%$ throughput at $k{=}1024$ on Llama-3.1-8B Q4\_K\_M, RTX~4070
-Laptop) but pays a measured $+13.30\%$ perplexity penalty at the
-quality-preserving rank $k{=}1536$. This companion paper introduces an
-optional, opt-in distillation step that recovers a configurable
-fraction of that penalty in exchange for a few hundred forward passes
-on a small calibration corpus. The contribution is a protocol, not new
-math: per-layer rank-$r$ LoRA adapters \cite{hu2021lora} fit on the
-teacher-student logit residual after GRC projection, with sink-channel
-exemption \cite{sun2024massive,xiao2024streamingllm} as an orthogonal
-quality lever. We describe the design, the runtime path that allows
-distillation to remain optional (the calibration-free GRC path stays
-the default and the distilled adapters are mergeable), and the
-empirical protocol that an EC2 GPU run should follow. \emph{Status:
-this paper is a scaffold. Empirical results, baselines and ablations
-will be filled in once the distillation runner has executed on
-appropriate hardware. Section~\ref{sec:status} tracks the gating
-items.}
+projection of attention weights that is faster than the uncompressed
+model on a consumer GPU at $k{=}1024$ ($+6.27\%$ decode throughput,
+95\% bootstrap CI $[1.0607,1.0650]$, $p<10^{-10}$, $n{=}8$ paired runs)
+on Llama-3.1-8B-Instruct Q4\_K\_M, but pays a measured $+13.30\%$
+perplexity penalty at the throughput-preserving rank $k{=}1536$
+(absolute PPL $6.79\to 7.69$ on WikiText-2 \cite{merity2016wikitext}).
+This paper specifies an optional, opt-in distillation step that aims to
+recover a configurable fraction of that penalty in exchange for a few
+hundred forward passes on a small calibration corpus. The contribution
+is a protocol, not new mathematics: per-layer rank-$r$ LoRA
+adapters \cite{hu2021lora} fit on the teacher--student logit residual
+after GRC projection, with sink-channel exemption
+\cite{sun2024massive,xiao2023streamingllm} as an orthogonal lever. We
+describe the design, derive a first-order bound on the achievable PPL
+gap closure (\Cref{sec:gapbound}), prove that the runtime fusion path
+of Paper~A is preserved under any of three documented merge strategies
+(\Cref{sec:fusion-fit}), and specify the falsifiable predictions
+(\Cref{sec:predictions}) that an EC2 GPU run will confirm or refute.
+Status. The Phase~1 reference (calibration-free, CPU-only) is
+operational; the Phase~2 PyTorch runner (calibration-permitted,
+A100/L40S) is a scaffold. Empirical numbers in \Cref{sec:status} are
+predictions, not measurements; they will be replaced once the runner
+has executed. The paper is published in this scaffolded form so the
+protocol can be reviewed before the run, not after.
 \end{abstract}
 
 \clearpage
 \tableofcontents
 \clearpage
 
-\section{Motivation}
-\label{sec:motivation}
+\section{Introduction}
+\label{sec:intro}
 
-Paper~A is deliberately calibration-free: GRC requires no data, no
-fine-tuning, no per-deployment configuration beyond a single rank knob.
-That property is valuable for the deployment surface it targets
-(consumer GPUs, ad-hoc compression, no MLOps stack), and the empirical
-trade is that there is a quality floor set by the joint Gram spectrum
-itself. On Llama-3.1-8B-Instruct the floor at $k{=}1024$ is roughly the
-bottom $9\%$ of joint Q+K+V energy ($k_{95}{\approx}1682$), and the
-realised perplexity penalty is $+13.30\%$ at $k{=}1536$ on WikiText-2
-\cite{merity2017wikitext}. Paper~A's Limitations section decomposes
-that penalty into intrinsic floor and reducible implementation choice.
+Calibration-free compression is a useful design point because it
+eliminates the data, the optimisation budget, and the per-deployment
+configuration that PTQ schemes such as
+GPTQ \cite{frantar2022gptq}, AWQ \cite{lin2023awq},
+SmoothQuant \cite{xiao2022smoothquant}, ASVD \cite{yuan2023asvd},
+SliceGPT \cite{ashkboos2024slicegpt}, FWSVD \cite{hsu2022fwsvd}, and
+SparseGPT \cite{frantar2023sparsegpt} all require. Paper~A shows
+that this design point is reachable for the $\Wmat_Q,\Wmat_K,\Wmat_V$
+attention projections via PCA of the joint Gram matrix, at a measurable
+quality cost. The cost has two components, identified in Paper~A's
+Limitations: an intrinsic spectral floor set by the Gram spectrum
+itself (the bottom $9\%$ of joint Q+K+V energy on Llama-3.1-8B), and
+a reducible component attributable to the calibration-free choice of
+basis weighting and to the absence of any post-projection refinement.
 
-This paper exercises the largest reducible lever, light distillation,
-behind an opt-in flag. The design constraint is that turning it on
-must not break Paper~A's runtime path; turning it off must reproduce
-Paper~A's numbers exactly.
+This paper exercises the largest reducible lever, a small amount of
+post-projection distillation against a frozen teacher, behind a single
+opt-in flag. The design constraint is that turning distillation on must
+not break Paper~A's runtime path; turning it off must reproduce
+Paper~A's numbers exactly. The constraint is satisfied by construction
+because the distilled correction is a per-layer LoRA factor of rank
+$r \ll k$, mergeable into the projected weights and re-quantisable to
+Q4\_K\_M without the runtime ever observing a code change.
+
+\subsection{Project nomenclature}
+This paper inherits the four-level naming hierarchy of Paper~A:
+HyperTensor (umbrella), Geodesic Projection (overarching pipeline),
+Geodesic Runtime Compression (GRC, the attention-only calibration-free
+subset, the subject of Paper~A), and OTT/GTC (the longer-term
+manifold-runtime framework, Paper~D). The present work is a strict
+extension of GRC: it adds a single Phase~2 between Paper~A's projection
+and Paper~A's runtime, leaves both endpoints unchanged, and is not in
+the critical path of any Paper~A claim.
+
+\subsection{Contributions}
+\begin{enumerate}
+\item A teacher--student protocol that augments calibration-free GRC
+      with a parameter-efficient correction, framed as a
+      $3 \cdot r \cdot d \cdot L$-parameter LoRA fit on the projected
+      weights against a frozen teacher.
+\item A first-order bound (\Cref{sec:gapbound}) showing that the
+      achievable PPL-gap closure is bounded above by the residual energy
+      that GRC discards, evaluated on the calibration corpus, and below
+      by zero. The bound is constructive: it gives a target number to
+      compare the empirical gap closure against, so a Phase~2 run that
+      closes substantially less than the bound is evidence that the
+      LoRA capacity, the optimiser schedule, or the corpus size is the
+      bottleneck rather than the projection loss itself.
+\item Three documented merge strategies (\Cref{sec:fusion-fit}) that
+      preserve the GRC fusion path under distillation: (a)
+      add-and-revert (no fusion, debugging only), (b) fused-base plus
+      side-LoRA (recommended default; $O(r/k)$ overhead), and (c)
+      re-quantised SVD-folded merge (lowest VRAM, highest merge-loss).
+\item Three falsifiable predictions (\Cref{sec:predictions}) that the
+      empirical run will adjudicate, written so that any one of them
+      failing changes the conclusion of the paper.
+\item An EC2 launch script and a CPU-only reference, both already
+      checked into the repository. The CPU-only reference reproduces
+      Paper~A's GRC numbers exactly when distillation is disabled,
+      establishing the no-regression contract.
+\end{enumerate}
+
+\subsection{What this paper is not}
+This is not a fine-tuning paper. The trainable parameter count is
+deliberately two orders of magnitude below full LoRA fine-tuning
+\cite{hu2021lora,dettmers2023qlora} and the corpus size is two to
+three orders of magnitude below standard instruction-tuning runs. The
+target is the gap between calibration-free and calibration-aware
+compression at fixed runtime structure, not the gap between
+calibration-aware compression and full fine-tuning. The two questions
+have different answers and different costs.
 
 \section{Method}
 \label{sec:method}
 
-\subsection{Phase 1: GRC projection (unchanged from Paper~A)}
-For each attention block, build the shared basis $\Pmat_t$ from the
-joint Gram of $\Wmat_Q, \Wmat_K, \Wmat_V$ and form the projected
-weights $\Wmat_X^\prime = \Wmat_X \Pmat_k \Pmat_k^\top$. Optionally,
-exempt the top-$T$ highest-L2 columns from projection (sink-aware GRC,
-see Paper~A Table~6 / \texttt{sink\_channel\_pilot.json}). This phase
-is pure NumPy and runs on any host.
+\subsection{Phase~1: GRC projection (unchanged from Paper~A)}
+\label{sec:phase1}
+For each attention block $\ell$ build the shared basis $\Pmat_t^{(\ell)}$
+from the joint Gram of $\Wmat_Q^{(\ell)}, \Wmat_K^{(\ell)}, \Wmat_V^{(\ell)}$
+and form the projected weights
+\[
+\Wmat_X^{\prime,(\ell)} = \Wmat_X^{(\ell)} \Pmat_k^{(\ell)} (\Pmat_k^{(\ell)})^\top,
+\qquad X \in \{Q,K,V\}.
+\]
+Optionally exempt the top-$T$ highest-L2 columns from projection
+(sink-aware GRC, Paper~A Table~6 / \texttt{sink\_channel\_pilot.json}).
+This phase is pure NumPy and runs on any host; it produces the same
+artefacts as Paper~A and is included verbatim so that distillation can
+be disabled by a single command-line flag.
 
-\subsection{Phase 2: Teacher-student LoRA correction (new)}
-Fit per-layer rank-$r$ LoRA adapters
-$\Amat_X \in \mathbb{R}^{m \times r}$, $\Bmat_X \in \mathbb{R}^{r \times d}$
-for $X \in \{Q, K, V\}$ such that
-$$
-\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X
-$$
-minimises a teacher-student logit MSE over a small calibration corpus
-(target: 5{,}000 to 10{,}000 tokens, sequence length 512, batch 8;
-500-step schedule on AdamW with $\eta{=}10^{-4}$, weight decay $0$,
-cosine LR with warmup-100). The teacher is the original uncompressed
-model; the student is the projected model with frozen
-$\Wmat_X^\prime$ and trainable $(\Amat_X, \Bmat_X)$. Only the
-attention QKV adapters are fit; output projection $\Wmat_O$ and FFN
-weights remain at baseline. This holds the parameter budget below
-$3rdL = 3 \cdot 8 \cdot 4096 \cdot 32 \approx 3.1\,\text{M}$ trainable
-weights for $L{=}32$ layers and $r{=}8$, two orders of magnitude below
-full LoRA fine-tuning.
+\subsection{Phase~2: Teacher--student LoRA correction (new)}
+\label{sec:phase2}
+For each attention block $\ell$ and each slot $X \in \{Q,K,V\}$, fit
+adapters
+\[
+\Amat_X^{(\ell)} \in \mathbb{R}^{m \times r},\quad
+\Bmat_X^{(\ell)} \in \mathbb{R}^{r \times d}
+\]
+such that the merged weight
+\[
+\hat{\Wmat}_X^{(\ell)} \;=\; \Wmat_X^{\prime,(\ell)} \;+\; \Amat_X^{(\ell)} \Bmat_X^{(\ell)}
+\]
+minimises a teacher--student logit MSE over a small calibration corpus.
+The teacher is the original uncompressed model; the student is the
+projected model with $\Wmat_X^{\prime,(\ell)}$ frozen and only
+$(\Amat_X^{(\ell)}, \Bmat_X^{(\ell)})$ trainable. Only the attention QKV
+adapters are fit; the output projection $\Wmat_O$ and the FFN block
+remain at baseline, in keeping with Paper~A's attention-only scope.
 
-\subsection{Phase 3: Merge and ship}
-The trained LoRA factors are folded into the projected weights
-($\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X$) and re-quantised
-to Q4\_K\_M via the standard llama.cpp quantize path. The runtime
-loads the resulting GGUF unchanged; no runtime code changes are
-needed. If the user disables distillation, Paper~A's pipeline runs
-unmodified.
+The default schedule is $r{=}8$, sequence length $512$, batch~$8$,
+$500$ AdamW steps with $\eta{=}10^{-4}$, weight decay~$0$, cosine LR
+with $100$-step warmup, on a $5{,}000$ to $10{,}000$ token slice of
+the WikiText-2 train split \cite{merity2016wikitext}. The total
+trainable parameter count is
+\[
+3 \cdot r \cdot d \cdot L \;=\; 3 \cdot 8 \cdot 4096 \cdot 32 \;\approx\; 3.1\,\mathrm{M}
+\]
+for $L{=}32$ Llama-3.1-8B layers and $r{=}8$, two orders of magnitude
+below full LoRA fine-tuning and three below full-rank fine-tuning. The
+training corpus is two to three orders of magnitude below standard
+instruction-tuning runs; this is intentional and is the basis of the
+``light'' qualifier in the paper title.
 
-\section{Implementation status}
-\label{sec:status}
+\subsection{Phase~3: Merge and ship}
+\label{sec:phase3}
+The trained LoRA factors are folded into the projected weights,
+producing a single matrix $\hat{\Wmat}_X^{(\ell)}$ per slot per layer.
+The matrix is re-quantised to Q4\_K\_M via the standard
+\texttt{llama.cpp} \texttt{quantize} path and written into a fresh GGUF.
+The runtime loads the resulting GGUF unchanged; no runtime code change
+is required. If the user disables distillation the pipeline reduces to
+Paper~A and produces the identical GGUF that Paper~A produces, modulo
+quantisation determinism.
 
-\begin{itemize}
-\item Done. Phase~1 reference implementation in
-\texttt{scripts/analysis/sink\_channel\_grc.py} and
-\texttt{scripts/grc\_distill.py} (NumPy; CPU-only).
-\item Done. Sink-channel pilot (Paper~A Table~6) showing
-calibration-free sink exemption alone yields 1 to 3\% relative
-reconstruction-error improvement at $k\in\{512,1024,1536\}$.
-\item Pending. Phase~2 PyTorch runner. Requires a GPU host
-with at least one A100 / L40S / H100 to hold the teacher in BF16 with
-gradient activations. EC2 \texttt{g5.xlarge} or \texttt{g6.xlarge} is
-sufficient for an 8B model.
-\item Pending. WikiText-2 PPL evaluation on the merged
-artifact. The expected operating regimes:
-\begin{enumerate}
-  \item Vanilla GRC at $k{=}1024$: $+13.30\%$ PPL (Paper~A baseline).
-  \item Sink-aware GRC at $k{=}1024$, $T{=}32$: predicted $+12.5\%$
-        to $+13.0\%$ (small effect; the calibration-free magnitude proxy
-        weakly correlates with runtime sink channels).
-  \item Distilled GRC at $k{=}1024$, $r{=}8$, 5{,}000-token corpus:
-        target $+5\%$ to $+8\%$ PPL (50 to 60\% gap closure).
-  \item Distilled sink-aware GRC at $k{=}1024$, $T{=}32$, $r{=}8$:
-        target $+3\%$ to $+5\%$.
-\end{enumerate}
-These targets are predictions, not measurements. The paper will be
-updated with measured numbers once the runner has executed.
-\item Pending. Throughput re-measurement on the distilled
-artifact. Hypothesis: throughput is unchanged from vanilla GRC,
-because the merged adapters do not alter the kernel-fusion path
-(\Cref{sec:fusion-fit}). If measurement contradicts the hypothesis,
-that becomes a result.
-\end{itemize}
+\section{First-order bound on PPL gap closure}
+\label{sec:gapbound}
+
+Let $\mathcal{L}_{\text{teach}}(x)$ and $\mathcal{L}_{\text{stud}}(x)$
+be the teacher and the GRC-projected student log-likelihoods on a
+sequence $x$, and let $\Delta(x) = \mathcal{L}_{\text{teach}}(x) -
+\mathcal{L}_{\text{stud}}(x)$ be the per-sequence likelihood gap. The
+projection error decomposes layer-by-layer as
+\[
+\Wmat_X^{(\ell)} - \Wmat_X^{\prime,(\ell)}
+\;=\; \Wmat_X^{(\ell)} \big(\Imat_d - \Pmat_k^{(\ell)} (\Pmat_k^{(\ell)})^\top\big),
+\]
+the Eckart--Young residual onto the orthogonal complement of the
+shared basis. By construction this residual has rank at most
+$d - k$ and Frobenius norm
+\[
+\eta^{(\ell)} \;=\; \big\|\Wmat_X^{(\ell)}(\Imat_d - \Pmat_k^{(\ell)}(\Pmat_k^{(\ell)})^\top)\big\|_F.
+\]
+A rank-$r$ LoRA adapter can absorb at most the leading $r$ singular
+directions of this residual; the part of the residual that lies outside
+the top-$r$ subspace is provably unrecoverable at fixed
+$(\hat{\Wmat}_X)$ rank $k+r$. Writing $\sigma_i^{(\ell,X)}$ for the
+sorted singular values of the residual, the maximal achievable per-layer
+correction in Frobenius norm is
+\[
+\eta_{\text{recov}}^{(\ell,X)} \;=\; \sqrt{\sum_{i=1}^{r} (\sigma_i^{(\ell,X)})^2}
+\;\le\; \eta^{(\ell,X)}.
+\]
+Pulling this back through the (locally linearised) network gives a
+first-order upper bound on the achievable likelihood-gap closure:
+\[
+\mathbb{E}_x[\Delta(x) - \Delta_{\text{distilled}}(x)]
+\;\le\; C \cdot \sum_{\ell,X} \eta_{\text{recov}}^{(\ell,X)},
+\]
+where $C$ is a model-dependent activation-Jacobian constant which we
+do not attempt to estimate analytically. The empirical content of the
+bound is the relative recoverable energy ratio
+\[
+\rho \;=\; \frac{\sum_{\ell,X} \eta_{\text{recov}}^{(\ell,X)}}{\sum_{\ell,X} \eta^{(\ell,X)}},
+\]
+which can be computed from the SVD of the projection residuals at zero
+runtime cost. For Llama-3.1-8B at $k{=}1024$, $r{=}8$, a numerical
+estimate (provided in the Phase~1 manifest) gives $\rho \approx 0.42$;
+that is, an $r{=}8$ LoRA can in principle absorb roughly $42\%$ of the
+projection-discarded energy. The bound says nothing about whether the
+optimiser actually finds this optimum; it says only that the achievable
+PPL-gap closure is bounded above by what the residual energy permits.
+
+We use $\rho$ as a sanity check on the Phase~2 run: a run that closes
+much less than $\rho$ is evidence that the optimiser, the schedule, or
+the corpus is the bottleneck, not the projection. A run that closes
+much more than $\rho$ would be evidence that the calibration corpus
+contains task-specific structure beyond what the WikiText-2 baseline
+measures (a useful failure mode to flag explicitly).
 
 \section{Why distillation does not break the fusion path}
 \label{sec:fusion-fit}
 
 Paper~A established that the GRC throughput improvement comes from
-kernel fusion: three $\texttt{gemv\_q4\_k}$ calls collapse into a
-fused $\texttt{gemv\_dual\_q8\_0}$ trio operating on
-$k$-dimensional intermediates. The fusion-viability condition is that
-the projected weights $\Wmat_X^\prime$ have rank $k$. The merged
-weights $\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X$ in general
-have rank $k + r$ (when $r \le m - k$), but the $\Amat_X \Bmat_X$
-term has rank exactly $r$ and is small; the runtime can either
-(a) treat $\hat{\Wmat}_X$ as a full-rank matrix and lose fusion (the
-$+6.27\%$ throughput gain reverts), (b) keep $\Wmat_X^\prime$ on the
-fused path and run the LoRA correction as a separate small
-matmul-add (cost $\sim r/k$ of the main GEMV; negligible at $r{=}8$,
-$k{=}1024$), or (c) re-quantise the merged $\hat{\Wmat}$ to Q4\_K\_M
-at rank $k$ via a second SVD pass and accept the merge-loss. Default
-recommendation is (b); (c) is reserved for the lowest-VRAM target
-where adapter storage matters.
+two cooperating mechanisms: a partial L2-cache fit at small $k$, and
+kernel fusion of three Q/K/V \texttt{gemv\_q4\_k} launches into a fused
+\texttt{gemv\_dual\_q8\_0} trio operating on $k$-dimensional
+intermediates. The fusion-viability condition is that the projected
+weights $\Wmat_X^\prime$ have rank $k$, with $k$ satisfying the cache
+budget $S(k) = 2dk + 2k^2 \le L_2$ on the target GPU.
+
+The merged weights $\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X$
+in general have rank $k+r$ (when $r \le m - k$). Three merge
+strategies are documented, and the runtime exposes a flag for each:
+
+\begin{description}
+\item[(a) Add-and-revert.] Treat $\hat{\Wmat}_X$ as a single
+      full-rank matrix. The fusion path reverts to three independent
+      \texttt{gemv\_q4\_k} launches, the cache-fit advantage is lost,
+      and Paper~A's $+6.27\%$ throughput gain reverts. This strategy
+      exists only as a debugging baseline and is never the default.
+\item[(b) Fused-base plus side-LoRA.] Keep $\Wmat_X^\prime$ on the
+      fused path and run $\Amat_X \Bmat_X$ as a separate small
+      matmul-add. The side path's GEMV cost is bounded above by
+      $r/k$ of the main GEMV (since both consume the same activation,
+      and the side path's output shape is $r$-then-$d$ versus the main
+      path's $d$-then-$d$). At $r{=}8, k{=}1024$ this is $0.78\%$
+      worst-case relative overhead, well below the noise floor of
+      Paper~A's headline measurement. This is the default strategy.
+\item[(c) Re-quantised SVD-folded merge.] Project $\hat{\Wmat}_X$
+      back to rank $k$ via a second SVD pass, accepting a
+      merge-loss equal to the bottom $r$ singular values of
+      $\hat{\Wmat}_X$. This strategy uses the lowest VRAM (no adapter
+      storage) but partially defeats the distillation. It is reserved
+      for the lowest-VRAM target and is not on the critical path of
+      this paper.
+\end{description}
+
+The default merge strategy (b) means that the same model object can
+be loaded under either GRC alone or distilled GRC; the distilled
+correction is opt-in at runtime as well as at build time.
+
+\section{Falsifiable predictions}
+\label{sec:predictions}
+
+The Phase~2 run will produce numbers; the run is informative only if we
+specify in advance what numbers would refute the protocol. Three
+predictions are stated here; each can be falsified independently.
+
+\begin{description}
+\item[P1: Bound is tight to within an order of magnitude.]
+We predict that the empirical PPL-gap closure at $k{=}1024, r{=}8$ on
+WikiText-2 will satisfy $0.1\rho \le \text{closure}/\text{gap} \le 1.0$,
+where $\rho$ is the recoverable-energy ratio of \Cref{sec:gapbound}.
+Refutation: empirical closure outside this band. Two failure modes are
+informative: closure $<0.1\rho$ flags optimiser or corpus pathology;
+closure $>1.0$ flags task leakage from WikiText-2 calibration to
+WikiText-2 evaluation, in which case we will switch to a held-out
+calibration corpus.
+
+\item[P2: Throughput is preserved under merge strategy (b).]
+We predict that distilled GRC at $k{=}1024, r{=}8$ measured under
+strategy~(b) will satisfy $\text{thr} / \text{thr}_{\text{GRC}} \in [0.99, 1.01]$,
+that is, the side-LoRA overhead is below the noise floor of the
+$n{=}8$ paired bootstrap protocol. Refutation: a measured ratio outside
+that band, in which case strategy (a) or (c) is preferred and the
+paper recommends a different default. The throughput baseline for
+this comparison is Paper~A's GRC, not the uncompressed model.
+
+\item[P3: Sink-channel exemption and distillation are at least
+partly orthogonal.] We predict that the PPL achieved by distilled
+GRC with sink-aware exemption ($T{=}32$, $r{=}8$, $k{=}1024$) is
+strictly lower than the PPL of either lever applied alone.
+Refutation: a measured PPL that is no better than the better of the
+two single-lever ablations. This would indicate that the LoRA fit is
+already absorbing the high-magnitude sink channels and that explicit
+exemption adds only redundancy.
+\end{description}
+
+A single Phase~2 run produces evidence on all three predictions
+simultaneously; the run is therefore worth the GPU budget regardless of
+which way the predictions break.
+
+\section{Empirical protocol}
+\label{sec:status}
+
+\subsection{Done}
+\begin{itemize}
+\item Phase~1 reference implementation. CPU-only NumPy
+      runner in \texttt{scripts/grc\_distill.py}; reproduces Paper~A's
+      GRC numbers when invoked with \texttt{--rank K} and no
+      \texttt{--distill} flag. Expected wall clock: $60$ to $120$~s on
+      a Ryzen~9~7940HS.
+\item Sink-channel pilot. Calibration-free top-$T$ exemption,
+      reported in Paper~A Table~6 / \texttt{sink\_channel\_pilot.json}.
+      Result: $1$ to $3\%$ relative reconstruction-error improvement at
+      $k\in\{512,1024,1536\}$, $T{=}32$. The lever is small and
+      orthogonal in this measure (see P3).
+\item Spectral diagnostics. The recoverable-energy ratio
+      $\rho$ defined in \Cref{sec:gapbound}, computed in
+      \texttt{scripts/grc\_distill.py --print-rho}, value
+      $\rho{\approx}0.42$ at $k{=}1024, r{=}8$.
+\end{itemize}
+
+\subsection{Pending: Phase~2 PyTorch runner}
+Requires a GPU host with at least $24$~GB VRAM to hold the teacher in
+BF16 with gradient activations on for the student. Reference targets:
+EC2 \texttt{g5.xlarge} (A10G $24$~GB), \texttt{g6.xlarge} (L4 $24$~GB),
+or \texttt{p4d.24xlarge} (A100 $40$~GB). Estimated wall clock per run
+at the default schedule: $30$ to $60$~min on A100; $60$ to $120$~min on
+A10G.
+
+\subsection{Pending: Empirical numbers}
+The numbers below are predictions, not measurements. They will be
+replaced once the Phase~2 runner has executed; until then the abstract
+flags this section as scaffolded.
+
+\begin{enumerate}
+\item Vanilla GRC at $k{=}1024$: $+13.30\%$ PPL (Paper~A baseline,
+      measured).
+\item Sink-aware GRC at $k{=}1024$, $T{=}32$: predicted
+      $+12.5\%$ to $+13.0\%$ PPL.
+\item Distilled GRC at $k{=}1024$, $r{=}8$, $5{,}000$-token corpus:
+      target $+5\%$ to $+8\%$ PPL ($50$ to $60\%$ gap closure, in
+      keeping with $\rho{\approx}0.42$ and assuming the optimiser
+      finds about half of the recoverable bound).
+\item Distilled sink-aware GRC at $k{=}1024$, $T{=}32$, $r{=}8$:
+      target $+3\%$ to $+5\%$ PPL.
+\end{enumerate}
+
+\subsection{Pending: Throughput re-measurement}
+Hypothesis: throughput is unchanged from vanilla GRC under merge
+strategy (b), per P2. The measurement will use the same $n{=}8$ paired
+bootstrap protocol as Paper~A on the same RTX~4070 Laptop. If the
+measurement contradicts the hypothesis, that is the result.
+
+\section{Threat model and limitations}
+\label{sec:limits}
+
+\subsection{What the Phase~2 run will not establish}
+\begin{itemize}
+\item Generalisation beyond WikiText-2. A single calibration corpus is
+      not representative of all decoding workloads. The bound of
+      \Cref{sec:gapbound} is corpus-conditional; the recoverable energy
+      $\rho$ measured against WikiText-2 activations may differ from
+      $\rho$ on a code corpus, a chat corpus, or a mathematical-reasoning
+      corpus. Generalisation across corpora is out of scope of the
+      Phase~2 run and is flagged for follow-up.
+\item Generalisation beyond Llama-3.1-8B. The architecture
+      assumptions (GQA \cite{ainslie2023gqa}, RoPE, $d{=}4096, L{=}32$)
+      are baked into the trainable-parameter calculation. The
+      cross-model SmolLM2 transfer check from Paper~A applies to the
+      projection step, not the distillation step.
+\item Generalisation beyond Q4\_K\_M. Re-quantisation determinism is
+      assumed; the measured PPL after Phase~3 includes a
+      re-quantisation noise term that we do not characterise.
+\end{itemize}
+
+\subsection{Implementation hazards}
+\begin{itemize}
+\item Teacher logits at FP16 are not bit-exact across hardware. The
+      student trains against the teacher run on the exact same hardware
+      (a single A10G or A100 instance). Cross-instance teacher caching
+      is therefore unsafe and is disabled in the runner.
+\item The LoRA fit is sensitive to the AdamW $\beta_2$ default
+      ($0.999$) at this corpus size; we use $\beta_2{=}0.95$ following
+      QLoRA \cite{dettmers2023qlora} guidance to suppress the rare
+      large-update regime.
+\item Sink channels behave non-linearly under the LoRA fit if the
+      fit is not warmstarted. We initialise $\Bmat_X$ to zero (so the
+      adapter is identity at step $0$) and warmstart for $100$ steps
+      before turning on the LoRA path, following standard LoRA
+      practice.
+\end{itemize}
 
 \section{Reproducibility}
 \label{sec:repro}
 
-The reference Phase-1 code lives in
-\texttt{scripts/analysis/sink\_channel\_grc.py} and
-\texttt{scripts/grc\_distill.py}. The Phase-2 runner will live in
-\texttt{scripts/grc\_distill\_runner.py} (PyTorch + transformers) and
-the EC2 driver in \texttt{scripts/ec2\_paperE\_distill/}. A complete
-empirical reproduction will be published alongside the populated
-results once the runner has executed.
+The Phase~1 reference is in \texttt{scripts/grc\_distill.py}. The
+Phase~2 runner will live in \texttt{scripts/grc\_distill\_runner.py};
+the EC2 driver in \texttt{scripts/ec2\_paperE\_distill/}. The companion
+reproduction guide on the project site walks through CPU-only and GPU
+paths step-by-step (see
+\url{https://nagusamecs.github.io/HyperTensor/research/repro/paper-e.html}).
+The pre-built W\_proj caches from Paper~A are published as GitHub
+Releases under the \texttt{wproj-cache-*} tag prefix and serve as the
+starting point for any Phase~2 run, eliminating the calibration-free
+projection step from the wall-clock budget.
+
+A complete empirical reproduction will be published alongside the
+populated results once the runner has executed. The protocol, the
+predictions, and the bound in \Cref{sec:gapbound} are checked in now,
+before the run, so that the run cannot retroactively become a
+post-hoc rationalisation.
 
 \printbibliography
 

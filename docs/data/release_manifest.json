@@ -1,104 +1,51 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "generated": "2026-04-29",
-  "description": "Manifest of GitHub Releases for HyperTensor pre-computed model artefacts. Each entry is a release tag on github.com/NagusameCS/HyperTensor with cache files attached.",
-  "releases": [
-    {
-      "tag": "grc-cache-llama31-8b-q4km-k1024",
-      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1024",
-      "category": "GRC W_proj cache",
-      "asset_filename": "ott_wproj_cache_2405A3B6.bin",
-      "asset_sha256_local": "TBD",
-      "asset_size_bytes_local": 1145778176,
-      "asset_size_mb_local": 1092.7,
-      "base_model": {
-        "name": "Meta-Llama-3.1-8B-Instruct",
-        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-        "quantisation": "Q4_K_M",
-        "size_gb": 4.583
-      },
-      "rank_k": 1024,
-      "calibration_time_seconds_skipped": 90,
-      "vram_at_decode_mib": 6731,
-      "vram_delta_vs_baseline_mib": 36,
-      "host_ram_required_mib": 8192,
-      "min_compute_capability": "sm_80",
-      "geodessical_runtime_min": "2026-04-25",
-      "performance_notes": "Super-baseline configuration: 106.27% of baseline decode throughput at +61.4% perplexity; throughput-quality trade-off, see Paper A Sec 4.",
-      "doi": null
+  "description": "Manifest of GitHub Releases for HyperTensor pre-computed W_proj caches. Each cache is keyed by its 8-character hex tag (the low bytes of cache_key). Released as one tag per cache so users can grab only the (model, rank, build) combination they need. The runtime auto-loads any matching ott_wproj_cache_*.bin in the working directory.",
+  "host_capabilities": {
+    "max_asset_size_bytes": 2147483648,
+    "all_assets_under_cap": true,
+    "total_mb": 6510
+  },
+  "format_notes": {
+    "magic": "0x3130564A4F525057 (WPROJV01)",
+    "header_layout": "uint64 magic; uint64 cache_key; int32 n_layers; int32 which; int32 n; int32 _pad; then per-layer (int32 k_l, int32 has_mu, int32 has_mean, int32 _pad, then float32 Pt[k_l*n], optional mu_proj[k_l], optional mean_n[n]); then per-(layer,slot) W_proj records.",
+    "source": "runtime/nn/axiom_exploit.c, AXEX_WPROJ_MAGIC",
+    "k_per_layer_may_vary": true
+  },
+  "models": {
+    "llama31_8b_q4km": {
+      "n_in": 4096,
+      "n_layers": 32,
+      "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+      "quantisation": "Q4_K_M",
+      "size_gb": 4.583
     },
-    {
-      "tag": "grc-cache-llama31-8b-q4km-k1536",
-      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 (headline)",
-      "category": "GRC W_proj cache",
-      "asset_filename": "ott_wproj_cache_7CC1AFB6.bin",
-      "asset_sha256_local": "TBD",
-      "asset_size_bytes_local": 1145778176,
-      "asset_size_mb_local": 1092.7,
-      "base_model": {
-        "name": "Meta-Llama-3.1-8B-Instruct",
-        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-        "quantisation": "Q4_K_M",
-        "size_gb": 4.583
-      },
-      "rank_k": 1536,
-      "calibration_time_seconds_skipped": 110,
-      "vram_at_decode_mib": 6731,
-      "vram_delta_vs_baseline_mib": 36,
-      "host_ram_required_mib": 8192,
-      "min_compute_capability": "sm_80",
-      "geodessical_runtime_min": "2026-04-25",
-      "performance_notes": "Headline config: throughput indistinguishable from baseline (97.55%, p=0.48) at +13.30% perplexity (6.79 -> 7.69).",
-      "doi": null
-    },
-    {
-      "tag": "grc-cache-llama31-8b-q4km-k1280",
-      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1280",
-      "category": "GRC W_proj cache",
-      "asset_filename": "ott_wproj_cache_D4DB0E08.bin",
-      "asset_sha256_local": "TBD",
-      "asset_size_bytes_local": 1372192768,
-      "asset_size_mb_local": 1308.7,
-      "base_model": {
-        "name": "Meta-Llama-3.1-8B-Instruct",
-        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-        "quantisation": "Q4_K_M",
-        "size_gb": 4.583
-      },
-      "rank_k": 1280,
-      "performance_notes": "Intermediate rank used in the multi-k NCU sweep (Paper A Sec sec:falsification). Not on the headline path."
-    },
-    {
-      "tag": "grc-cache-smollm2-135m-k512",
-      "title": "SmolLM2-135M-Instruct Q8_0, GRC k=512",
-      "category": "GRC W_proj cache",
-      "asset_filename": "ott_wproj_cache_FFBC2BB6.bin",
-      "asset_sha256_local": "TBD",
-      "asset_size_bytes_local": 763788288,
-      "asset_size_mb_local": 728.6,
-      "base_model": {
-        "name": "SmolLM2-135M-Instruct",
-        "huggingface_repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
-        "quantisation": "Q8_0",
-        "size_gb": 0.135
-      },
-      "rank_k": 512,
-      "performance_notes": "Cross-model transfer check: 1.45x decode ratio vs uncompressed (Paper A sec:cross-model)."
-    },
-    {
-      "tag": "ott-cache-llama31-8b-q4km",
-      "title": "Llama-3.1-8B-Instruct Q4_K_M, OTT hidden-state warm-start",
-      "category": "OTT runtime cache",
-      "asset_filename": "ott_hs_cache_*.bin",
-      "asset_size_mb_local": 1024,
-      "rank_k": null,
-      "performance_notes": "Pre-warmed one-decode hidden state for OTT/GTC verifier. Used by Paper D speculative decoding warm-start."
+    "smollm2_135m_q8": {
+      "n_in": 576,
+      "n_layers": 30,
+      "huggingface_repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+      "quantisation": "Q8_0",
+      "size_gb": 0.135
     }
+  },
+  "releases": [
+    {"tag": "wproj-cache-2405A3B6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=1536 (build 2405A3B6)", "asset_filename": "ott_wproj_cache_2405A3B6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 1536, "size_mb": 1092.7, "performance_notes": "Headline-rank build. Throughput indistinguishable from baseline at +13.30% PPL (Paper A Sec 4)."},
+    {"tag": "wproj-cache-7CC1AFB6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=1536 (build 7CC1AFB6)", "asset_filename": "ott_wproj_cache_7CC1AFB6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 1536, "size_mb": 1092.7, "performance_notes": "Sibling build of the headline configuration. Identical layer-0 rank to 2405A3B6; included for the basis-build determinism check."},
+    {"tag": "wproj-cache-D4DB0E08", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=1536 heavier (build D4DB0E08)", "asset_filename": "ott_wproj_cache_D4DB0E08.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 1536, "size_mb": 1308.7, "performance_notes": "Same layer-0 rank as the headline twins but 20% larger on disk: per-layer k distribution skews to deeper layers."},
+    {"tag": "wproj-cache-626D1BB6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=2048 (build 626D1BB6)", "asset_filename": "ott_wproj_cache_626D1BB6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 2048, "size_mb": 1456.8, "performance_notes": "Quality-leaning rank. Above the L2-fit threshold for the 4070 (32 MB cache) so the cache-fit hypothesis predicts a hit-rate cliff here; see Paper A Sec falsification."},
+    {"tag": "wproj-cache-FFBC2BB6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=1024 (build FFBC2BB6)", "asset_filename": "ott_wproj_cache_FFBC2BB6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 1024, "size_mb": 728.6, "performance_notes": "Super-baseline configuration: 106.27% of baseline decode throughput at +61.4% PPL (Paper A Sec 4)."},
+    {"tag": "wproj-cache-0A2337F6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=256 (build 0A2337F6)", "asset_filename": "ott_wproj_cache_0A2337F6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 256, "size_mb": 182.5, "performance_notes": "Aggressive compression. Useful as a low-rank end-point for the rank-vs-PPL sweep."},
+    {"tag": "wproj-cache-199911F6", "title": "GRC W_proj cache: Llama-3.1-8B Q4_K_M, k=128 (build 199911F6)", "asset_filename": "ott_wproj_cache_199911F6.bin", "model_id": "llama31_8b_q4km", "rank_layer0": 128, "size_mb": 91.5, "performance_notes": "Floor of the rank sweep. Quality is severely degraded; included only for the spectrum-decay plot."},
+    {"tag": "wproj-cache-3C2C89D7", "title": "GRC W_proj cache: SmolLM2-135M Q8_0, k=512 (build 3C2C89D7)", "asset_filename": "ott_wproj_cache_3C2C89D7.bin", "model_id": "smollm2_135m_q8", "rank_layer0": 512, "size_mb": 59.2, "performance_notes": "Cross-model transfer pilot. SmolLM2 has n_in=576, so k=512 is near-rank."},
+    {"tag": "wproj-cache-A402C8CC", "title": "GRC W_proj cache: SmolLM2-135M Q8_0, k=512 (build A402C8CC)", "asset_filename": "ott_wproj_cache_A402C8CC.bin", "model_id": "smollm2_135m_q8", "rank_layer0": 512, "size_mb": 49.7, "performance_notes": "Sibling SmolLM2 k=512 build with a different per-layer rank distribution."},
+    {"tag": "wproj-cache-EB866869", "title": "GRC W_proj cache: SmolLM2-135M Q8_0, k=256 (build EB866869)", "asset_filename": "ott_wproj_cache_EB866869.bin", "model_id": "smollm2_135m_q8", "rank_layer0": 256, "size_mb": 24.9, "performance_notes": "Mid-rank SmolLM2 build (Paper A reports 1.45x decode ratio at this configuration)."}
   ],
-  "notes": [
-    "asset_sha256_local fields are placeholders; the actual SHA256 is computed at upload time via scripts/paperA_proof/publish_releases.ps1 and recorded against the release asset on GitHub.",
-    "Each release page on github.com/NagusameCS/HyperTensor/releases includes the SHA256, exact base-model commit hash, rank, peak VRAM during build, peak VRAM during decode, build time, runtime version, and binary commit hash.",
-    "The cache file format is documented in runtime/nn/axiom_exploit.c (search for AXEX_WPROJ_MAGIC, value 0x3130564A4F525057).",
-    "To use a released cache: download the .bin, place it in the working directory of geodessical, and the runtime will load it automatically on the next compatible (--axex-compress --axex-compress-rank K) invocation."
+  "use_instructions": [
+    "Download the .bin file for the (model, rank) combination you need.",
+    "Place it in the working directory of geodessical (cwd, not next to the GGUF).",
+    "Run with --axex-compress --axex-attn-only --axex-weight-pca --axex-compress-rank K.",
+    "On startup the runtime computes the cache_key over (model hash, rank, slot config) and tries to load any ott_wproj_cache_*.bin whose 8-byte cache_key matches. Calibration is then skipped.",
+    "If the cache_key does not match, the runtime falls back to first-run calibration and writes a new ott_wproj_cache_<HEX>.bin that you can upload as a fresh release."
   ]
 }
