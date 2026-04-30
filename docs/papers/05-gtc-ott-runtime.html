@@ -46,7 +46,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     anchors the OTT runtime end-to-end on SmolLM2-135M-Instruct.
   </p>
   <div class="hero-meta">
-    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    By William Ken Ohara Stewart (NagusameCS) &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
   </div>
   <div class="hero-stats">
@@ -81,7 +81,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <div class="callout-title">Scope ,  read first</div>
     <p>
       Paper&nbsp;4 introduced Organic Training Theory (OTT) and Geodesic Trajectory
-      Caching (GTC) as a <em>theoretical framework</em>. This paper is the
+      Caching (GTC) as a theoretical framework. This paper is the
       empirical companion. It does three things:
     </p>
     <ol>
@@ -90,13 +90,13 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         Jacobi resonance, and a compressed record store with measured numbers.</li>
       <li>Anchors the OTT runtime: the C host binary
         <code>geodessical.exe</code> reaches <code>status=geodesic_ready</code>
-        with <strong>38.5% acceptance</strong> and <strong>76.5&nbsp;tok/s</strong>
+        with 38.5% acceptance and 76.5&nbsp;tok/s
         end-to-end on SmolLM2-135M-Instruct.</li>
       <li>Maps Paper&nbsp;4's claim list onto measured / partial / open buckets so
         that a reader can see exactly how done the program is.</li>
     </ol>
     <p>
-      <strong>This paper is not yet a 90%-acceptance paper.</strong> It documents
+      This paper is not yet a 90%-acceptance paper. It documents
       the path to that target and the two specific blockers (a hung
       <code>--ott-perfect</code> rollout and a non-zero-exit
       <code>--ott-swarm-k</code>) that prevent it on this revision. Honest scope:
@@ -117,13 +117,13 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       the geodesic ODE, compute the Riemann tensor and Magnus-3 Jacobi propagator
       $\Phi(\lambda)$, and benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
       and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
-      <strong>90.4–91.5%</strong> across all three scales (scale-invariant within
+      90.4–91.5% across all three scales (scale-invariant within
       $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
       and $60\times$ at $B=10{,}000$</strong> with reconstruction error sitting at
       the float64 roundoff floor. The compressed record store persists at
-      <strong>5.96&nbsp;KB/record</strong>, with rank-5 propagator truncation
+      5.96&nbsp;KB/record, with rank-5 propagator truncation
       exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
-      <strong>30.9&nbsp;µs/query</strong> ,  about $160\times$ under the
+      30.9&nbsp;µs/query ,  about $160\times$ under the
       Paper&nbsp;4 budget. The OTT speculative path on the C runtime closes the
       loop end to end: <code>geodesic_ready</code> at 38.5% acceptance and
       76.5&nbsp;tok/s on SmolLM2-135M-Instruct. We document the
@@ -152,7 +152,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     The specific question this paper closes: <em>given the Paper&nbsp;4 framework,
     do the local-geometry primitives behave the way the framework predicts when
     fitted on real LM clouds, and does the runtime that uses them produce a
-    measurable acceleration?</em> Both answers are now <strong>yes</strong>, with
+    measurable acceleration?</em> Both answers are now yes, with
     the qualifications below.
   </p>
 </section>
@@ -208,9 +208,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <table>
       <thead><tr><th>Model</th><th>Params</th><th>$k=6$ (10%)</th><th>$k=16$ (25%)</th><th>$k=32$ (50%)</th><th>$k=48$ (75%)</th></tr></thead>
       <tbody>
-        <tr><td>SmolLM2-135M</td><td class="num">135M</td><td class="num">58.6%</td><td class="num"><strong>91.0%</strong></td><td class="num">99.8%</td><td class="num">100.0%</td></tr>
-        <tr><td>Phi-3.5-mini</td><td class="num">3.8B</td><td class="num">55.5%</td><td class="num"><strong>90.4%</strong></td><td class="num">98.2%</td><td class="num">100.0%</td></tr>
-        <tr><td>Gemma-4-E2B</td><td class="num">4.5B</td><td class="num">58.7%</td><td class="num"><strong>91.5%</strong></td><td class="num">99.6%</td><td class="num">100.0%</td></tr>
+        <tr><td>SmolLM2-135M</td><td class="num">135M</td><td class="num">58.6%</td><td class="num">91.0%</td><td class="num">99.8%</td><td class="num">100.0%</td></tr>
+        <tr><td>Phi-3.5-mini</td><td class="num">3.8B</td><td class="num">55.5%</td><td class="num">90.4%</td><td class="num">98.2%</td><td class="num">100.0%</td></tr>
+        <tr><td>Gemma-4-E2B</td><td class="num">4.5B</td><td class="num">58.7%</td><td class="num">91.5%</td><td class="num">99.6%</td><td class="num">100.0%</td></tr>
       </tbody>
     </table>
   </div>
@@ -247,10 +247,10 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       <thead><tr><th>Batch $B$</th><th>Sequential (ms)</th><th>Batched (ms)</th><th>Speedup</th><th>µs/query</th><th>rel. error</th></tr></thead>
       <tbody>
         <tr><td class="num">1</td><td class="num">0.015</td><td class="num">0.001</td><td class="num">14.6$\times$</td><td class="num">1.000</td><td class="num">0</td></tr>
-        <tr><td class="num">10</td><td class="num">0.411</td><td class="num">0.004</td><td class="num"><strong>97.9$\times$</strong></td><td class="num">0.420</td><td class="num">1.1e&minus;16</td></tr>
+        <tr><td class="num">10</td><td class="num">0.411</td><td class="num">0.004</td><td class="num">97.9$\times$</td><td class="num">0.420</td><td class="num">1.1e&minus;16</td></tr>
         <tr><td class="num">100</td><td class="num">0.167</td><td class="num">0.006</td><td class="num">27.4$\times$</td><td class="num">0.061</td><td class="num">1.2e&minus;16</td></tr>
         <tr><td class="num">1 000</td><td class="num">1.143</td><td class="num">0.026</td><td class="num">44.5$\times$</td><td class="num">0.026</td><td class="num">1.2e&minus;16</td></tr>
-        <tr><td class="num">10 000</td><td class="num">11.100</td><td class="num">0.185</td><td class="num"><strong>60.0$\times$</strong></td><td class="num">0.0185</td><td class="num">1.2e&minus;16</td></tr>
+        <tr><td class="num">10 000</td><td class="num">11.100</td><td class="num">0.185</td><td class="num">60.0$\times$</td><td class="num">0.0185</td><td class="num">1.2e&minus;16</td></tr>
       </tbody>
     </table>
   </div>
@@ -275,7 +275,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     and the terminal logits. Naive storage would be hundreds of KB per record.
     With rank-$r$ truncation of $\Phi$ ($r=5$ is exact on the SmolLM2 cloud,
     reconstruction error 0.0) and waypoint subsampling, persisted records reach
-    <strong>5.96&nbsp;KB</strong> ,  roughly an order of magnitude under
+    5.96&nbsp;KB ,  roughly an order of magnitude under
     the Paper&nbsp;4 target of 50&ndash;80&nbsp;KB.
   </p>
   <div class="table-wrap">
@@ -284,11 +284,11 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       <tbody>
         <tr><td>Records persisted</td><td class="num">24</td><td>, </td></tr>
         <tr><td>Total <code>.npz</code> size</td><td class="num">143.0 KB</td><td>, </td></tr>
-        <tr><td>Per-record size</td><td class="num"><strong>5.96 KB</strong></td><td class="num">50&ndash;80 KB</td></tr>
+        <tr><td>Per-record size</td><td class="num">5.96 KB</td><td class="num">50&ndash;80 KB</td></tr>
         <tr><td>Rank-5 $\Phi$ reconstruction error</td><td class="num">0.0</td><td>"rank $\approx 5$ is sufficient"</td></tr>
         <tr><td>Build wall-clock (24 records, $k=8$)</td><td class="num">6.087 s</td><td>, </td></tr>
         <tr><td>Two-stage lookup (1 000 queries)</td><td class="num">31 ms total</td><td>&lt; 5 ms/query</td></tr>
-        <tr><td>Per-query lookup latency</td><td class="num"><strong>30.9 µs</strong></td><td class="num">&lt; 5 ms ($\sim\!160\times$ under)</td></tr>
+        <tr><td>Per-query lookup latency</td><td class="num">30.9 µs</td><td class="num">&lt; 5 ms ($\sim\!160\times$ under)</td></tr>
       </tbody>
     </table>
   </div>
@@ -306,7 +306,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     $\rho = 0.4$ on a held-out cloud. Lookup is high; correction is not
     trusted at that anchor density. The dense local benchmark
     (<a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/smollm2-135m_decode_substitution_dense.json"><code>smollm2-135m_decode_substitution_dense.json</code></a>)
-    sampled <em>inside</em> $\rho$ confirms the mechanism is valid:
+    sampled inside $\rho$ confirms the mechanism is valid:
     $1.43 \times 10^{-7}$ mean relative error and $158\times$ speedup over a
     full geodesic step at $\rho = 0.4$. The blocker is cloud density, not
     Jacobi quality.
@@ -344,7 +344,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </p>
   <h3 id="egp">6.1, The instruct-greedy-EOS pathology</h3>
   <p>
-    Earlier integrations of the speculative loop returned <em>zero tokens</em>
+    Earlier integrations of the speculative loop returned zero tokens
     against this instruct model. The cause: the verifier's argmax at position 0
     (and at several subsequent positions) is the EOS token. A standard
     speculative loop sees an EOS draft and exits. Earlier speculative-decoding
@@ -354,7 +354,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </p>
   <p>
     The fix shipped in this runtime is a small primitive we call
-    <strong>logit-excluding top-1</strong>:
+    logit-excluding top-1:
   </p>
 <pre><code>// runtime/nn/llm.h
 int llm_topk_excluding(const int *exclude, int n_exclude);
@@ -429,12 +429,12 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
         <tr><td>Batch matmul $\equiv$ sequential (Test 1c)</td><td>$1.2\!\times\!10^{-16}$ rec. err.</td><td>§<a href="#resonance">4</a></td></tr>
         <tr><td>Batch $B$=10/100/1000 speedups (Tests 4a&ndash;4c)</td><td>$97\times$, $27\times$, $44\times$</td><td>§<a href="#resonance">4</a></td></tr>
         <tr><td>Two-stage FAISS+geodesic lookup (Algorithm 1)</td><td>30.9 µs/q</td><td>§<a href="#store">5</a></td></tr>
-        <tr><td>Compressed record store (~50&ndash;80 KB target)</td><td><strong>5.96 KB</strong> at $k{=}8$</td><td>§<a href="#store">5</a></td></tr>
+        <tr><td>Compressed record store (~50&ndash;80 KB target)</td><td>5.96 KB at $k{=}8$</td><td>§<a href="#store">5</a></td></tr>
         <tr><td>Scaling: SmolLM2 → Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
         <tr><td>Validity / injectivity radius $\rho$ scaling</td><td>$&lt; 0.1\%$ err to $\varepsilon=5.0$</td><td><code>smollm2-135m_validity_radius.json</code></td></tr>
         <tr><td>OTT locality of curvature warp (Test 5a)</td><td>ratio $7\!\times\!10^{11}$, decays to 0 at 20$\sigma$</td><td>implicit in <code>manifold.py</code> smoothing</td></tr>
         <tr><td>OTT runtime end-to-end (live decode replacement)</td><td>partial: $\alpha = 0.385$, $1.53\times$, density-gated for direct correction</td><td>§<a href="#ott-runtime">6</a></td></tr>
-        <tr><td>Knowledge-injection curvature warp delivers redirection</td><td><strong>negative</strong>: best gain 2.24%, 0/32 pass</td><td><code>docs/figures/curvature_warp/</code></td></tr>
+        <tr><td>Knowledge-injection curvature warp delivers redirection</td><td>negative: best gain 2.24%, 0/32 pass</td><td><code>docs/figures/curvature_warp/</code></td></tr>
         <tr><td>AttnRes block-summary integration (§6)</td><td>prototype: block-end Jacobi err 1.29%, simplex blend 11.4%</td><td><code>smollm2-135m_attnres_integration.json</code></td></tr>
         <tr><td>Diffeomorphism $\phi$ construction (§11.1)</td><td>resolved for OTT deployment family via certificates</td><td><code>data/decisions.json</code>, Paper 4 §0.5</td></tr>
         <tr><td>Geodesic initial velocity $v_0$ (§11.2)</td><td>universal closed form open; deployable Christoffel surrogate exists</td><td><code>runtime/nn/axiom_beta.c</code></td></tr>
@@ -455,16 +455,16 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   <span class="section-num">§8, What is genuinely new here</span>
   <h2>Three small contributions</h2>
   <ol>
-    <li><strong>Logit-excluding top-1 with min-response guard</strong> for
+    <li>Logit-excluding top-1 with min-response guard for
         instruct-tuned drafters in speculative decoding. Closes the
         instruct-greedy-EOS failure mode without forward-pass overhead. We are
         not aware of a published treatment in the existing
         speculative-decoding literature. §<a href="#egp">6.1</a>.</li>
-    <li><strong>Geometry-cache consistency-equivalence rule</strong> for OTT
+    <li>Geometry-cache consistency-equivalence rule for OTT
         readiness gating: <code>reused_geometry_cache</code> implies
         $\text{consistency}=1$ under fixed-manifold reuse. §<a
         href="#cache-consistency">6.2</a>.</li>
-    <li><strong>Empirical scale-invariance of cache coverage</strong> across a
+    <li>Empirical scale-invariance of cache coverage across a
         $33\times$ parameter range at fixed sample budget. The Paper&nbsp;4
         analytic argument made this prediction; this is its first measurement
         on real LM clouds at three scales. §<a href="#coverage">3</a>.</li>
@@ -538,7 +538,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   </p>
   <ol>
     <li>
-      <strong>Intrinsic dimension of LM activations.</strong> The
+      Intrinsic dimension of LM activations. The
       $k\approx30$–$50$ fits in §<a href="#coverage">3</a> are consistent
       with TwoNN/PCA intrinsic-dim estimates on transformers
       (Razzhigaev&nbsp;et&nbsp;al. 2023; Cai&nbsp;et&nbsp;al. 2021) and the
@@ -550,7 +550,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       observation.
     </li>
     <li>
-      <strong>Speculative decoding.</strong> The OTT runtime anchor
+      Speculative decoding. The OTT runtime anchor
       ($\alpha=0.385$, 76.5&nbsp;tok/s) sits in the speculative-decoding
       family (Leviathan&nbsp;et&nbsp;al. 2023; Chen&nbsp;et&nbsp;al. 2023;
       Medusa, EAGLE). The compositional question, what changes when the
@@ -561,7 +561,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       lookup cost (30.9&nbsp;µs).
     </li>
     <li>
-      <strong>Trajectory libraries and Jacobi-field methods.</strong> The
+      Trajectory libraries and Jacobi-field methods. The
       compressed record store in §<a href="#store">5</a> is the closest
       thing in this paper to outside-LM literature: Jacobi-field-based
       transport is standard in computational geometry and physics
@@ -573,8 +573,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       v0.2.
     </li>
     <li>
-      <strong>Block-summary curvature.</strong> The connection to
-      Kimi&nbsp;Team's <em>Block Attention Residuals</em> is read in this
+      Block-summary curvature. The connection to
+      Kimi&nbsp;Team's Block Attention Residuals is read in this
       site as: AttnRes weights are interpretable as geodesic-segment
       selection on $\mathcal{M}_\theta$
       (<a href="04-organic-training-theory.html#attnres">Paper&nbsp;4 §3</a>),
@@ -607,14 +607,14 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   <span class="section-num">§11, References</span>
   <h2>Selected refs</h2>
   <ol>
-    <li>Stewart, W. K. O., <em>Organic Training Theory and Geodesic Trajectory Caching</em>, this site, Paper 4, 2026.</li>
-    <li>Stewart, W. K. O., <em>Composing Compression: Geodesic Speculative Decoding and Attention Residuals</em>, this site, Paper 3 v0.3, 2026.</li>
-    <li>Leviathan, Y., Kalman, M., and Matias, Y., <em>Fast Inference from Transformers via Speculative Decoding</em>, ICML 2023.</li>
-    <li>Chen, C., Borgeaud, S., et al., <em>Accelerating Large Language Model Decoding with Speculative Sampling</em>, arXiv:2302.01318, 2023.</li>
-    <li>Cai, T. et al., <em>Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads</em>, 2024.</li>
-    <li>Li, Y. et al., <em>EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty</em>, 2024.</li>
-    <li>Kimi Team, <em>Block Attention Residuals</em>, arXiv:2603.15031, 2026.</li>
-    <li>Magnus, W., <em>On the exponential solution of differential equations for a linear operator</em>, Comm. Pure Appl. Math., 1954.</li>
+    <li>Stewart, W. K. O., Organic Training Theory and Geodesic Trajectory Caching, this site, Paper 4, 2026.</li>
+    <li>Stewart, W. K. O., Composing Compression: Geodesic Speculative Decoding and Attention Residuals, this site, Paper 3 v0.3, 2026.</li>
+    <li>Leviathan, Y., Kalman, M., and Matias, Y., Fast Inference from Transformers via Speculative Decoding, ICML 2023.</li>
+    <li>Chen, C., Borgeaud, S., et al., Accelerating Large Language Model Decoding with Speculative Sampling, arXiv:2302.01318, 2023.</li>
+    <li>Cai, T. et al., Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads, 2024.</li>
+    <li>Li, Y. et al., EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty, 2024.</li>
+    <li>Kimi Team, Block Attention Residuals, arXiv:2603.15031, 2026.</li>
+    <li>Magnus, W., On the exponential solution of differential equations for a linear operator, Comm. Pure Appl. Math., 1954.</li>
   </ol>
 </section>
 

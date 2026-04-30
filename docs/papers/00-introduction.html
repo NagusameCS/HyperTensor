@@ -93,7 +93,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <div class="tag">Article &middot; Background reading</div>
   <h1>An Introduction to the HyperTensor Papers</h1>
   <p class="meta">A long-form explanation of every concept needed to read the four papers, written for someone with no prior background.<br>
-  By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot; 2026</p>
+  By William Ken Ohara Stewart (NagusameCS) &middot; 2026</p>
 </header>
 
 <main>
@@ -118,7 +118,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </div>
 
   <div class="toc">
-    <strong>Contents</strong>
+    Contents
     <ol>
       <li><a href="#numbers">From numbers to tensors</a></li>
       <li><a href="#nets">What a neural network actually is</a></li>
@@ -147,11 +147,11 @@ footer a { color: var(--blue); text-decoration: none; }
     numbers. The art is in keeping track of how the numbers are arranged.
   </p>
   <p>
-    A single number, like $3.14$ or $-7$, is called a <strong>scalar</strong>. A list
-    of numbers in a row, like $(1, 2, 3, 4)$, is called a <strong>vector</strong>. A
-    grid of numbers with rows and columns is a <strong>matrix</strong>. If you stack
+    A single number, like $3.14$ or $-7$, is called a scalar. A list
+    of numbers in a row, like $(1, 2, 3, 4)$, is called a vector. A
+    grid of numbers with rows and columns is a matrix. If you stack
     many matrices, like the pages of a book, you get a three-dimensional grid; that is
-    a <strong>tensor</strong>. The word "tensor" is just a generalisation of "number,
+    a tensor. The word "tensor" is just a generalisation of "number,
     list, table" to any number of dimensions, and the word "HyperTensor" in the project
     name is a nod to this: the whole field is the study of how to keep large
     arrangements of numbers from getting in their own way.
@@ -160,7 +160,7 @@ footer a { color: var(--blue); text-decoration: none; }
     A typical large language model holds a few thousand tensors at the same time. The
     biggest of them are matrices of about $4{,}096 \times 4{,}096$ ,  roughly 17
     million numbers each ,  and there are about a hundred such matrices per model.
-    That gives somewhere in the range of one to ten <em>billion</em> numbers in total.
+    That gives somewhere in the range of one to ten billion numbers in total.
     Storing them takes a few gigabytes of disk and memory. Doing arithmetic with all of
     them, every time the model writes one word, is the central engineering problem of
     inference.
@@ -168,7 +168,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <h3>1.1 Why arrangement matters</h3>
   <p>
     Two matrices can hold exactly the same numbers but be different objects, because
-    their <em>shape</em> tells the model how to use them. The matrix
+    their shape tells the model how to use them. The matrix
     $\begin{pmatrix}1 & 2 \\ 3 & 4\end{pmatrix}$ is a $2 \times 2$ object that you
     apply to a 2-element vector. The same numbers laid out as $(1, 2, 3, 4)$ are a
     4-element vector and behave completely differently. Throughout these papers, we
@@ -183,19 +183,19 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     A <a href="https://en.wikipedia.org/wiki/Artificial_neural_network" target="_blank" rel="noopener">neural network</a>
     is, mechanically, a chain of two operations: matrix multiplications and small
-    "bend" functions called <em>nonlinearities</em>. There is no learning yet; that is
+    "bend" functions called nonlinearities. There is no learning yet; that is
     just the architecture.
   </p>
   <p>
     The input to a neural net is a vector. The first thing that happens is the input
     is multiplied by a matrix. The result is bent through a nonlinear function (a
     common one is just "if the number is negative, replace it with zero"; that is
-    called <strong>ReLU</strong>). The output of that bend is multiplied by another
+    called ReLU). The output of that bend is multiplied by another
     matrix. The output of that is bent again. Repeat. After enough layers, the final
     vector is interpreted as the answer.
   </p>
   <p>
-    The matrices used at each step are called <strong>weights</strong>. A model is
+    The matrices used at each step are called weights. A model is
     "trained" by adjusting those weights so that, when you put a known input in, the
     output matches a known answer. Training is slow and uses a lot of GPUs. Once the
     weights are fixed, the model can be used for inference: you put a new input in,
@@ -225,23 +225,23 @@ footer a { color: var(--blue); text-decoration: none; }
     transformer block contains, in what order, and what each part is for.
   </p>
   <p>
-    A transformer takes in a sequence of <strong>tokens</strong>. A token is a small
+    A transformer takes in a sequence of tokens. A token is a small
     piece of text ,  usually a word, sometimes a part of a word, sometimes a
     single character. The text "the quick brown fox" might tokenise as
     <code>["the", " quick", " brown", " fox"]</code>. Each token is mapped to a
-    vector by a fixed lookup table called the <strong>embedding</strong>; this turns
+    vector by a fixed lookup table called the embedding; this turns
     text into numbers.
   </p>
   <p>
-    The embeddings are then passed through a stack of identical <strong>blocks</strong>.
+    The embeddings are then passed through a stack of identical blocks.
     A block contains two halves:
   </p>
   <ol>
-    <li><strong>Self-attention</strong>: every token looks at every other token in the
+    <li>Self-attention: every token looks at every other token in the
         sequence and decides how much of each one it cares about. This is where the
         model decides "the word fox refers back to the word brown, not to the word
         quick." We will return to attention in detail in section 4.</li>
-    <li><strong>Feed-forward network</strong> (FFN): each token's vector is, on its
+    <li>Feed-forward network (FFN): each token's vector is, on its
         own, sent through a two-layer matrix-and-bend network. This is the part of
         the model that does most of the "memorising of facts."</li>
   </ol>
@@ -249,11 +249,11 @@ footer a { color: var(--blue); text-decoration: none; }
     Both halves are wrapped in two extra pieces:
   </p>
   <ul>
-    <li>A <strong>residual connection</strong>: the input to the half is added to its
+    <li>A residual connection: the input to the half is added to its
         output. This means each block can leave the vector mostly alone if it wants
         to, and only nudge it. This is what lets you stack 32 or 80 blocks without
         the signal exploding or vanishing.</li>
-    <li>A <strong>layer normalisation</strong>: the vector is rescaled to have a
+    <li>A layer normalisation: the vector is rescaled to have a
         bounded magnitude before entering each half. There are several variants; the
         $\sqrt{L}$ residual-stream growth that <a href="03-speculative-decoding.html">Paper&nbsp;3</a>
         discusses is a property of one of these variants ("PreNorm").</li>
@@ -288,8 +288,8 @@ footer a { color: var(--blue); text-decoration: none; }
     For each token, the model computes three vectors by multiplying the token's
     embedding by three different matrices. The matrices are called
     $W_Q$, $W_K$, $W_V$, and the resulting vectors are called the
-    <strong>query</strong> $q$, the <strong>key</strong> $k$, and the
-    <strong>value</strong> $v$. The names come from a database analogy: the query is
+    query $q$, the key $k$, and the
+    value $v$. The names come from a database analogy: the query is
     "what am I looking for", the key is "what do I have to offer", and the value is
     "what to give back if I match."
   </p>
@@ -309,7 +309,7 @@ footer a { color: var(--blue); text-decoration: none; }
     product $\langle q_t, k_i \rangle$ ,  a single scalar that is large when the
     two vectors point in similar directions and small or negative otherwise. It does
     this for every $i$, divides by $\sqrt{d_h}$ (a normalising constant), and applies a
-    <strong>softmax</strong>:
+    softmax:
   </p>
   <div class="math-block">
     $$\alpha_{t,i} = \frac{\exp(\langle q_t, k_i \rangle / \sqrt{d_h})}{\sum_{j \le t} \exp(\langle q_t, k_j \rangle / \sqrt{d_h})}.$$
@@ -325,7 +325,7 @@ footer a { color: var(--blue); text-decoration: none; }
     That is the entire attention mechanism. There is one more wrinkle: the model
     actually does this with several "heads" in parallel ,  usually around 32 of
     them ,  each with its own slice of $W_Q, W_K, W_V$. The slices are called
-    "head-wise". This is called <strong>multi-head attention</strong>; you can think of
+    "head-wise". This is called multi-head attention; you can think of
     it as the model running 32 small attention computations in parallel, each looking
     at a different aspect of the previous tokens, and then concatenating their results.
   </p>
@@ -351,7 +351,7 @@ footer a { color: var(--blue); text-decoration: none; }
     <li>Run them through every block of the transformer. The output is a
         $d$-dimensional vector for the last position only (the others were already
         computed; see the next section).</li>
-    <li>Multiply that final vector by a big matrix called the <strong>unembedding</strong>
+    <li>Multiply that final vector by a big matrix called the unembedding
         to get a score for every word in the vocabulary (about 128,000 words for
         Llama-3.1).</li>
     <li>Apply softmax to those scores to get a probability distribution over the
@@ -361,10 +361,10 @@ footer a { color: var(--blue); text-decoration: none; }
     <li>Append the picked token to the sequence and repeat from step 1.</li>
   </ol>
   <p>
-    The whole loop is called <strong>autoregressive decoding</strong>. The first time
+    The whole loop is called autoregressive decoding. The first time
     you run it on a new prompt, you have to do the full pass on the entire prompt at
-    once; that one-shot pass is called <strong>prefill</strong>. Every subsequent step
-    only adds one new token at the end; that is the <strong>decode</strong> phase.
+    once; that one-shot pass is called prefill. Every subsequent step
+    only adds one new token at the end; that is the decode phase.
     Prefill and decode have different performance shapes ,  prefill is
     compute-bound (lots of arithmetic on lots of tokens at once), decode is
     bandwidth-bound (one token's worth of arithmetic, but you still have to read the
@@ -404,7 +404,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     For decode on an 8B model that occupies about 4.5&nbsp;GB, the question is how
     many tokens per second you can read the model. At 256&nbsp;GB/s and 4.5&nbsp;GB per
-    token, that is about $256 / 4.5 \approx 57$&nbsp;tok/s as a rough <em>upper</em>
+    token, that is about $256 / 4.5 \approx 57$&nbsp;tok/s as a rough upper
     bound on decode if every read is from main memory and every byte is touched once.
     Real measurements come in lower (around 35&nbsp;tok/s on this GPU) because not
     every byte is touched optimally and there is overhead from kernel launches and so
@@ -415,15 +415,15 @@ footer a { color: var(--blue); text-decoration: none; }
   <h3>7.1 The cache hierarchy</h3>
   <p>
     GPUs (and CPUs) do not read from main memory every time. They have a stack of
-    smaller, faster memories called <strong>caches</strong>. On an Ada-class NVIDIA
+    smaller, faster memories called caches. On an Ada-class NVIDIA
     GPU, the relevant levels are:
   </p>
   <ul>
-    <li><strong>L1 / shared memory</strong>: tiny (≈ 128&nbsp;KB per streaming
+    <li>L1 / shared memory: tiny (≈ 128&nbsp;KB per streaming
         multiprocessor), extremely fast.</li>
-    <li><strong>L2 cache</strong>: medium (32&nbsp;MB on the RTX&nbsp;4070 Laptop),
+    <li>L2 cache: medium (32&nbsp;MB on the RTX&nbsp;4070 Laptop),
         roughly 10× faster than main memory.</li>
-    <li><strong>HBM / GDDR main memory</strong>: large (8&nbsp;GB on this GPU),
+    <li>HBM / GDDR main memory: large (8&nbsp;GB on this GPU),
         slowest of the three.</li>
   </ul>
   <p>
@@ -450,11 +450,11 @@ footer a { color: var(--blue); text-decoration: none; }
     forms include:
   </p>
   <ul>
-    <li><strong>fp16 / bf16</strong>: 16 bits each. Halves the model size from fp32,
+    <li>fp16 / bf16: 16 bits each. Halves the model size from fp32,
         almost no quality loss.</li>
-    <li><strong>int8</strong>: 8 bits per number stored as a small integer plus a
+    <li>int8: 8 bits per number stored as a small integer plus a
         scale factor per group of numbers. Quarters the size, small quality loss.</li>
-    <li><strong>Q4_K_M</strong>: a particularly aggressive 4-bit-per-number scheme
+    <li>Q4_K_M: a particularly aggressive 4-bit-per-number scheme
         from the <a href="https://github.com/ggerganov/llama.cpp" target="_blank" rel="noopener">llama.cpp</a>
         ecosystem. Uses about 4.5 bits per number on average (it spends a few extra
         bits to keep certain "important" weights at higher precision). About one
@@ -464,12 +464,12 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     The reference model in all four papers is Llama-3.1-8B at Q4_K_M; that takes
     about 4.5&nbsp;GB on disk. Quantisation does not change the
-    <em>structure</em> of the model: there are still the same number of weights, in
+    structure of the model: there are still the same number of weights, in
     the same matrices, used in the same way. It just stores each of them more
     cheaply.
   </p>
   <p>
-    The compression schemes in the HyperTensor papers are <em>complementary</em> to
+    The compression schemes in the HyperTensor papers are complementary to
     quantisation. They reduce the number of weights you need to read at all, and they
     do that on top of whatever quantisation level the underlying weights are stored
     in. (The runtime dequantises Q4_K_M to fp32 before doing the PCA; this is one of
@@ -492,7 +492,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
   <h3>9.1 What "rank" means</h3>
   <p>
-    The <strong>rank</strong> of a matrix is, intuitively, the number of "independent
+    The rank of a matrix is, intuitively, the number of "independent
     directions" inside it. A rank-1 matrix can be written as a single column vector
     multiplied by a single row vector; you only need $d + d = 2d$ numbers to describe
     it instead of $d^2$. A rank-$k$ matrix needs $2dk$ numbers. If $k \ll d$, this is
@@ -500,7 +500,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </p>
   <p>
     Most matrices are full-rank: their rank equals their smaller side. But many
-    matrices are <em>approximately</em> low-rank: you can throw away the smallest
+    matrices are approximately low-rank: you can throw away the smallest
     "directions" and still keep the matrix essentially intact.
   </p>
   <h3>9.2 Singular Value Decomposition (SVD)</h3>
@@ -514,7 +514,7 @@ footer a { color: var(--blue); text-decoration: none; }
   </div>
   <p>
     where $U$ and $V$ are matrices of orthonormal directions and $\Sigma$ is a
-    diagonal matrix whose entries (called <strong>singular values</strong>) are
+    diagonal matrix whose entries (called singular values) are
     non-negative numbers in decreasing order. The singular values say how much energy
     sits along each direction. If the first $k$ are large and the rest are tiny, then
     you can replace $W$ with the truncated product
@@ -524,7 +524,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     A theorem from 1936 by
     <a href="https://en.wikipedia.org/wiki/Low-rank_approximation" target="_blank" rel="noopener">Eckart and Young</a>
-    says: the truncated SVD is the <em>best</em> rank-$k$ approximation of $W$ in the
+    says: the truncated SVD is the best rank-$k$ approximation of $W$ in the
     sense of minimising the squared error. There is no smarter rank-$k$ approximation
     than what SVD gives you.
   </p>
@@ -539,7 +539,7 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     The HyperTensor papers run PCA on the rows (or columns) of weight matrices to
     find the directions in which the weights themselves spread the most. The trick is
-    that this PCA is done on the <em>weights</em>, not on activations ,  that is
+    that this PCA is done on the weights, not on activations ,  that is
     what makes the scheme "calibration-free." There is no need to feed example text
     through the model to discover the basis.
   </p>
@@ -566,7 +566,7 @@ footer a { color: var(--blue); text-decoration: none; }
     classic example: globally it is a sphere, but a small patch around you looks like
     a plane and you can use ordinary two-dimensional maps for it. The number of
     coordinates needed to describe a small patch is the manifold's
-    <strong>dimension</strong> ,  in the Earth's case, two.
+    dimension ,  in the Earth's case, two.
   </p>
   <p>
     Why this matters: when a transformer processes a token, the resulting vector lives
@@ -574,7 +574,7 @@ footer a { color: var(--blue); text-decoration: none; }
     actual cloud of activation vectors that the model produces does not fill that
     $4{,}096$-dimensional space. It lies on (or near) a much lower-dimensional curved
     surface inside it. The dimension of that surface is the
-    <strong>intrinsic dimension</strong> of the model's activations.
+    intrinsic dimension of the model's activations.
   </p>
   <p>
     Several papers across the field have measured this dimension on different
@@ -615,7 +615,7 @@ footer a { color: var(--blue); text-decoration: none; }
     matrices at inference time. The result is:
   </p>
   <ul>
-    <li>Decode runs at <strong>106.27%</strong> of baseline throughput ,  that is,
+    <li>Decode runs at 106.27% of baseline throughput ,  that is,
         the model is faster compressed than uncompressed. (Statistically significant
         at $p \approx 10^{-10}$ under a paired bootstrap.)</li>
     <li>Quality is preserved at this $k$; perplexity rises only by about 13% at the
@@ -627,7 +627,7 @@ footer a { color: var(--blue); text-decoration: none; }
     attention weights for a block fit in L2 in a way that the full $d = 4{,}096$
     versions don't. The arithmetic of the projection adds a small amount of work, but
     the bandwidth savings dominate. The paper is careful to label this a
-    <em>hypothesis</em> ,  a direct measurement of L2 hit rates with a profiler
+    hypothesis ,  a direct measurement of L2 hit rates with a profiler
     like Nsight Compute is listed as future work, and would either confirm or
     falsify the cache argument.
   </p>
@@ -655,7 +655,7 @@ footer a { color: var(--blue); text-decoration: none; }
         FFN&nbsp;down).</li>
     <li>From a shared rank across layers to per-layer ranks driven by a curvature
         heuristic, with a hard floor.</li>
-    <li>From "pay the build cost every run" to a persistent <em>geometry cache</em>
+    <li>From "pay the build cost every run" to a persistent geometry cache
         that turns startup from minutes into seconds.</li>
   </ol>
   <p>
@@ -683,8 +683,8 @@ footer a { color: var(--blue); text-decoration: none; }
   <p>
     Trick&nbsp;1 is
     <a href="https://en.wikipedia.org/wiki/Speculative_execution" target="_blank" rel="noopener">speculative decoding</a>.
-    A small fast model (the <em>drafter</em>) proposes several tokens at a time; a
-    larger slow model (the <em>verifier</em>) accepts or rejects them in one batched
+    A small fast model (the drafter) proposes several tokens at a time; a
+    larger slow model (the verifier) accepts or rejects them in one batched
     pass. This wins when the verifier's per-step cost is much higher than the
     drafter's. In Paper&nbsp;3 the drafter is the GP-compressed Llama-3.1-8B and the
     verifier is the uncompressed Llama-3.1-8B; on the reference 8&nbsp;GB GPU you
@@ -692,7 +692,7 @@ footer a { color: var(--blue); text-decoration: none; }
     listed as planned, not run.
   </p>
   <p>
-    Trick&nbsp;2 is <strong>Block Attention Residuals</strong> (AttnRes), a 2026
+    Trick&nbsp;2 is Block Attention Residuals (AttnRes), a 2026
     technique from the Kimi Team. It is a different way of accumulating the
     residual-stream signal across blocks that mitigates the $\sqrt{L}$ magnitude
     growth I mentioned in section 3. The runtime reimplements it; the question is
@@ -813,7 +813,7 @@ footer a { color: var(--blue); text-decoration: none; }
 <footer>
   <p>
     Background article &middot; HyperTensor Research<br>
-    by <strong>William Ken Ohara Stewart</strong> (NagusameCS), 2026 &middot;
+    by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
     <a href="01-attention-compression.html">Paper 1 &rarr;</a>

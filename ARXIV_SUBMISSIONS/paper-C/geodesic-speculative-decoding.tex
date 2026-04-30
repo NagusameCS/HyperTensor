@@ -16,12 +16,12 @@ on a Q8\_0 ChatML Backbone}
 \hypertensorbanner
 
 \begin{htnote}
-\textbf{Project nomenclature.}  \textit{HyperTensor} is the project;
-\textit{Geodesic Projection (GP)} is the inference-time pipeline that
+Project nomenclature.  HyperTensor is the project;
+Geodesic Projection (GP) is the inference-time pipeline that
 factorises every compressible weight (companion paper);
-\textit{Geodesic Runtime Compression (GRC)} is the attention-only subset of
+Geodesic Runtime Compression (GRC) is the attention-only subset of
 GP and is the empirical anchor for the throughput measurements below;
-\textit{OTT/GTC} is the Riemannian-manifold theoretical framework on top
+OTT/GTC is the Riemannian-manifold theoretical framework on top
 of GP that motivates the OneDecode / OTT-OD / OTT-SWARM drafter modes
 briefly described in \Cref{sec:ottmodes}.
 \end{htnote}
@@ -32,26 +32,26 @@ We compose calibration-free Geodesic Projection (GP) compression with
 exactness-preserving speculative decoding~\cite{leviathan2023speculative,
 chen2023speculative} and report the first end-to-end measurement of the
 combined runtime (\texttt{geodessical}) on
-\textit{SmolLM2-135M-Instruct} (Q8\_0, ChatML).  We give a closed-form
+SmolLM2-135M-Instruct (Q8\_0, ChatML).  We give a closed-form
 throughput model for the composition, which separates the win from
 verifier amortisation, the win from drafter compression, and the loss
 from compression-induced acceptance-rate degradation; we identify the
 deployment shapes in which the composition is favourable and the ones
 in which it is a wash on consumer hardware.  We then describe a previously
 undocumented failure mode of greedy speculative decoding against
-instruct-tuned backbones (\emph{instruct-greedy-EOS}) and the
+instruct-tuned backbones (instruct-greedy-EOS) and the
 two-line fix (\texttt{llm\_topk\_excluding} plus a four-token min-response
 guard) shipped in the runtime.  Headline measurement: $\alpha{=}38.5\%$
 acceptance, $76.5$~tok/s end-to-end at $\gamma{=}4$,
 threshold $0.45$, against a baseline of $\sim 50$~tok/s greedy-only on the
 same model and binary, a $1.53\times$ measured speedup, within the
 closed-form prediction.  We extend this to a second model:
-\textbf{Meta-Llama-3.1-8B-Instruct Q4\_K\_M} achieves
+Meta-Llama-3.1-8B-Instruct Q4\_K\_M achieves
 $\alpha{=}46.9\%$ at $\gamma{=}2$ on an eight-prompt sweep, with
-\emph{zero} per-prompt acceptance variance under deterministic decoding,
+zero per-prompt acceptance variance under deterministic decoding,
 indicating the verifier accepts geodesic drafts at a rate set by the
 model's residual-stream geometry rather than by prompt content.  We also document three additional drafter modes
-shipped in the runtime (\emph{OneDecode}, \emph{OTT-OD}, \emph{OTT-SWARM})
+shipped in the runtime (OneDecode, OTT-OD, OTT-SWARM)
 that compose with the speculative path and reuse the geodesic-trajectory
 cache infrastructure of the OTT/GTC paper.
 \end{abstract}
@@ -102,13 +102,13 @@ central empirical unknown of this paper.
 The runtime exposes
 \texttt{llm\_generate\_geodesic\_speculative()} (declared in
 \texttt{runtime/nn/llm.h}) implementing the textbook draft-and-verify
-pattern with two specifics.  \emph{(i)}~Drafter and verifier share KV
+pattern with two specifics.  (i)~Drafter and verifier share KV
 cache structure but not weights, the drafter is the GP-compressed
 model loaded once, the verifier is uncompressed and loaded once.  Both
 resident in VRAM simultaneously is infeasible for an 8B model on 8~GB
 VRAM; speculative-decode-of-Llama-3.1-8B-with-itself requires either an
 additional VRAM tier or a tier-asymmetric deployment (e.g.\ 8B drafter
-on commodity GPU, 70B verifier on a server GPU).  \emph{(ii)}~Acceptance
+on commodity GPU, 70B verifier on a server GPU).  (ii)~Acceptance
 is rejection sampling against the verifier distribution
 \cite{leviathan2023speculative,chen2023speculative}, not greedy match;
 this preserves the verifier's sampling distribution exactly under the
@@ -143,12 +143,12 @@ $\alpha$ & full-spec tok/s & GP-spec tok/s & Speedup over full decode \\
 \end{table}
 
 These are predictions, not measurements.  Two observations follow.
-\emph{(i)}~On this hardware (single 8~GB GPU), speculative decoding with
-the full 8B as verifier is \emph{not} faster than just decoding the full
+(i)~On this hardware (single 8~GB GPU), speculative decoding with
+the full 8B as verifier is not faster than just decoding the full
 8B directly: the verifier is the bottleneck and this is independent of
 GP.  Speculative decoding helps when $T_V\gg T_D$, the deployment shape
 ``8B drafter on commodity GPU, 70B verifier on a server GPU'' that we
-cannot currently test.  \emph{(ii)}~On hypothetical hardware where a 70B
+cannot currently test.  (ii)~On hypothetical hardware where a 70B
 verifier is the slow side, the GP saving on the drafter compounds, but
 only if $\Delta\alpha$ is small.
 
@@ -201,7 +201,7 @@ with.
 
 \section{First End-to-End Measurements}
 \label{sec:measured}
-\textbf{Setup.}  SmolLM2-135M-Instruct Q8\_0, ChatML template, host binary
+Setup.  SmolLM2-135M-Instruct Q8\_0, ChatML template, host binary
 \texttt{geodessical} under the locked OTT pipeline
 (\texttt{repair\_ott.ps1}), threshold $0.45$, $\gamma{=}4$.
 
@@ -213,8 +213,8 @@ with.
 Quantity & Value & Notes \\
 \midrule
 OTT readiness & \texttt{geodesic\_ready} & \texttt{ready=true, hybrid\_ready=true, runtime\_share=1.0} \\
-$\alpha$ (acceptance) & \textbf{38.5\%} & 5/13 tokens; 8 verifier corrections \\
-End-to-end tok/s & \textbf{76.5} & 13 tokens / 170~ms, batch~4 \\
+$\alpha$ (acceptance) & 38.5\% & 5/13 tokens; 8 verifier corrections \\
+End-to-end tok/s & 76.5 & 13 tokens / 170~ms, batch~4 \\
 OD draft hits & 5 & OneDecode table hits / 13 \\
 SWARM-K hits & 0 & \texttt{--ott-swarm-k 8} crashes; tracked in \Cref{sec:status} \\
 Final adaptive batch & 4 & did not collapse below initial $\gamma$ \\
@@ -231,7 +231,7 @@ prediction; the model worked on first measurement.
 
 \paragraph{Llama-3.1-8B-Instruct Q4\_K\_M end-to-end (2026-04-28).}
 We repeat the measurement on the frontier-scale model
-\textit{Meta-Llama-3.1-8B-Instruct Q4\_K\_M} (RTX 4070 Laptop, 32~MB L2,
+Meta-Llama-3.1-8B-Instruct Q4\_K\_M (RTX 4070 Laptop, 32~MB L2,
 $\gamma{=}2$, threshold $0.45$).  An eight-prompt sweep at $n{=}64$
 generated tokens per prompt (single-greedy decode, \texttt{temp=0}) yields
 \[
@@ -241,7 +241,7 @@ generated tokens per prompt (single-greedy decode, \texttt{temp=0}) yields
 with no per-prompt variance under deterministic decoding;
 the geodesic verifier accepts drafts at a rate determined by the
 model's residual-stream geometry, not by prompt content.
-The Llama-8B operating point sits \emph{above} SmolLM2-135M's
+The Llama-8B operating point sits above SmolLM2-135M's
 $\alpha{=}38.5\%$, consistent with the hypothesis that as residual-stream
 manifolds become smoother at scale (lower intrinsic dimension relative
 to model dimension; see \Cref{sec:why}) the geodesic draft becomes more
@@ -264,7 +264,7 @@ compression rank $k$ on the companion paper's reference pack
 \Cref{eq:spec} is the \emph{peak at $k{=}1024$} (the cache-fit super-baseline),
 not the absolute numbers, it tells the speculative scheduler that
 choosing the verifier rank below the natural $k_{95}$ of attention can
-\emph{accelerate} verification rather than slow it, which is why GRC and
+accelerate verification rather than slow it, which is why GRC and
 spec-decode compose multiplicatively rather than antagonistically
 (\Cref{sec:compose}).
 
@@ -354,7 +354,7 @@ $x$ with probability
 A(x\mid c)\;=\;\min\!\Bigl(1,\;\tfrac{P_V(x\mid c)}{P_D(x\mid c)}\Bigr).
 \label{eq:accept}
 \end{equation}
-Under \emph{greedy} drafter sampling at temperature $\tau\!\to\!0$, the
+Under greedy drafter sampling at temperature $\tau\!\to\!0$, the
 drafter is a delta on its argmax: $P_D(\hat x\mid c)\!\to\!1$ where
 $\hat x=\argmax_x \ell_D(x\mid c)$.  For an instruct-tuned model on a
 short or empty user turn, the verifier-greedy argmax is itself the EOS
@@ -365,17 +365,17 @@ SmolLM2-135M-Instruct at the first decode position after the
 $P_V(\text{EOS}\mid c)\in[0.93,0.99]$ and $P_D(\text{EOS}\mid c)=1$.  The
 acceptance probability is then
 $A(\text{EOS})=\min(1,P_V(\text{EOS}))=P_V(\text{EOS})<1$, but the standard
-speculative loop \emph{still emits} the EOS as the accepted token (the
+speculative loop still emits the EOS as the accepted token (the
 greedy drafter has nothing better to fall back to) and the response
 terminates at zero content tokens.  The pathology is therefore not a
 rejection bug; it is the structural fact that $P_D(\text{EOS})\!\to\!1$
-under greedy decoding makes any verifier draft over EOS \emph{equivalent
-to unconditional acceptance of EOS}, regardless of how much probability the
+under greedy decoding makes any verifier draft over EOS equivalent
+to unconditional acceptance of EOS, regardless of how much probability the
 verifier put on continuation tokens.  Fixing this requires breaking
 $P_D(\text{EOS})$ away from~$1$ at the start of the response.
 
-During first integration the speculative loop returned \emph{zero
-tokens} on every prompt against the instruct model.  The cause is unique
+During first integration the speculative loop returned zero
+tokens on every prompt against the instruct model.  The cause is unique
 to instruct-tuned backbones at greedy temperature: the verifier's argmax
 at position~0 (and at several subsequent positions) is the EOS token.
 The standard speculative loop sees an EOS draft, executes
@@ -387,7 +387,7 @@ does not document this case, primarily because it targets base
 into EOS.
 
 \paragraph{Fix.}  We introduce a small primitive,
-\emph{logit-excluding top-1}, plus a min-response guard:
+logit-excluding top-1, plus a min-response guard:
 \begin{lstlisting}[language=C]
 // runtime/nn/llm.h
 int llm_topk_excluding(const int *exclude, int n_exclude);
@@ -395,9 +395,9 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 \end{lstlisting}
 Combined with \texttt{SPEC\_MIN\_RESP\_N=4}, the bypass is enabled only
 at positions $i<4$.  After four emitted tokens the standard EOS-respect
-path takes over.  This converts the failure from \emph{empty response}
-to \emph{empty response only when the model truly intends to stop after
-at least 4 tokens of content}.  Four call sites in the speculative loop
+path takes over.  This converts the failure from empty response
+to empty response only when the model truly intends to stop after
+at least 4 tokens of content.  Four call sites in the speculative loop
 (accepted-drafts, correction-token, bonus-token, verifier-direct) use
 the new primitive; without the fix the runtime measures 0~tok/s, with
 the fix it measures the values in \Cref{tab:measured}.  We are not aware
@@ -424,7 +424,7 @@ and writes \texttt{ott\_readiness\_report.json}.
 \toprule
 Composition & Mechanism & Prior expectation & Status \\
 \midrule
-GP $\times$ speculative   & Drafter $T_D$ drops; $\alpha$ may drop & Wash on consumer; positive on tier-asymmetric & \textbf{Measured} on 135M-Instruct ($1.53\times$) \\
+GP $\times$ speculative   & Drafter $T_D$ drops; $\alpha$ may drop & Wash on consumer; positive on tier-asymmetric & Measured on 135M-Instruct ($1.53\times$) \\
 GP $\times$ AttnRes       & Block-summary subspace narrows & Wash at moderate $k$; small loss at $k/d{<}0.3$ & Implemented, not measured \\
 GP $\times$ KV-cache proj & Long-context VRAM saving & Useful at $\geq 8$k context & Implemented, not measured at long context \\
 Spec $\times$ AttnRes     & Same drafter and verifier path & Same as full speculative & Implemented, not measured \\
@@ -446,7 +446,7 @@ model forward is skipped.  On miss, fall back to the geodesic drafter
 and then the verifier.
 
 \paragraph{OTT-OD (\texttt{--ott-od}).}  Wires OneDecode in as the
-\emph{draft} source for speculative decoding.  Drafter cost goes to zero
+draft source for speculative decoding.  Drafter cost goes to zero
 on a table hit; verifier (and therefore acceptance distribution) is
 unchanged.
 
@@ -460,7 +460,7 @@ rather than learned auxiliary heads.
 \noindent
 None of the three has the closed-form throughput model of
 \Cref{sec:closedform} yet; they are listed as
-\emph{implemented, not measured}.
+implemented, not measured.
 
 \section{Related Work}
 The exactness-preserving rejection rule is from Leviathan et~al.\

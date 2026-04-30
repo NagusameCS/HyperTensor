@@ -76,8 +76,8 @@ function Render-One {
         --metadata=tag:$tag `
         --metadata="author:HyperTensor Project (William Ken Ohara Stewart)" `
         --metadata=date:"April 2026" `
-        --metadata=arxiv-pdf:"../../ARXIV_SUBMISSIONS/paper-$letter/$stem.pdf" `
-        --metadata=tex-source:"../../ARXIV_SUBMISSIONS/paper-$letter/$stem.tex" `
+        --metadata=arxiv-pdf:"/pdfs/$stem.pdf" `
+        --metadata=tex-source:"https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-$letter/$stem.tex" `
         --metadata=lang:en `
         --citeproc --bibliography=$bib `
         --resource-path=$resourcePath `
@@ -99,6 +99,7 @@ Render-One A grc-attention-compression          'Paper A - GRC'        'Geodesic
 Render-One B geodesic-projection-pipeline       'Paper B - GP'         'Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut'
 Render-One C geodesic-speculative-decoding      'Paper C - OTT-Decode' 'Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance'
 Render-One D ott-gtc-manifold-runtime           'Paper D - OTT/GTC'    'Organic Training Theory and the GTC Manifold Runtime'
+Render-One E grc-light-distillation             'Paper E - Distill'    'Light Distillation for Calibration-Permitted Low-Rank Attention Compression'
 
 Write-Host ''
 Write-Host "All research papers rendered to $out"

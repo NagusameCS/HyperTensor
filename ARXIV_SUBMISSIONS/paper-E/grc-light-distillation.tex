@@ -101,17 +101,17 @@ unmodified.
 \label{sec:status}
 
 \begin{itemize}
-\item \textbf{Done.} Phase~1 reference implementation in
+\item Done. Phase~1 reference implementation in
 \texttt{scripts/analysis/sink\_channel\_grc.py} and
 \texttt{scripts/grc\_distill.py} (NumPy; CPU-only).
-\item \textbf{Done.} Sink-channel pilot (Paper~A Table~6) showing
+\item Done. Sink-channel pilot (Paper~A Table~6) showing
 calibration-free sink exemption alone yields 1 to 3\% relative
 reconstruction-error improvement at $k\in\{512,1024,1536\}$.
-\item \textbf{Pending.} Phase~2 PyTorch runner. Requires a GPU host
+\item Pending. Phase~2 PyTorch runner. Requires a GPU host
 with at least one A100 / L40S / H100 to hold the teacher in BF16 with
 gradient activations. EC2 \texttt{g5.xlarge} or \texttt{g6.xlarge} is
 sufficient for an 8B model.
-\item \textbf{Pending.} WikiText-2 PPL evaluation on the merged
+\item Pending. WikiText-2 PPL evaluation on the merged
 artifact. The expected operating regimes:
 \begin{enumerate}
   \item Vanilla GRC at $k{=}1024$: $+13.30\%$ PPL (Paper~A baseline).
@@ -125,7 +125,7 @@ artifact. The expected operating regimes:
 \end{enumerate}
 These targets are predictions, not measurements. The paper will be
 updated with measured numbers once the runner has executed.
-\item \textbf{Pending.} Throughput re-measurement on the distilled
+\item Pending. Throughput re-measurement on the distilled
 artifact. Hypothesis: throughput is unchanged from vanilla GRC,
 because the merged adapters do not alter the kernel-fusion path
 (\Cref{sec:fusion-fit}). If measurement contradicts the hypothesis,

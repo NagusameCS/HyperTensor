@@ -47,7 +47,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     cache and a depth-sink shortcut.
   </p>
   <div class="hero-meta">
-    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    By William Ken Ohara Stewart (NagusameCS) &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
   </div>
   <div class="hero-stats">
@@ -82,10 +82,10 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <div class="callout-title">Scope of this paper</div>
     <p>
       Paper&nbsp;1 isolates one design choice and reports an end-to-end measurement on
-      one model. This paper describes the <em>full</em> compression pipeline that the
-      <code>geodessical</code> runtime implements <strong>and</strong> the
+      one model. This paper describes the full compression pipeline that the
+      <code>geodessical</code> runtime implements and the
       cross-architecture intrinsic-dimensionality evidence that motivates it. Two things
-      this paper does <em>not</em> do, and the reader should treat them as scope limits:
+      this paper does not do, and the reader should treat them as scope limits:
     </p>
     <ol>
       <li>It does not provide multi-model, end-to-end <a class="term"
@@ -97,8 +97,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         Numbers will appear in v0.3.</li>
     </ol>
     <p>
-      The phrase used throughout to describe what is <em>not</em> measured is
-      <em>design&#8209;validated</em>: the code path exists, runs without error, and is
+      The phrase used throughout to describe what is not measured is
+      design&#8209;validated: the code path exists, runs without error, and is
       consistent with the implemented behaviour of the components it composes, but no
       end-to-end benchmark has produced numbers for it.
     </p>
@@ -121,8 +121,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       <a class="term" href="https://en.wikipedia.org/wiki/Singular_value" target="_blank"
       rel="noopener">singular-value</a> profile is fundamentally less compressible than
       the others. Two engineering pieces make GP usable in practice:
-      <strong>(a)</strong> a persistent geometry cache that drops startup from
-      minutes to seconds on repeat runs, and <strong>(b)</strong> a depth-sink
+      (a) a persistent geometry cache that drops startup from
+      minutes to seconds on repeat runs, and (b) a depth-sink
       shortcut that lets the cache be probed without re-running the full
       axiom-discovery pass. The cross-architecture observation that motivates the
       whole pipeline, that the local activation manifold of a trained transformer
@@ -141,16 +141,16 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <table>
       <thead><tr><th>Term</th><th>Definition</th></tr></thead>
       <tbody>
-        <tr><td><strong>GP</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>Geodesic Projection. The full compression pipeline of this paper. Generalises the attention-only scheme of Paper&nbsp;1 to all seven weight matrices in a transformer block.</td></tr>
-        <tr><td><strong>Slot</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>One of the seven compressible weight matrices per transformer block: $Q$, $K$, $V$, $O$ (attention) and $W_\text{up}$, $W_\text{gate}$, $W_\text{down}$ (FFN). Each gets its own basis $U^{(\ell, s)}$.</td></tr>
-        <tr><td><strong>$U^{(\ell, s)}$</strong></td><td>The per-layer-per-slot orthonormal basis. Built from the dominant eigenvectors of $W^{(\ell, s)} (W^{(\ell, s)})^\top$ (or the right singular vectors for FFN&nbsp;down).</td></tr>
-        <tr><td><strong>Intrinsic dimension</strong></td><td>The dimensionality of the lowest-dimensional <a class="term" href="https://en.wikipedia.org/wiki/Manifold" target="_blank" rel="noopener">manifold</a> on which the model's activations approximately lie. Estimated here by retaining the smallest $k$ such that <a class="term" href="https://en.wikipedia.org/wiki/Principal_component_analysis" target="_blank" rel="noopener">PCA</a> on a set of activation samples explains $\geq 95\%$ of the variance. See refs&nbsp;[2,&nbsp;7].</td></tr>
-        <tr><td><strong>Geometry cache</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>The on-disk artefact (<code>ott_geometry.bin</code>) holding the manifold-extraction output: per-layer eigenspectra, axiom set, depth-sink layer, intrinsic-dim estimate, and an integrity hash.</td></tr>
-        <tr><td><strong>$W_\text{proj}$ cache</strong></td><td>The on-disk artefact holding the projected weights $W^{(\ell, s)} U^{(\ell, s)} \in \mathbb{R}^{d \times k}$. Mapped into VRAM at load time. Distinct from the geometry cache, which holds bases not projected weights.</td></tr>
-        <tr><td><strong>Depth-sink</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>The single layer at which the residual-stream effective dimensionality saturates. Its eigenspectrum dominates the cache validity check, so the cache can be revalidated by reading the geometry of one layer instead of all of them.</td></tr>
-        <tr><td><strong>MCR / Ricci heuristic</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>Manifold-Curvature-Ratio: a per-layer scalar derived from the local <a class="term" href="https://en.wikipedia.org/wiki/Ricci_curvature" target="_blank" rel="noopener">Ricci-style</a> curvature of the activation manifold. Used to allocate larger ranks to layers with steeper local geometry. Capped at $k = \texttt{AXEX_MANIFOLD_K_MAX}$ above and at a per-model floor below.</td></tr>
-        <tr><td><strong>FFN&nbsp;down</strong></td><td>The matrix $W_\text{down} \in \mathbb{R}^{d \times d_\text{ffn}}$ that contracts the FFN intermediate space ($d_\text{ffn} = 14{,}336$ for Llama-3.1-8B) back to model dim $d = 4096$. Its singular-value spectrum is much flatter than the attention slots, so it gets a dedicated SVD path rather than the eigendecomposition route.</td></tr>
-        <tr><td><strong>AXEX</strong> <span style="color:var(--text-soft);">(in-house)</span></td><td>The runtime flag prefix for the GP machinery. <code>--axex-compress</code>, <code>--axex-attn-only</code>, <code>--axex-skip-o</code>, <code>--axex-weight-pca</code>, <code>--axex-compress-rank N</code>, <code>--axex-kv</code>. Defined in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>.</td></tr>
+        <tr><td>GP <span style="color:var(--text-soft);">(in-house)</span></td><td>Geodesic Projection. The full compression pipeline of this paper. Generalises the attention-only scheme of Paper&nbsp;1 to all seven weight matrices in a transformer block.</td></tr>
+        <tr><td>Slot <span style="color:var(--text-soft);">(in-house)</span></td><td>One of the seven compressible weight matrices per transformer block: $Q$, $K$, $V$, $O$ (attention) and $W_\text{up}$, $W_\text{gate}$, $W_\text{down}$ (FFN). Each gets its own basis $U^{(\ell, s)}$.</td></tr>
+        <tr><td>$U^{(\ell, s)}$</td><td>The per-layer-per-slot orthonormal basis. Built from the dominant eigenvectors of $W^{(\ell, s)} (W^{(\ell, s)})^\top$ (or the right singular vectors for FFN&nbsp;down).</td></tr>
+        <tr><td>Intrinsic dimension</td><td>The dimensionality of the lowest-dimensional <a class="term" href="https://en.wikipedia.org/wiki/Manifold" target="_blank" rel="noopener">manifold</a> on which the model's activations approximately lie. Estimated here by retaining the smallest $k$ such that <a class="term" href="https://en.wikipedia.org/wiki/Principal_component_analysis" target="_blank" rel="noopener">PCA</a> on a set of activation samples explains $\geq 95\%$ of the variance. See refs&nbsp;[2,&nbsp;7].</td></tr>
+        <tr><td>Geometry cache <span style="color:var(--text-soft);">(in-house)</span></td><td>The on-disk artefact (<code>ott_geometry.bin</code>) holding the manifold-extraction output: per-layer eigenspectra, axiom set, depth-sink layer, intrinsic-dim estimate, and an integrity hash.</td></tr>
+        <tr><td>$W_\text{proj}$ cache</td><td>The on-disk artefact holding the projected weights $W^{(\ell, s)} U^{(\ell, s)} \in \mathbb{R}^{d \times k}$. Mapped into VRAM at load time. Distinct from the geometry cache, which holds bases not projected weights.</td></tr>
+        <tr><td>Depth-sink <span style="color:var(--text-soft);">(in-house)</span></td><td>The single layer at which the residual-stream effective dimensionality saturates. Its eigenspectrum dominates the cache validity check, so the cache can be revalidated by reading the geometry of one layer instead of all of them.</td></tr>
+        <tr><td>MCR / Ricci heuristic <span style="color:var(--text-soft);">(in-house)</span></td><td>Manifold-Curvature-Ratio: a per-layer scalar derived from the local <a class="term" href="https://en.wikipedia.org/wiki/Ricci_curvature" target="_blank" rel="noopener">Ricci-style</a> curvature of the activation manifold. Used to allocate larger ranks to layers with steeper local geometry. Capped at $k = \texttt{AXEX_MANIFOLD_K_MAX}$ above and at a per-model floor below.</td></tr>
+        <tr><td>FFN&nbsp;down</td><td>The matrix $W_\text{down} \in \mathbb{R}^{d \times d_\text{ffn}}$ that contracts the FFN intermediate space ($d_\text{ffn} = 14{,}336$ for Llama-3.1-8B) back to model dim $d = 4096$. Its singular-value spectrum is much flatter than the attention slots, so it gets a dedicated SVD path rather than the eigendecomposition route.</td></tr>
+        <tr><td>AXEX <span style="color:var(--text-soft);">(in-house)</span></td><td>The runtime flag prefix for the GP machinery. <code>--axex-compress</code>, <code>--axex-attn-only</code>, <code>--axex-skip-o</code>, <code>--axex-weight-pca</code>, <code>--axex-compress-rank N</code>, <code>--axex-kv</code>. Defined in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>.</td></tr>
       </tbody>
     </table>
   </div>
@@ -176,7 +176,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       <tbody>
         <tr><td>Slots compressed</td><td>$Q$, $K$, $V$ only</td><td>$Q$, $K$, $V$, $O$, FFN&nbsp;up, FFN&nbsp;gate, FFN&nbsp;down (configurable)</td></tr>
         <tr><td>Rank $k$ across layers</td><td>Shared</td><td>Per-layer (MCR/Ricci-driven, with a $k$ floor)</td></tr>
-        <tr><td>Decomposition</td><td>Eigendecomposition of $W W^\top$</td><td>Same for $Q/K/V/O$ and FFN&nbsp;up/gate; <strong>SVD</strong> for FFN&nbsp;down</td></tr>
+        <tr><td>Decomposition</td><td>Eigendecomposition of $W W^\top$</td><td>Same for $Q/K/V/O$ and FFN&nbsp;up/gate; SVD for FFN&nbsp;down</td></tr>
         <tr><td>Build cost</td><td>Paid every run</td><td>Paid once; cached in <code>ott_geometry.bin</code> + <code>W_proj</code></td></tr>
         <tr><td>Cache validation</td><td>n/a</td><td>Depth-sink-layer eigenspectrum hash + weight-blob hash</td></tr>
         <tr><td>KV-cache projection</td><td>Off</td><td>Optional (<code>--axex-kv</code>)</td></tr>
@@ -185,14 +185,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </div>
   <p>
     Paper&nbsp;1's measurement uses the GP code path with all but the first knob held
-    in the simplest position. The numbers reported there therefore <em>are</em> GP
+    in the simplest position. The numbers reported there therefore are GP
     numbers in the limit where GP collapses to attention-only fixed-rank. What GP buys
     above and beyond is (a) coverage of the FFN, which is where the bulk of Llama-3.1-8B's
     parameters live (FFN ≈ 70% of weights in this architecture), and (b) the cache
     architecture that makes the build cost a one-time charge instead of a per-run charge.
   </p>
   <p>
-    The honest position on FFN compression is that the runtime <em>can</em> compress it
+    The honest position on FFN compression is that the runtime can compress it
     but that Paper&nbsp;1 deliberately did not because the FFN's singular-value spectrum
     on Llama-3.1-8B is dramatically flatter than the attention slots'. We present the
     spectrum evidence in §<a href="#spectra">3</a> and the consequence for compression
@@ -236,15 +236,15 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <div class="callout finding">
     <div class="callout-title">What this is and is not</div>
     <p>
-      <strong>What it is:</strong> three independent reproductions of the
+      What it is: three independent reproductions of the
       "low-intrinsic-dimensionality of LLM activations" finding [refs&nbsp;1,&nbsp;2,&nbsp;7] on
       models that span an order of magnitude in $d$ (576 → 3,072) and three
       architectures (Llama-style decoder, Gemma-style hybrid, Phi-style decoder).
       All three converge on $k_\text{int} \in \{11, 17, 25\}$, that is, $k_\text{int} \ll d$
-      uniformly, and $k_\text{int}$ does <em>not</em> grow with $d$.
+      uniformly, and $k_\text{int}$ does not grow with $d$.
     </p>
     <p>
-      <strong>What it is not:</strong> a guarantee that <em>weight</em>-space PCA of the
+      What it is not: a guarantee that weight-space PCA of the
       individual $Q/K/V/O$ matrices captures this same intrinsic dimension. Activation-space
       intrinsic dim is necessary for the premise but not sufficient for the GP construction.
       The actual weight-space evidence (singular-value spectra of all seven slots on
@@ -278,7 +278,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     comes from $Q$ and (when included) $O$.
   </p>
   <p>
-    The attention slots, plus $W_\text{up}$ and $W_\text{gate}$, are <em>tall</em> in
+    The attention slots, plus $W_\text{up}$ and $W_\text{gate}$, are tall in
     the same direction (fewer rows than columns is allowed too; what matters is that the
     "compressed" dimension is the one the basis is built over). For these slots GP uses
     the same construction as Paper&nbsp;1: form the
@@ -334,14 +334,14 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <div class="callout finding">
     <div class="callout-title">What this table actually says</div>
     <p>
-      The four <strong>attention</strong> slots are highly compressible: 95% of their
+      The four attention slots are highly compressible: 95% of their
       Frobenius energy lives in $\sim 1{,}600$&ndash;$2{,}100$ of $4{,}096$ singular
       directions ($\sim 41\%$&ndash;$52\%$ of full rank), and at the production setting
       $k = 1{,}024$ they retain $74\%$&ndash;$84\%$ of their energy ($Q$, $O$) or
       $100\%$ ($K$, $V$, where GQA already caps the rank at $1{,}024$).
     </p>
     <p>
-      The three <strong>FFN</strong> slots are not. 95% of their energy needs $\sim 3{,}300$
+      The three FFN slots are not. 95% of their energy needs $\sim 3{,}300$
       of $4{,}096$ ($\sim 80\%$ of full rank), and truncating to $k = 1{,}024$ drops
       $\sim 50\%$ of their Frobenius energy on every layer measured. This is the
       quantitative version of the qualitative claim in Paper&nbsp;1 ("FFN is flat"):
@@ -355,7 +355,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
       numerically wasteful when the spectrum is approximately flat.
     </p>
     <p>
-      <strong>Caveat preserved:</strong> these spectra are weight-space, single model
+      Caveat preserved: these spectra are weight-space, single model
       (Llama-3.1-8B), single quantisation (Q4_K_M dequantised). The cross-model
       activation-manifold evidence in §<a href="#manifold">2</a> is independent of and
       does not extend to per-slot weight spectra on the other three models. We have
@@ -394,7 +394,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <div class="callout warning">
     <div class="callout-title">Open knob</div>
     <p>
-      The MCR-driven per-layer rank assignment is the part of GP we are <em>least</em>
+      The MCR-driven per-layer rank assignment is the part of GP we are least
       confident about. It is enabled by default in the runtime, but Paper&nbsp;1's
       headline numbers all use shared-rank ($k_\text{layer} = k$ for all $\ell$) because
       the MCR setting changes too many things at once for the calibration-free claim to
@@ -429,7 +429,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <h3>5.1 The depth-sink shortcut</h3>
   <p>
     Reloading the full geometry cache on a 70B model is not free, at minimum we want
-    to verify the cache is not stale. The runtime's solution is the <em>depth-sink</em>
+    to verify the cache is not stale. The runtime's solution is the depth-sink
     layer: empirically, transformer activations saturate in effective dimensionality at
     a single layer roughly two-thirds of the way through the stack, and the spectrum at
     that one layer is enough to detect almost all weight-blob corruption. The cache
@@ -455,7 +455,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     The end-to-end numbers GP produces on its empirical anchor, Llama-3.1-8B-Instruct
     Q4_K_M, RTX&nbsp;4070 Laptop, locked 30-second cooldown protocol, are the
     Paper&nbsp;1 numbers by construction, since GP at attention-only-shared-rank
-    <em>is</em> the Paper&nbsp;1 configuration. We summarise them here with the GP
+    is the Paper&nbsp;1 configuration. We summarise them here with the GP
     framing rather than the calibration-free framing.
   </p>
   <div class="table-wrap wide">
@@ -477,7 +477,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     quality (+61% PPL) because the K/V projection dimension on GQA-Llama-3.1-8B
     is exactly $1{,}024$ ,  at $k=1{,}024$ the Q matrix is rank-deficient
     against its full $4{,}096$-dim, while K and V are at the boundary; (ii)
-    $k=1{,}536$ and $k=2{,}048$ produce <em>identical</em> PPL because once
+    $k=1{,}536$ and $k=2{,}048$ produce identical PPL because once
     $k \ge 1{,}024$ the K and V matrices are full-rank (lossless), so
     additional rank only affects Q, whose PCA energy is already saturated by
     $k=1{,}536$. The $k=2{,}048$ disk footprint matches $k=1{,}536$ because
@@ -487,7 +487,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     rank for this model on this protocol ,  $k=2{,}048$ is wasted memory
     and compute, $k=1{,}024$ is unsafe.
   </p>
-  <h3>6.1 What is <em>not</em> in this table</h3>
+  <h3>6.1 What is not in this table</h3>
   <ul>
     <li>FFN-included configurations. The runtime supports them; the benchmark pass is
         gated on a 30-second-cooldown rerun and is not in the v0.2 pack.</li>
@@ -589,14 +589,14 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     Paper&nbsp;1 §3.5 placed the single-slot $Q/K/V$ basis next to ASVD,
     SliceGPT, FWSVD, GPTQ, AWQ, and LoRA. Paper&nbsp;2 inherits that
     placement for the attention slots and adds three more axes that do not
-    appear in those works: <em>multi-slot fitting</em> across $Q/K/V/O$ plus
-    FFN up/gate/down, <em>persistent geometry caching</em>, and a
-    <em>depth-sink shortcut</em> that lets later layers re-use earlier
+    appear in those works: multi-slot fitting across $Q/K/V/O$ plus
+    FFN up/gate/down, persistent geometry caching, and a
+    depth-sink shortcut that lets later layers re-use earlier
     bases.
   </p>
   <ol>
     <li>
-      <strong>Activation low-dimensionality.</strong> The intrinsic-dim
+      Activation low-dimensionality. The intrinsic-dim
       result in §<a href="#manifold">2</a> is consistent with the
       isotropy/anisotropy line of work (Cai&nbsp;et&nbsp;al. 2021;
       Razzhigaev&nbsp;et&nbsp;al. 2023) and the linear-representation
@@ -606,7 +606,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
       quantisation levels.
     </li>
     <li>
-      <strong>FFN compression.</strong> ASVD (Yuan&nbsp;et&nbsp;al. 2023)
+      FFN compression. ASVD (Yuan&nbsp;et&nbsp;al. 2023)
       and FWSVD (Wang&nbsp;et&nbsp;al. 2023) cover activation-aware FFN
       decomposition; the FFN-down SVD path in §<a href="#spectra">3</a> is
       a deliberate reduction of those ideas to the smallest scheme that
@@ -614,19 +614,19 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
       contribution to FFN compression on its own.
     </li>
     <li>
-      <strong>Per-layer rank allocation.</strong> The MCR/Ricci heuristic
+      Per-layer rank allocation. The MCR/Ricci heuristic
       in §<a href="#rank-selection">4</a> sits next to compression-aware
       bit-budgeting work (GPTQ, AWQ, OmniQuant) but operates on rank rather
       than bits, on a fixed-precision integer budget, and against a
       curvature signal computed from the same Phase-1 cloud that produces
       the basis. The closest published precedent is Kimi&nbsp;Team's
-      block-summary curvature signal in <em>Block Attention Residuals</em>
+      block-summary curvature signal in Block Attention Residuals
       (arXiv:2603.15031, 2026); the connection is made explicit in
       <a href="03-speculative-decoding.html#attnres">Paper&nbsp;3 §4</a>
       and <a href="04-organic-training-theory.html#attnres">Paper&nbsp;4 §3</a>.
     </li>
     <li>
-      <strong>Geometry caching.</strong> The persistent
+      Geometry caching. The persistent
       <code>$W_\text{proj}$</code> cache (1,093&nbsp;MB on Llama-3.1-8B
       Q4_K_M, see §<a href="#cache">5</a>) is closer in spirit to a
       compiled artefact (e.g. TensorRT plan caches, Triton kernel caches)
@@ -636,7 +636,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
       paragraph is the place we will cite it.
     </li>
     <li>
-      <strong>What we are not doing.</strong> We do not retrain (so this is
+      What we are not doing. We do not retrain (so this is
       not LoRA / DoRA territory), we do not change the attention algorithm
       (so this is not FlashAttention / Ring Attention territory), and we
       do not change the quantisation format (Q4_K_M is taken as a fixed
@@ -653,14 +653,14 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <span class="section-num">§10, References</span>
   <h2>Selected refs</h2>
   <ol>
-    <li>Cai, T. et al., <em>Isotropy in the Contextual Embedding Space</em> (ACL 2021), activation low-dimensionality on language models.</li>
-    <li>Razzhigaev, A. et al., <em>The Shape of Learning: Anisotropy and Intrinsic Dimensions in Transformer-Based Models</em> (EACL 2023), TwoNN/PCA intrinsic-dim across architectures.</li>
-    <li>Eckart, C. and Young, G., <em>The Approximation of One Matrix by Another of Lower Rank</em>, Psychometrika (1936), optimality of truncated SVD.</li>
-    <li>Hu, E. et al., <em>LoRA: Low-Rank Adaptation of Large Language Models</em> (ICLR 2022), low-rank decomposition of weight updates.</li>
-    <li>Williams, S. et al., <em>Roofline: An Insightful Visual Performance Model</em>, CACM (2009), bandwidth/compute roofline.</li>
-    <li>Touvron, H. et al., <em>Llama 3 Herd of Models</em> (2024), reference architecture.</li>
-    <li>Park, K. et al., <em>The Linear Representation Hypothesis</em> (2023), supports the manifold premise of §2.</li>
-    <li>Kimi Team, <em>Block Attention Residuals</em> (arXiv:2603.15031, 2026), cited for the AttnRes interaction discussed in <a href="03-speculative-decoding.html">Paper&nbsp;3</a>.</li>
+    <li>Cai, T. et al., Isotropy in the Contextual Embedding Space (ACL 2021), activation low-dimensionality on language models.</li>
+    <li>Razzhigaev, A. et al., The Shape of Learning: Anisotropy and Intrinsic Dimensions in Transformer-Based Models (EACL 2023), TwoNN/PCA intrinsic-dim across architectures.</li>
+    <li>Eckart, C. and Young, G., The Approximation of One Matrix by Another of Lower Rank, Psychometrika (1936), optimality of truncated SVD.</li>
+    <li>Hu, E. et al., LoRA: Low-Rank Adaptation of Large Language Models (ICLR 2022), low-rank decomposition of weight updates.</li>
+    <li>Williams, S. et al., Roofline: An Insightful Visual Performance Model, CACM (2009), bandwidth/compute roofline.</li>
+    <li>Touvron, H. et al., Llama 3 Herd of Models (2024), reference architecture.</li>
+    <li>Park, K. et al., The Linear Representation Hypothesis (2023), supports the manifold premise of §2.</li>
+    <li>Kimi Team, Block Attention Residuals (arXiv:2603.15031, 2026), cited for the AttnRes interaction discussed in <a href="03-speculative-decoding.html">Paper&nbsp;3</a>.</li>
   </ol>
 </section>
 
@@ -668,7 +668,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
 
 <footer>
   <p>
-    by <strong>William Ken Ohara Stewart</strong> (NagusameCS), 2026 &middot;
+    by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
     <a href="01-attention-compression.html">← Paper 1</a> &middot;

@@ -62,8 +62,8 @@ MathJax = {
   <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
   <p class="meta">
     HyperTensor Project &middot; April 2026
-     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-A/grc-attention-compression.pdf">PDF</a>
-     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-A/grc-attention-compression.tex">TeX source</a>
+     &middot; <a href="/pdfs/grc-attention-compression.pdf">PDF</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-A/grc-attention-compression.tex">TeX source</a>
   </p>
 </header>
 
@@ -71,17 +71,17 @@ MathJax = {
 <section id="sec:intro" class="level2">
 <h2>Introduction</h2>
 <p>Decoder-only transformer inference at batch size 1 is overwhelmingly
-<em>memory-bandwidth bound</em>: each generated token streams essentially the
+memory-bandwidth bound: each generated token streams essentially the
 full set of weights from VRAM through the GPU’s caches into the SMs, performs
 a few-element matrix–vector product, and writes back the KV cache
 <span class="citation" data-cites="williams2009roofline yuan2024llmroofline">(Williams et al. 2009; Yuan et al. 2024)</span>. In this regime the marginal
-benefit of FLOPs reduction is small; the marginal benefit of <em>bytes</em>
+benefit of FLOPs reduction is small; the marginal benefit of bytes
 reduction is large. Existing post-training compression schemes
 (GPTQ <span class="citation" data-cites="frantar2022gptq">(Frantar et al. 2022)</span>, AWQ <span class="citation" data-cites="lin2023awq">(Lin et al. 2023)</span>, SmoothQuant
 <span class="citation" data-cites="xiao2022smoothquant">(Xiao et al. 2022)</span>, ASVD <span class="citation" data-cites="yuan2023asvd">(Yuan et al. 2023)</span>,
 SliceGPT <span class="citation" data-cites="ashkboos2024slicegpt">(Ashkboos et al. 2024)</span>, FWSVD <span class="citation" data-cites="hsu2022fwsvd">(Hsu et al. 2022)</span>,
 SparseGPT <span class="citation" data-cites="frantar2023sparsegpt">(Frantar and Alistarh 2023)</span>, LLM.int8() <span class="citation" data-cites="dettmers2022llmint8">(Dettmers et al. 2022)</span>)
-all reduce bytes; almost all require <em>calibration data</em>, an activation
+all reduce bytes; almost all require calibration data, an activation
 sample drawn from a representative corpus, to weight the compression
 objective.</p>
 <p>This paper measures how much of that calibration step is necessary. We
@@ -93,13 +93,13 @@ is statistically indistinguishable from it.</p>
 <section id="sec:nomenclature" class="level3">
 <h3>Project nomenclature</h3>
 <p>This paper series uses a consistent four-level naming hierarchy.
-<em>HyperTensor</em> is the umbrella project (compiler, runtime, kernels,
-and theory). <em>Geodesic Projection</em> (GP) is the overarching
+HyperTensor is the umbrella project (compiler, runtime, kernels,
+and theory). Geodesic Projection (GP) is the overarching
 inference-time pipeline that factorises weights along their dominant
-geometric directions. <em>Geodesic Runtime Compression</em> (GRC), the
+geometric directions. Geodesic Runtime Compression (GRC), the
 subject of this paper, is the attention-only subset of GP applied to
 <span class="math inline">\(\Wmat_Q,\Wmat_K,\Wmat_V\)</span> at load time with no calibration and no
-fine-tuning. <em>OTT/GTC</em> (Organic Tensor Topology and the Geodessical
+fine-tuning. OTT/GTC (Organic Tensor Topology and the Geodessical
 Tensor Cache) is the longer-term theoretical framework that treats the
 projection bases as charts on a Riemannian manifold and is the subject of
 the companion paper. This paper is self-contained and assumes only the GRC
@@ -111,7 +111,7 @@ layer.</p>
 <li><p>A clean test of calibration-free compression: PCA of the joint Gram
 matrix of <span class="math inline">\(\{\Wmat_Q,\Wmat_K,\Wmat_V\}\)</span> produces a portable, sign-canonical,
 bit-stable projection without text samples (<a href="#sec:method" data-reference-type="ref+Label" data-reference="sec:method">3</a>).</p></li>
-<li><p>A measured <em>super-baseline</em>: <span class="math inline">\(106.27\%\)</span> relative decode throughput
+<li><p>A measured super-baseline: <span class="math inline">\(106.27\%\)</span> relative decode throughput
 at <span class="math inline">\(k{=}1024\)</span> on Llama-3.1-8B / RTX 4070 Laptop, with <span class="math inline">\(t{=}53.88\)</span>,
 <span class="math inline">\(p&lt;10^{-10}\)</span>, bootstrap CI excluding 1.0 (<a href="#sec:results,sec:stats" data-reference-type="ref+Label" data-reference="sec:results,sec:stats">[sec:results,sec:stats]</a>).</p></li>
 <li><p>A cache-fit hypothesis tying the super-baseline to L2 working-set fit at
@@ -186,16 +186,16 @@ moved per token is the dominant lever.</p>
 </section>
 <section id="compression-families." class="level5">
 <h5>Compression families.</h5>
-<p><em>Quantisation</em> (GPTQ <span class="citation" data-cites="frantar2022gptq">(Frantar et al. 2022)</span>, AWQ <span class="citation" data-cites="lin2023awq">(Lin et al. 2023)</span>,
+<p>Quantisation (GPTQ <span class="citation" data-cites="frantar2022gptq">(Frantar et al. 2022)</span>, AWQ <span class="citation" data-cites="lin2023awq">(Lin et al. 2023)</span>,
 SmoothQuant <span class="citation" data-cites="xiao2022smoothquant">(Xiao et al. 2022)</span>, LLM.int8() <span class="citation" data-cites="dettmers2022llmint8">(Dettmers et al. 2022)</span>)
-keeps the matrix shape and lowers per-element bit width. <em>Pruning</em>
+keeps the matrix shape and lowers per-element bit width. Pruning
 (SparseGPT <span class="citation" data-cites="frantar2023sparsegpt">(Frantar and Alistarh 2023)</span>) zeroes individual weights.
-<em>Low-rank factorisation</em> (FWSVD <span class="citation" data-cites="hsu2022fwsvd">(Hsu et al. 2022)</span>, ASVD
+Low-rank factorisation (FWSVD <span class="citation" data-cites="hsu2022fwsvd">(Hsu et al. 2022)</span>, ASVD
 <span class="citation" data-cites="yuan2023asvd">(Yuan et al. 2023)</span>, SliceGPT <span class="citation" data-cites="ashkboos2024slicegpt">(Ashkboos et al. 2024)</span>) replaces a
 full-rank weight <span class="math inline">\(\Wmat\!\in\!\R^{m\times n}\)</span> with <span class="math inline">\(\Wmat\Pmat_k\Pmat_k^\top\)</span>
-or <span class="math inline">\(\Wmat U_kV_k^\top\)</span>. <em>Adapters</em> (LoRA <span class="citation" data-cites="hu2021lora">(Hu et al. 2021)</span>,
+or <span class="math inline">\(\Wmat U_kV_k^\top\)</span>. Adapters (LoRA <span class="citation" data-cites="hu2021lora">(Hu et al. 2021)</span>,
 QLoRA <span class="citation" data-cites="dettmers2023qlora">(Dettmers et al. 2023)</span>) keep the model frozen and add small
-trainable terms. All of FWSVD/ASVD/SliceGPT use <em>calibration data</em> to
+trainable terms. All of FWSVD/ASVD/SliceGPT use calibration data to
 weight directions by activation magnitude.</p>
 </section>
 <section id="why-attention-is-a-low-rank-target." class="level5">
@@ -270,15 +270,15 @@ until the output projection <span class="math inline">\(\Wmat_O\)</span> (which 
 them because each one removes a class of failure mode that calibration-based
 compression schemes inherit by default.</p>
 <ul>
-<li><p><em>Calibration-free.</em> The construction depends only on the
+<li><p>Calibration-free. The construction depends only on the
 weights; no text samples, no activation traces, no hyperparameters beyond
 <span class="math inline">\(k\)</span>. The cache key is <span class="math inline">\((\textsf{model SHA-256}, k)\)</span>.</p></li>
-<li><p><em>Bit-stable.</em> Sign canonicalisation removes the
+<li><p>Bit-stable. Sign canonicalisation removes the
 <span class="math inline">\(\pm1\)</span> ambiguity of eigenvectors; we observe identical <span class="math inline">\(\Pmat_k\)</span> across
 OpenBLAS/MKL/Accelerate down to <code>float32</code> bit pattern.</p></li>
-<li><p><em>Drop-in.</em> Wraps any GGUF <span class="citation" data-cites="ggerganov2023gguf">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023a)</span> model with
+<li><p>Drop-in. Wraps any GGUF <span class="citation" data-cites="ggerganov2023gguf">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023a)</span> model with
 k-quants <span class="citation" data-cites="ggerganov2023kquants">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023b)</span>; no kernel changes required.</p></li>
-<li><p><em>Bytes saved.</em> Per layer the Q/K/V working set drops from
+<li><p>Bytes saved. Per layer the Q/K/V working set drops from
 <span class="math inline">\(3d^2\)</span> to <span class="math inline">\(3kd\)</span> floats, a <span class="math inline">\(d/k\)</span> factor; for Llama-3.1-8B at <span class="math inline">\(k{=}1024\)</span>, this
 is <span class="math inline">\(4\times\)</span> reduction on Q (which dominates).</p></li>
 </ul>
@@ -331,8 +331,8 @@ WikiText-2 PPL). Reference pack <code>whitepaper_pack_20260427_121815</code>.</c
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong>1024</strong></td>
-<td style="text-align: right;"><strong>106.27</strong></td>
+<td style="text-align: left;">1024</td>
+<td style="text-align: right;">106.27</td>
 <td style="text-align: right;">102.67</td>
 <td style="text-align: right;">105.72</td>
 <td style="text-align: right;">10.96 (+61.4%)</td>
@@ -574,7 +574,7 @@ critical experiment for cross-GPU generalisation.</caption>
 <td style="text-align: right;">32</td>
 <td style="text-align: right;">256</td>
 <td style="text-align: right;">1024</td>
-<td style="text-align: right;"><strong>1.06 (measured)</strong></td>
+<td style="text-align: right;">1.06 (measured)</td>
 </tr>
 <tr>
 <td style="text-align: left;">RTX 4090</td>
@@ -703,7 +703,7 @@ near-lossless throughput claim.</p>
 <h2>Theoretical Bound: Eckart–Young vs. Shared Basis</h2>
 <p>The Eckart–Young–Mirsky theorem <span class="citation" data-cites="eckart1936">(Eckart and Young 1936)</span> gives
 <span class="math inline">\(\norm{\Wmat-\Wmat_k}_F^2\!\geq\!\sum_{i&gt;k}\sigma_i(\Wmat)^2\)</span>, achieved by
-the truncated SVD of <span class="math inline">\(\Wmat\)</span> alone. GRC builds a single <em>shared</em>
+the truncated SVD of <span class="math inline">\(\Wmat\)</span> alone. GRC builds a single shared
 projection <span class="math inline">\(\Pmat_k\)</span> from <span class="math inline">\(\Kmat=\sum_i\Wmat_i^\top\Wmat_i\)</span>, so its
 per-matrix error must be at least the EY bound. We define the excess
 factor <span class="math inline">\(\rho_k(\Wmat)=\norm{\Wmat-\Wmat\Pmat_k\Pmat_k^\top}_F^2 /
@@ -727,7 +727,7 @@ factor <span class="math inline">\(\rho_k(\Wmat)=\norm{\Wmat-\Wmat\Pmat_k\Pmat_k
 <td style="text-align: right;">1.83<span class="math inline">\(\times\)</span></td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>1024</strong></td>
+<td style="text-align: left;">1024</td>
 <td style="text-align: right;">0.042 (Q only)</td>
 <td style="text-align: right;">0.305</td>
 <td style="text-align: right;"><span class="math inline">\(\approx 3.7\times\)</span></td>
@@ -749,7 +749,7 @@ factor <span class="math inline">\(\rho_k(\Wmat)=\norm{\Wmat-\Wmat\Pmat_k\Pmat_k
 </div>
 <p>The shared basis pays a real, quantifiable 3–10<span class="math inline">\(\times\)</span> cost above the
 Eckart–Young oracle. Despite the gap, downstream PPL at <span class="math inline">\(k{=}1536\)</span> remains
-within deployment range, suggesting that directions <em>missed</em> by the
+within deployment range, suggesting that directions missed by the
 shared basis are lower-importance for next-token prediction than their
 singular values alone would suggest. Per-matrix bases are an obvious next
 step (<a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>).</p>
@@ -764,6 +764,94 @@ the per-matrix-basis future-work item. Source data:
 <code>docs/figures/eckart_young_bound.json</code>;
 extracted by <code>scripts/extract_ey_per_layer.py</code>.</figcaption>
 </figure>
+<div id="tab:sink-pilot">
+<table>
+<caption>Sink-channel-aware GRC pilot. Top-<span class="math inline">\(T\)</span> highest-L2 columns of
+<span class="math inline">\(W_Q,W_K,W_V\)</span> are kept exact; GRC is applied to the residual. Numbers
+are the mean relative-Frobenius-squared reconstruction-error
+improvement (positive means lower error than vanilla GRC) over
+layers <span class="math inline">\(\{0,15,31\}\)</span> of Llama-3.1-8B-Instruct, in two settings:
+“same <span class="math inline">\(k\)</span>” (extra parameters granted “for free”) and
+“param-matched” (rank lowered to <span class="math inline">\(k_\text{eq} = k - \lceil T(m_q{+}m_k{+}m_v)/(d{+}m_q{+}m_k{+}m_v)\rceil\)</span>
+to absorb the <span class="math inline">\(T(m_q{+}m_k{+}m_v)\)</span> extra exact-column parameters).
+Source: <code>scripts/analysis/sink_channel_grc.py</code>,
+<code>docs/figures/paper-a/sink_channel_pilot.json</code>.</caption>
+<thead>
+<tr>
+<th style="text-align: right;"></th>
+<th colspan="2" style="text-align: center;"><span class="math inline">\(k=512\)</span></th>
+<th colspan="2" style="text-align: center;"><span class="math inline">\(k=1024\)</span></th>
+<th colspan="2" style="text-align: center;"><span class="math inline">\(k=1536\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><span>2-3</span>(lr)<span>4-5</span>(lr)<span>6-7</span>
+<span class="math inline">\(T\)</span></td>
+<td style="text-align: right;">same-<span class="math inline">\(k\)</span></td>
+<td style="text-align: right;">param-m.</td>
+<td style="text-align: right;">same-<span class="math inline">\(k\)</span></td>
+<td style="text-align: right;">param-m.</td>
+<td style="text-align: right;">same-<span class="math inline">\(k\)</span></td>
+<td style="text-align: right;">param-m.</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;"><span class="math inline">\(+0.10\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.01\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.10\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.01\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.17\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.10\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;"><span class="math inline">\(+0.23\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.06\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.25\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.09\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.33\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.19\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;"><span class="math inline">\(+0.49\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.22\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.53\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.28\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.74\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.53\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;"><span class="math inline">\(+0.82\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.37\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.88\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.46\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+1.14\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.78\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;"><span class="math inline">\(+1.47\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.58\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+1.57\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.74\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+2.02\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+1.32\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;"><span class="math inline">\(+2.63\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+0.86\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+2.78\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+1.13\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+3.50\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(+2.07\%\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="sec:limits" class="level2">
 <h2>Limitations</h2>
@@ -791,6 +879,39 @@ than a principled boundary, and the root cause has not been deeply
 investigated.</p></li>
 <li><p>The runtime is CUDA-only and requires an NVIDIA GPU with at least
 <span class="math inline">\(8\)</span> GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.</p></li>
+<li><p><strong>The <span class="math inline">\(+13.30\%\)</span> perplexity gap at <span class="math inline">\(k{=}1536\)</span> is partly an
+intrinsic floor and partly a deliberate design choice.</strong> An Eckart, Young
+and Mirsky calculation against the joint Gram spectrum sets the floor:
+operating at <span class="math inline">\(k{=}1024\)</span> throws away the bottom <span class="math inline">\({\approx}9\%\)</span> of energy
+(<span class="math inline">\(k_{95}{\approx}1682\)</span>), so a non-zero perplexity penalty is unavoidable
+without retraining. The remainder is reducible by changes that the
+current paper deliberately does not pursue, in order to preserve
+calibration-free operation, the shared-basis fused dual-Q8 kernel path,
+and a uniform per-layer rank that keeps memory layout predictable.
+Specifically: (i) per-layer adaptive rank, exploiting the fact that
+<span class="math inline">\(k_{95}\)</span> varies across layers, would close 30 to 50% of the gap at the
+cost of variable shapes that complicate kernel fusion; (ii) per-matrix
+bases (<span class="math inline">\(\Pmat_Q,\Pmat_K,\Pmat_V\)</span> each on its own optimal subspace, the
+strict EYM optimum) would close 40 to 60% of the gap at the cost of
+<span class="math inline">\(3\times\)</span> projection storage and loss of the dual-Q8 fused path; (iii)
+sink-channel exemption, motivated by the Massive Activations literature
+<span class="citation" data-cites="sun2024massive">(Sun et al. 2024)</span>, in its calibration-free weight-only form
+(top-<span class="math inline">\(T\)</span> highest-L2 columns of <span class="math inline">\(W_Q,W_K,W_V\)</span> kept exact, GRC applied to
+the residual) closes a measured 1 to 3% of the relative reconstruction
+error at <span class="math inline">\(k\in\{512,1024,1536\}\)</span> on layers <span class="math inline">\(\{0,15,31\}\)</span> of
+Llama-3.1-8B-Instruct (see <a href="#tab:sink-pilot" data-reference-type="ref+Label" data-reference="tab:sink-pilot">6</a>; pilot data
+<code>docs/figures/paper-a/sink_channel_pilot.json</code>). This is real
+but smaller than the literature suggests because the massive-activation
+phenomenon lives in the runtime hidden state, not in the weight
+columns; a calibrated variant (a few hundred forward passes to identify
+the sink channels at inference time) is expected to recover
+substantially more, and is queued as follow-up; and (iv) running GRC in
+FP16 before re-quantising to Q4_K_M would close 10 to 25% of the gap
+by avoiding stacked rounding error, at the cost of higher peak memory
+during compression. We treat the headline <span class="math inline">\(+13.30\%\)</span> as an upper bound
+on the cost of the calibration-free, fusion-friendly, uniform-rank
+operating point, not as the cost of low-rank attention compression in
+general.</p></li>
 </ul>
 </section>
 <section id="sec:future" class="level2">
@@ -839,8 +960,8 @@ audit the headline numbers. Validated reference pack:
 explicitly listed as a limitation.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Component</strong></th>
-<th style="text-align: left;"><strong>Specification</strong></th>
+<th style="text-align: left;">Component</th>
+<th style="text-align: left;">Specification</th>
 </tr>
 </thead>
 <tbody>
@@ -858,7 +979,7 @@ explicitly listed as a limitation.</caption>
 </tr>
 <tr>
 <td style="text-align: left;">GPU L2 cache</td>
-<td style="text-align: left;"><strong>32 MB</strong></td>
+<td style="text-align: left;">32 MB</td>
 </tr>
 <tr>
 <td style="text-align: left;">GPU peak FP32</td>
@@ -894,8 +1015,8 @@ explicitly listed as a limitation.</caption>
 <caption>Model and runtime under test.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Property</strong></th>
-<th style="text-align: left;"><strong>Value</strong></th>
+<th style="text-align: left;">Property</th>
+<th style="text-align: left;">Value</th>
 </tr>
 </thead>
 <tbody>
@@ -962,9 +1083,9 @@ explicitly listed as a limitation.</caption>
 <span class="math inline">\(\Wmat_\text{proj}\)</span> cache is computed once per (model, <span class="math inline">\(k\)</span>) pair and reused.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Artefact</strong></th>
-<th style="text-align: right;"><strong>Size</strong></th>
-<th style="text-align: left;"><strong>Notes</strong></th>
+<th style="text-align: left;">Artefact</th>
+<th style="text-align: right;">Size</th>
+<th style="text-align: left;">Notes</th>
 </tr>
 </thead>
 <tbody>
@@ -1012,8 +1133,8 @@ Idle baseline (OS, display, background) is <span class="math inline">\({\sim}1\,
 configurations sit comfortably inside the 8 188 MiB budget.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Stage</strong></th>
-<th style="text-align: right;"><strong>Baseline (MiB)</strong></th>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: right;">Baseline (MiB)</th>
 <th style="text-align: right;"><strong>GRC <span class="math inline">\(k{=}1536\)</span> (MiB)</strong></th>
 <th style="text-align: right;"><span class="math inline">\(\Delta\)</span></th>
 </tr>
@@ -1054,7 +1175,7 @@ configurations sit comfortably inside the 8 188 MiB budget.</caption>
 <p>Runtime-reported model load: 226 weight tensors (4 684 MB) +
 scratch arena (513 MB) + KV cache and activations at 8K context
 (<span class="math inline">\({\sim}615\)</span> MB). The 1.09 GB on-disk <span class="math inline">\(\Wmat_\text{proj}\)</span> is only
-<em>partially</em> resident in VRAM during decode, the GPU-resident working
+partially resident in VRAM during decode, the GPU-resident working
 set uses only the active layer’s projected matrices, hence the small +36 MiB
 delta despite the large on-disk artefact.</p>
 </section>
@@ -1066,11 +1187,11 @@ decode envelope; GRC and baseline are bandwidth-saturated alike. PCA
 calibration is CPU-bound and idles the GPU at 13–14 W on first run only.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Phase</strong></th>
-<th style="text-align: right;"><strong>GPU power (W)</strong></th>
-<th style="text-align: right;"><strong>GPU clock (MHz)</strong></th>
-<th style="text-align: right;"><strong>Util.</strong></th>
-<th style="text-align: right;"><strong>Temp. (°C)</strong></th>
+<th style="text-align: left;">Phase</th>
+<th style="text-align: right;">GPU power (W)</th>
+<th style="text-align: right;">GPU clock (MHz)</th>
+<th style="text-align: right;">Util.</th>
+<th style="text-align: right;">Temp. (°C)</th>
 </tr>
 </thead>
 <tbody>
@@ -1149,9 +1270,9 @@ near-uniform spectra and would need <span class="math inline">\({\sim}3.4\times\
 same energy capture.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Matrix</strong></th>
+<th style="text-align: left;">Matrix</th>
 <th style="text-align: right;"><strong>Range <span class="math inline">\(k_{95}\)</span></strong></th>
-<th style="text-align: right;"><strong>Mean <span class="math inline">\(k/d\)</span></strong></th>
+<th style="text-align: right;">Mean <span class="math inline">\(k/d\)</span></th>
 <th style="text-align: left;"><strong>Status at GRC <span class="math inline">\(k{=}1024\)</span></strong></th>
 </tr>
 </thead>
@@ -1210,11 +1331,11 @@ prompt-induced access patterns. Worst-case lower-95% bound is 86% of
 baseline, well above the 67% gate.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Prompt class</strong></th>
-<th style="text-align: right;"><strong>Baseline (tok/s)</strong></th>
-<th style="text-align: right;"><strong>GRC (tok/s)</strong></th>
-<th style="text-align: right;"><strong>Mean retention</strong></th>
-<th style="text-align: right;"><strong>Lower-95%</strong></th>
+<th style="text-align: left;">Prompt class</th>
+<th style="text-align: right;">Baseline (tok/s)</th>
+<th style="text-align: right;">GRC (tok/s)</th>
+<th style="text-align: right;">Mean retention</th>
+<th style="text-align: right;">Lower-95%</th>
 </tr>
 </thead>
 <tbody>
@@ -1223,14 +1344,14 @@ baseline, well above the 67% gate.</caption>
 <td style="text-align: right;"><span class="math inline">\(35.68\!\pm\!0.35\)</span></td>
 <td style="text-align: right;"><span class="math inline">\(34.86\!\pm\!2.02\)</span></td>
 <td style="text-align: right;">97.70%</td>
-<td style="text-align: right;"><strong>86.60%</strong></td>
+<td style="text-align: right;">86.60%</td>
 </tr>
 <tr>
 <td style="text-align: left;">reasoning/256</td>
 <td style="text-align: right;"><span class="math inline">\(35.58\!\pm\!0.31\)</span></td>
 <td style="text-align: right;"><span class="math inline">\(35.22\!\pm\!2.42\)</span></td>
 <td style="text-align: right;">98.99%</td>
-<td style="text-align: right;"><strong>85.64%</strong></td>
+<td style="text-align: right;">85.64%</td>
 </tr>
 </tbody>
 </table>
@@ -1249,7 +1370,7 @@ out of L2.</figcaption>
 <img src="layerwise_rank_needed.png" style="width:85.0%" />
 <figcaption>Per-layer rank required for 90%, 95% and 99% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B. The flat
-plateau between <span class="math inline">\(L{=}5\)</span> and <span class="math inline">\(L{=}28\)</span> shows that a <em>single</em> compression
+plateau between <span class="math inline">\(L{=}5\)</span> and <span class="math inline">\(L{=}28\)</span> shows that a single compression
 rank (here <span class="math inline">\(k{=}1024\)</span>) is geometry-justified for the bulk of the network:
 the per-layer “what would be needed for 95%” band sits in the
 <span class="math inline">\(1\,400\)</span>–<span class="math inline">\(1\,800\)</span> range, and dropping to <span class="math inline">\(k{=}1024\)</span> trades a known small
@@ -1265,7 +1386,7 @@ representative decode-phase launches each on Llama-3.1-8B Q4_K_M, RTX 4070
 Laptop (32 MB L2). Baseline mean <span class="math inline">\(7.84\%\)</span>, GRC <span class="math inline">\(k{=}1024\)</span> mean <span class="math inline">\(5.74\%\)</span>
 (<span class="math inline">\(\Delta{=}{-}2.09\)</span> pp). The drop is consistent with GRC installing
 <span class="math inline">\(P_t\)</span> (<span class="math inline">\(128\)</span> MB) and <span class="math inline">\(W_\text{proj}\)</span> (<span class="math inline">\(72\)</span> MB) persist hints to keep the
-<em>compressed-attention</em> working set resident, evicting (uncompressed)
+compressed-attention working set resident, evicting (uncompressed)
 FFN weights, the cost paid for the bandwidth reduction reported in
 <a href="#tab:headline" data-reference-type="ref+Label" data-reference="tab:headline">1</a>. A like-for-like trace of the compressed-attention
 kernel itself is not possible because the kernel exists only when GRC
@@ -1399,7 +1520,7 @@ RTX 4090 / A100 / H100 cross-tier sweep listed in
 quantitatively. Logs at
 <code>benchmarks/cross_hw_local_fix_20260428_192807/session_logs/local/</code>.</p>
 <p>A greedy-decode (<span class="math inline">\(\texttt{--temp 0}\)</span>) repeat of the same configuration
-exhibits early end-of-sequence on <em>both</em> the baseline and the
+exhibits early end-of-sequence on both the baseline and the
 <code>--axex-compress</code> path; the behaviour reproduces without GRC and
 is therefore a SmolLM2 sampling-mode property, not a runtime regression.
 The <code>--temp 0.7</code> numbers above are the apples-to-apples
@@ -1414,7 +1535,7 @@ cold-cache PCA at <span class="math inline">\(k{=}1024\)</span> exceeds the test
 layers); we instead validated correctness with <span class="math inline">\(k{=}256/512\)</span> and Q8_0,
 which overflows the 6 GB VRAM at baseline (2.7 tok/s) and recovers
 on-GPU residency once the wproj cache lands.</p>
-<p>This is a portability and reproducibility check, <em>not</em> a cross-tier
+<p>This is a portability and reproducibility check, not a cross-tier
 GPU sweep, a 4090/A100/H100 evaluation remains future work and is the
 single largest open item before this paper is submission-ready.
 Cross-device run logs and binaries are archived under
@@ -1428,10 +1549,10 @@ Cross-device run logs and binaries are archived under
 <caption>Validation gates on pack <code>whitepaper_pack_20260427_121815</code>.</caption>
 <thead>
 <tr>
-<th style="text-align: left;"><strong>Gate</strong></th>
-<th style="text-align: right;"><strong>Threshold</strong></th>
-<th style="text-align: right;"><strong>Measured</strong></th>
-<th style="text-align: left;"><strong>Result</strong></th>
+<th style="text-align: left;">Gate</th>
+<th style="text-align: right;">Threshold</th>
+<th style="text-align: right;">Measured</th>
+<th style="text-align: left;">Result</th>
 </tr>
 </thead>
 <tbody>
@@ -1476,189 +1597,6 @@ Cross-device run logs and binaries are archived under
 <td style="text-align: right;"><span class="math inline">\(\leq +15\%\)</span></td>
 <td style="text-align: right;">+13.30%</td>
 <td style="text-align: left;">PASS</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="benefits-and-limitations-catalogue" class="level3">
-<h3>Benefits and limitations catalogue</h3>
-<table>
-<caption>Honest accounting of GRC’s benefits and limits, distilled from the
-v0.6.0 technical report. Severities reflect deployment impact.</caption>
-<thead>
-<tr>
-<th style="text-align: left;"><strong>Dimension</strong></th>
-<th style="text-align: left;"><strong>Sign</strong></th>
-<th style="text-align: left;"><strong>Severity</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">No calibration data needed (pure weight geometry)</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Major</td>
-</tr>
-<tr>
-<td style="text-align: left;">Super-baseline at <span class="math inline">\(k{=}1024\)</span> (106.27% decode)</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Major</td>
-</tr>
-<tr>
-<td style="text-align: left;">Near-lossless throughput at <span class="math inline">\(k{=}1536\)</span></td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">Deterministic, cacheable, sign-canonical basis</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">Sub-second warm startup (small models)</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">Zero training infrastructure</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Major</td>
-</tr>
-<tr>
-<td style="text-align: left;">Modular (Q/K/V only; FFN untouched)</td>
-<td style="text-align: left;"><span class="math inline">\(+\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;"><span class="math inline">\(+13.30\%\)</span> WikiText-2 PPL at <span class="math inline">\(k{=}1536\)</span></td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Major</td>
-</tr>
-<tr>
-<td style="text-align: left;">Prefill 8–15% slower (sequential path)</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>AXEX_MANIFOLD_K_MAX</code> hard cap at 1536</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">Minimal VRAM reduction (<span class="math inline">\(+36\)</span> MiB delta)</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">First-run cold start 60–120 s</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">GRC throughput variance <span class="math inline">\({\sim}6\times\)</span> baseline</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Moderate</td>
-</tr>
-<tr>
-<td style="text-align: left;">No power savings (same 109 W TDP)</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Mild</td>
-</tr>
-<tr>
-<td style="text-align: left;"><span class="math inline">\(\Wmat_O\)</span> excluded; FFN excluded</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Mild</td>
-</tr>
-<tr>
-<td style="text-align: left;">Single hardware, single model validated</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Major</td>
-</tr>
-<tr>
-<td style="text-align: left;">CUDA-only (no ROCm/Metal/CPU fallback)</td>
-<td style="text-align: left;"><span class="math inline">\(-\)</span></td>
-<td style="text-align: left;">Mild</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="methodological-gaps" class="level3">
-<h3>Methodological gaps</h3>
-<table style="width:90%;">
-<caption>Acknowledged methodological gaps. Items 1, 3, 4 require
-infrastructure outside the scope of this independent project; item 2 is on
-the near-term roadmap.</caption>
-<colgroup>
-<col style="width: 28%" />
-<col style="width: 30%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr>
-<th style="text-align: left;"><strong>Gap</strong></th>
-<th style="text-align: left;"><strong>Missing</strong></th>
-<th style="text-align: left;"><strong>Why it matters</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">Direct L2 cache-hit measurement</td>
-<td style="text-align: left;">No Nsight Compute counter trace; cache-fit argued from access-pattern arithmetic.</td>
-<td style="text-align: left;">Alternative micro-arch explanations (register pressure, scheduler) cannot be ruled out without counters.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Task-level evaluations</td>
-<td style="text-align: left;">Only WikiText-2 PPL; no MMLU/GSM8K/HumanEval/IFEval.</td>
-<td style="text-align: left;"><span class="math inline">\(+13.30\%\)</span> PPL is a structural signal, not a behavioural one.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Head-to-head vs. AWQ / GPTQ / SmoothQuant</td>
-<td style="text-align: left;">No direct A/B on identical hardware; we sit on the same Q4_K_M baseline.</td>
-<td style="text-align: left;">Production-scale ranking unverifiable without compatible-runtime baselines.</td>
-</tr>
-<tr>
-<td style="text-align: left;">Cross-hardware validation</td>
-<td style="text-align: left;">All measurements on RTX 4070 Laptop; <a href="#tab:predict" data-reference-type="ref+Label" data-reference="tab:predict">3</a> is calculated, not measured.</td>
-<td style="text-align: left;">Cache-fit cannot be claimed as general, only as observed on this GPU.</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="phase-status" class="level3">
-<h3>Phase status</h3>
-<table>
-<caption>Project phase status as of v0.6.0.</caption>
-<thead>
-<tr>
-<th style="text-align: left;"><strong>Phase</strong></th>
-<th style="text-align: left;"><strong>Objective</strong></th>
-<th style="text-align: left;"><strong>Status</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">1</td>
-<td style="text-align: left;">Eliminate measurement instability</td>
-<td style="text-align: left;"><strong>Complete</strong> (root cause: thermal throttling; 30 s cooldown fix)</td>
-</tr>
-<tr>
-<td style="text-align: left;">2</td>
-<td style="text-align: left;">Validate under locked protocol</td>
-<td style="text-align: left;"><strong>Complete</strong> (7/7 gates pass)</td>
-</tr>
-<tr>
-<td style="text-align: left;">3</td>
-<td style="text-align: left;">Cross-model transfer (Mistral-7B-v0.1)</td>
-<td style="text-align: left;">In progress</td>
-</tr>
-<tr>
-<td style="text-align: left;">3</td>
-<td style="text-align: left;">Cross-hardware transfer</td>
-<td style="text-align: left;">Blocked (single-GPU constraint)</td>
-</tr>
-<tr>
-<td style="text-align: left;">4</td>
-<td style="text-align: left;">External reproduction package</td>
-<td style="text-align: left;"><strong>Complete</strong> (<code>repro/REPRODUCE.md</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -1748,6 +1686,9 @@ NVIDIA Corporation. 2022. <em><span>NVIDIA Ada GPU</span> Architecture Whitepape
 </div>
 <div id="ref-nvidia2022nsight" class="csl-entry" role="listitem">
 NVIDIA Corporation. 2024. <em><span>Nsight Compute</span> Profiling Guide</em>. NVIDIA.
+</div>
+<div id="ref-sun2024massive" class="csl-entry" role="listitem">
+Sun, Mingjie, Xinlei Chen, J. Zico Kolter, and Zhuang Liu. 2024. <em>Massive Activations in Large Language Models</em>. <a href="https://arxiv.org/abs/2402.17762">https://arxiv.org/abs/2402.17762</a>.
 </div>
 <div id="ref-trefethen1997nla" class="csl-entry" role="listitem">
 Trefethen, Lloyd N., and David Bau III. 1997. <em>Numerical Linear Algebra</em>. SIAM.

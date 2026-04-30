@@ -373,7 +373,7 @@ footer a:hover { text-decoration: underline; }
     parameter count.
   </p>
   <p class="hero-meta">
-    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    By William Ken Ohara Stewart (NagusameCS) &middot;
     2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a>
   </p>
@@ -401,11 +401,11 @@ footer a:hover { text-decoration: underline; }
 
   <div class="thread">
     <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first if any term feels unfamiliar.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>Empirical kernel: a single PCA-compressed attention block measured at <strong>106.27%</strong> of baseline decode throughput, $p \approx 10^{-10}$.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>Empirical kernel: a single PCA-compressed attention block measured at 106.27% of baseline decode throughput, $p \approx 10^{-10}$.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Generalises Paper 1 into a full multi-slot pipeline (Geodesic Projection) with persistent geometry cache and FFN&nbsp;down SVD.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Composes Paper 1+2 with speculative decoding and Attention Residuals; first end-to-end speculative anchor at <strong>38.5%</strong> acceptance.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Composes Paper 1+2 with speculative decoding and Attention Residuals; first end-to-end speculative anchor at 38.5% acceptance.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 4</span><span>Theory layer: Riemannian latent-space inference, GTC, OTT. Two universal-construction theorems remain open.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 5</span><span>Empirical companion to Paper 4: 12 of 17 testable claims anchored, including the <strong>97&times;</strong> batched-Jacobi gain.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 5</span><span>Empirical companion to Paper 4: 12 of 17 testable claims anchored, including the 97&times; batched-Jacobi gain.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 6</span><span>Adaptive layer atop Paper 1+2: phase-aware rank, gauge optimisation, thermal coupling, online basis updates.</span></div>
   </div>
 
@@ -476,7 +476,7 @@ footer a:hover { text-decoration: underline; }
         decoding against the full-precision transformer, and how Attention Residuals
         (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. v0.3 anchors the
         speculative path with a first end-to-end measurement on SmolLM2-135M-Instruct:
-        <strong>38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready</strong>,
+        38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready,
         plus the instruct-greedy-EOS pathology and its fix.
       </p>
     </a>
@@ -509,9 +509,9 @@ footer a:hover { text-decoration: underline; }
       <p class="paper-abstract">
         Empirical companion to Paper&nbsp;4. Fits Riemannian structure on three LM
         activation manifolds, validates the Jacobi-correction contract
-        (<strong>97&times;</strong> at $B{=}10$, $30.9$&nbsp;µs/q lookup,
+        (97&times; at $B{=}10$, $30.9$&nbsp;µs/q lookup,
         $5.96$&nbsp;KB/record), and anchors the OTT runtime end-to-end at
-        <strong>38.5%&nbsp;acceptance / 76.5&nbsp;tok/s</strong> on
+        38.5%&nbsp;acceptance / 76.5&nbsp;tok/s on
         SmolLM2-135M-Instruct. 12 of 17 Paper&nbsp;4 testable claims now have a
         replicable measured result.
       </p>
@@ -526,12 +526,12 @@ footer a:hover { text-decoration: underline; }
       </div>
       <p class="paper-abstract">
         Four mechanisms shipped in the runtime that target distinct failures of
-        static rank-$r$ SVD: <strong>MCR</strong> phase-aware per-layer rank
-        allocation with attention-sink bypass, <strong>Axiom Gauge</strong>
+        static rank-$r$ SVD: MCR phase-aware per-layer rank
+        allocation with attention-sink bypass, Axiom Gauge
         diagonal-$g$ optimisation over the GL($d$) residual-stream symmetry
-        (zero inference overhead), <strong>Thermal Rank</strong> NVML-driven
+        (zero inference overhead), Thermal Rank NVML-driven
         rank scaling with a tokens-per-joule policy gradient, and
-        <strong>Online Basis</strong> Oja's-rule updates fired by speculative
+        Online Basis Oja's-rule updates fired by speculative
         rejections. Implementation real and CLI-reachable; first measurements
         deferred to v0.2.
       </p>
@@ -555,7 +555,7 @@ footer a:hover { text-decoration: underline; }
         <p class="paper-abstract">
           We measure a calibration-free PCA basis on the Q/K/V Gram matrix and
           show that, on Llama-3.1-8B at $k\!=\!1024$, the compressed model
-          decodes at <strong>106.27%</strong> of the uncompressed baseline
+          decodes at 106.27% of the uncompressed baseline
           ($p\!\approx\!10^{-10}$). The paper carries the Roofline derivation,
           the Eckart&ndash;Young lower bound, the thermally-controlled
           benchmark protocol, and a cross-architecture table that separates
@@ -621,6 +621,23 @@ footer a:hover { text-decoration: underline; }
         </p>
       </a>
 
+      <a class="paper-card" href="research/paper-e-grc-light-distillation.html"
+        data-stats="5 pages"
+         data-extended="Light Distillation for Calibration-Permitted Low-Rank Attention Compression. An optional companion to GRC (Paper A).">
+        <div class="paper-head">
+          <span class="paper-num">Paper E</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Light Distillation for Calibration-Permitted Low-Rank Attention Compression</span>
+        </div>
+        <p class="paper-abstract">
+          An optional companion to Paper A that introduces an opt-in distillation
+          step to recover perplexity penalty in exchange for a few hundred
+          forward passes on a small calibration corpus. Integrates per-layer
+          rank-r LoRA adapters on the teacher-student logit residual after GRC
+          projection, with sink-channel exemption as an orthogonal quality lever.
+        </p>
+      </a>
+
     </div>
 
   </div><!-- /#tab-research -->
@@ -670,7 +687,7 @@ footer a:hover { text-decoration: underline; }
 
 <footer>
   <p>
-    <strong>HyperTensor Project</strong> ,  William Ken Ohara Stewart (NagusameCS), 2026.
+    HyperTensor Project ,  William Ken Ohara Stewart (NagusameCS), 2026.
     <br>
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a> &middot;
     <a href="papers/whitepaper.html">Whitepaper</a> &middot;

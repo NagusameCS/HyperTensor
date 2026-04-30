@@ -62,19 +62,19 @@ MathJax = {
   <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
   <p class="meta">
     HyperTensor Project &middot; April 2026
-     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.pdf">PDF</a>
-     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.tex">TeX source</a>
+     &middot; <a href="/pdfs/geodesic-speculative-decoding.pdf">PDF</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.tex">TeX source</a>
   </p>
 </header>
 
 <article class="paper-body">
 <div class="htnote">
-<p><strong>Project nomenclature.</strong> <em>HyperTensor</em> is the project;
-<em>Geodesic Projection (GP)</em> is the inference-time pipeline that
+<p>Project nomenclature. HyperTensor is the project;
+Geodesic Projection (GP) is the inference-time pipeline that
 factorises every compressible weight (companion paper);
-<em>Geodesic Runtime Compression (GRC)</em> is the attention-only subset of
+Geodesic Runtime Compression (GRC) is the attention-only subset of
 GP and is the empirical anchor for the throughput measurements below;
-<em>OTT/GTC</em> is the Riemannian-manifold theoretical framework on top
+OTT/GTC is the Riemannian-manifold theoretical framework on top
 of GP that motivates the OneDecode / OTT-OD / OTT-SWARM drafter modes
 briefly described in <a href="#sec:ottmodes" data-reference-type="ref+Label" data-reference="sec:ottmodes">8</a>.</p>
 </div>
@@ -120,13 +120,13 @@ central empirical unknown of this paper.</p>
 <p>The runtime exposes
 <code>llm_generate_geodesic_speculative()</code> (declared in
 <code>runtime/nn/llm.h</code>) implementing the textbook draft-and-verify
-pattern with two specifics. <em>(i)</em> Drafter and verifier share KV
+pattern with two specifics. (i) Drafter and verifier share KV
 cache structure but not weights, the drafter is the GP-compressed
 model loaded once, the verifier is uncompressed and loaded once. Both
 resident in VRAM simultaneously is infeasible for an 8B model on 8 GB
 VRAM; speculative-decode-of-Llama-3.1-8B-with-itself requires either an
 additional VRAM tier or a tier-asymmetric deployment (e.g. 8B drafter
-on commodity GPU, 70B verifier on a server GPU). <em>(ii)</em> Acceptance
+on commodity GPU, 70B verifier on a server GPU). (ii) Acceptance
 is rejection sampling against the verifier distribution
 <span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span>, not greedy match;
 this preserves the verifier’s sampling distribution exactly under the
@@ -177,12 +177,12 @@ of <span class="math inline">\(\alpha\)</span>, no compression-induced acceptanc
 </tbody>
 </table>
 <p>These are predictions, not measurements. Two observations follow.
-<em>(i)</em> On this hardware (single 8 GB GPU), speculative decoding with
-the full 8B as verifier is <em>not</em> faster than just decoding the full
+(i) On this hardware (single 8 GB GPU), speculative decoding with
+the full 8B as verifier is not faster than just decoding the full
 8B directly: the verifier is the bottleneck and this is independent of
 GP. Speculative decoding helps when <span class="math inline">\(T_V\gg T_D\)</span>, the deployment shape
 “8B drafter on commodity GPU, 70B verifier on a server GPU” that we
-cannot currently test. <em>(ii)</em> On hypothetical hardware where a 70B
+cannot currently test. (ii) On hypothetical hardware where a 70B
 verifier is the slow side, the GP saving on the drafter compounds, but
 only if <span class="math inline">\(\Delta\alpha\)</span> is small.</p>
 </section>
@@ -240,7 +240,7 @@ with.</p>
 </section>
 <section id="sec:measured" class="level2">
 <h2>First End-to-End Measurements</h2>
-<p><strong>Setup.</strong> SmolLM2-135M-Instruct Q8_0, ChatML template, host binary
+<p>Setup. SmolLM2-135M-Instruct Q8_0, ChatML template, host binary
 <code>geodessical</code> under the locked OTT pipeline
 (<code>repair_ott.ps1</code>), threshold <span class="math inline">\(0.45\)</span>, <span class="math inline">\(\gamma{=}4\)</span>.</p>
 <div id="tab:measured">
@@ -261,12 +261,12 @@ with.</p>
 </tr>
 <tr>
 <td style="text-align: left;"><span class="math inline">\(\alpha\)</span> (acceptance)</td>
-<td style="text-align: right;"><strong>38.5%</strong></td>
+<td style="text-align: right;">38.5%</td>
 <td style="text-align: left;">5/13 tokens; 8 verifier corrections</td>
 </tr>
 <tr>
 <td style="text-align: left;">End-to-end tok/s</td>
-<td style="text-align: right;"><strong>76.5</strong></td>
+<td style="text-align: right;">76.5</td>
 <td style="text-align: left;">13 tokens / 170 ms, batch 4</td>
 </tr>
 <tr>
@@ -299,7 +299,7 @@ prediction; the model worked on first measurement.</p>
 <section id="llama-3.1-8b-instruct-q4_k_m-end-to-end-2026-04-28." class="level5">
 <h5>Llama-3.1-8B-Instruct Q4_K_M end-to-end (2026-04-28).</h5>
 <p>We repeat the measurement on the frontier-scale model
-<em>Meta-Llama-3.1-8B-Instruct Q4_K_M</em> (RTX 4070 Laptop, 32 MB L2,
+Meta-Llama-3.1-8B-Instruct Q4_K_M (RTX 4070 Laptop, 32 MB L2,
 <span class="math inline">\(\gamma{=}2\)</span>, threshold <span class="math inline">\(0.45\)</span>). An eight-prompt sweep at <span class="math inline">\(n{=}64\)</span>
 generated tokens per prompt (single-greedy decode, <code>temp=0</code>) yields
 <span class="math display">\[\alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
@@ -307,7 +307,7 @@ generated tokens per prompt (single-greedy decode, <code>temp=0</code>) yields
 with no per-prompt variance under deterministic decoding;
 the geodesic verifier accepts drafts at a rate determined by the
 model’s residual-stream geometry, not by prompt content.
-The Llama-8B operating point sits <em>above</em> SmolLM2-135M’s
+The Llama-8B operating point sits above SmolLM2-135M’s
 <span class="math inline">\(\alpha{=}38.5\%\)</span>, consistent with the hypothesis that as residual-stream
 manifolds become smoother at scale (lower intrinsic dimension relative
 to model dimension; see <a href="#sec:why" data-reference-type="ref+Label" data-reference="sec:why">1</a>) the geodesic draft becomes more
@@ -331,7 +331,7 @@ compression rank <span class="math inline">\(k\)</span> on the companion paper�
 <a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a> is the <em>peak at <span class="math inline">\(k{=}1024\)</span></em> (the cache-fit super-baseline),
 not the absolute numbers, it tells the speculative scheduler that
 choosing the verifier rank below the natural <span class="math inline">\(k_{95}\)</span> of attention can
-<em>accelerate</em> verification rather than slow it, which is why GRC and
+accelerate verification rather than slow it, which is why GRC and
 spec-decode compose multiplicatively rather than antagonistically
 (<a href="#sec:compose" data-reference-type="ref+Label" data-reference="sec:compose">7</a>).</p>
 </section>
@@ -446,7 +446,7 @@ speculative decoding
 A(x\mid c)\;=\;\min\!\Bigl(1,\;\tfrac{P_V(x\mid c)}{P_D(x\mid c)}\Bigr).
 \label{eq:accept}
 \end{equation}\]</span>
-Under <em>greedy</em> drafter sampling at temperature <span class="math inline">\(\tau\!\to\!0\)</span>, the
+Under greedy drafter sampling at temperature <span class="math inline">\(\tau\!\to\!0\)</span>, the
 drafter is a delta on its argmax: <span class="math inline">\(P_D(\hat x\mid c)\!\to\!1\)</span> where
 <span class="math inline">\(\hat x=\argmax_x \ell_D(x\mid c)\)</span>. For an instruct-tuned model on a
 short or empty user turn, the verifier-greedy argmax is itself the EOS
@@ -457,16 +457,16 @@ SmolLM2-135M-Instruct at the first decode position after the
 <span class="math inline">\(P_V(\text{EOS}\mid c)\in[0.93,0.99]\)</span> and <span class="math inline">\(P_D(\text{EOS}\mid c)=1\)</span>. The
 acceptance probability is then
 <span class="math inline">\(A(\text{EOS})=\min(1,P_V(\text{EOS}))=P_V(\text{EOS})&lt;1\)</span>, but the standard
-speculative loop <em>still emits</em> the EOS as the accepted token (the
+speculative loop still emits the EOS as the accepted token (the
 greedy drafter has nothing better to fall back to) and the response
 terminates at zero content tokens. The pathology is therefore not a
 rejection bug; it is the structural fact that <span class="math inline">\(P_D(\text{EOS})\!\to\!1\)</span>
-under greedy decoding makes any verifier draft over EOS <em>equivalent
-to unconditional acceptance of EOS</em>, regardless of how much probability the
+under greedy decoding makes any verifier draft over EOS equivalent
+to unconditional acceptance of EOS, regardless of how much probability the
 verifier put on continuation tokens. Fixing this requires breaking
 <span class="math inline">\(P_D(\text{EOS})\)</span> away from <span class="math inline">\(1\)</span> at the start of the response.</p>
-<p>During first integration the speculative loop returned <em>zero
-tokens</em> on every prompt against the instruct model. The cause is unique
+<p>During first integration the speculative loop returned zero
+tokens on every prompt against the instruct model. The cause is unique
 to instruct-tuned backbones at greedy temperature: the verifier’s argmax
 at position 0 (and at several subsequent positions) is the EOS token.
 The standard speculative loop sees an EOS draft, executes
@@ -480,15 +480,15 @@ into EOS.</p>
 <section id="fix." class="level5">
 <h5>Fix.</h5>
 <p>We introduce a small primitive,
-<em>logit-excluding top-1</em>, plus a min-response guard:</p>
+logit-excluding top-1, plus a min-response guard:</p>
 <div class="sourceCode" id="cb1" data-language="C"><pre class="sourceCode objectivec"><code class="sourceCode objectivec"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">// runtime/nn/llm.h</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> llm_topk_excluding<span class="op">(</span><span class="dt">const</span> <span class="dt">int</span> <span class="op">*</span>exclude<span class="op">,</span> <span class="dt">int</span> n_exclude<span class="op">);</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">// returns argmax of cached logits with `exclude` ids masked out, no extra forward.</span></span></code></pre></div>
 <p>Combined with <code>SPEC_MIN_RESP_N=4</code>, the bypass is enabled only
 at positions <span class="math inline">\(i&lt;4\)</span>. After four emitted tokens the standard EOS-respect
-path takes over. This converts the failure from <em>empty response</em>
-to <em>empty response only when the model truly intends to stop after
-at least 4 tokens of content</em>. Four call sites in the speculative loop
+path takes over. This converts the failure from empty response
+to empty response only when the model truly intends to stop after
+at least 4 tokens of content. Four call sites in the speculative loop
 (accepted-drafts, correction-token, bonus-token, verifier-direct) use
 the new primitive; without the fix the runtime measures 0 tok/s, with
 the fix it measures the values in <a href="#tab:measured" data-reference-type="ref+Label" data-reference="tab:measured">1</a>. We are not aware
@@ -525,7 +525,7 @@ and writes <code>ott_readiness_report.json</code>.</p>
 <td style="text-align: left;">GP <span class="math inline">\(\times\)</span> speculative</td>
 <td style="text-align: left;">Drafter <span class="math inline">\(T_D\)</span> drops; <span class="math inline">\(\alpha\)</span> may drop</td>
 <td style="text-align: left;">Wash on consumer; positive on tier-asymmetric</td>
-<td style="text-align: left;"><strong>Measured</strong> on 135M-Instruct (<span class="math inline">\(1.53\times\)</span>)</td>
+<td style="text-align: left;">Measured on 135M-Instruct (<span class="math inline">\(1.53\times\)</span>)</td>
 </tr>
 <tr>
 <td style="text-align: left;">GP <span class="math inline">\(\times\)</span> AttnRes</td>
@@ -565,7 +565,7 @@ and then the verifier.</p>
 <section id="ott-od---ott-od." class="level5">
 <h5>OTT-OD (<code>--ott-od</code>).</h5>
 <p>Wires OneDecode in as the
-<em>draft</em> source for speculative decoding. Drafter cost goes to zero
+draft source for speculative decoding. Drafter cost goes to zero
 on a table hit; verifier (and therefore acceptance distribution) is
 unchanged.</p>
 </section>
@@ -579,7 +579,7 @@ Structurally similar to Medusa-style multi-head drafting
 rather than learned auxiliary heads.</p>
 <p>None of the three has the closed-form throughput model of
 <a href="#sec:closedform" data-reference-type="ref+Label" data-reference="sec:closedform">3</a> yet; they are listed as
-<em>implemented, not measured</em>.</p>
+implemented, not measured.</p>
 </section>
 </section>
 <section id="related-work" class="level2">

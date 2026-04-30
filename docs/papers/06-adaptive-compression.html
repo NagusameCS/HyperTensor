@@ -47,7 +47,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     and Oja's-rule online basis updates fired by speculative rejections.
   </p>
   <div class="hero-meta">
-    By <strong>William Ken Ohara Stewart</strong> (NagusameCS) &middot;
+    By William Ken Ohara Stewart (NagusameCS) &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
   </div>
   <div class="hero-stats">
@@ -88,21 +88,21 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       href="02-geodesic-projection.html">Paper&nbsp;2</a>:
     </p>
     <ol>
-      <li><strong>MCR ,  Mix / Compress / Refine</strong>: per-layer rank
+      <li>MCR ,  Mix / Compress / Refine: per-layer rank
         allocation driven by an empirical phase profile of the residual stream
         plus an attention-sink bypass.</li>
-      <li><strong>Axiom Gauge</strong>: gauge-optimal compression via the
+      <li>Axiom Gauge: gauge-optimal compression via the
         GL($d$) residual-stream symmetry, baked into the compressed weights at
         zero inference overhead.</li>
-      <li><strong>Thermal Rank + Tokens-per-Joule</strong>: NVML-driven rank
+      <li>Thermal Rank + Tokens-per-Joule: NVML-driven rank
         scaling against thermal headroom, plus an energy-aware policy gradient
         added to the differentiable rank plan.</li>
-      <li><strong>Online Basis</strong>: Oja's-rule rank-1 PCA updates fired by
+      <li>Online Basis: Oja's-rule rank-1 PCA updates fired by
         speculative-decode rejection events, with per-layer staleness
         versioning.</li>
     </ol>
     <p>
-      <strong>What this paper does not contain:</strong> measured PPL or tok/s
+      What this paper does not contain: measured PPL or tok/s
       sweeps for any of the four mechanisms in isolation or in combination.
       Each mechanism is implemented and reachable from the host binary via a
       CLI flag; a sweep over (rank, scale, $\eta_0$, temp threshold) on the
@@ -136,7 +136,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       tokens-per-joule objective term, and rejection-triggered online PCA via
       Oja's rule. All four are reachable from the host binary CLI and individually
       composable with the GP and OTT pipelines. The contribution is the
-      <em>combination</em>: each mechanism targets one specific invariance
+      combination: each mechanism targets one specific invariance
       failure, all four are zero- or near-zero-overhead at inference time, and
       none requires retraining. The first measurement sweep is the v0.2
       milestone.
@@ -199,14 +199,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     process tokens in three measurable phases driven by the BOS attention sink:
   </p>
   <ul>
-    <li><strong>Mix</strong> (early): broad token mixing, high activation
+    <li>Mix (early): broad token mixing, high activation
       variance. Compression here is destructive because it discards the
       cross-token representation the model is actively building.</li>
-    <li><strong>Compress</strong> (middle): the model itself collapses
+    <li>Compress (middle): the model itself collapses
       attentional mass onto a small set of directions, residual-stream
       activation variance drops to its global minimum. Low-rank projection here
       is nearly free ,  we are replicating what the model already does.</li>
-    <li><strong>Refine</strong> (late): selective task-specific feature
+    <li>Refine (late): selective task-specific feature
       extraction. Variance rises; rank matters again, but for different
       reasons.</li>
   </ul>
@@ -385,7 +385,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     within $\sim 30$ seconds and the driver clamps the boost clock; tok/s falls
     to 50&ndash;60% of the cold-start measurement. Earlier work (throttLL'eM,
     HPCA&nbsp;2025) responds by clamping the clock proactively. We respond by
-    clamping the <em>compression rank</em> instead.
+    clamping the compression rank instead.
   </p>
   <h3 id="thermal-rank">4.1 ,  NVML-driven rank scaling</h3>
   <p>
@@ -474,7 +474,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     inference moves into distributions the calibration did not cover. The drift
     is invisible to the runtime ,  until the basis becomes stale enough to
     cause output errors. Speculative decoding offers a free measurement of
-    drift: every <em>rejection</em> is a position where the draft and verifier
+    drift: every rejection is a position where the draft and verifier
     disagreed, which means the draft basis projected the prefix into a place
     the verifier disagreed with. The residual $h^\mathrm{tgt} - h^\mathrm{drft}$
     is exactly the direction of basis-induced error.
@@ -540,9 +540,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <h2>Orthogonal axes, near-zero overhead</h2>
   <p>
     The four mechanisms target distinct invariance failures and are
-    architecturally orthogonal. MCR allocates rank <em>across layers</em> at
-    calibration time. Axiom Gauge changes the <em>basis the SVD is taken in</em>
-    at calibration time. Thermal Rank scales the <em>chosen rank</em> at run
+    architecturally orthogonal. MCR allocates rank across layers at
+    calibration time. Axiom Gauge changes the basis the SVD is taken in
+    at calibration time. Thermal Rank scales the chosen rank at run
     time as a function of hardware state. Online Basis modifies the <em>basis
     matrix entries</em> at run time as a function of model divergence.
   </p>
@@ -603,20 +603,20 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <span class="section-num">§7 ,  Related work</span>
   <h2>Lineage and where this paper differs</h2>
   <ul>
-    <li>Queipo-de-Llano et al., <em><a href="https://arxiv.org/abs/2510.10822" target="_blank" rel="noopener">Three Phases of Transformers</a></em>
+    <li>Queipo-de-Llano et al., <a href="https://arxiv.org/abs/2510.10822" target="_blank" rel="noopener">Three Phases of Transformers</a>
       (Oct&nbsp;2025) ,  phase taxonomy used directly by §<a href="#mcr">2</a>.
       Their work characterises the phases; ours allocates compression rank
       against them.</li>
     <li><a href="https://arxiv.org/abs/2309.17453" target="_blank" rel="noopener">StreamingLLM</a> (Xiao et al., 2024) preserves attention sinks in the KV
       cache for stream stability. §<a href="#mcr-sink">2.3</a> applies the
-      same observation to the <em>compression basis</em>, which they do not.</li>
+      same observation to the compression basis, which they do not.</li>
     <li>throttLL'eM (HPCA&nbsp;2025) controls GPU clock for energy. §<a
       href="#thermal">4</a> controls compression rank instead, which trades
       accuracy gracefully where clock-clamping trades only throughput.</li>
     <li>Oja (1982) is the canonical reference for the streaming PCA primitive.
       OjaKV (Sep&nbsp;2025) and RAP (2024) apply Oja-style or RL-based
       streaming updates to the KV cache; §<a href="#online">5</a> applies it
-      to the <em>weight-PCA basis</em> and triggers updates from speculative
+      to the weight-PCA basis and triggers updates from speculative
       rejections rather than from a fixed schedule.</li>
     <li>Gauge symmetry of transformer residual streams is folklore; the
       observation that diagonal-gauge optimisation reduces SVD tail energy is,
@@ -670,7 +670,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 <section id="status">
   <span class="section-num">§9 ,  Status</span>
   <h2>What v0.1 has and what v0.2 will measure</h2>
-  <p><strong>Now landed (v0.1):</strong></p>
+  <p>Now landed (v0.1):</p>
   <ol>
     <li>Implementation of all four mechanisms in
       <code>runtime/nn/{mcr_compress,axiom_gauge,thermal_rank,online_basis}.{h,c}</code>.</li>
@@ -681,7 +681,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       href="#thermal-prediction">4.3</a>, <a href="#online-prediction">5.3</a>.</li>
     <li>Composition argument in §<a href="#composition">6</a>.</li>
   </ol>
-  <p><strong>Still missing for v0.2:</strong></p>
+  <p>Still missing for v0.2:</p>
   <ol>
     <li>MCR phase profile measurement on Llama-3.1-8B and SmolLM2-135M, with
       the resulting rank allocation table.</li>
@@ -712,14 +712,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </p>
   <ol>
     <li>
-      <strong>No measurement headline.</strong> All four mechanisms are
+      No measurement headline. All four mechanisms are
       implementation-real and CLI-reachable, but none has a measured
       end-to-end PPL or tok/s number in this version. The §§2.4 / 3.3 /
       4.3 / 5.3 predictions are derivations from the static GP baseline
       under explicit assumptions, not benchmarks.
     </li>
     <li>
-      <strong>Composition is asserted, not measured.</strong> §<a
+      Composition is asserted, not measured. §<a
       href="#composition">6</a> argues that the four mechanisms are
       orthogonal, MCR allocates rank, Gauge rotates the basis, Thermal
       scales rank with NVML signal, Online Basis updates the basis from
@@ -728,7 +728,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       §<a href="#status">9</a>.
     </li>
     <li>
-      <strong>Thermal Rank depends on NVML.</strong> The tokens-per-joule
+      Thermal Rank depends on NVML. The tokens-per-joule
       policy gradient assumes a working NVML telemetry path. On hardware
       where NVML is absent, throttled, or coarse (some laptop SKUs, some
       cloud instances), the controller falls back to a static-rank
@@ -736,7 +736,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       measured.
     </li>
     <li>
-      <strong>Online Basis assumes rejection events.</strong> The
+      Online Basis assumes rejection events. The
       Oja's-rule update is fired by speculative-decoding rejections
       (Paper&nbsp;3 §<a href="03-speculative-decoding.html#measured">5.5</a>).
       In a non-speculative deployment the trigger does not exist and the
@@ -744,14 +744,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       claim is gated on the spec path being live.
     </li>
     <li>
-      <strong>Gauge optimisation is offline.</strong> The Axiom Gauge
+      Gauge optimisation is offline. The Axiom Gauge
       diagonal-$g$ search runs at build time, not during decode. "Zero
       inference overhead" refers specifically to the runtime forward pass;
       it is not a claim about the build-time cost of finding $g$, which
       scales with the Phase-1 cloud size.
     </li>
     <li>
-      <strong>No comparison against AWQ / GPTQ / SmoothQuant.</strong>
+      No comparison against AWQ / GPTQ / SmoothQuant.
       The baseline in this paper is static Geodesic Projection
       (Paper&nbsp;2). A head-to-head against quantisation-side adaptive
       schemes is open work.
@@ -786,14 +786,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <span class="section-num">§10 ,  References</span>
   <h2>Selected refs</h2>
   <ol>
-    <li>Oja, E., <em>A simplified neuron model as a principal component analyzer</em>, J. Math. Biol., 1982.</li>
-    <li>Queipo-de-Llano, P., et al., <em>Three Phases of Transformers</em>, Oct.&nbsp;2025 (LeCun, Bronstein, co-authors).</li>
-    <li>Xiao, G. et al., <em>Efficient Streaming Language Models with Attention Sinks (StreamingLLM)</em>, ICLR 2024.</li>
-    <li>OjaKV authors, <em>Online Adaptive PCA for KV Cache via Oja's Rule</em>, Sep.&nbsp;2025.</li>
-    <li>throttLL'eM authors, <em>Adaptive Frequency Scaling for LLM Inference</em>, HPCA 2025.</li>
-    <li>RAP authors, <em>Reinforcement-Learning Adaptive Pruning per Request</em>, 2024.</li>
-    <li>Stewart, W. K. O., <em>Compressing Llama-3.1-8B Attention via Per-Slot SVD</em>, this site, Paper 1, 2026.</li>
-    <li>Stewart, W. K. O., <em>Geodesic Projection: GP-Compressed Llama Runtime</em>, this site, Paper 2, 2026.</li>
+    <li>Oja, E., A simplified neuron model as a principal component analyzer, J. Math. Biol., 1982.</li>
+    <li>Queipo-de-Llano, P., et al., Three Phases of Transformers, Oct.&nbsp;2025 (LeCun, Bronstein, co-authors).</li>
+    <li>Xiao, G. et al., Efficient Streaming Language Models with Attention Sinks (StreamingLLM), ICLR 2024.</li>
+    <li>OjaKV authors, Online Adaptive PCA for KV Cache via Oja's Rule, Sep.&nbsp;2025.</li>
+    <li>throttLL'eM authors, Adaptive Frequency Scaling for LLM Inference, HPCA 2025.</li>
+    <li>RAP authors, Reinforcement-Learning Adaptive Pruning per Request, 2024.</li>
+    <li>Stewart, W. K. O., Compressing Llama-3.1-8B Attention via Per-Slot SVD, this site, Paper 1, 2026.</li>
+    <li>Stewart, W. K. O., Geodesic Projection: GP-Compressed Llama Runtime, this site, Paper 2, 2026.</li>
   </ol>
 </section>
 

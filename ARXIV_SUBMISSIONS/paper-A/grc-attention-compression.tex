@@ -3,8 +3,8 @@
 \graphicspath{{figures/}}
 \addbibresource{refs.bib}
 
-\title{\textbf{Calibration-Free Low-Rank Attention Compression\\
-for Bandwidth-Bound LLM Decode}\\[0.4em]
+\title{Calibration-Free Low-Rank Attention Compression\\
+for Bandwidth-Bound LLM Decode\\[0.4em]
 \large A Cache-Fit Super-Baseline on Consumer GPUs}
 \author{William Ken Ohara Stewart\\
 \small NagusameCS Independent Research\\
@@ -23,7 +23,7 @@ and no fine-tuning. On Llama-3.1-8B-Instruct (Q4\_K\_M) running on a single
 RTX~4070 Laptop GPU, we project $\Wmat_Q,\Wmat_K,\Wmat_V$ onto the
 leading-$k$ eigenspace of the joint Gram matrix
 $\Kmat=\Wmat_Q^\top\Wmat_Q+\Wmat_K^\top\Wmat_K+\Wmat_V^\top\Wmat_V$
-and observe that decode throughput \emph{exceeds} the uncompressed model
+and observe that decode throughput exceeds the uncompressed model
 by $6.27\%$ at $k{=}1024$ (95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$,
 $p<10^{-10}$, $n{=}8$ paired runs). At $k{=}1536$ throughput is
 statistically indistinguishable from baseline ($97.55\%$, paired-$t$ $p{=}0.48$)
@@ -48,17 +48,17 @@ weights, and protocols for direct reproduction.
 \section{Introduction}
 \label{sec:intro}
 Decoder-only transformer inference at batch size~1 is overwhelmingly
-\emph{memory-bandwidth bound}: each generated token streams essentially the
+memory-bandwidth bound: each generated token streams essentially the
 full set of weights from VRAM through the GPU's caches into the SMs, performs
 a few-element matrix--vector product, and writes back the KV cache
 \cite{williams2009roofline,yuan2024llmroofline}.  In this regime the marginal
-benefit of FLOPs reduction is small; the marginal benefit of \emph{bytes}
+benefit of FLOPs reduction is small; the marginal benefit of bytes
 reduction is large.  Existing post-training compression schemes
 (GPTQ \cite{frantar2022gptq}, AWQ \cite{lin2023awq}, SmoothQuant
 \cite{xiao2022smoothquant}, ASVD \cite{yuan2023asvd},
 SliceGPT \cite{ashkboos2024slicegpt}, FWSVD \cite{hsu2022fwsvd},
 SparseGPT \cite{frantar2023sparsegpt}, LLM.int8() \cite{dettmers2022llmint8})
-all reduce bytes; almost all require \emph{calibration data}, an activation
+all reduce bytes; almost all require calibration data, an activation
 sample drawn from a representative corpus, to weight the compression
 objective.
 
@@ -72,13 +72,13 @@ is statistically indistinguishable from it.
 \subsection{Project nomenclature}
 \label{sec:nomenclature}
 This paper series uses a consistent four-level naming hierarchy.
-\textit{HyperTensor} is the umbrella project (compiler, runtime, kernels,
-and theory). \textit{Geodesic Projection} (GP) is the overarching
+HyperTensor is the umbrella project (compiler, runtime, kernels,
+and theory). Geodesic Projection (GP) is the overarching
 inference-time pipeline that factorises weights along their dominant
-geometric directions. \textit{Geodesic Runtime Compression} (GRC), the
+geometric directions. Geodesic Runtime Compression (GRC), the
 subject of this paper, is the attention-only subset of GP applied to
 $\Wmat_Q,\Wmat_K,\Wmat_V$ at load time with no calibration and no
-fine-tuning. \textit{OTT/GTC} (Organic Tensor Topology and the Geodessical
+fine-tuning. OTT/GTC (Organic Tensor Topology and the Geodessical
 Tensor Cache) is the longer-term theoretical framework that treats the
 projection bases as charts on a Riemannian manifold and is the subject of
 the companion paper. This paper is self-contained and assumes only the GRC
@@ -89,7 +89,7 @@ layer.
 \item A clean test of calibration-free compression: PCA of the joint Gram
 matrix of $\{\Wmat_Q,\Wmat_K,\Wmat_V\}$ produces a portable, sign-canonical,
 bit-stable projection without text samples (\Cref{sec:method}).
-\item A measured \emph{super-baseline}: $106.27\%$ relative decode throughput
+\item A measured super-baseline: $106.27\%$ relative decode throughput
 at $k{=}1024$ on Llama-3.1-8B / RTX~4070 Laptop, with $t{=}53.88$,
 $p<10^{-10}$, bootstrap CI excluding 1.0 (\Cref{sec:results,sec:stats}).
 \item A cache-fit hypothesis tying the super-baseline to L2 working-set fit at
@@ -138,16 +138,16 @@ $T \approx \min(\text{compute}, \text{bytes}/\text{BW})$, and reducing bytes
 moved per token is the dominant lever.
 
 \paragraph{Compression families.}
-\textit{Quantisation} (GPTQ \cite{frantar2022gptq}, AWQ \cite{lin2023awq},
+Quantisation (GPTQ \cite{frantar2022gptq}, AWQ \cite{lin2023awq},
 SmoothQuant \cite{xiao2022smoothquant}, LLM.int8() \cite{dettmers2022llmint8})
-keeps the matrix shape and lowers per-element bit width.  \textit{Pruning}
+keeps the matrix shape and lowers per-element bit width.  Pruning
 (SparseGPT \cite{frantar2023sparsegpt}) zeroes individual weights.
-\textit{Low-rank factorisation} (FWSVD \cite{hsu2022fwsvd}, ASVD
+Low-rank factorisation (FWSVD \cite{hsu2022fwsvd}, ASVD
 \cite{yuan2023asvd}, SliceGPT \cite{ashkboos2024slicegpt}) replaces a
 full-rank weight $\Wmat\!\in\!\R^{m\times n}$ with $\Wmat\Pmat_k\Pmat_k^\top$
-or $\Wmat U_kV_k^\top$.  \textit{Adapters} (LoRA \cite{hu2021lora},
+or $\Wmat U_kV_k^\top$.  Adapters (LoRA \cite{hu2021lora},
 QLoRA \cite{dettmers2023qlora}) keep the model frozen and add small
-trainable terms.  All of FWSVD/ASVD/SliceGPT use \emph{calibration data} to
+trainable terms.  All of FWSVD/ASVD/SliceGPT use calibration data to
 weight directions by activation magnitude.
 
 \paragraph{Why attention is a low-rank target.}
@@ -218,15 +218,15 @@ them because each one removes a class of failure mode that calibration-based
 compression schemes inherit by default.
 
 \begin{itemize}
-\item \textit{Calibration-free.} The construction depends only on the
+\item Calibration-free. The construction depends only on the
 weights; no text samples, no activation traces, no hyperparameters beyond
 $k$.  The cache key is $(\textsf{model SHA-256}, k)$.
-\item \textit{Bit-stable.}  Sign canonicalisation removes the
+\item Bit-stable.  Sign canonicalisation removes the
 $\pm1$ ambiguity of eigenvectors; we observe identical $\Pmat_k$ across
 OpenBLAS/MKL/Accelerate down to \texttt{float32} bit pattern.
-\item \textit{Drop-in.}  Wraps any GGUF \cite{ggerganov2023gguf} model with
+\item Drop-in.  Wraps any GGUF \cite{ggerganov2023gguf} model with
 k-quants \cite{ggerganov2023kquants}; no kernel changes required.
-\item \textit{Bytes saved.}  Per layer the Q/K/V working set drops from
+\item Bytes saved.  Per layer the Q/K/V working set drops from
 $3d^2$ to $3kd$ floats, a $d/k$ factor; for Llama-3.1-8B at $k{=}1024$, this
 is $4\times$ reduction on Q (which dominates).
 \end{itemize}
@@ -278,7 +278,7 @@ WikiText-2 PPL).  Reference pack \texttt{whitepaper\_pack\_20260427\_121815}.}
 \toprule
 $k$ & Decode (\%base) & Prefill (\%base) & End-to-end (\%base) & PPL ($\Delta$) \\
 \midrule
-\textbf{1024} & \textbf{106.27} & 102.67 & 105.72 & 10.96 (+61.4\%) \\
+1024 & 106.27 & 102.67 & 105.72 & 10.96 (+61.4\%) \\
 1536 & 97.55 & 114.61 & 95.80  & 7.69 (+13.30\%) \\
 1536$^\dagger$ (warmup proxy) & 101.04 & 108.48 & 99.34 & 7.69 (+13.30\%) \\
 \midrule
@@ -450,7 +450,7 @@ critical experiment for cross-GPU generalisation.}
 \toprule
 GPU & L2 (MB) & BW (GB/s) & Predicted $k^\star$ & Predicted $T/T_\text{base}$ \\
 \midrule
-RTX 4070 Laptop (this paper) & 32 & 256 & 1024 & \textbf{1.06 (measured)} \\
+RTX 4070 Laptop (this paper) & 32 & 256 & 1024 & 1.06 (measured) \\
 RTX 4090 & 72 & 1008 & 1536 & 1.03--1.05 \\
 A100 & 40 & 1555 & 1024 & 1.04--1.06 \\
 H100 & 50 & 3350 & 1280 & 1.02--1.04 \\
@@ -523,7 +523,7 @@ near-lossless throughput claim.
 \label{sec:ey}
 The Eckart--Young--Mirsky theorem \cite{eckart1936} gives
 $\norm{\Wmat-\Wmat_k}_F^2\!\geq\!\sum_{i>k}\sigma_i(\Wmat)^2$, achieved by
-the truncated SVD of $\Wmat$ alone.  GRC builds a single \emph{shared}
+the truncated SVD of $\Wmat$ alone.  GRC builds a single shared
 projection $\Pmat_k$ from $\Kmat=\sum_i\Wmat_i^\top\Wmat_i$, so its
 per-matrix error must be at least the EY bound.  We define the excess
 factor $\rho_k(\Wmat)=\norm{\Wmat-\Wmat\Pmat_k\Pmat_k^\top}_F^2 /
@@ -537,7 +537,7 @@ factor $\rho_k(\Wmat)=\norm{\Wmat-\Wmat\Pmat_k\Pmat_k^\top}_F^2 /
 $k$ & EY rel-$F^2$ (oracle) & GRC rel-$F^2$ & $\rho$ ($\Wmat_Q$) \\
 \midrule
 512  & 0.190 & 0.471 & 1.83$\times$ \\
-\textbf{1024} & 0.042 (Q only) & 0.305 & $\approx 3.7\times$ \\
+1024 & 0.042 (Q only) & 0.305 & $\approx 3.7\times$ \\
 1536 & 0.020 & 0.204 & $\approx 9.5\times$ \\
 2048 & 0.009 & 0.151 & $\approx 28\times$ \\
 \bottomrule
@@ -546,7 +546,7 @@ $k$ & EY rel-$F^2$ (oracle) & GRC rel-$F^2$ & $\rho$ ($\Wmat_Q$) \\
 
 The shared basis pays a real, quantifiable 3--10$\times$ cost above the
 Eckart--Young oracle.  Despite the gap, downstream PPL at $k{=}1536$ remains
-within deployment range, suggesting that directions \emph{missed} by the
+within deployment range, suggesting that directions missed by the
 shared basis are lower-importance for next-token prediction than their
 singular values alone would suggest.  Per-matrix bases are an obvious next
 step (\Cref{sec:future}).
@@ -568,7 +568,7 @@ extracted by \texttt{scripts/extract\_ey\_per\_layer.py}.}
 \caption{Sink-channel-aware GRC pilot. Top-$T$ highest-L2 columns of
 $W_Q,W_K,W_V$ are kept exact; GRC is applied to the residual. Numbers
 are the mean relative-Frobenius-squared reconstruction-error
-\emph{improvement} (positive means lower error than vanilla GRC) over
+improvement (positive means lower error than vanilla GRC) over
 layers $\{0,15,31\}$ of Llama-3.1-8B-Instruct, in two settings:
 ``same $k$'' (extra parameters granted ``for free'') and
 ``param-matched'' (rank lowered to $k_\text{eq} = k - \lceil T(m_q{+}m_k{+}m_v)/(d{+}m_q{+}m_k{+}m_v)\rceil$
@@ -707,12 +707,12 @@ audit the headline numbers. Validated reference pack:
 explicitly listed as a limitation.}
 \begin{tabular}{@{}ll@{}}
 \toprule
-\textbf{Component} & \textbf{Specification}\\
+Component & Specification\\
 \midrule
 GPU                 & NVIDIA GeForce RTX~4070 Laptop (Ada AD106)\\
 GPU driver          & 595.79\\
 GPU VRAM            & 8\,188\,MiB GDDR6 (256\,GB/s, 128-bit $\times$ 16\,Gbps)\\
-GPU L2 cache        & \textbf{32\,MB}\\
+GPU L2 cache        & 32\,MB\\
 GPU peak FP32       & 40\,TFLOPS (theoretical)\\
 GPU sustained TDP   & ${\sim}109$\,W during decode (no laptop power.limit)\\
 PCIe link           & Gen~4 $\times$8\\
@@ -728,7 +728,7 @@ OS                  & Windows host, CUDA backend\\
 \caption{Model and runtime under test.}
 \begin{tabular}{@{}ll@{}}
 \toprule
-\textbf{Property} & \textbf{Value}\\
+Property & Value\\
 \midrule
 Model               & \texttt{bartowski/Meta-Llama-3.1-8B-Instruct-GGUF}\\
 Quantisation        & Q4\_K\_M (GGUF v3)\\
@@ -756,7 +756,7 @@ $\Wmat_\text{proj}$ cache + runtime) is ${\sim}5.75$\,GB. The
 $\Wmat_\text{proj}$ cache is computed once per (model, $k$) pair and reused.}
 \begin{tabular}{@{}lrl@{}}
 \toprule
-\textbf{Artefact} & \textbf{Size} & \textbf{Notes}\\
+Artefact & Size & Notes\\
 \midrule
 Model file (Q4\_K\_M GGUF)                  & 4.583\,GB   & HuggingFace blob, read-only\\
 $\Wmat_\text{proj}$ cache, $k{=}1536$       & 1\,092.7\,MB & $32{\times}3$ slots, $(\Pmat_k,\widetilde\Wmat)$\\
@@ -780,7 +780,7 @@ Idle baseline (OS, display, background) is ${\sim}1\,136$\,MiB. Both
 configurations sit comfortably inside the 8\,188\,MiB budget.}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
-\textbf{Stage} & \textbf{Baseline (MiB)} & \textbf{GRC $k{=}1536$ (MiB)} & $\Delta$ \\
+Stage & Baseline (MiB) & \textbf{GRC $k{=}1536$ (MiB)} & $\Delta$ \\
 \midrule
 OS / display idle      & ${\sim}1\,136$        & ${\sim}1\,136$        & , \\
 Post-model upload      & ${\sim}5\,812$        & ${\sim}5\,812$        & , \\
@@ -794,7 +794,7 @@ Headroom               & ${\sim}1\,493$        & ${\sim}1\,457$        & , \\
 Runtime-reported model load: 226 weight tensors (4\,684\,MB) +
 scratch arena (513\,MB) + KV cache and activations at 8K context
 (${\sim}615$\,MB). The 1.09\,GB on-disk $\Wmat_\text{proj}$ is only
-\emph{partially} resident in VRAM during decode, the GPU-resident working
+partially resident in VRAM during decode, the GPU-resident working
 set uses only the active layer's projected matrices, hence the small +36\,MiB
 delta despite the large on-disk artefact.
 
@@ -806,7 +806,7 @@ decode envelope; GRC and baseline are bandwidth-saturated alike. PCA
 calibration is CPU-bound and idles the GPU at 13--14\,W on first run only.}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-\textbf{Phase} & \textbf{GPU power (W)} & \textbf{GPU clock (MHz)} & \textbf{Util.} & \textbf{Temp.\ (°C)}\\
+Phase & GPU power (W) & GPU clock (MHz) & Util. & Temp.\ (°C)\\
 \midrule
 Idle                       & 1.9--2.3   & 210         & 4--5\%     & 38--39\\
 Model load (VRAM upload)   & 15.8--15.9 & 1\,980      & 35--36\%   & 39--41\\
@@ -862,7 +862,7 @@ near-uniform spectra and would need ${\sim}3.4\times$ the rank for the
 same energy capture.}
 \begin{tabular}{@{}lrrl@{}}
 \toprule
-\textbf{Matrix} & \textbf{Range $k_{95}$} & \textbf{Mean $k/d$} & \textbf{Status at GRC $k{=}1024$}\\
+Matrix & \textbf{Range $k_{95}$} & Mean $k/d$ & \textbf{Status at GRC $k{=}1024$}\\
 \midrule
 $\Wmat_Q$    & 635--1947  & 0.32 & within target\\
 $\Wmat_K$    & 253--783   & 0.13 & well within target\\
@@ -884,10 +884,10 @@ prompt-induced access patterns. Worst-case lower-95\% bound is 86\% of
 baseline, well above the 67\% gate.}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-\textbf{Prompt class} & \textbf{Baseline (tok/s)} & \textbf{GRC (tok/s)} & \textbf{Mean retention} & \textbf{Lower-95\%}\\
+Prompt class & Baseline (tok/s) & GRC (tok/s) & Mean retention & Lower-95\%\\
 \midrule
-coding/256     & $35.68\!\pm\!0.35$ & $34.86\!\pm\!2.02$ & 97.70\% & \textbf{86.60\%}\\
-reasoning/256  & $35.58\!\pm\!0.31$ & $35.22\!\pm\!2.42$ & 98.99\% & \textbf{85.64\%}\\
+coding/256     & $35.68\!\pm\!0.35$ & $34.86\!\pm\!2.02$ & 97.70\% & 86.60\%\\
+reasoning/256  & $35.58\!\pm\!0.31$ & $35.22\!\pm\!2.42$ & 98.99\% & 85.64\%\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -909,7 +909,7 @@ out of L2.}
 \includegraphics[width=0.85\linewidth]{layerwise_rank_needed.png}
 \caption{Per-layer rank required for 90\%, 95\% and 99\% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B.  The flat
-plateau between $L{=}5$ and $L{=}28$ shows that a \emph{single} compression
+plateau between $L{=}5$ and $L{=}28$ shows that a single compression
 rank (here $k{=}1024$) is geometry-justified for the bulk of the network:
 the per-layer ``what would be needed for 95\%'' band sits in the
 $1\,400$--$1\,800$ range, and dropping to $k{=}1024$ trades a known small
@@ -927,7 +927,7 @@ representative decode-phase launches each on Llama-3.1-8B Q4\_K\_M, RTX 4070
 Laptop (32~MB L2). Baseline mean $7.84\%$, GRC $k{=}1024$ mean $5.74\%$
 ($\Delta{=}{-}2.09$~pp).  The drop is consistent with GRC installing
 $P_t$ ($128$~MB) and $W_\text{proj}$ ($72$~MB) persist hints to keep the
-\emph{compressed-attention} working set resident, evicting (uncompressed)
+compressed-attention working set resident, evicting (uncompressed)
 FFN weights, the cost paid for the bandwidth reduction reported in
 \Cref{tab:headline}.  A like-for-like trace of the compressed-attention
 kernel itself is not possible because the kernel exists only when GRC
@@ -1047,7 +1047,7 @@ quantitatively. Logs at
 \texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/session\_logs/local/}.
 
 A greedy-decode ($\texttt{--temp 0}$) repeat of the same configuration
-exhibits early end-of-sequence on \emph{both} the baseline and the
+exhibits early end-of-sequence on both the baseline and the
 \texttt{--axex-compress} path; the behaviour reproduces without GRC and
 is therefore a SmolLM2 sampling-mode property, not a runtime regression.
 The \texttt{--temp 0.7} numbers above are the apples-to-apples
@@ -1065,7 +1065,7 @@ layers); we instead validated correctness with $k{=}256/512$ and Q8\_0,
 which overflows the 6\,GB VRAM at baseline (2.7\,tok/s) and recovers
 on-GPU residency once the wproj cache lands.
 
-This is a portability and reproducibility check, \emph{not} a cross-tier
+This is a portability and reproducibility check, not a cross-tier
 GPU sweep, a 4090/A100/H100 evaluation remains future work and is the
 single largest open item before this paper is submission-ready.
 Cross-device run logs and binaries are archived under
@@ -1080,7 +1080,7 @@ The whitepaper-pack harness emits seven automated gates evaluated by
 \caption{Validation gates on pack \texttt{whitepaper\_pack\_20260427\_121815}.}
 \begin{tabular}{@{}lrrl@{}}
 \toprule
-\textbf{Gate} & \textbf{Threshold} & \textbf{Measured} & \textbf{Result}\\
+Gate & Threshold & Measured & Result\\
 \midrule
 $k{=}1024$ decode retention             & $\geq 95\%$ & 106.27\% & PASS\\
 $k{=}1536$ decode retention             & $\geq 75\%$ &  97.55\% & PASS\\
@@ -1089,72 +1089,6 @@ $k{=}1536^\dagger$ warmup-proxy prefill & $\leq 225\%$& 108.48\% & PASS\\
 coding/256 lower-95 retention           & $\geq 67\%$ &  86.60\% & PASS\\
 reasoning/256 lower-95 retention        & $\geq 67\%$ &  85.64\% & PASS\\
 PPL delta (WikiText-2)                  & $\leq +15\%$&  +13.30\% & PASS\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Benefits and limitations catalogue}
-
-\begin{table}[h]\centering\footnotesize
-\caption{Honest accounting of GRC's benefits and limits, distilled from the
-v0.6.0 technical report. Severities reflect deployment impact.}
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Dimension} & \textbf{Sign} & \textbf{Severity}\\
-\midrule
-No calibration data needed (pure weight geometry)  & $+$ & Major\\
-Super-baseline at $k{=}1024$ (106.27\% decode)     & $+$ & Major\\
-Near-lossless throughput at $k{=}1536$             & $+$ & Moderate\\
-Deterministic, cacheable, sign-canonical basis     & $+$ & Moderate\\
-Sub-second warm startup (small models)             & $+$ & Moderate\\
-Zero training infrastructure                       & $+$ & Major\\
-Modular (Q/K/V only; FFN untouched)                & $+$ & Moderate\\
-\midrule
-$+13.30\%$ WikiText-2 PPL at $k{=}1536$            & $-$ & Major\\
-Prefill 8--15\% slower (sequential path)           & $-$ & Moderate\\
-\texttt{AXEX\_MANIFOLD\_K\_MAX} hard cap at 1536   & $-$ & Moderate\\
-Minimal VRAM reduction ($+36$\,MiB delta)          & $-$ & Moderate\\
-First-run cold start 60--120\,s                    & $-$ & Moderate\\
-GRC throughput variance ${\sim}6\times$ baseline   & $-$ & Moderate\\
-No power savings (same 109\,W TDP)                 & $-$ & Mild\\
-$\Wmat_O$ excluded; FFN excluded                   & $-$ & Mild\\
-Single hardware, single model validated            & $-$ & Major\\
-CUDA-only (no ROCm/Metal/CPU fallback)             & $-$ & Mild\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Methodological gaps}
-
-\begin{table}[h]\centering\footnotesize
-\caption{Acknowledged methodological gaps. Items 1, 3, 4 require
-infrastructure outside the scope of this independent project; item~2 is on
-the near-term roadmap.}
-\begin{tabular}{@{}p{0.28\linewidth}p{0.30\linewidth}p{0.32\linewidth}@{}}
-\toprule
-\textbf{Gap} & \textbf{Missing} & \textbf{Why it matters}\\
-\midrule
-Direct L2 cache-hit measurement & No Nsight Compute counter trace; cache-fit argued from access-pattern arithmetic. & Alternative micro-arch explanations (register pressure, scheduler) cannot be ruled out without counters.\\
-Task-level evaluations & Only WikiText-2 PPL; no MMLU/GSM8K/HumanEval/IFEval. & $+13.30\%$ PPL is a structural signal, not a behavioural one.\\
-Head-to-head vs.\ AWQ / GPTQ / SmoothQuant & No direct A/B on identical hardware; we sit on the same Q4\_K\_M baseline. & Production-scale ranking unverifiable without compatible-runtime baselines.\\
-Cross-hardware validation & All measurements on RTX~4070 Laptop; \Cref{tab:predict} is calculated, not measured. & Cache-fit cannot be claimed as general, only as observed on this GPU.\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Phase status}
-
-\begin{table}[h]\centering\footnotesize
-\caption{Project phase status as of v0.6.0.}
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Phase} & \textbf{Objective} & \textbf{Status}\\
-\midrule
-1 & Eliminate measurement instability       & \textbf{Complete} (root cause: thermal throttling; 30\,s cooldown fix)\\
-2 & Validate under locked protocol          & \textbf{Complete} (7/7 gates pass)\\
-3 & Cross-model transfer (Mistral-7B-v0.1)  & In progress\\
-3 & Cross-hardware transfer                 & Blocked (single-GPU constraint)\\
-4 & External reproduction package           & \textbf{Complete} (\texttt{repro/REPRODUCE.md})\\
 \bottomrule
 \end{tabular}
 \end{table}

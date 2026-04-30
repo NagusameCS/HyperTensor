@@ -376,7 +376,7 @@ footer.foot a { color: var(--text); }
 </div>
 
 <footer class="foot">
-  <p><strong>HyperTensor</strong> ,  William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
+  <p>HyperTensor ,  William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
     <a href="../index.html">Home</a> &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></p>
 </footer>
@@ -442,7 +442,7 @@ footer.foot a { color: var(--text); }
           CHAPTERS.map(function (c) {
             var pages = Math.max(1, Math.round(c.words / 300));
             return '<a class="chapter-card" href="#' + c.id + '">' +
-              '<strong>' + c.num + '</strong>' +
+              '' + c.num + '' +
               '<span>' + c.title + '</span>' +
               '<span>' + fmtWords(c.words) + ' words · ' + pages + ' pages</span>' +
             '</a>';

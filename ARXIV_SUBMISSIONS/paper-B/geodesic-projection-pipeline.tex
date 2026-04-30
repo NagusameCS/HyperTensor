@@ -72,19 +72,19 @@ below.
 
 \begin{center}
 \begin{minipage}[t]{0.31\linewidth}\centering\small
-\textbf{Slot coverage}\\[2pt]
+Slot coverage\\[2pt]
 \rule{0.7\linewidth}{0.4pt}\\[2pt]
 GP compresses all seven slots, $Q$, $K$, $V$, $O$, FFN up, FFN gate, and
 FFN down on a dedicated SVD path.
 \end{minipage}\hfill
 \begin{minipage}[t]{0.31\linewidth}\centering\small
-\textbf{Per-layer rank}\\[2pt]
+Per-layer rank\\[2pt]
 \rule{0.7\linewidth}{0.4pt}\\[2pt]
 A manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
 hard floor.
 \end{minipage}\hfill
 \begin{minipage}[t]{0.31\linewidth}\centering\small
-\textbf{Persistent caching}\\[2pt]
+Persistent caching\\[2pt]
 \rule{0.7\linewidth}{0.4pt}\\[2pt]
 A two-tier on-disk artifact stores the basis and the projected weights
 and is validated by a single depth-sink layer spectrum hash.
@@ -229,7 +229,7 @@ Phi-3.5-mini  & 3{,}072 & 11 & 0.36\% & 22 / 96 & 0.959 \\
 \end{table}
 
 The three values $\{11,17,25\}$ span an order of magnitude in $d$ but do
-\emph{not} grow with $d$.  This is consistent with the
+not grow with $d$.  This is consistent with the
 isotropy/anisotropy literature on contextual embeddings and with the
 linear-representation hypothesis~\cite{elhage2022superposition}.
 Activation-space intrinsic dim is necessary but not sufficient for the GP
@@ -364,8 +364,8 @@ noise, $1{\times}$ variance}. The variance gap in the first run was
 the contamination signal; both means rose by $\sim 1.4$~tok/s once the
 machine was quiet, confirming $\sim 3.5\%$ throughput was being eaten
 by the unrelated workload. We therefore report MCR at this rank as
-\textbf{statistically indistinguishable from the shared-rank baseline,
-not worse}. The interpretive question remains: at $k{=}1024$ the
+statistically indistinguishable from the shared-rank baseline,
+not worse. The interpretive question remains: at $k{=}1024$ the
 shared-rank already sits above the cache-fit knee, so per-layer
 rebalancing has little room to act, the right test is a sweep across
 lower base ranks $k{\in}\{256, 512, 768\}$ where the knee is closer.
@@ -394,16 +394,16 @@ A/B is a no-op by construction, not a null result. Run log:
 \subsection{Sink-Basis Bypass}
 \label{sec:sink-basis-bypass}
 StreamingLLM~\cite{xiao2023streamingllm} preserves a handful of
-\emph{sink tokens} in the KV cache because the first few positions hoard
+sink tokens in the KV cache because the first few positions hoard
 disproportionate attention mass and L2 norm.  To our knowledge, no prior
-work preserves the corresponding \emph{sink direction} in the
+work preserves the corresponding sink direction in the
 weight/activation PCA basis.  GP does.
 
 Let $\hat s\in\mathbb{R}^d$ be the unit vector of the dominant
 residual-stream direction at the sink position (we estimate it as the top
 eigenvector of $\mathbb{E}[h_0 h_0^\top]$ over a calibration-free 32-token
 zero-prompt forward).  Given the per-layer projector $V_{r}^{(\ell)}$
-produced by MCR, define the \emph{sink coverage}
+produced by MCR, define the sink coverage
 \begin{equation}
 \eta_\ell \;=\; \max_{1\le k\le r}\;\bigl|\langle\hat s,\,V_{r}^{(\ell)}[:,k]\rangle\bigr|.
 \end{equation}
@@ -435,7 +435,7 @@ Both caches are keyed on $(\textsf{model digest},\textsf{flag set},k)$.
 \subsection{The Two-Thirds Dimensionality Saturation Rule}
 Reloading the full geometry cache on a 70B model is not free, but we
 only need to verify that the cache is not stale. The runtime defines
-the \textit{depth-sink} as the single layer where the cumulative
+the depth-sink as the single layer where the cumulative
 explained-variance curve of the residual stream first flattens to
 within $10^{-3}$ of its plateau. Across the four open transformers we
 have inspected, this layer sits near depth $\ell^\star\approx 2L/3$:
@@ -447,8 +447,8 @@ Gemma-2-2B     & 26 & 19\\
 Phi-3.5-mini   & 32 & 22\\
 Qwen-2.5-7B    & 32 & 22\\\bottomrule
 \end{tabular}\end{center}
-We call this empirical observation the \textit{Two-Thirds Dimensionality
-Saturation Rule}. The name is ours and the observation is, to our knowledge,
+We call this empirical observation the Two-Thirds Dimensionality
+Saturation Rule. The name is ours and the observation is, to our knowledge,
 first reported here. The rule is exploited as an $O(1)$ proxy for the
 otherwise $O(L)$ cache-integrity check: the integrity probe reads only the
 depth-sink layer's spectrum and recomputes it on the fly (under $200$ ms on
@@ -503,7 +503,7 @@ GP attn-only $k{=}2048$ requested & 101.04 & 7.69 (+13.30\%) & 1{,}093 MB \\
 \end{tabular}
 \end{table}
 
-The $k{=}2048$ row produces \emph{identical} PPL to $k{=}1536$ because
+The $k{=}2048$ row produces identical PPL to $k{=}1536$ because
 \texttt{AXEX\_MANIFOLD\_K\_MAX} silently caps the stored basis; it
 also matches the disk footprint.
 
@@ -512,15 +512,15 @@ also matches the disk footprint.
 The four mechanisms below address four distinct invariance failures of
 static rank-$k$ GP, are mutually orthogonal in their state, and each is
 zero- or near-zero-overhead at inference time.  The contribution is the
-\emph{combination}; each individual mechanism has antecedents in the
+combination; each individual mechanism has antecedents in the
 literature.
 
 \begin{table}[h]\centering\small
 \caption{Four invariances assumed by static rank-$k$ GP, their empirical
-violations, and the GP extension that addresses each. \textit{Invariance}:
+violations, and the GP extension that addresses each. Invariance:
 an assumption that, if it held, would justify a single global rank chosen
-once at calibration time. \textit{Violation}: a measured property of
-deployed transformers that breaks the assumption. \textit{Mechanism}:
+once at calibration time. Violation: a measured property of
+deployed transformers that breaks the assumption. Mechanism:
 the GP component that drops the assumption and tracks the measured
 property at inference time.}
 \label{tab:invariance}
@@ -570,7 +570,7 @@ $s_\text{Refine}{=}1.2$, then renormalised so total budget matches $R$.
 \paragraph{Attention-sink bypass.}  Sink tokens (BOS in particular) carry
 residual-stream norms several $\sigma$ above the mean.  StreamingLLM
 \cite{xiao2023streamingllm} preserves sink tokens in the KV cache; we
-preserve the sink \emph{direction} in the basis itself.  When
+preserve the sink direction in the basis itself.  When
 $\max_k\inner{\hat s}{v_k}$ is small for the dominant sink direction
 $\hat s$, we append $\hat s$ to $V_r$ before initialisation, costing one
 rank slot per affected layer.
@@ -629,7 +629,7 @@ permitted to actuate) remains the next step.
 On the reference RTX~4070 Laptop, sustained Llama-3.1-8B inference reaches
 $\sim 85\,^\circ\mathrm{C}$ within $\sim 30$~s and the boost clock is
 clamped; tok/s falls to 50--60\% of cold-start.  Earlier work clamps the
-clock proactively; we clamp the \emph{compression rank} instead.
+clock proactively; we clamp the compression rank instead.
 
 \paragraph{Linear interpolation rule.}
 With temperature thresholds $T_\text{low}{=}65\,^\circ\mathrm{C}$,
@@ -679,9 +679,9 @@ $\sim$\,90\,s wall-clock. Of 94 samples, 86 fell in the active band
 with $T_{p90}{=}74\,^\circ\mathrm{C}$ and mean $61.2\,^\circ\mathrm{C}$;
 SM clock held at the boost ceiling (median 2235\,MHz, max 2235\,MHz);
 power drew a mean of 66.3\,W with peak 116\,W. Decode throughput was
-25.8 $\to$ 28.0 tok/s across the four passes (a +8.5\,\% \emph{warm-up}
+25.8 $\to$ 28.0 tok/s across the four passes (a +8.5\,\% warm-up
 rather than throttle), giving an estimated
-\textbf{0.415 tokens/joule} at the active-window mean. The active-window
+0.415 tokens/joule at the active-window mean. The active-window
 p90 of $74\,^\circ\mathrm{C}$ enters the Thermal Rank actuation band
 [$T_\text{low}{=}65,\,T_\text{high}{=}85$]\,$^\circ\mathrm{C}$ but does
 not saturate it, so on this hardware/load pair the controller would
@@ -805,9 +805,9 @@ premature here and is intentionally omitted.
 \section{How the Four Mechanisms Compose}
 \label{sec:compose}
 The four extensions touch disjoint parts of the pipeline:
-MCR changes the per-layer $r_\ell$ \emph{before} basis construction;
+MCR changes the per-layer $r_\ell$ before basis construction;
 Axiom Gauge changes the basis itself by left-/right-conjugating with
-$\diag(g)$; Thermal Rank changes the truncation threshold at \emph{inference}
+$\diag(g)$; Thermal Rank changes the truncation threshold at inference
 time; and Online Basis changes the basis between decode steps in response
 to drift.  Their state is non-overlapping (rank vector, gauge vector,
 thermal scalar, version counter), and their update intervals are very
@@ -821,7 +821,7 @@ runtime-flag-gated and individually disabling.
 quantisation (Llama-3.1-8B-Instruct~Q4\_K\_M, RTX~4070 Laptop, dequantised
 to fp32).  No cross-hardware or cross-model end-to-end measurement is
 included for the adaptive layers.
-\item All four adaptive extensions are \emph{design-validated}: code paths
+\item All four adaptive extensions are design-validated: code paths
 exist, runtime flags work, but the v0.2 measurement sweep is the next
 milestone.  Predicted gains in \Cref{sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online}
 are upper-bound estimates from closed-form arithmetic, not measurements.
@@ -832,7 +832,7 @@ quantisation boundary is uncharacterised.
 \item Cache invalidation forces a full rebuild ($\sim 70$~min for the 70B
 target), making model upgrades an event rather than a transparent rolling
 deploy.
-\item \textbf{FFN-only configurations are not yet quantified end-to-end.}
+\item FFN-only configurations are not yet quantified end-to-end.
 A preliminary single-prompt run at $k{=}1024$ on Llama-3.1-8B-Instruct
 Q4\_K\_M (RTX 4070 Laptop) produced no measurable speed-up over
 baseline; this is consistent with the $k_{95}$ spectrum analysis (FFN
