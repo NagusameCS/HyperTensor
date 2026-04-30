@@ -526,10 +526,12 @@ attention-specific cache-fit prediction.</p>
 <p>When restricted to the GRC-affected kernel, the picture is different. The
 attention-projection <code>gemv_q4_k(512)</code> L2 hit-rate rises from <span class="math inline">\(7.47\%\)</span>
 to <span class="math inline">\(12.15\%\)</span> (<span class="math inline">\(+4.68\)</span> pp). This is the kernel whose weight working set GRC
-directly shrinks. The <span class="math inline">\(+4.68\)</span> pp improvement is consistent with the
-geometric prediction that reducing the compressed-weight footprint from
+directly shrinks. The <span class="math inline">\(+4.68\)</span> pp improvement is in the direction predicted
+by the geometric model that reducing the compressed-weight footprint from
 <span class="math inline">\({\sim}25\)</span> MB (full <span class="math inline">\(d{=}4096\)</span> Q/K/V) to <span class="math inline">\({\sim}10\)</span> MB (projected
-<span class="math inline">\(k{=}1024\)</span>) reduces L2 competition.</p>
+<span class="math inline">\(k{=}1024\)</span>) reduces L2 competition. We do not claim it confirms the
+mechanism; <a href="#sec:falsification" data-reference-type="ref+Label" data-reference="sec:falsification">6.3</a> enumerates the residual confounds
+and the experimental protocol that would do so.</p>
 <p>One caveat is required for the DRAM column: the measured DRAM for
 <code>gemv_q4_k(512)</code> rises from <span class="math inline">\(9.46\)</span> MB to <span class="math inline">\(18.47\)</span> MB in GRC mode,
 not falls. This is expected: in GRC mode the same kernel is also responsible
@@ -585,16 +587,19 @@ and
 viable (calculation, not measurement). Optimal <span class="math inline">\(k^\star\)</span> is the
 largest power-of-two <span class="math inline">\(k\)</span> for which the attention working set
 <span class="math inline">\(W_\text{set}(k)+\text{KV}+\text{residual}\)</span> fits L2 with <span class="math inline">\(25\)</span> %
-headroom. The NCU trace in <a href="#sec:cachefit-ncu" data-reference-type="ref+Label" data-reference="sec:cachefit-ncu">6.2</a> supports this
-prediction: the attention-projection kernel shows a measured
-<span class="math inline">\(+4.68\)</span> pp L2 hit-rate improvement at <span class="math inline">\(k{=}1024\)</span> (<span class="math inline">\(7.47\%\to12.15\%\)</span>),
-consistent with the geometric model. The capacity bound also correctly
+headroom. The NCU trace in <a href="#sec:cachefit-ncu" data-reference-type="ref+Label" data-reference="sec:cachefit-ncu">6.2</a> is consistent with
+this prediction (the attention-projection kernel shows a measured
+<span class="math inline">\(+4.68\)</span> pp L2 hit-rate improvement at <span class="math inline">\(k{=}1024\)</span>, <span class="math inline">\(7.47\%\to12.15\%\)</span>),
+but a single <span class="math inline">\(n{=}1\)</span> run with confounds (kernel-mix change,
+basis-matrix traffic) does not isolate L2 residency as the sole or
+dominant cause; the protocol that would settle this is in
+<a href="#sec:falsification" data-reference-type="ref+Label" data-reference="sec:falsification">6.3</a>. The capacity bound also correctly
 predicted the rank (<span class="math inline">\(k{=}1024\)</span>) at which the fused dual-Q8
 GEMV trio becomes viable on the test GPU, so the
-“Predicted <span class="math inline">\(T/T_\text{base}\)</span>” column carries a dual interpretation:
-both L2 residency benefit and fusion-viability indicator.
-Validation on RTX 4090 / A100 / H100 is filed under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>
-and is the critical experiment for cross-GPU generalisation.</caption>
+“Predicted <span class="math inline">\(T/T_\text{base}\)</span>” column should be read as a joint
+fusion-and-residency viability indicator until a clean isolation
+experiment is run. Validation on RTX 4090 / A100 / H100 is filed
+under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">GPU</th>
@@ -636,6 +641,123 @@ and is the critical experiment for cross-GPU generalisation.</caption>
 </tbody>
 </table>
 </div>
+</section>
+<section id="sec:falsification" class="level3">
+<h3>What would constitute definitive proof of L2 causation</h3>
+<p>The current evidence for the L2 cache-fit mechanism is one paired NCU run
+(<span class="math inline">\(n{=}1\)</span>) on a single GPU, showing a <span class="math inline">\(+4.68\)</span> pp hit-rate increase on the
+GRC-affected attention-projection kernel and a flat hit-rate on the
+GRC-untouched FFN kernel. This is suggestive but not definitive. A
+disciplined reader can list specific reasons the result might be biased
+or incidental:</p>
+<ol>
+<li><p>Kernel-mix change. GRC mode replaces three baseline
+<code>gemv_q4_k(512)</code> launches with a fused
+<code>gemv_dual_q8_0</code> + <code>gemv_q4_0_prequant</code> +
+<code>gemv_q8_0_batched</code> trio. Comparing the L2 hit-rate of two
+structurally different kernels is not apples-to-apples; the access
+pattern, block shape, and quantisation format all differ.</p></li>
+<li><p>DRAM read rises, not falls. A naive cache-fit story
+predicts that more L2 hits should reduce DRAM bytes. The affected
+kernel reads <span class="math inline">\(9.46\)</span> MB at baseline and <span class="math inline">\(18.47\)</span> MB in GRC mode (the
+basis matrix <span class="math inline">\(P_k\)</span> adds <span class="math inline">\({\sim}8\)</span> MB). The hit-rate metric measures the
+fraction of sectors served from L2, but it is computed over a different
+total volume in each mode, so a higher percentage does not by itself
+imply more bytes saved from DRAM.</p></li>
+<li><p>Single profiling session. The trace was collected once
+per configuration. NCU sampling (<code>--launch-skip 50 --launch-count 200</code>)
+yields per-kernel mean and stdev across the 200 sampled launches, but
+not across independent sessions. System co-tenancy, GPU frequency
+state, or background processes during the trace cannot be ruled out from
+<span class="math inline">\(n{=}1\)</span>.</p></li>
+<li><p>No cache-size manipulation. The strongest available test
+is to artificially shrink L2 (CUDA exposes
+<code>cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, ...)</code> on
+A100 and later; on the RTX 4070 Laptop, the equivalent control is
+co-running an L2-thrashing kernel that evicts persistent lines). If
+GRC’s speed-up vanishes when L2 is constrained while baseline is
+unaffected, L2 is causal. Without this experiment, residency is a
+hypothesis, not a finding.</p></li>
+<li><p>Single GPU. The cache-fit model predicts that optimal
+<span class="math inline">\(k^\star\)</span> scales with L2 capacity (<a href="#tab:predict" data-reference-type="ref+Label" data-reference="tab:predict">3</a>). A measurement
+on RTX 4090 (72 MB L2, predicted <span class="math inline">\(k^\star{=}1536\)</span>) or A100 (40 MB,
+predicted <span class="math inline">\(k^\star{=}1024\)</span>) that matches the prediction would be strong
+cross-system evidence; a measurement that does not would refute the
+model.</p></li>
+</ol>
+<p>A definitive falsification protocol therefore consists of three
+experiments, each of which has a binary pass / fail outcome:</p>
+<section id="p1-multi-k-ncu-sweep-with-replicates." class="level5">
+<h5>(P1) Multi-<span class="math inline">\(k\)</span> NCU sweep with replicates.</h5>
+<p>Capture NCU traces at <span class="math inline">\(k\in\{384, 512, 768, 1024, 1280, 1536, 2048\}\)</span>
+with <span class="math inline">\(n{=}5\)</span> independent sessions each. The cache-fit model predicts
+that the affected-kernel hit-rate is monotonically non-increasing in <span class="math inline">\(k\)</span>
+in the regime <span class="math inline">\(S(k)\le C_\text{L2}\)</span> and drops sharply once
+<span class="math inline">\(S(k)&gt;C_\text{L2}\)</span>. A flat or non-monotonic curve refutes the model.
+Estimated cost: <span class="math inline">\({\sim}45\)</span> min on the test GPU; harness already exists at
+, only the <span class="math inline">\(k\)</span> list needs
+extending.</p>
+</section>
+<section id="p2-l2-capacity-manipulation." class="level5">
+<h5>(P2) L2 capacity manipulation.</h5>
+<p>Use a co-running cache-thrashing kernel sized to evict <span class="math inline">\(\Delta\in\{0,
+8, 16, 24\}\)</span> MB of L2. The cache-fit model predicts that the GRC
+super-baseline shrinks as <span class="math inline">\(\Delta\)</span> grows and disappears once
+<span class="math inline">\(C_\text{L2}-\Delta &lt; S(1024)\approx 10\)</span> MB; the kernel-fusion
+mechanism should be unaffected by <span class="math inline">\(\Delta\)</span>. Plot <span class="math inline">\(T/T_\text{base}\)</span> vs. <span class="math inline">\(\Delta\)</span>. A flat curve isolates fusion as the cause; a step at the
+predicted <span class="math inline">\(\Delta\)</span> isolates L2 residency.</p>
+</section>
+<section id="p3-cross-gpu-validation." class="level5">
+<h5>(P3) Cross-GPU validation.</h5>
+<p>Run the headline benchmark on RTX 4090 (72 MB L2, predicted
+<span class="math inline">\(k^\star{=}1536\)</span>) and A100 (40 MB, predicted <span class="math inline">\(k^\star{=}1024\)</span>) and
+verify that the empirical optimal <span class="math inline">\(k^\star\)</span> matches the predicted
+value to within one power-of-two.</p>
+<p>Until P1, P2, and P3 are completed, the published claim is what we
+state here: “the trace is consistent with the cache-fit model and
+does not refute it.” We explicitly do not claim it “confirms”
+the model, because the data are insufficient for that stronger claim.</p>
+</section>
+</section>
+<section id="sec:workingset-math" class="level3">
+<h3>Full working-set derivation</h3>
+<p>For full transparency we list every byte that enters the active L2
+working set during a single decode step, projected onto rank <span class="math inline">\(k\)</span>:</p>
+<p><span class="math display">\[\begin{align}
+S(k) &amp;= \underbrace{2\,d\,k}_{\text{proj. }\Wmat_Q\text{ in fp16}}
+       + \underbrace{2\,d\,k}_{\Wmat_K^{(\text{proj})}}
+       + \underbrace{2\,d\,k}_{\Wmat_V^{(\text{proj})}}\notag\\
+     &amp;\quad + \underbrace{2\,d\,k}_{P_k\text{ basis, fp16}}
+       + \underbrace{2\,d\,k}_{\widetilde P_k\text{ inverse basis}}
+       + \underbrace{2\,d_\text{kv}\,L_\text{ctx}}_{\text{KV cache}}
+       + \underbrace{2\,d}_{\text{residual}} \label{eq:Sk}
+\end{align}\]</span></p>
+<p>Substituting <span class="math inline">\(d{=}4096\)</span>, <span class="math inline">\(d_\text{kv}{=}1024\)</span>, <span class="math inline">\(L_\text{ctx}{=}512\)</span>,
+<span class="math inline">\(k{=}1024\)</span>:</p>
+<ul>
+<li><p>Projected Q/K/V: <span class="math inline">\(3\cdot 2\cdot 4096\cdot 1024 = 24\)</span> MB</p></li>
+<li><p>Basis <span class="math inline">\(P_k\)</span> + inverse: <span class="math inline">\(2\cdot 2\cdot 4096\cdot 1024 = 16\)</span> MB</p></li>
+<li><p>KV cache: <span class="math inline">\(2\cdot 1024\cdot 512 = 1\)</span> MB</p></li>
+<li><p>Residual: <span class="math inline">\(2\cdot 4096 = 8\)</span> kB</p></li>
+</ul>
+<p>The naive sum is <span class="math inline">\(41\)</span> MB, which exceeds <span class="math inline">\(C_\text{L2}{=}32\)</span> MB, but the
+basis matrices <span class="math inline">\(P_k\)</span> and <span class="math inline">\(\widetilde P_k\)</span> are loaded once per layer and
+held resident across the three Q/K/V projections, so the
+simultaneously-resident working set during any single GEMV
+launch is <span class="math inline">\(S_\text{kernel}(k) \approx 2\,d\,k_\text{(weight)} +
+2\,d\,k_\text{(basis)} = 16\)</span> MB at <span class="math inline">\(k{=}1024\)</span>, well inside L2. The
+<span class="math inline">\({\sim}10\)</span> MB number cited in <a href="#sec:cachefit" data-reference-type="ref+Label" data-reference="sec:cachefit">6</a> refers to the
+weight-only portion (<span class="math inline">\(8\)</span> MB at <span class="math inline">\(k{=}1024\)</span>) plus residual and
+intermediate activation overhead, and is the figure that maps onto
+“what an idealised cache-fit would shrink.” The discrepancy between
+the <span class="math inline">\(10\)</span> MB working-set estimate and the measured <span class="math inline">\(18.47\)</span> MB DRAM read
+is exactly the basis-matrix load, which is why the DRAM column rises
+even as the hit-rate also rises: the kernel is reading two distinct
+data products, the compressed weight and the basis, both of which now
+fit in L2 jointly with the activation. We provide the byte-level
+calculation here so the reader can audit the <span class="math inline">\({\sim}10\)</span> MB figure
+against the <span class="math inline">\({\sim}18\)</span> MB measurement and verify the discrepancy is
+fully accounted for by basis traffic.</p>
 </section>
 <section id="sec:spectra" class="level3">
 <h3>Spectral evidence for compressing attention only</h3>
@@ -915,8 +1037,8 @@ than a principled boundary, and the root cause has not been deeply
 investigated.</p></li>
 <li><p>The runtime is CUDA-only and requires an NVIDIA GPU with at least
 <span class="math inline">\(8\)</span> GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.</p></li>
-<li><p><strong>The <span class="math inline">\(+13.30\%\)</span> perplexity gap at <span class="math inline">\(k{=}1536\)</span> is partly an
-intrinsic floor and partly a deliberate design choice.</strong> An Eckart, Young
+<li><p>The <span class="math inline">\(+13.30\%\)</span> perplexity gap at <span class="math inline">\(k{=}1536\)</span> is partly an
+intrinsic floor and partly a deliberate design choice. An Eckart, Young
 and Mirsky calculation against the joint Gram spectrum sets the floor:
 operating at <span class="math inline">\(k{=}1024\)</span> throws away the bottom <span class="math inline">\({\approx}9\%\)</span> of energy
 (<span class="math inline">\(k_{95}{\approx}1682\)</span>), so a non-zero perplexity penalty is unavoidable
@@ -1176,7 +1298,7 @@ configurations sit comfortably inside the 8 188 MiB budget.</caption>
 <tr>
 <th style="text-align: left;">Stage</th>
 <th style="text-align: right;">Baseline (MiB)</th>
-<th style="text-align: right;"><strong>GRC <span class="math inline">\(k{=}1536\)</span> (MiB)</strong></th>
+<th style="text-align: right;">GRC <span class="math inline">\(k{=}1536\)</span> (MiB)</th>
 <th style="text-align: right;"><span class="math inline">\(\Delta\)</span></th>
 </tr>
 </thead>
@@ -1312,9 +1434,9 @@ same energy capture.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">Matrix</th>
-<th style="text-align: right;"><strong>Range <span class="math inline">\(k_{95}\)</span></strong></th>
+<th style="text-align: right;">Range <span class="math inline">\(k_{95}\)</span></th>
 <th style="text-align: right;">Mean <span class="math inline">\(k/d\)</span></th>
-<th style="text-align: left;"><strong>Status at GRC <span class="math inline">\(k{=}1024\)</span></strong></th>
+<th style="text-align: left;">Status at GRC <span class="math inline">\(k{=}1024\)</span></th>
 </tr>
 </thead>
 <tbody>

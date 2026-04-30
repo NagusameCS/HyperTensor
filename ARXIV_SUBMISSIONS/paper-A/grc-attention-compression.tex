@@ -27,19 +27,25 @@ and observe that decode throughput exceeds the uncompressed model
 by $6.27\%$ at $k{=}1024$ (95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$,
 $p<10^{-10}$, $n{=}8$ paired runs). At $k{=}1536$ throughput is
 statistically indistinguishable from baseline ($97.55\%$, paired-$t$ $p{=}0.48$)
-at a $+13.30\%$ perplexity cost on WikiText-2. We initially attributed the speed-up to L2 cache residency near $k/d{=}0.25$.
+at a $+13.30\%$ perplexity cost on WikiText-2 (absolute values: baseline $6.79$, $k{=}1536$ gives $7.69$; both are well within the normal range for an 8B-class Q4\_K\_M model).\footnote{A relative penalty can be misleading without anchoring to the absolute scale: $+13\%$ on a PPL of $6.79$ yields $7.69$, which remains in good-quality territory. The same relative penalty applied to a model with PPL $50$ would yield $56.5$, a qualitatively different situation.}  We initially attributed the speed-up to L2 cache residency near $k/d{=}0.25$.
 A direct Nsight Compute trace (\Cref{sec:cachefit-ncu}) gives a more complete
 picture: the GEMV-weighted L2 hit-rate is nearly flat ($17.0\%$ baseline vs.\
 $16.3\%$ at $k{=}1024$), but this average is dominated by FFN kernels that GRC
 does not touch. When scoped to the GRC-affected attention-projection kernel,
-the L2 hit-rate rises from $7.47\%$ to $12.15\%$ ($+4.68$~pp), consistent
-with the geometric prediction that reducing the attention working set to
-$\sim 10$~MB moves it inside the $32$~MB L2. The second contributing mechanism
+the L2 hit-rate rises from $7.47\%$ to $12.15\%$ ($+4.68$~pp), in the
+direction predicted by the cache-fit model. We label this evidence
+``consistent'' rather than ``confirmatory'': a single profiling
+run with $n{=}1$ does not isolate L2 residency from kernel-mix and
+data-layout confounds, and total DRAM read by the affected kernel
+rises by ${\sim}9$~MB (basis-matrix traffic), which a naive cache-fit
+story would not predict. The second contributing mechanism, also visible in the trace,
 is kernel fusion: the compressed path replaces three Q/K/V \texttt{gemv\_q4\_k}
 launches with a fused dual-Q8 trio operating on $k$-dimensional intermediates.
-Both mechanisms, attention-weight L2 residency and Q/K/V kernel fusion, are
-present and consistent with the measured $+6.27\%$. The cache-fit calculation
-also provides a capacity bound on the rank at which the fusion path becomes
+We do not attempt to apportion the $+6.27\%$ throughput gain between the
+two mechanisms from existing data; \Cref{sec:falsification} specifies the
+multi-$k$ sweep, cache-size-manipulation, and cross-GPU experiments that
+would settle the attribution. The cache-fit calculation also provides a
+capacity bound on the rank at which the fusion path becomes
 viable per GPU. We compare the shared-basis construction against the
 Eckart, Young and Mirsky low-rank optimum, document the methodological
 gaps (single GPU, single model, perplexity-only quality), and release code,
@@ -414,11 +420,29 @@ attention-specific cache-fit prediction.
 When restricted to the GRC-affected kernel, the picture is different. The
 attention-projection \texttt{gemv\_q4\_k(512)} L2 hit-rate rises from $7.47\%$
 to $12.15\%$ ($+4.68$~pp). This is the kernel whose weight working set GRC
-directly shrinks. The $+4.68$~pp improvement is consistent with the
-geometric prediction: reducing the attention working set from $\sim 25$~MB
-(full $d{=}4096$ Q/K/V) to $\sim 10$~MB (projected $k{=}1024$) moves it
-from a regime where it competes with FFN for L2 capacity into one where
-there is headroom. We report both numbers in \Cref{tab:ncu-l2} so the
+directly shrinks. The $+4.68$~pp improvement is in the direction predicted
+by the geometric model that reducing the compressed-weight footprint from
+${\sim}25$~MB (full $d{=}4096$ Q/K/V) to ${\sim}10$~MB (projected
+$k{=}1024$) reduces L2 competition. We do not claim it confirms the
+mechanism; \Cref{sec:falsification} enumerates the residual confounds
+and the experimental protocol that would do so.
+
+One caveat is required for the DRAM column: the measured DRAM for
+\texttt{gemv\_q4\_k(512)} rises from $9.46$~MB to $18.47$~MB in GRC mode,
+not falls. This is expected: in GRC mode the same kernel is also responsible
+for applying the stored basis matrix $P_k$ ($d{\times}k$ in FP16, ${\sim}8$~MB
+per call), so total bytes read per dispatch includes both the compressed
+weight tensor and the basis vectors. The theoretical ${\sim}10$~MB refers
+strictly to the compressed weight portion; it does not account for the
+additional $P_k$ read. A multi-$k$ sweep isolating weight reads from basis
+reads is the experiment that would cleanly separate these contributions and
+is listed under \Cref{sec:future}. The L2 hit-rate improvement ($+4.68$~pp)
+is the primary evidence: it measures the fraction of sectors served from L2
+regardless of which data source, and it rises with compression even as total
+DRAM rises, indicating that the compressed data layout or reduced working-set
+pressure has improved cache utilisation in the attention path.
+
+We report both numbers in \Cref{tab:ncu-l2} so the
 reader can verify: the FFN row is flat (GRC does not touch it), and the
 attention projection row is up.
 
@@ -463,16 +487,19 @@ Raw CSVs and the parser are at
 viable (calculation, not measurement). Optimal $k^\star$ is the
 largest power-of-two $k$ for which the attention working set
 $W_\text{set}(k)+\text{KV}+\text{residual}$ fits L2 with $25$\,\%
-headroom; the original derivation interpreted this as predicting an
-L2-residency speed-up, but the NCU trace in \Cref{sec:cachefit-ncu}
-refutes that mechanism (L2 hit-rate at $k{=}1024$ is $16.3$\,\% vs.\
-$17.0$\,\% at baseline). The capacity bound is retained because it
-correctly predicted the rank ($k{=}1024$) at which the fused dual-Q8
-GEMV trio becomes launch-throughput-bound on the test GPU; the
-``Predicted $T/T_\text{base}$'' column should therefore be read as a
-fusion-viability indicator, not as a residency prediction. Validation
-on RTX 4090 / A100 / H100 is filed under \Cref{sec:future} and is the
-critical experiment for cross-GPU generalisation.}
+headroom. The NCU trace in \Cref{sec:cachefit-ncu} is consistent with
+this prediction (the attention-projection kernel shows a measured
+$+4.68$\,pp L2 hit-rate improvement at $k{=}1024$, $7.47\%\to12.15\%$),
+but a single $n{=}1$ run with confounds (kernel-mix change,
+basis-matrix traffic) does not isolate L2 residency as the sole or
+dominant cause; the protocol that would settle this is in
+\Cref{sec:falsification}. The capacity bound also correctly
+predicted the rank ($k{=}1024$) at which the fused dual-Q8
+GEMV trio becomes viable on the test GPU, so the
+``Predicted $T/T_\text{base}$'' column should be read as a joint
+fusion-and-residency viability indicator until a clean isolation
+experiment is run. Validation on RTX 4090 / A100 / H100 is filed
+under \Cref{sec:future}.}
 \label{tab:predict}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
@@ -485,6 +512,129 @@ H100 & 50 & 3350 & 1280 & 1.02--1.04 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{What would constitute definitive proof of L2 causation}
+\label{sec:falsification}
+
+The current evidence for the L2 cache-fit mechanism is one paired NCU run
+($n{=}1$) on a single GPU, showing a $+4.68$~pp hit-rate increase on the
+GRC-affected attention-projection kernel and a flat hit-rate on the
+GRC-untouched FFN kernel. This is suggestive but not definitive. A
+disciplined reader can list specific reasons the result might be biased
+or incidental:
+
+\begin{enumerate}
+\item Kernel-mix change. GRC mode replaces three baseline
+\texttt{gemv\_q4\_k(512)} launches with a fused
+\texttt{gemv\_dual\_q8\_0} + \texttt{gemv\_q4\_0\_prequant} +
+\texttt{gemv\_q8\_0\_batched} trio. Comparing the L2 hit-rate of two
+structurally different kernels is not apples-to-apples; the access
+pattern, block shape, and quantisation format all differ.
+\item DRAM read rises, not falls. A naive cache-fit story
+predicts that more L2 hits should reduce DRAM bytes. The affected
+kernel reads $9.46$~MB at baseline and $18.47$~MB in GRC mode (the
+basis matrix $P_k$ adds ${\sim}8$~MB). The hit-rate metric measures the
+fraction of sectors served from L2, but it is computed over a different
+total volume in each mode, so a higher percentage does not by itself
+imply more bytes saved from DRAM.
+\item Single profiling session. The trace was collected once
+per configuration. NCU sampling (\texttt{--launch-skip 50 --launch-count 200})
+yields per-kernel mean and stdev across the 200 sampled launches, but
+not across independent sessions. System co-tenancy, GPU frequency
+state, or background processes during the trace cannot be ruled out from
+$n{=}1$.
+\item No cache-size manipulation. The strongest available test
+is to artificially shrink L2 (CUDA exposes
+\texttt{cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, ...)} on
+A100 and later; on the RTX 4070 Laptop, the equivalent control is
+co-running an L2-thrashing kernel that evicts persistent lines). If
+GRC's speed-up vanishes when L2 is constrained while baseline is
+unaffected, L2 is causal. Without this experiment, residency is a
+hypothesis, not a finding.
+\item Single GPU. The cache-fit model predicts that optimal
+$k^\star$ scales with L2 capacity (\Cref{tab:predict}). A measurement
+on RTX 4090 (72~MB L2, predicted $k^\star{=}1536$) or A100 (40~MB,
+predicted $k^\star{=}1024$) that matches the prediction would be strong
+cross-system evidence; a measurement that does not would refute the
+model.
+\end{enumerate}
+
+A definitive falsification protocol therefore consists of three
+experiments, each of which has a binary pass / fail outcome:
+
+\paragraph{(P1) Multi-$k$ NCU sweep with replicates.}
+Capture NCU traces at $k\in\{384, 512, 768, 1024, 1280, 1536, 2048\}$
+with $n{=}5$ independent sessions each. The cache-fit model predicts
+that the affected-kernel hit-rate is monotonically non-increasing in $k$
+in the regime $S(k)\le C_\text{L2}$ and drops sharply once
+$S(k)>C_\text{L2}$. A flat or non-monotonic curve refutes the model.
+Estimated cost: ${\sim}45$~min on the test GPU; harness already exists at
+\path{scripts/benchmark_ncu_l2_profile.ps1}, only the $k$ list needs
+extending.
+
+\paragraph{(P2) L2 capacity manipulation.}
+Use a co-running cache-thrashing kernel sized to evict $\Delta\in\{0,
+8, 16, 24\}$~MB of L2. The cache-fit model predicts that the GRC
+super-baseline shrinks as $\Delta$ grows and disappears once
+$C_\text{L2}-\Delta < S(1024)\approx 10$~MB; the kernel-fusion
+mechanism should be unaffected by $\Delta$. Plot $T/T_\text{base}$ vs.\
+$\Delta$. A flat curve isolates fusion as the cause; a step at the
+predicted $\Delta$ isolates L2 residency.
+
+\paragraph{(P3) Cross-GPU validation.}
+Run the headline benchmark on RTX 4090 (72~MB L2, predicted
+$k^\star{=}1536$) and A100 (40~MB, predicted $k^\star{=}1024$) and
+verify that the empirical optimal $k^\star$ matches the predicted
+value to within one power-of-two.
+
+Until P1, P2, and P3 are completed, the published claim is what we
+state here: ``the trace is consistent with the cache-fit model and
+does not refute it.'' We explicitly do not claim it ``confirms''
+the model, because the data are insufficient for that stronger claim.
+
+\subsection{Full working-set derivation}
+\label{sec:workingset-math}
+
+For full transparency we list every byte that enters the active L2
+working set during a single decode step, projected onto rank $k$:
+
+\begin{align}
+S(k) &= \underbrace{2\,d\,k}_{\text{proj. }\Wmat_Q\text{ in fp16}}
+       + \underbrace{2\,d\,k}_{\Wmat_K^{(\text{proj})}}
+       + \underbrace{2\,d\,k}_{\Wmat_V^{(\text{proj})}}\notag\\
+     &\quad + \underbrace{2\,d\,k}_{P_k\text{ basis, fp16}}
+       + \underbrace{2\,d\,k}_{\widetilde P_k\text{ inverse basis}}
+       + \underbrace{2\,d_\text{kv}\,L_\text{ctx}}_{\text{KV cache}}
+       + \underbrace{2\,d}_{\text{residual}} \label{eq:Sk}
+\end{align}
+
+Substituting $d{=}4096$, $d_\text{kv}{=}1024$, $L_\text{ctx}{=}512$,
+$k{=}1024$:
+\begin{itemize}
+\item Projected Q/K/V: $3\cdot 2\cdot 4096\cdot 1024 = 24$~MB
+\item Basis $P_k$ + inverse: $2\cdot 2\cdot 4096\cdot 1024 = 16$~MB
+\item KV cache: $2\cdot 1024\cdot 512 = 1$~MB
+\item Residual: $2\cdot 4096 = 8$~kB
+\end{itemize}
+
+The naive sum is $41$~MB, which exceeds $C_\text{L2}{=}32$~MB, but the
+basis matrices $P_k$ and $\widetilde P_k$ are loaded once per layer and
+held resident across the three Q/K/V projections, so the
+simultaneously-resident working set during any single GEMV
+launch is $S_\text{kernel}(k) \approx 2\,d\,k_\text{(weight)} +
+2\,d\,k_\text{(basis)} = 16$~MB at $k{=}1024$, well inside L2. The
+${\sim}10$~MB number cited in \Cref{sec:cachefit} refers to the
+weight-only portion ($8$~MB at $k{=}1024$) plus residual and
+intermediate activation overhead, and is the figure that maps onto
+``what an idealised cache-fit would shrink.'' The discrepancy between
+the $10$~MB working-set estimate and the measured $18.47$~MB DRAM read
+is exactly the basis-matrix load, which is why the DRAM column rises
+even as the hit-rate also rises: the kernel is reading two distinct
+data products, the compressed weight and the basis, both of which now
+fit in L2 jointly with the activation. We provide the byte-level
+calculation here so the reader can audit the ${\sim}10$~MB figure
+against the ${\sim}18$~MB measurement and verify the discrepancy is
+fully accounted for by basis traffic.
 
 \subsection{Spectral evidence for compressing attention only}
 \label{sec:spectra}
@@ -648,8 +798,8 @@ than a principled boundary, and the root cause has not been deeply
 investigated.
 \item The runtime is CUDA-only and requires an NVIDIA GPU with at least
 $8$~GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.
-\item \textbf{The $+13.30\%$ perplexity gap at $k{=}1536$ is partly an
-intrinsic floor and partly a deliberate design choice.} An Eckart, Young
+\item The $+13.30\%$ perplexity gap at $k{=}1536$ is partly an
+intrinsic floor and partly a deliberate design choice. An Eckart, Young
 and Mirsky calculation against the joint Gram spectrum sets the floor:
 operating at $k{=}1024$ throws away the bottom ${\approx}9\%$ of energy
 ($k_{95}{\approx}1682$), so a non-zero perplexity penalty is unavoidable
@@ -799,6 +949,11 @@ Runtime + OpenBLAS                          & 69.2\,MB     & complete inference 
 First-run calibration time (CPU-bound truncated SVD over 32 layers $\times$
 3 weight sets, dequantised Q4\_K\_M\,$\to$\,fp32) is 60--120\,s on the
 Ryzen~9 7940HS; warm cache hit elides this entirely.
+The $\Wmat_\text{proj}$ cache file is a self-contained, model-specific
+binary artefact. It can be distributed independently of the model file:
+any session (on any machine) that holds both the GGUF model and the
+matching cache file incurs zero calibration time.  Two separate inference
+sessions sharing the same cache file will produce bit-identical outputs.
 
 \subsection{VRAM profile}
 
@@ -808,7 +963,7 @@ Idle baseline (OS, display, background) is ${\sim}1\,136$\,MiB. Both
 configurations sit comfortably inside the 8\,188\,MiB budget.}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
-Stage & Baseline (MiB) & \textbf{GRC $k{=}1536$ (MiB)} & $\Delta$ \\
+Stage & Baseline (MiB) & GRC $k{=}1536$ (MiB) & $\Delta$ \\
 \midrule
 OS / display idle      & ${\sim}1\,136$        & ${\sim}1\,136$        & , \\
 Post-model upload      & ${\sim}5\,812$        & ${\sim}5\,812$        & , \\
@@ -890,7 +1045,7 @@ near-uniform spectra and would need ${\sim}3.4\times$ the rank for the
 same energy capture.}
 \begin{tabular}{@{}lrrl@{}}
 \toprule
-Matrix & \textbf{Range $k_{95}$} & Mean $k/d$ & \textbf{Status at GRC $k{=}1024$}\\
+Matrix & Range $k_{95}$ & Mean $k/d$ & Status at GRC $k{=}1024$\\
 \midrule
 $\Wmat_Q$    & 635--1947  & 0.32 & within target\\
 $\Wmat_K$    & 253--783   & 0.13 & well within target\\
