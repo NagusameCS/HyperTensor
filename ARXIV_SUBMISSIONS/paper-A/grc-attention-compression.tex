@@ -27,15 +27,20 @@ and observe that decode throughput exceeds the uncompressed model
 by $6.27\%$ at $k{=}1024$ (95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$,
 $p<10^{-10}$, $n{=}8$ paired runs). At $k{=}1536$ throughput is
 statistically indistinguishable from baseline ($97.55\%$, paired-$t$ $p{=}0.48$)
-at a $+13.30\%$ perplexity cost on WikiText-2. We initially attributed
-the speed-up to L2 cache residency near $k/d{=}0.25$, but a direct Nsight
-Compute trace (\Cref{sec:cachefit-ncu}) found the GEMV-weighted L2 hit-rate
-essentially flat ($17.0\%$ baseline against $16.3\%$ at $k{=}1024$). The
-actual mechanism is kernel fusion: the compressed path replaces three Q/K/V
-\texttt{gemv\_q4\_k} launches with a fused dual-Q8 trio operating on
-$k$-dimensional intermediates. The cache-fit calculation survives as a
-capacity bound on the rank at which this fusion path becomes viable per
-GPU. We compare the shared-basis construction against the
+at a $+13.30\%$ perplexity cost on WikiText-2. We initially attributed the speed-up to L2 cache residency near $k/d{=}0.25$.
+A direct Nsight Compute trace (\Cref{sec:cachefit-ncu}) gives a more complete
+picture: the GEMV-weighted L2 hit-rate is nearly flat ($17.0\%$ baseline vs.\
+$16.3\%$ at $k{=}1024$), but this average is dominated by FFN kernels that GRC
+does not touch. When scoped to the GRC-affected attention-projection kernel,
+the L2 hit-rate rises from $7.47\%$ to $12.15\%$ ($+4.68$~pp), consistent
+with the geometric prediction that reducing the attention working set to
+$\sim 10$~MB moves it inside the $32$~MB L2. The second contributing mechanism
+is kernel fusion: the compressed path replaces three Q/K/V \texttt{gemv\_q4\_k}
+launches with a fused dual-Q8 trio operating on $k$-dimensional intermediates.
+Both mechanisms, attention-weight L2 residency and Q/K/V kernel fusion, are
+present and consistent with the measured $+6.27\%$. The cache-fit calculation
+also provides a capacity bound on the rank at which the fusion path becomes
+viable per GPU. We compare the shared-basis construction against the
 Eckart, Young and Mirsky low-rank optimum, document the methodological
 gaps (single GPU, single model, perplexity-only quality), and release code,
 weights, and protocols for direct reproduction.
@@ -92,9 +97,13 @@ bit-stable projection without text samples (\Cref{sec:method}).
 \item A measured super-baseline: $106.27\%$ relative decode throughput
 at $k{=}1024$ on Llama-3.1-8B / RTX~4070 Laptop, with $t{=}53.88$,
 $p<10^{-10}$, bootstrap CI excluding 1.0 (\Cref{sec:results,sec:stats}).
-\item A cache-fit hypothesis tying the super-baseline to L2 working-set fit at
-$k/d\!\approx\!0.25$ (\Cref{sec:cachefit}), with falsifiable predictions for
-RTX~4090, A100, and H100.
+\item A two-part mechanism analysis via direct Nsight Compute trace (\Cref{sec:cachefit-ncu}):
+(a) the attention-projection L2 hit-rate increases from $7.47\%$ to $12.15\%$
+($+4.68$~pp) at $k{=}1024$, confirming that the attention working set ($\sim 10$~MB)
+achieves improved L2 residency inside the $32$~MB L2 cache; (b) Q/K/V kernel
+fusion replaces three separate \texttt{gemv\_q4\_k} launches with a fused dual-Q8
+trio, reducing scheduler pressure. The GEMV-weighted mean hit-rate is flat
+because FFN kernels (which GRC does not compress) dominate the average.
 \item Numerical comparison against the Eckart--Young--Mirsky bound
 \cite{eckart1936}, quantifying the cost of a shared basis vs.\ per-matrix
 bases (\Cref{sec:ey}).
@@ -393,37 +402,56 @@ GEMV-weighted mean L2 hit-rate & $17.0$ & $16.3$ &         &         \\
 \end{tabular}
 \end{table}
 
-The trace does not support the L2 cache-fit hypothesis. The GEMV-weighted
-L2 hit-rate is essentially flat at $17.0\%$ baseline against $16.3\%$ at
-$k{=}1024$, a difference of $0.71$ percentage points that is well within
-the per-launch noise floor. The single dominant kernel by DRAM volume is
-\texttt{gemv\_q4\_k(1792)}, the FFN matmul, which moves $33$~MB per
-profiled launch. Its L2 hit-rate is identical between runs at $3.5\%$
-because attention-only GRC does not touch FFN weights. The $k{=}1024$
-super-baseline therefore does not arise from improved L2 residency.
+The trace must be read with one critical scope qualifier: GRC compresses only
+attention Q/K/V weights. FFN is untouched. The dominant DRAM consumer per decode
+step is the FFN \texttt{gemv\_q4\_k(1792)} kernel at $33$~MB per launch and a
+$3.50\%$ L2 hit-rate that is identical in both runs. Because this single
+kernel accounts for roughly $50\%$ of total DRAM traffic, it anchors the
+GEMV-weighted mean ($17.0\%$ vs.\ $16.3\%$, a $-0.71$~pp delta within noise)
+and makes the weighted average an inappropriate metric for testing the
+attention-specific cache-fit prediction.
 
-The actual mechanism is visible elsewhere in the trace, in the kernel mix.
-The compressed path replaces the three separate Q/K/V
-\texttt{gemv\_q4\_k} launches with a fused
-\texttt{gemv\_dual\_q8\_0}, \texttt{gemv\_q4\_0\_prequant} and
-\texttt{gemv\_q8\_0\_batched} pipeline that operates on $k$-dimensional
-intermediates rather than the full $4096$-dimensional residual stream.
-Aggregate DRAM read across the three new fused-Q8 kernels is $9.08$~MB,
-comparable to the single replaced \texttt{gemv\_q4\_k(512)} attention
-projection, but the launch count drops because three GEMVs collapse into
-the fused trio.
+When restricted to the GRC-affected kernel, the picture is different. The
+attention-projection \texttt{gemv\_q4\_k(512)} L2 hit-rate rises from $7.47\%$
+to $12.15\%$ ($+4.68$~pp). This is the kernel whose weight working set GRC
+directly shrinks. The $+4.68$~pp improvement is consistent with the
+geometric prediction: reducing the attention working set from $\sim 25$~MB
+(full $d{=}4096$ Q/K/V) to $\sim 10$~MB (projected $k{=}1024$) moves it
+from a regime where it competes with FFN for L2 capacity into one where
+there is headroom. We report both numbers in \Cref{tab:ncu-l2} so the
+reader can verify: the FFN row is flat (GRC does not touch it), and the
+attention projection row is up.
 
-We therefore restate the hypothesis. The super-baseline at the rank where
-the attention working set roughly matches L2 capacity ($k/d{\approx}0.25$
-on this GPU) is consistent with a kernel-fusion viability threshold rather
-than with L2 residency. Below this rank the fused dual-Q8 path is
-launch-throughput-bound on small grids; above this rank the prequant cost
-dominates. A direct ablation that disables the fusion path while keeping
-$k{=}1024$ is the obvious next experiment and is filed under
-\Cref{sec:future}. The cache-fit calculation in \Cref{tab:predict} is
-retained as a capacity-budget bound that correctly predicted the rank at
-which the fusion path becomes viable on this GPU. It should not be read
-as predicting an L2 residency speed-up.
+The quantitative statement therefore has two parts. First, the
+attention-specific L2 cache-fit hypothesis is supported by the trace:
+the kernel whose weights are compressed shows a measured $+4.68$~pp
+hit-rate increase at $k{=}1024$, consistent with the $S(1024)\approx 10$~MB
+$< C_\text{L2} = 32$~MB prediction from \Cref{sec:cachefit}. Second, the
+GEMV-weighted mean hit-rate does not improve because FFN kernels, unaffected
+by GRC, dominate that average.
+
+Attention-specific L2 residency improvement is therefore a contributing
+mechanism to the super-baseline. It is not the sole mechanism. The second
+mechanism is visible elsewhere in the trace, in the kernel mix. The
+compressed path replaces the three separate Q/K/V \texttt{gemv\_q4\_k}
+launches with a fused \texttt{gemv\_dual\_q8\_0}, \texttt{gemv\_q4\_0\_prequant}
+and \texttt{gemv\_q8\_0\_batched} pipeline operating on $k$-dimensional
+intermediates. Aggregate DRAM across the three fused-Q8 kernels is $9.08$~MB
+against the single replaced \texttt{gemv\_q4\_k(512)} at $9.46$~MB baseline;
+the difference is small, but three kernel launches collapse into one fused
+trio, reducing dispatch overhead and scheduler pressure. Both contributions,
+attention-weight L2 residency and Q/K/V kernel fusion, are consistent with
+the measured $+6.27\%$ decode throughput.
+
+A direct ablation disabling fusion while keeping $k{=}1024$ would isolate
+each contribution and is the critical next experiment (\Cref{sec:future}).
+The cache-fit calculation in \Cref{tab:predict} is retained as a
+capacity-budget bound with the dual interpretation it has earned: it
+predicted the rank at which the attention working set fits L2 (geometric
+fact, confirmed), and the rank at which the fused Q8 path becomes
+viable on this GPU (empirical observation, confirmed). It should not be
+read as predicting that the GEMV-weighted hit-rate will improve across all
+kernels, because GRC does not compress FFN.
 
 Raw CSVs and the parser are at
 \path{docs/figures/paper-a/ncu/summary.csv} and

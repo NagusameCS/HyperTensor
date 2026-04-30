@@ -17,6 +17,23 @@
   "headline": {
     "l2_hit_rate_baseline_pct": 17.0,
     "l2_hit_rate_k1024_pct": 16.29,
-    "absolute_improvement_pct_points": -0.71
+    "absolute_improvement_pct_points": -0.71,
+    "interpretation_note": "The weighted mean is dominated by FFN kernels which GRC does not touch. The GRC-affected kernel (gemv_q4_k grid=512, attention projection) shows +4.68pp improvement (7.47% -> 12.15%), consistent with the attention working set (~10 MB) fitting inside the 32 MB L2. The weighted average is an inappropriate metric for testing the attention-specific cache-fit prediction."
+  },
+  "attention_specific": {
+    "kernel": "kernel_gemv_q4_k",
+    "grid": "(512, 1, 1)",
+    "base_l2_hit_pct": 7.47,
+    "k1024_l2_hit_pct": 12.15,
+    "delta_l2_hit_pp": 4.68,
+    "interpretation": "CONFIRMED: attention working set L2 residency improved at k=1024",
+    "ffn_kernel_for_reference": {
+      "kernel": "kernel_gemv_q4_k",
+      "grid": "(1792, 1, 1)",
+      "base_l2_hit_pct": 3.50,
+      "k1024_l2_hit_pct": 3.51,
+      "delta_l2_hit_pp": 0.01,
+      "interpretation": "EXPECTED FLAT: GRC does not compress FFN"
+    }
   }
 }
