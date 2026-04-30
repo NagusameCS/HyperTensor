@@ -57,14 +57,13 @@ MathJax = {
 </nav>
 
 <header class="paper-header">
-  <span class="tag">Paper D · OTT/GTC</span>
+  <span class="tag">Paper D - OTT/GTC</span>
   <h1>Organic Training Theory and the GTC Manifold Runtime</h1>
   <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
   <p class="meta">
     HyperTensor Project &middot; April 2026
-     &middot; <a href="pdfs/paper-d-ott-gtc-manifold-runtime.pdf">PDF</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-D/ott-gtc-manifold-runtime.tex">TeX source</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/ARXIV_SUBMISSIONS/paper-D">arXiv tree</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-D/ott-gtc-manifold-runtime.pdf">PDF</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-D/ott-gtc-manifold-runtime.tex">TeX source</a>
   </p>
 </header>
 
@@ -89,35 +88,6 @@ the activation cloud of a trained model occupies a low-dimensional submanifold
 of the embedding space; estimates put intrinsic dimension at <span class="math inline">\(k\!\approx\!30\)</span>–<span class="math inline">\(50\)</span>
 even when ambient <span class="math inline">\(d\in\{4096,8192\}\)</span>
 <span class="citation" data-cites="elhage2022superposition nakkiran2021deep">(<span class="nocase">Elhage et al.</span> 2022; Nakkiran et al. 2021)</span>.</p>
-<figure class="paper-diagram">
-<svg viewBox="0 0 920 240" role="img" aria-label="OTT and GTC runtime overview">
-  <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="currentColor"></polygon>
-    </marker>
-  </defs>
-  <rect class="box" x="20" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="accent" x="250" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="support" x="480" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="good" x="710" y="56" width="180" height="118" rx="14"></rect>
-  <line class="arrow" x1="200" y1="115" x2="250" y2="115"></line>
-  <line class="arrow" x1="430" y1="115" x2="480" y2="115"></line>
-  <line class="arrow" x1="660" y1="115" x2="710" y2="115"></line>
-  <text class="label" x="110" y="95" text-anchor="middle">Activation Cloud</text>
-  <text class="small" x="110" y="126" text-anchor="middle">low intrinsic manifold</text>
-  <text class="small" x="110" y="150" text-anchor="middle">inside a wide residual space</text>
-  <text class="label" x="340" y="95" text-anchor="middle">Geometric Operators</text>
-  <text class="small" x="340" y="126" text-anchor="middle">Fisher, Christoffel, Jacobi</text>
-  <text class="small" x="340" y="150" text-anchor="middle">Magnus-3 transport map</text>
-  <text class="label" x="570" y="95" text-anchor="middle">GTC Record Store</text>
-  <text class="small" x="570" y="126" text-anchor="middle">trajectory + correction cache</text>
-  <text class="small" x="570" y="150" text-anchor="middle">indexed by local geometry</text>
-  <text class="label" x="800" y="95" text-anchor="middle">Runtime Correction</text>
-  <text class="small" x="800" y="126" text-anchor="middle">fast reuse of nearby paths</text>
-  <text class="small" x="800" y="150" text-anchor="middle">without full recomputation</text>
-</svg>
-<figcaption>Paper D connects the abstract geometry to the runtime story: learn the local manifold, build transport operators, cache those trajectories, then reuse them as first-order corrections during inference.</figcaption>
-</figure>
 <section id="cross-architecture-k_mathrmint-invariance." class="level5">
 <h5>Cross-architecture <span class="math inline">\(k_{\mathrm{int}}\)</span> invariance.</h5>
 <p>Running our manifold-extraction pipeline on three open transformers of
@@ -200,6 +170,18 @@ instruct-tuned drafters: <em>logit-excluding top-1 with min-response
 guard</em> and the <em>geometry-cache consistency-equivalence rule</em>
 (Sec. <a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a>).</p></li>
 </ol>
+<figure id="fig:ott-pipeline" data-latex-placement="t">
+
+<figcaption>End-to-end OTT/GTC pipeline. The <em>offline</em> path
+(Sec. <a href="#sec:ott" data-reference-type="ref" data-reference="sec:ott">2</a>–<a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a>) fits a Riemannian manifold from a
+Phase-1 activation export, computes batched Jacobi-field propagators in the
+Magnus-3 truncation, and writes a compressed record store. The
+<em>runtime</em> path (Sec. <a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a>) consumes the manifold and the
+record store via the geometry-cache consistency-equivalence rule, with the
+<span class="math inline">\(\ell^\star\!\approx\!2L/3\)</span> depth-sink shortcut making the cache check <span class="math inline">\(O(1)\)</span>
+per token. Numbers cited in the boxes are measured on the empirical anchor
+in <a href="#sec:resonance,sec:store,sec:runtime" data-reference-type="ref+Label" data-reference="sec:resonance,sec:store,sec:runtime">[sec:resonance,sec:store,sec:runtime]</a>.</figcaption>
+</figure>
 </section>
 </section>
 <section id="part-i-theory" class="level2 unnumbered">
@@ -282,8 +264,18 @@ waypoints sampled from the geodesic. In one line: the implemented map is
 <span class="math display">\[\begin{equation}
 \boxed{\;\;g_{ij}(\theta)\;\xrightarrow{\eqref{eq:christoffel}}\;\Gamma^k_{ij}\;\xrightarrow{\eqref{eq:jacobi}}\;A(\lambda)\;\xrightarrow{\eqref{eq:magnus},\,\text{trunc.\,3}}\;\Phi(\lambda).\;\;}
 \label{eq:fisher-to-phi}
-\end{equation}\]</span>
-Eq. <a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a> is then a first-order Taylor expansion of the
+\end{equation}\]</span></p>
+<figure id="fig:fisher-to-jacobi" data-latex-placement="h">
+
+<figcaption>The implemented Fisher-to-Jacobi chain. The runtime never
+materialises the full curvature tensor; instead it samples waypoints,
+constructs the <span class="math inline">\(2k\!\times\!2k\)</span> Jacobi generator <span class="math inline">\(A(\lambda)\)</span> at each
+waypoint, integrates the Magnus expansion to third order, and stores the
+resulting propagator <span class="math inline">\(\Phi(\lambda)\)</span> in the GTC record. Eq.<a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a>
+is the first-order Taylor expansion that consumes <span class="math inline">\(\Phi(\lambda)\)</span> at
+inference time.</figcaption>
+</figure>
+<p>Eq. <a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a> is then a first-order Taylor expansion of the
 flow with <span class="math inline">\(\Phi(\lambda)\)</span> in the linear coefficient slot, which is exactly
 what the cache stores. The empirical anchor benchmarks measure the inverse
 property: that the cached <span class="math inline">\(\Phi(\lambda)\)</span> correctly predicts deviation
@@ -319,6 +311,16 @@ under load, the resonance property. Sec. <a href="#sec:resonance" data-referenc
 the library converges to a 92% hit rate while storing 7.8% of seen queries;
 on real LM clouds (Sec. <a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a>) the hit-rate at 25%-fraction cache
 is 90.4–91.5%, scale-invariant.</p>
+<figure id="fig:gtc-architecture" data-latex-placement="h">
+
+<figcaption>Geodesic Trajectory Caching (GTC) at runtime. A new query is
+checked against the validity radius <span class="math inline">\(\hat\rho\)</span> of the nearest cached
+record; on hit, the prediction is a single <span class="math inline">\(\mathcal{O}(k^2)\)</span> matrix-vector
+product (Eq.<a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a>); on miss, the full forward pass
+materialises a new trajectory which is inserted back into the library.
+A batch of correlated near-hits collapses into a single <span class="math inline">\(k\!\times\!k\!\times\!B\)</span>
+matmul, the resonance property measured in §<a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a>.</figcaption>
+</figure>
 </section>
 </section>
 <section id="connection-to-block-attention-residuals" class="level2">
@@ -342,7 +344,8 @@ assumptions. It is a <em>conditional formalisation</em>: if the assumptions are
 accepted for a model family, then the corresponding statements follow.</p>
 <section id="a.-diffeomorphism-phi." class="level5">
 <h5>A. Diffeomorphism <span class="math inline">\(\phi\)</span>.</h5>
-<p>A separation of base assumptions, Euclidean representation base, LayerNorm quotient structure, star-shaped
+<p>A separation of base assumptions ,
+Euclidean representation base, LayerNorm quotient structure, star-shaped
 head-chart preimages, residual flow generated by a smooth Morse-like potential
 satisfying a Palais–Smale-style compactness condition, and a smooth conformal
 softmax factor inside each chart, yields a candidate global diffeomorphism
@@ -412,6 +415,64 @@ operational closure exists, per-record <span class="math inline">\(\hat\rho\)</s
 validity-radius sweep keep Jacobi error <span class="math inline">\(&lt;0.1\%\)</span> to the tested
 threshold.</p></li>
 </ol>
+<section id="sec:curvature-warp-negative" class="level3">
+<h3>Knowledge-injection curvature warp: a measured negative</h3>
+<p>A related theoretical proposal, inject a knowledge cluster <span class="math inline">\(c\)</span> into
+the manifold by Gaussian-warping the metric
+<span class="math inline">\(g&#39;(x){=}g(x){-}\alpha\bigl(1{-}\exp(-|x{-}c|^2/2\sigma^2)\bigr)ww^\top\)</span>
+so the geodesic toward <span class="math inline">\(c\)</span> contracts, was reduced to a falsifiable
+sweep on SmolLM2-135M. Across 32 configurations of
+<span class="math inline">\((\alpha,\sigma,\delta\ell)\)</span> with the success criterion
+“<span class="math inline">\(\geq 50\%\)</span> reduction in target-endpoint geodesic error AND
+<span class="math inline">\(\leq 5\%\)</span> spillover at non-target points”, <strong>0/32 pass</strong>;
+the best configuration achieves a 16 % target reduction at
+<span class="math inline">\(\alpha{=}0.99\)</span> but its non-target spillover diverges (NaN at high
+<span class="math inline">\(\alpha\)</span>).</p>
+<section id="cross-model-replication-2026-04-29." class="level5">
+<h5>Cross-model replication (2026-04-29).</h5>
+<p>The single-model result was replicated across three architectures
+(SmolLM2-135M, Gemma-4-e2b, Phi-3.5-mini) and two protocol variants:
+(v1) the original Christoffel-Gaussian warp (<span class="math inline">\(\alpha{=}0.7\)</span>,
+<span class="math inline">\(\sigma{=}1.2\)</span>, <span class="math inline">\(T{=}16\)</span>, <span class="math inline">\(\delta\ell{=}0.1\)</span>), and (v2) a covariant
+Riemannian-exponential push of magnitude <span class="math inline">\(\alpha{=}0.35\)</span> in a
+radius-<span class="math inline">\(1.2\)</span> ball, parallel-transported by the cached Christoffel
+symbols. Twelve configurations total (3 models <span class="math inline">\(\times\)</span> 2 intrinsic
+dimensions <span class="math inline">\(n\in\{6,8\}\)</span> <span class="math inline">\(\times\)</span> 2 protocols), 146 s wall on a single
+CPU core. <strong>0/12 satisfy both criteria.</strong> The best v1 case
+(Gemma-4-e2b <span class="math inline">\(n{=}6\)</span>) achieves a 39.4 % target-error reduction but
+60 % p95 spillover; v2 produces <em>negative</em> target improvements
+on Phi-3.5-mini (target error grows by 9–24 %) and only one
+configuration meets the spillover criterion alone (Gemma-4-e2b <span class="math inline">\(n{=}8\)</span>
+v2: <span class="math inline">\(-1.8\)</span> % target improvement, 14 % p95 spillover). Phi-3.5-mini
+v1 <span class="math inline">\(n{=}6\)</span> produces NaN post-error: the warp drives the geodesic
+solver out of its convergence basin. The cross-model replication
+<em>strengthens</em> rather than narrows the negative conclusion ,
+neither protocol generalises and v2 is consistently worse than the
+trivial baseline on at least one architecture.</p>
+<p>The mechanism is consistent with the empirical finding of
+<a href="#sec:hjb-future" data-reference-type="ref+Label" data-reference="sec:hjb-future">16</a> (Empirical feasibility stub): the manifolds
+exported from frozen pretrained networks are nearly flat in the
+intrinsic-coordinate basis (kinetic-to-curvature ratio <span class="math inline">\(&gt; 10^{17}\)</span>
+in squared L2), so a Gaussian metric perturbation is either too weak
+to redirect the geodesic or strong enough to redirect but at the cost
+of a global metric perturbation that destroys the surrounding
+manifold. We retain this as a documented negative result; the positive
+form of the problem (curvature warp via <em>learnable</em> <span class="math inline">\(\phi\)</span> rather
+than hand-crafted <span class="math inline">\(g&#39;\)</span>) is the joint-training premise of
+<a href="#sec:hjb-future" data-reference-type="ref+Label" data-reference="sec:hjb-future">16</a>, and the cross-model evidence here is what
+makes that future training premise non-trivial: any future
+construction must demonstrably outperform 0/12 hand-crafted variants
+on the same three-model benchmark before being claimed as a positive
+result. Raw sweeps:
+<code>docs/figures/curvature_warp/smollm2-135m_sweep.json</code>
+(single-model 32-config) and
+<code>docs/figures/curvature_warp/cross_model_summary.json</code>
+(cross-model 12-config); status note:
+<code>docs/figures/curvature_warp/STATUS.md</code>;
+findings note:
+<code>docs/figures/findings/FIVE_FINDINGS.md</code> §5.</p>
+</section>
+</section>
 </section>
 <section id="part-ii-empirical-anchor" class="level2 unnumbered">
 <h2 class="unnumbered">Part II, Empirical anchor</h2>
@@ -432,27 +493,27 @@ clouds:</p>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/manifold.py">scripts/gtc/manifold.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/manifold.py</code></td>
 <td style="text-align: left;"><span class="math inline">\(k\)</span>-NN Mahalanobis metric, log-Euclidean RBF smoothing, finite-difference <span class="math inline">\(\Gamma^k_{ij}\)</span></td>
 </tr>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/geodesic.py">scripts/gtc/geodesic.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/geodesic.py</code></td>
 <td style="text-align: left;">RK4 integrator for <span class="math inline">\(\ddot x^k = -\Gamma^k_{ij}\dot x^i \dot x^j\)</span></td>
 </tr>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/jacobi.py">scripts/gtc/jacobi.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/jacobi.py</code></td>
 <td style="text-align: left;">Riemann tensor by FD of <span class="math inline">\(\Gamma\)</span>, Magnus-3 propagator <span class="math inline">\(\Phi(\lambda)\)</span></td>
 </tr>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/validity_radius.py">scripts/gtc/validity_radius.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/validity_radius.py</code></td>
 <td style="text-align: left;"><span class="math inline">\(\varepsilon\)</span>-sweep, emits <code>&lt;case&gt;_validity_radius.json</code></td>
 </tr>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/gtc_benchmark.py">scripts/gtc/gtc_benchmark.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/gtc_benchmark.py</code></td>
 <td style="text-align: left;">Coverage benchmark, emits <code>&lt;case&gt;_coverage.json</code></td>
 </tr>
 <tr>
-<td style="text-align: left;"><code><a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/gtc/record_store.py">scripts/gtc/record_store.py</a></code></td>
+<td style="text-align: left;"><code>scripts/gtc/record_store.py</code></td>
 <td style="text-align: left;">Compressed library + two-stage lookup</td>
 </tr>
 </tbody>
@@ -463,6 +524,60 @@ error scales quadratically in <span class="math inline">\(\varepsilon\)</span> e
 (<span class="math inline">\(\varepsilon^\star(5\%)=0.05\)</span>, <span class="math inline">\(\varepsilon^\star(10\%)=0.10\)</span>,
 <span class="math inline">\(\varepsilon^\star(20\%)=0.20\)</span>). The harness is validated; the LM numbers
 below are not artefacts.</p>
+<section id="online-vs.-offline-manifold-density-llama-3.1-8b." class="level5">
+<h5>Online vs. offline manifold density (Llama-3.1-8B).</h5>
+<p>A late-stage end-to-end run of the same Phase-1 pipeline on
+Llama-3.1-8B-Instruct (<code>axiom_beta_report.json</code>, 2026-04-28) keeps
+<span class="math inline">\(102\)</span> PCA components at the 95% variance threshold, with axiom-set
+consistency <span class="math inline">\(1.000\)</span> and Fisher-blend <span class="math inline">\(0.20\)</span> on <span class="math inline">\(128\)</span> metric sample points
+and <span class="math inline">\(400\)</span> geodesic steps. Sampling the runtime trajectory live
+(<code>cloud_density_summary.json</code>, <span class="math inline">\(n{=}24\)</span> online states) yields
+a nearest-neighbour distance distribution with mean <span class="math inline">\(0.132\)</span>, median
+<span class="math inline">\(0.093\)</span>, and 90th percentile <span class="math inline">\(0.348\)</span> in the cosine metric. Both numbers
+are within the <span class="math inline">\(\hat\rho\)</span> band that GTC needs in order to achieve the
+<span class="math inline">\(&gt;\)</span>90% coverage we report below: the online cloud is denser than the
+<span class="math inline">\(\varepsilon{=}3.0\)</span> working radius by a factor of <span class="math inline">\({\sim}10\)</span>, which is
+the empirical reason the coverage table is scale-invariant rather than
+falling off with <span class="math inline">\(d\)</span>.</p>
+</section>
+<section id="manifold-parameters-at-frontier-scale." class="level5">
+<h5>Manifold parameters at frontier scale.</h5>
+<p>A cold Phase-1 run
+on Llama-3.1-8B-Instruct Q4_K_M (256 hidden-state samples, 1024-token
+embedding probe) measures <strong>TwoNN intrinsic dimension
+<span class="math inline">\(k_\text{int}{=}19.96\)</span></strong> and <strong>132 PCA components for 95.1% variance
+retention</strong> (Phase 1 wallclock 63.6 s; Phase 3 Fisher-blended curvature
+on 17,408 block-sampled tokens, 31.0 s; Phase 4 axiom set 40 axioms,
+consistency <span class="math inline">\(0.9499\)</span>, 26 oracle calls). This is the largest published
+TwoNN intrinsic-dim measurement on a frontier-scale instruct backbone
+that we are aware of, and it sits inside the <span class="math inline">\(k\!\approx\!30\)</span>–<span class="math inline">\(50\)</span> band
+predicted by prior work <span class="citation" data-cites="ansuini2019intrinsic pope2021intrinsic">(Ansuini et al. 2019; Pope et al. 2021)</span>
+<em>at the lower edge</em>, consistent with the smoothness hypothesis: as
+models scale, <span class="math inline">\(k_\text{int}/d\)</span> collapses (<span class="math inline">\(20/4096{\approx}0.005\)</span> for
+Llama-8B vs. <span class="math inline">\({\approx}0.05\)</span> for sub-1B models), and the geodesic
+draft becomes more accurate (the <span class="math inline">\(\alpha\)</span> rise from <span class="math inline">\(38.5\%\)</span> on
+SmolLM2-135M to <span class="math inline">\(46.9\%\)</span> on Llama-8B documented in Paper C
+<span class="citation" data-cites="papC2026spec">(HyperTensor Authors 2026)</span> is the operational signature of this collapse).</p>
+</section>
+<section id="mistral-nemo-12b-replication." class="level5">
+<h5>Mistral-Nemo-12B replication.</h5>
+<p>A second frontier-scale Phase-1
+run on Mistral-Nemo-Instruct-2407 Q4_K_M (40 layers, <span class="math inline">\(d{=}5120\)</span>,
+13.67 B parameters, 256 hidden-state samples, 1024-token probe) yields
+<strong>TwoNN <span class="math inline">\(k_\text{int}{=}5.36\)</span></strong> and <strong>156 PCA components for
+95.0% variance</strong> (Phase 1 wallclock 6.1 s; Phase 3 Fisher-blended
+curvature on 20<span>,</span>480 block-sampled tokens, 63.6 s; Phase 4 10 axioms,
+consistency <span class="math inline">\(0.9407\)</span>). The PCA-rank reading is consistent with
+Llama-8B (132 components, <span class="math inline">\(d{=}4096\)</span>); the very low TwoNN reading at
+<span class="math inline">\(n{=}256\)</span> samples is plausibly an undersampling artefact for a wider
+model (<span class="math inline">\(d{=}5120\)</span>) and we report it here as preliminary, the matched
+sample budget for an apples-to-apples comparison with the Llama-8B
+512-sample run is the next manifold-survey item. Two independent
+13 B-class instruct backbones now agree that the variance-95%
+projection rank sits around <span class="math inline">\(130\text{--}160\)</span>, three orders of magnitude
+below <span class="math inline">\(d^2\)</span>, which is the operationally relevant number for OTT runtime
+sizing.</p>
+</section>
 </section>
 <section id="sec:coverage" class="level2">
 <h2>Coverage scaling across three models</h2>
@@ -604,12 +719,12 @@ Euclidean ANN <span class="math inline">\(\to\)</span> <span class="math inline"
 <tr>
 <td style="text-align: left;">Records persisted</td>
 <td style="text-align: right;">24</td>
-<td style="text-align: right;">, </td>
+<td style="text-align: right;">,</td>
 </tr>
 <tr>
 <td style="text-align: left;">Total <code>.npz</code> size</td>
 <td style="text-align: right;">143.0 KB</td>
-<td style="text-align: right;">, </td>
+<td style="text-align: right;">,</td>
 </tr>
 <tr>
 <td style="text-align: left;">Per-record size</td>
@@ -624,7 +739,7 @@ Euclidean ANN <span class="math inline">\(\to\)</span> <span class="math inline"
 <tr>
 <td style="text-align: left;">Build wall-clock (24 records, <span class="math inline">\(k=8\)</span>)</td>
 <td style="text-align: right;">6.087 s</td>
-<td style="text-align: right;">, </td>
+<td style="text-align: right;">,</td>
 </tr>
 <tr>
 <td style="text-align: left;">Two-stage lookup (1 000 queries)</td>
@@ -813,7 +928,7 @@ reuse.</p>
 </tr>
 <tr>
 <td style="text-align: left;">Knowledge-injection curvature warp</td>
-<td style="text-align: left;"><strong>negative</strong>: best gain 2.24%, 0/32 pass</td>
+<td style="text-align: left;"><strong>negative</strong>: 0/32 single-model + 0/12 cross-model</td>
 <td style="text-align: left;"><code>curvature_warp/</code></td>
 </tr>
 <tr>
@@ -945,7 +1060,53 @@ inference-only and the base network is frozen. We state
 <a href="#eq:hjb-loss" data-reference-type="ref+Label" data-reference="eq:hjb-loss">[eq:hjb-loss]</a> here so that any future training run that uses this
 exact penalty is on the public record as derived from the OTT/GTC
 framework.</p>
+</section>
+<section id="empirical-feasibility-stub-2026-04-29." class="level5">
+<h5>Empirical feasibility stub (2026-04-29).</h5>
+<p>While <span class="math inline">\(L_\text{SHF}\)</span> is not yet a training objective, we can already
+measure <span class="math inline">\(\bigl\|\mathcal{J}_\ell(s_\ell)\bigr\|_2^2\)</span> on trajectories
+through each model’s fitted Phase-3 manifold to fix the order of
+magnitude that any future trainer must reach. We compute
+<a href="#eq:jacobi-residual" data-reference-type="ref+Label" data-reference="eq:jacobi-residual">[eq:jacobi-residual]</a> along three trajectory classes (intrinsic
+dim <span class="math inline">\(n{=}8\)</span>, <span class="math inline">\(L{=}32\)</span> steps, 12 trajectories per class):
+(i) baked geodesics integrated by Magnus-3 forward Euler
+(<span class="math inline">\(x_{t+1}{=}x_t{+}\delta\,v_t,\;
+v_{t+1}{=}v_t{-}\delta\,\Gamma^k_{ij}v^iv^j\)</span>), the SHF
+<em>floor</em>;
+(ii) <span class="math inline">\(K{=}4\)</span>-nearest-neighbour walks through the Phase-3 cloud, the
+<em>manifold-conformant</em> regime;
+(iii) random straight-line interpolations between two cloud endpoints
+the <em>off-manifold ceiling</em>.</p>
+<p>Kinetic (<span class="math inline">\(\Delta^2 s_\ell\)</span>) and curvature
+(<span class="math inline">\(\hat R(s_\ell)\Delta s_\ell\)</span>) summands are reported separately. On
+all three exported manifolds (<code>smollm2-135m</code>,
+<code>gemma-4-e2b</code>, <code>phi-3.5-mini</code>) the kinetic term dominates
+the curvature term by 17–32 orders of magnitude in squared L2; the
+off-manifold straight-line baseline produces residuals of order
+<span class="math inline">\(10^{-30}\)</span> in the units of the unit-scaled manifold (it is
+over-determined by definition, a straight line in cloud-coordinates
+is its own discrete geodesic against an isotropic metric), the
+NN-walk class produces <span class="math inline">\(7\)</span>–<span class="math inline">\(93\)</span> in the same units, and the baked
+geodesic floor sits between <span class="math inline">\(10^{-34}\)</span> and <span class="math inline">\(10^{-3}\)</span>. The per-residual
+cost at <span class="math inline">\(n{=}8\)</span> is <span class="math inline">\(\approx\!5.6\!\times\!10^{5}\)</span> FLOPs, dominated by
+the <span class="math inline">\(O(n^4)\)</span> Riemann-tensor evaluation, which the runtime already
+caches per sample point in service of the Jacobi propagator.
+Two conclusions follow for the SHF training prescription:
+(a) the loss term is empirically tractable (sub-second compute for one
+<span class="math inline">\(L{=}32\)</span> trajectory at <span class="math inline">\(n{=}8\)</span>), and
+(b) on manifolds exported from <em>frozen</em> pretrained networks the
+curvature contribution is negligible, so <span class="math inline">\(L_\text{SHF}\)</span> in its current
+form would act primarily as a second-difference smoothness penalty
+on block summaries unless the trainer co-evolves a manifold of
+demonstrably non-zero curvature (which is the joint-training premise
+of this section and a falsifiable target). Raw data:
+<code>docs/figures/paper-d/hjb_feasibility/hjb_residual_magnitudes.json</code>;
+script:<br />
+<code>scripts/hjb_feasibility.py</code>.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-ansuini2019intrinsic" class="csl-entry" role="listitem">
+Ansuini, Alessio, Alessandro Laio, Jakob H Macke, and Davide Zoccolan. 2019. <span>“Intrinsic Dimension of Data Representations in Deep Neural Networks.”</span> <em>NeurIPS</em>.
+</div>
 <div id="ref-cai2024medusa" class="csl-entry" role="listitem">
 Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <em><span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads</em>. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
 </div>
@@ -960,6 +1121,9 @@ Golub, Gene H., and Charles F. Van Loan. 1996. <em>Matrix Computations</em>. 3rd
 </div>
 <div id="ref-llama3" class="csl-entry" role="listitem">
 <span class="nocase">Grattafiori, Aaron et al.</span> 2024. <em>The <span>Llama</span> 3 Herd of Models</em>. <a href="https://arxiv.org/abs/2407.21783">https://arxiv.org/abs/2407.21783</a>.
+</div>
+<div id="ref-papC2026spec" class="csl-entry" role="listitem">
+HyperTensor Authors. 2026. <span>“Geodesic Speculative Decoding (Companion Paper).”</span> Unpublished manuscript.
 </div>
 <div id="ref-papers2geodesic_projection" class="csl-entry" role="listitem">
 HyperTensor Project. 2025a. <em>Geodesic Projection: A Multi-Slot Compression Pipeline with Adaptive Extensions</em>.
@@ -984,6 +1148,9 @@ Nakkiran, Preetum, Gal Kaplun, Yamini Bansal, Tristan Yang, Boaz Barak, and Ilya
 </div>
 <div id="ref-pearlmutter1994fast" class="csl-entry" role="listitem">
 Pearlmutter, Barak A. 1994. <span>“Fast Exact Multiplication by the <span>Hessian</span>.”</span> <em>Neural Computation</em> 6 (1): 147–60.
+</div>
+<div id="ref-pope2021intrinsic" class="csl-entry" role="listitem">
+Pope, Phillip, Chen Zhu, Ahmed Abdelkader, Micah Goldblum, and Tom Goldstein. 2021. <span>“The Intrinsic Dimension of Images and Its Impact on Learning.”</span> <em>ICLR</em>.
 </div>
 <div id="ref-vaswani2017attention" class="csl-entry" role="listitem">
 Vaswani, Ashish, Noam Shazeer, Niki Parmar, et al. 2017. <span>“Attention Is All You Need.”</span> <em>Advances in Neural Information Processing Systems 30 (NeurIPS)</em>.

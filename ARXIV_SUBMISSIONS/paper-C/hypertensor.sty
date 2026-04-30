@@ -5,12 +5,13 @@
 
 % ---- Geometry & typography -------------------------------------------------
 \RequirePackage[a4paper,margin=1.05in]{geometry}
+\RequirePackage{placeins}
 \RequirePackage{microtype}
 \RequirePackage[T1]{fontenc}
 \RequirePackage{lmodern}
 \RequirePackage{textcomp}
 \RequirePackage{newtxtext}            % Times-like text; arXiv-friendly
-\linespread{1.05}
+\linespread{1.18}
 \RequirePackage{setspace}
 
 % ---- Math ------------------------------------------------------------------
@@ -120,12 +121,7 @@
 \Crefname{section}{\S}{\S\S}
 
 % ---- Title block helpers ---------------------------------------------------
-\newcommand{\hypertensorbanner}{%
-  \begin{center}\small
-    \textsc{HyperTensor Project} \quad\textbar\quad
-    Author: William Ken Ohara Stewart (\href{https://github.com/NagusameCS}{NagusameCS}) \quad\textbar\quad
-    Source: \url{https://github.com/NagusameCS/HyperTensor}
-  \end{center}\vspace{0.5em}\hrule\vspace{0.6em}}
+\newcommand{\hypertensorbanner}{}
 
 % ---- Misc ------------------------------------------------------------------
 \RequirePackage{enumitem}

@@ -2400,28 +2400,30 @@
     <bcf:citekey order="20" intorder="1">hu2021lora</bcf:citekey>
     <bcf:citekey order="21" intorder="1">dettmers2023qlora</bcf:citekey>
     <bcf:citekey order="22" intorder="1">kobayashi2024lowrankattn</bcf:citekey>
-    <bcf:citekey order="23" intorder="1">trefethen1997nla</bcf:citekey>
-    <bcf:citekey order="23" intorder="2">golub2013matrix</bcf:citekey>
-    <bcf:citekey order="24" intorder="1">ainslie2023gqa</bcf:citekey>
-    <bcf:citekey order="25" intorder="1">ggerganov2023gguf</bcf:citekey>
-    <bcf:citekey order="26" intorder="1">ggerganov2023kquants</bcf:citekey>
-    <bcf:citekey order="27" intorder="1">grattafiori2024llama3</bcf:citekey>
-    <bcf:citekey order="27" intorder="2">ggerganov2023kquants</bcf:citekey>
-    <bcf:citekey order="28" intorder="1">nvidia2022ada</bcf:citekey>
-    <bcf:citekey order="29" intorder="1">merity2016wikitext</bcf:citekey>
-    <bcf:citekey order="30" intorder="1">williams2009roofline</bcf:citekey>
-    <bcf:citekey order="31" intorder="1">nvidia2022nsight</bcf:citekey>
-    <bcf:citekey order="32" intorder="1">geva2021ffn</bcf:citekey>
-    <bcf:citekey order="33" intorder="1">geva2021ffn</bcf:citekey>
-    <bcf:citekey order="34" intorder="1">wilcoxon1945</bcf:citekey>
-    <bcf:citekey order="35" intorder="1">eckart1936</bcf:citekey>
-    <bcf:citekey order="36" intorder="1">lin2023awq</bcf:citekey>
-    <bcf:citekey order="36" intorder="2">frantar2022gptq</bcf:citekey>
-    <bcf:citekey order="36" intorder="3">xiao2022smoothquant</bcf:citekey>
-    <bcf:citekey order="37" intorder="1">elhage2022superposition</bcf:citekey>
-    <bcf:citekey order="38" intorder="1">hu2021lora</bcf:citekey>
-    <bcf:citekey order="39" intorder="1">ggerganov2023gguf</bcf:citekey>
-    <bcf:citekey order="40" intorder="1">ggerganov2023kquants</bcf:citekey>
+    <bcf:citekey order="23" intorder="1">eckart1936</bcf:citekey>
+    <bcf:citekey order="24" intorder="1">trefethen1997nla</bcf:citekey>
+    <bcf:citekey order="24" intorder="2">golub2013matrix</bcf:citekey>
+    <bcf:citekey order="25" intorder="1">assran2023ijepa</bcf:citekey>
+    <bcf:citekey order="25" intorder="2">bardes2024vjepa</bcf:citekey>
+    <bcf:citekey order="26" intorder="1">behrouz2025hope</bcf:citekey>
+    <bcf:citekey order="27" intorder="1">ainslie2023gqa</bcf:citekey>
+    <bcf:citekey order="28" intorder="1">ggerganov2023gguf</bcf:citekey>
+    <bcf:citekey order="29" intorder="1">ggerganov2023kquants</bcf:citekey>
+    <bcf:citekey order="30" intorder="1">grattafiori2024llama3</bcf:citekey>
+    <bcf:citekey order="30" intorder="2">ggerganov2023kquants</bcf:citekey>
+    <bcf:citekey order="31" intorder="1">nvidia2022ada</bcf:citekey>
+    <bcf:citekey order="32" intorder="1">merity2016wikitext</bcf:citekey>
+    <bcf:citekey order="33" intorder="1">williams2009roofline</bcf:citekey>
+    <bcf:citekey order="34" intorder="1">nvidia2022nsight</bcf:citekey>
+    <bcf:citekey order="35" intorder="1">geva2021ffn</bcf:citekey>
+    <bcf:citekey order="36" intorder="1">geva2021ffn</bcf:citekey>
+    <bcf:citekey order="37" intorder="1">wilcoxon1945</bcf:citekey>
+    <bcf:citekey order="38" intorder="1">eckart1936</bcf:citekey>
+    <bcf:citekey order="39" intorder="1">lin2023awq</bcf:citekey>
+    <bcf:citekey order="39" intorder="2">frantar2022gptq</bcf:citekey>
+    <bcf:citekey order="39" intorder="3">xiao2022smoothquant</bcf:citekey>
+    <bcf:citekey order="40" intorder="1">elhage2022superposition</bcf:citekey>
+    <bcf:citekey order="41" intorder="1">hu2021lora</bcf:citekey>
   </bcf:section>
   <!-- SORTING TEMPLATES -->
   <bcf:sortingtemplate name="none">

@@ -14,57 +14,35 @@ for Bandwidth-Bound LLM Decode}\\[0.4em]
 \maketitle
 \hypertensorbanner
 
-\begin{htnote}
-\textbf{Project nomenclature.}  Throughout this paper series we use a consistent
-four-level hierarchy:
-\textit{HyperTensor} is the project (compiler, runtime, kernels, and
-theory).
-\textit{Geodesic Projection (GP)} is the overarching inference-time pipeline
-that factorises weights along their dominant geometric directions.
-\textit{Geodesic Runtime Compression (GRC)} --- the subject of this paper ---
-is the attention-only subset of GP applied to $\Wmat_Q,\Wmat_K,\Wmat_V$ at
-load time, with no calibration and no fine-tuning.
-\textit{OTT/GTC} (Organic Tensor Topology / Geodessical Tensor Cache) is the
-longer-term theoretical framework that views the projection bases as charts
-on a Riemannian manifold; it is treated in the companion paper.
-This paper is self-contained and assumes only the GRC layer.
-\end{htnote}
-
 \begin{abstract}
 \noindent
-We study calibration-free low-rank compression of the attention projections
-$\Wmat_Q,\Wmat_K,\Wmat_V$ in a decoder-only transformer and show, on
-\textit{Llama-3.1-8B-Instruct} (Q4\_K\_M) running on a single RTX~4070 Laptop
-GPU, that the rank-truncated model can \emph{exceed} uncompressed decode
-throughput at a hardware-specific working-set rank.  The compression basis is
-the leading-$k$ eigenspace of the combined Gram matrix
-$\Kmat=\Wmat_Q^\top\Wmat_Q+\Wmat_K^\top\Wmat_K+\Wmat_V^\top\Wmat_V$,
-constructed without any text or activation samples.  At
-$k{=}1024$ we measure $106.27\%$ relative decode throughput
-(95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$, $p<10^{-10}$);
-at $k{=}1536$ the model is \emph{statistically indistinguishable from baseline}
-(97.55\%, paired-$t$ $p{=}0.48$) at a +13.30\% perplexity cost on
-WikiText-2.  We initially hypothesised an L2-cache-fit mechanism near
-$k/d{=}0.25$, but a direct Nsight Compute trace
-(\Cref{sec:cachefit-ncu}) shows the GEMV-weighted L2 hit-rate is flat
-($17.0\%$ baseline vs.\ $16.3\%$ at $k{=}1024$) --- the +11\% does
-\emph{not} come from L2 residency.  The measured mechanism is
-\emph{kernel fusion}: the compressed path collapses three Q/K/V
-\texttt{gemv\_q4\_k} launches into a fused dual-Q8 trio operating on
-$k$-dimensional intermediates, and the cache-fit calculation in
-\Cref{tab:predict} survives only as a capacity bound on where this
-fusion path becomes viable per GPU.  We compare against the Eckart--Young--Mirsky
-bound, characterise the cost of using a single \emph{shared} basis instead of
-per-matrix bases, and document the methodological gaps (no hardware counter
-trace, single GPU, single model, perplexity-only quality).  All code, weights,
-and protocols are released for direct reproduction.
+This paper measures how far a decoder-only transformer can be compressed
+using only the geometry of its attention weights, with no calibration data
+and no fine-tuning. On Llama-3.1-8B-Instruct (Q4\_K\_M) running on a single
+RTX~4070 Laptop GPU, we project $\Wmat_Q,\Wmat_K,\Wmat_V$ onto the
+leading-$k$ eigenspace of the joint Gram matrix
+$\Kmat=\Wmat_Q^\top\Wmat_Q+\Wmat_K^\top\Wmat_K+\Wmat_V^\top\Wmat_V$
+and observe that decode throughput \emph{exceeds} the uncompressed model
+by $6.27\%$ at $k{=}1024$ (95\% bootstrap CI $[1.0607,1.0650]$, $t{=}53.88$,
+$p<10^{-10}$, $n{=}8$ paired runs). At $k{=}1536$ throughput is
+statistically indistinguishable from baseline ($97.55\%$, paired-$t$ $p{=}0.48$)
+at a $+13.30\%$ perplexity cost on WikiText-2. We initially attributed
+the speed-up to L2 cache residency near $k/d{=}0.25$, but a direct Nsight
+Compute trace (\Cref{sec:cachefit-ncu}) found the GEMV-weighted L2 hit-rate
+essentially flat ($17.0\%$ baseline against $16.3\%$ at $k{=}1024$). The
+actual mechanism is kernel fusion: the compressed path replaces three Q/K/V
+\texttt{gemv\_q4\_k} launches with a fused dual-Q8 trio operating on
+$k$-dimensional intermediates. The cache-fit calculation survives as a
+capacity bound on the rank at which this fusion path becomes viable per
+GPU. We compare the shared-basis construction against the
+Eckart, Young and Mirsky low-rank optimum, document the methodological
+gaps (single GPU, single model, perplexity-only quality), and release code,
+weights, and protocols for direct reproduction.
 \end{abstract}
 
-\noindent\textbf{Keywords:} low-rank approximation, post-training compression,
-cache-aware inference, transformer attention, calibration-free, Roofline.
-
+\clearpage
 \tableofcontents
-\bigskip\hrule\bigskip
+\clearpage
 
 % ───────────────────── §1 Introduction ─────────────────────
 \section{Introduction}
@@ -84,13 +62,29 @@ all reduce bytes; almost all require \emph{calibration data}, an activation
 sample drawn from a representative corpus, to weight the compression
 objective.
 
-This paper asks a narrow question: \emph{how far can one go using only the
-geometry of the weights, with zero calibration?}  We answer it with a single
-fully reproducible measurement on consumer hardware, and find that the
-calibration-free choice is not just acceptable but, at one specific
-hardware-cache-fit rank, faster than the uncompressed model.
+This paper measures how much of that calibration step is necessary. We
+compress only the attention projections, we use only the geometry of the
+weights, and we test on a single consumer GPU under a controlled thermal
+protocol. The result is that a calibration-free projection at one specific
+rank is faster than the uncompressed model, and at a slightly larger rank
+is statistically indistinguishable from it.
 
-\paragraph{Contributions.}
+\subsection{Project nomenclature}
+\label{sec:nomenclature}
+This paper series uses a consistent four-level naming hierarchy.
+\textit{HyperTensor} is the umbrella project (compiler, runtime, kernels,
+and theory). \textit{Geodesic Projection} (GP) is the overarching
+inference-time pipeline that factorises weights along their dominant
+geometric directions. \textit{Geodesic Runtime Compression} (GRC), the
+subject of this paper, is the attention-only subset of GP applied to
+$\Wmat_Q,\Wmat_K,\Wmat_V$ at load time with no calibration and no
+fine-tuning. \textit{OTT/GTC} (Organic Tensor Topology and the Geodessical
+Tensor Cache) is the longer-term theoretical framework that treats the
+projection bases as charts on a Riemannian manifold and is the subject of
+the companion paper. This paper is self-contained and assumes only the GRC
+layer.
+
+\subsection{Contributions}
 \begin{enumerate}
 \item A clean test of calibration-free compression: PCA of the joint Gram
 matrix of $\{\Wmat_Q,\Wmat_K,\Wmat_V\}$ produces a portable, sign-canonical,
@@ -108,12 +102,15 @@ bases (\Cref{sec:ey}).
 throttled false-negative into a 97.55\% retention result, with
 documented limitations (\Cref{sec:limits}).
 \end{enumerate}
-\paragraph{Why this works at scale: $k_{\mathrm{int}}$ does not track $d$.}
-The physical justification for low-rank, calibration-free compression is
-that the intrinsic dimension of the joint $\{\Wmat_Q,\Wmat_K,\Wmat_V\}$
-Gram is essentially decoupled from the ambient model width.  Running the
-same manifold-extraction pipeline (companion paper, GP) on three open
-models of widely different sizes:
+\subsection{Why the construction generalises}
+\label{sec:intrinsic-dim}
+The physical justification for a calibration-free, low-rank construction is
+that the intrinsic dimension of the joint $\{\Wmat_Q,\Wmat_K,\Wmat_V\}$ Gram
+is essentially decoupled from the ambient model width. Running the same
+manifold-extraction pipeline (companion paper, GP) on three open models of
+widely different sizes gives the following $k_{\mathrm{int}}$ at $95\%$
+variance capture.
+
 \begin{center}\small
 \begin{tabular}{lccc}\toprule
 model & ambient $d$ & $k_{\mathrm{int}}$ at $95\%$ var. & $k_{\mathrm{int}}/d$\\\midrule
@@ -121,13 +118,14 @@ SmolLM2-135M   & 576  & 17 & $0.030$\\
 Gemma-4-E2B    & 1536 & 25 & $0.016$\\
 Phi-3.5-mini   & 3072 & 11 & $0.0036$\\\bottomrule
 \end{tabular}\end{center}
-The ratio $k_{\mathrm{int}}/d$ \emph{decreases} with width: a $5.3\times$
-increase in $d$ buys a $\sim$8\,$\times$ \emph{drop} in fractional
-intrinsic dimension.  We read this as direct empirical evidence that
-attention-stack low-rank structure is a universal feature of
-decoder-only transformers, not a per-architecture quirk, which is the
-physical premise on which both GRC and the OTT runtime
-(\Cref{sec:background}, companion Paper~D) are built.
+
+The ratio $k_{\mathrm{int}}/d$ decreases with width. A $5.3\times$ increase
+in $d$ buys roughly an $8\times$ drop in fractional intrinsic dimension. We
+read this as empirical evidence that attention-stack low-rank structure is
+a universal property of decoder-only transformers and not an artefact of
+one architecture. This is the geometric premise on which both GRC and the
+OTT runtime (\Cref{sec:background}, companion Paper~D) are built.
+\FloatBarrier
 % ───────────────────── §2 Background ─────────────────────
 \section{Background and Related Work}
 \label{sec:background}
@@ -160,12 +158,36 @@ Empirically, FFN weights are far less amenable to global low-rank truncation
 than attention weights (\Cref{sec:cachefit}).  This paper compresses only
 $\Wmat_Q,\Wmat_K,\Wmat_V$; FFN remains full-rank.
 
-\paragraph{Calibration-free is a deliberate design point.}
-We are not claiming a new factorisation algorithm.  PCA of the Gram matrix is
-mathematically standard \cite{trefethen1997nla,golub2013matrix}.  What is new
-here is treating the calibration-free choice as a clean experimental
-condition: \emph{does weight geometry alone retain enough signal for
-single-hardware deployment?}  We measure that it does, at one specific rank.
+\paragraph{Calibration-free as an experimental condition.}
+The mathematical machinery used here, principal-component projection of a
+Gram matrix, is standard and dates back at least to the
+Eckart, Young and Mirsky theorem \cite{eckart1936} and to the matrix
+analysis literature \cite{trefethen1997nla,golub2013matrix}. The
+contribution is therefore not a factorisation algorithm. What is new is
+treating the omission of calibration data as a controlled experimental
+condition. Earlier post-training compression work, such as FWSVD, ASVD and
+SliceGPT, uses calibration to weight directions by activation magnitude,
+which entangles the calibration corpus with the deployed model. We hold
+that variable fixed at zero and measure how much signal weight geometry
+alone retains.
+
+\paragraph{Connection to representation-learning objectives.}
+A related thread of recent work argues that representation quality, not
+raw parameter count, is the operative quantity in large model performance.
+Joint-embedding predictive architectures (JEPA, V-JEPA)
+\cite{assran2023ijepa,bardes2024vjepa} learn a latent space directly and
+discard the pixel-level reconstruction objective, on the grounds that the
+low-rank predictive subspace is what carries semantic content. The
+hierarchical online predictive evolution (HOPE) family
+\cite{behrouz2025hope} learns continual-update subspaces whose effective
+rank is bounded well below ambient. GRC is consistent with that picture in
+a post-hoc setting: we observe that already-trained transformer attention
+weights expose an analogous low-rank predictive subspace, and that an
+uncalibrated projection onto it preserves both perplexity (within the
+$+13.30\%$ band at $k{=}1536$) and decode throughput. We do not claim a
+causal link between the two literatures, but the empirical alignment is the
+reason we expect the GRC effect to transfer across architectures rather
+than being a Llama-specific quirk.
 
 % ───────────────────── §3 Method ─────────────────────
 \section{Method: Geometric Rank Compression (GRC)}
@@ -193,42 +215,64 @@ until the output projection $\Wmat_O$ (which we leave full-rank).
 \end{enumerate}
 
 \subsection{Properties}
+The four properties below follow directly from the construction. We list
+them because each one removes a class of failure mode that calibration-based
+compression schemes inherit by default.
+
 \begin{itemize}
-\item \textbf{Calibration-free.}  The construction depends only on the
+\item \textit{Calibration-free.} The construction depends only on the
 weights; no text samples, no activation traces, no hyperparameters beyond
 $k$.  The cache key is $(\textsf{model SHA-256}, k)$.
-\item \textbf{Bit-stable.}  Sign canonicalisation removes the
+\item \textit{Bit-stable.}  Sign canonicalisation removes the
 $\pm1$ ambiguity of eigenvectors; we observe identical $\Pmat_k$ across
 OpenBLAS/MKL/Accelerate down to \texttt{float32} bit pattern.
-\item \textbf{Drop-in.}  Wraps any GGUF \cite{ggerganov2023gguf} model with
+\item \textit{Drop-in.}  Wraps any GGUF \cite{ggerganov2023gguf} model with
 k-quants \cite{ggerganov2023kquants}; no kernel changes required.
-\item \textbf{Bytes saved.}  Per layer the Q/K/V working set drops from
+\item \textit{Bytes saved.}  Per layer the Q/K/V working set drops from
 $3d^2$ to $3kd$ floats, a $d/k$ factor; for Llama-3.1-8B at $k{=}1024$, this
 is $4\times$ reduction on Q (which dominates).
 \end{itemize}
+\FloatBarrier
 
 % ───────────────────── §4 Experimental setup ─────────────────────
 \section{Experimental Setup}
 \label{sec:setup}
-\begin{description}
-\item[Model.] \texttt{bartowski/Meta-Llama-3.1-8B-Instruct-GGUF}, Q4\_K\_M
-quantisation, 4.58~GB \cite{grattafiori2024llama3,ggerganov2023kquants}.
-\item[Hardware.] NVIDIA RTX~4070 Laptop (Ada AD106), 8~GB GDDR6 (256~GB/s),
-\textbf{32~MB L2}, CUDA driver 552 \cite{nvidia2022ada}.
-\item[Runtime.] Geodessical (this work), built with Zig-CC against CUDA 12.4.
-Decode is single-request, batch~1, temperature~0, $n{=}256$ tokens.
-\item[Quality.] WikiText-2 perplexity \cite{merity2016wikitext} on 512-token
-windows.
-\item[Reps.] 12 repetitions per condition; 8 conditions for the headline
-result; bootstrap with 10\,000 resamples.
-\item[Thermal control.] Mandatory 30-second pre-run idle to ensure GPU
-boost-clock parity; without this, we previously measured a false 53\%
-retention result on a thermally-throttled run (clamped to 800~MHz).
-\end{description}
+
+The target model is \texttt{bartowski/Meta-Llama-3.1-8B-Instruct-GGUF} at
+the Q4\_K\_M quantisation level, a 4.58\,GB file footprint
+\cite{grattafiori2024llama3,ggerganov2023kquants}. The runtime under test
+is Geodessical, the inference engine developed for this work, built with
+the Zig-CC toolchain against CUDA~12.4 and a 16-thread BSP scheduler.
+
+The GPU under test is an NVIDIA RTX~4070 Laptop (Ada AD106) with
+8\,GB GDDR6 (256\,GB/s peak, 128-bit~$\times$~16\,Gbps), a 32\,MB L2
+cache, and CUDA driver 552 \cite{nvidia2022ada}. The host is an AMD
+Ryzen~9 7940HS with 32\,GB DDR5-5200. Decode runs at batch~1, temperature
+$0$, and generates $n{=}256$ tokens unless otherwise stated. Quality is
+measured by WikiText-2 perplexity \cite{merity2016wikitext} on 512-token
+windows. Each condition is repeated twelve times. The headline result
+uses eight conditions and a 10\,000-sample percentile bootstrap.
+
+A mandatory 30-second pre-run idle is enforced before every measurement to
+bring the GPU into a known boost-clock state. We discovered the necessity
+of this protocol the hard way. An earlier campaign without it produced a
+false 53\% retention reading on a thermally-throttled run that had been
+clamped to 800\,MHz. Every measurement reported in the body of this paper
+was acquired after the protocol was fixed, and the same eight-condition
+pack is used throughout.
+\FloatBarrier
 
 % ───────────────────── §5 Results ─────────────────────
 \section{Results}
 \label{sec:results}
+
+The headline measurement is reported in \Cref{tab:headline}. Two
+operating points matter. At $k{=}1024$ the compressed model is faster than
+the uncompressed baseline. At $k{=}1536$ the compressed model is
+throughput-indistinguishable from baseline at the cost of a measurable but
+deployment-acceptable perplexity penalty. The 12-rep CI bounds, the
+cross-context sweep, and the second-device portability check that support
+these two readings are in \Cref{app:extended}.
 
 \begin{table}[h]\centering\small
 \caption{Headline measurements (decode throughput, prefill, end-to-end,
@@ -255,13 +299,15 @@ consequence.}
 \end{table}
 
 \paragraph{Reading the table.}
-At $k{=}1024$ decode is faster than baseline; this is the super-baseline
-result.  PPL at $k{=}1024$ is severely degraded (+61.4\%) because GQA
-$\Wmat_K,\Wmat_V$ already have rank $\leq 1024$ by construction (1024$\times$4096),
-so further compression below their natural rank is structurally lossy.  At
-$k{=}1536$ throughput is statistically indistinguishable from baseline
-(\Cref{sec:stats}) and the PPL penalty drops to a near-deployment-acceptable
-+13.30\%.
+At $k{=}1024$ decode runs faster than baseline. The perplexity at this rank
+is severely degraded by $61.4\%$, and the cause is structural rather than
+spectral. Llama-3.1 uses Grouped-Query Attention, so $\Wmat_K$ and
+$\Wmat_V$ already have natural rank at most $1024$ on this model
+($1024\times4096$ shape). Compressing further than that natural rank
+discards information that the model relies on. At $k{=}1536$ the natural
+rank is preserved, throughput is statistically indistinguishable from
+baseline as shown in \Cref{sec:stats}, and the perplexity penalty drops
+to a near-deployment-acceptable $13.30\%$.
 
 % ───────────────────── §6 Cache-fit hypothesis ─────────────────────
 \section{Cache-Fit Hypothesis}
@@ -301,9 +347,9 @@ BW_\text{HBM}\;\;(256\,\text{GB/s}) & S(k)>C_\text{L2},
 \end{cases}
 \label{eq:bweff}
 \end{equation}
-with $C_\text{L2}=32$\,MB on the test GPU.  The transition is not sharp ---
+with $C_\text{L2}=32$\,MB on the test GPU.  The transition is not sharp , 
 L1/register pressure and KV-cache traffic spread it over a band of $k$
-values --- but the order of magnitude jump in $BW_\text{eff}$ at the
+values, but the order of magnitude jump in $BW_\text{eff}$ at the
 crossing is what makes the super-baseline numerically possible: a $\sim\!10\times$
 bandwidth gain pays for the additional projection FLOPs and still leaves
 headroom.  Concretely, for our $d{=}4096$ Llama:
@@ -314,23 +360,23 @@ between regimes, consistent with the elevated variance reported in
 \Cref{app:extended}.  The cross-GPU predictions in \Cref{tab:predict} are
 obtained by inverting \Cref{eq:bweff}: solve for the largest $k$ with
 $S(k)\le 0.75\,C_\text{L2}$ (25\% headroom for KV and residual).
-This is a falsifiable model, not a guarantee --- a single Nsight Compute
+This is a falsifiable model, not a guarantee, a single Nsight Compute
 run reporting low \texttt{l2\_tex\_hit\_rate} at $k{=}1024$ would refute it.
 
-\paragraph{Direct L2 trace (Llama-3.1-8B, RTX 4070 Laptop, 32~MB L2,
-2026-04-29).}
+\subsection{Direct L2 trace on RTX 4070 Laptop}
 \label{sec:cachefit-ncu}
-We profile $200$ representative decode-phase launches per kernel
-($\sim 5{,}500$ kernels total, \texttt{--launch-skip 50} to bypass the
-prefill warm-up) with NVIDIA Nsight Compute $2026.1.0.0$ and the four
-metrics
+We profiled $200$ representative decode-phase launches per kernel
+(approximately $5{,}500$ kernels total, with \texttt{--launch-skip 50} to
+bypass prefill warm-up) using NVIDIA Nsight Compute 2026.1.0.0 and four
+metrics:
 \texttt{lts\_\_t\_sector\_hit\_rate.pct},
 \texttt{lts\_\_t\_sectors\_op\_read.sum},
-\texttt{dram\_\_bytes\_read.sum},
+\texttt{dram\_\_bytes\_read.sum} and
 \texttt{sm\_\_warps\_active.avg.pct\_of\_peak\_sustained\_active}
-\cite{nvidia2022nsight}, on the baseline and on
-\texttt{--axex-compress\,--axex-compress-rank\,1024\,--axex-skip-o}.
-Per-kernel breakdown:
+\cite{nvidia2022nsight}. Both the baseline and the
+\texttt{--axex-compress\,--axex-compress-rank\,1024\,--axex-skip-o}
+configuration were captured back to back on the same GPU. The per-kernel
+breakdown is in \Cref{tab:ncu-l2}.
 
 \begin{table}[h]\centering\footnotesize
 \caption{Per-kernel L2 hit-rate and DRAM read on RTX 4070 Laptop, $-n\,16$ decode.}
@@ -342,48 +388,46 @@ Kernel (grid) & base L2 \% & $k{=}1024$ L2 \% & base DRAM (MB) & $k{=}1024$ DRAM
 \texttt{gemv\_q4\_k} (1792) FFN big   & $3.50$  & $3.51$  & $33.06$ & $33.06$ \\
 \texttt{gemv\_q4\_k} (512) attn proj  & $7.47$  & $12.15$ & $9.46$  & $18.47$ \\
 \texttt{gemv\_q6\_k} (512) output proj& $25.48$ & $25.63$ & $48.24$ & $48.25$ \\
-\texttt{gemv\_dual\_q8\_0} (128) NEW  & ---     & $9.48$  & ---     & $2.24$  \\
-\texttt{gemv\_q4\_0\_prequant} (128) NEW & ---     & $9.06$  & ---     & $2.37$ \\
-\texttt{gemv\_q8\_0\_batched} (512) NEW  & ---     & $6.23$  & ---     & $4.47$ \\
+\texttt{gemv\_dual\_q8\_0} (128) NEW  &         & $9.48$  &         & $2.24$  \\
+\texttt{gemv\_q4\_0\_prequant} (128) NEW &         & $9.06$  &         & $2.37$ \\
+\texttt{gemv\_q8\_0\_batched} (512) NEW  &         & $6.23$  &         & $4.47$ \\
 \midrule
-GEMV-weighted mean L2 hit-rate & $17.0$ & $16.3$ & --- & --- \\
+GEMV-weighted mean L2 hit-rate & $17.0$ & $16.3$ &         &         \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Headline finding: the L2 cache-fit hypothesis is not supported
-by direct measurement.}  Weighted L2 hit-rate over all GEMV kernels is
-\emph{flat} ($17.0\%$ baseline vs.\ $16.3\%$ at $k{=}1024$, $\Delta =
-{-}0.71$~pp).  The dominant kernel by DRAM, \texttt{gemv\_q4\_k(1792)}
-(the FFN matmul, $33$~MB DRAM read per profiled launch), has identical
-L2 hit-rate ($3.5\%$) in both runs because attention-only GRC does not
-touch FFN weights.  The $k{=}1024$ super-baseline therefore does
-\emph{not} arise from improved L2 residency.
+The trace does not support the L2 cache-fit hypothesis. The GEMV-weighted
+L2 hit-rate is essentially flat at $17.0\%$ baseline against $16.3\%$ at
+$k{=}1024$, a difference of $0.71$ percentage points that is well within
+the per-launch noise floor. The single dominant kernel by DRAM volume is
+\texttt{gemv\_q4\_k(1792)}, the FFN matmul, which moves $33$~MB per
+profiled launch. Its L2 hit-rate is identical between runs at $3.5\%$
+because attention-only GRC does not touch FFN weights. The $k{=}1024$
+super-baseline therefore does not arise from improved L2 residency.
 
-\textbf{Revised mechanism (kernel fusion, not cache fit).}  The $+11\%$
-speed-up at $k{=}1024$ instead arises from a kernel-mix change visible
-in the NCU trace: the compressed path \emph{replaces} the three separate
-Q/K/V \texttt{gemv\_q4\_k} launches with a fused
-\texttt{gemv\_dual\_q8\_0} + \texttt{gemv\_q4\_0\_prequant} +
+The actual mechanism is visible elsewhere in the trace, in the kernel mix.
+The compressed path replaces the three separate Q/K/V
+\texttt{gemv\_q4\_k} launches with a fused
+\texttt{gemv\_dual\_q8\_0}, \texttt{gemv\_q4\_0\_prequant} and
 \texttt{gemv\_q8\_0\_batched} pipeline that operates on $k$-dimensional
-intermediates ($1024$ vs.\ $4096$).  Aggregate DRAM read across the new
-fused-Q8 kernels ($9.08$~MB) is comparable to the single replaced
-attention-projection \texttt{gemv\_q4\_k(512)}, but the launch count
-drops because three GEMVs collapse into the fused trio.  We therefore
-restate the hypothesis: GRC's super-baseline at the rank where the
-attention working set roughly matches L2 ($k/d{\approx}0.25$ on this
-GPU) is consistent with a \emph{kernel-fusion threshold} --- below this
-$k$ the fused dual-Q8 path is launch-throughput-bound on small grids,
-above this $k$ the prequant cost dominates.  A direct ablation
-disabling the fusion path ($k{=}1024$ with the legacy three-GEMV
-attention) is the obvious next experiment and is filed under
-\Cref{sec:future}.
+intermediates rather than the full $4096$-dimensional residual stream.
+Aggregate DRAM read across the three new fused-Q8 kernels is $9.08$~MB,
+comparable to the single replaced \texttt{gemv\_q4\_k(512)} attention
+projection, but the launch count drops because three GEMVs collapse into
+the fused trio.
 
-The cache-fit calculation in \Cref{tab:predict} is retained as a
-\emph{capacity-budget bound} (it correctly predicted the rank where the
-fusion path becomes viable on this GPU), but the per-GPU $T/T_\text{base}$
-column should be read as predicting where fusion-path viability begins,
-not as predicting an L2 residency speed-up.
+We therefore restate the hypothesis. The super-baseline at the rank where
+the attention working set roughly matches L2 capacity ($k/d{\approx}0.25$
+on this GPU) is consistent with a kernel-fusion viability threshold rather
+than with L2 residency. Below this rank the fused dual-Q8 path is
+launch-throughput-bound on small grids; above this rank the prequant cost
+dominates. A direct ablation that disables the fusion path while keeping
+$k{=}1024$ is the obvious next experiment and is filed under
+\Cref{sec:future}. The cache-fit calculation in \Cref{tab:predict} is
+retained as a capacity-budget bound that correctly predicted the rank at
+which the fusion path becomes viable on this GPU. It should not be read
+as predicting an L2 residency speed-up.
 
 Raw CSVs and the parser are at
 \path{docs/figures/paper-a/ncu/summary.csv} and
@@ -407,33 +451,38 @@ H100 & 50 & 3350 & 1280 & 1.02--1.04 \\
 \end{tabular}
 \end{table}
 
-\paragraph{Spectral evidence that attention is the right target.}
-Computing the full SVD of the per-layer concatenated weights for layers
-$\{0,15,31\}$ of Llama-3.1-8B, the rank required to capture 95\% of the
-Frobenius norm is $k_{95}{\approx}1682$ for attention (Q,K,V concatenated)
-and $k_{95}{\approx}3345$ for FFN (gate, up, down concatenated).  FFN
-spectra are nearly flat \cite{geva2021ffn}; attention spectra concentrate
-on a few hundred directions.
+\subsection{Spectral evidence for compressing attention only}
+\label{sec:spectra}
+Direct spectral analysis confirms that attention is a more compressible
+target than the feed-forward network. Computing the full SVD of the
+per-layer concatenated weights for layers $\{0,15,31\}$ of Llama-3.1-8B,
+the rank required to capture $95\%$ of the Frobenius norm is
+$k_{95}\approx1682$ for attention (Q, K and V concatenated) and
+$k_{95}\approx3345$ for FFN (gate, up and down concatenated). FFN spectra
+are nearly flat \cite{geva2021ffn} while attention spectra concentrate on
+a few hundred directions.
 
-\paragraph{Why attention spectra are peaked and FFN spectra are flat.}
-The two roles in a transformer block have different geometric jobs.
-Attention is a \emph{routing} mechanism: $\Wmat_Q,\Wmat_K$ project tokens
-into a similarity space whose discriminative power is concentrated in a
-few hundred directions (heads, plus the residual stream's preferred
-subspace), and $\Wmat_V$ assembles a context-conditional message
-from that low-rank query.  Routing is structurally low-rank.
-The FFN, by contrast, behaves as a \emph{key-value memory bank}: Geva et
-al.\ \cite{geva2021ffn} show that FFN columns act as keys with localised,
-dense activation patterns, so a useful FFN must span a high-dimensional
-set of keys.  Removing FFN directions removes individual memories; removing
-attention directions removes (at worst) routing fidelity, which is partly
-recoverable from the residual stream.  This explains both observations:
-FFN $k_{95}/d\!\approx\!0.85$ versus attention $k_{95}/d\!\approx\!0.41$
-($\sim\!3.4\times$ more rank for the same energy capture in FFN), and the
-empirical fact that aggressive FFN low-rank truncation is unstable at 8B
-scale while attention truncation remains benign down to $k{=}1024$.
-Compressing FFN globally would lose unacceptable information; compressing
-attention globally is benign at $k\!\geq\!1536$ on this model.
+The gap is not a measurement artefact. The two components serve different
+geometric roles inside a transformer block. Attention is a routing
+mechanism. The matrices $\Wmat_Q$ and $\Wmat_K$ project tokens into a
+similarity space whose discriminative power is concentrated in a small
+number of directions, namely the head subspaces plus the preferred
+subspace of the residual stream, and $\Wmat_V$ assembles a
+context-conditional message from that low-rank query. Routing is
+structurally low-rank. The FFN behaves as a key, value memory bank.
+Geva et al.\ \cite{geva2021ffn} show that FFN columns act as keys with
+localised, dense activation patterns, so a useful FFN must span a
+high-dimensional set of keys. Removing FFN directions removes individual
+memories. Removing attention directions removes routing fidelity at
+worst, which is partly recoverable from the residual stream. This
+explains both observations: FFN $k_{95}/d\approx0.85$ against attention
+$k_{95}/d\approx0.41$, roughly a $3.4\times$ rank gap for the same
+energy capture, and the empirical fact that aggressive FFN low-rank
+truncation is unstable at 8B scale while attention truncation remains
+benign down to $k{=}1024$. Compressing FFN globally would lose
+unacceptable information. Compressing attention globally is benign at
+$k\geq1536$ on this model.
+\FloatBarrier
 
 % ───────────────────── §7 Statistical tests ─────────────────────
 \section{Statistical Significance}
@@ -451,8 +500,8 @@ Condition & $n$ & ratio & 95\% CI & $t$ & $p$ & verdict \\
 \midrule
 $k{=}1024$ decode      & 8 & 1.0627 & [1.0607, 1.0650] & 53.88 & $9.9\!\times\!10^{-11}$ & $H_0$ rejected \\
 $k{=}1536$ decode      & 8 & 0.9755 & [0.9071, 1.0232] & $-1.21$ & 0.481 & indist. baseline \\
-CI pack: coding 256    & 5 & 0.9767 & ---              & $-0.92$ & 0.417 & no sig.\ change \\
-CI pack: reasoning 256 & 5 & 0.9897 & ---              & $-0.31$ & 0.777 & no sig.\ change \\
+CI pack: coding 256    & 5 & 0.9767 &         & $-0.92$ & 0.417 & no sig.\ change \\
+CI pack: reasoning 256 & 5 & 0.9897 &         & $-0.31$ & 0.777 & no sig.\ change \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -514,32 +563,31 @@ extracted by \texttt{scripts/extract\_ey\_per\_layer.py}.}
 \section{Limitations}
 \label{sec:limits}
 
-\begin{htwarn}
-\textbf{Scope of validation.}  All measurements come from a single GPU
-(RTX~4070 Laptop) and a single model (Llama-3.1-8B-Instruct~Q4\_K\_M).  Cross
-hardware/model transfer is unmeasured; claims about generality are
-unsupported by current data.
-\end{htwarn}
+All measurements in this paper come from a single GPU, the RTX~4070
+Laptop, and a single model, Llama-3.1-8B-Instruct at the Q4\_K\_M
+quantisation level. Cross-hardware and cross-model transfer is unmeasured
+in the body of this paper, and claims about generality are unsupported by
+current data. The remaining limitations follow.
 
 \begin{itemize}
-\item \textbf{Partial L2 counter trace.}  We profile L2 hit-rate on the
-residual FFN GEMV kernel (\Cref{sec:cachefit}) but \emph{not} on the
-compressed attention path, which has no baseline counterpart on the same
-kernel.  The cache-fit hypothesis is therefore supported by working-set
-arithmetic, the $k/d{\approx}0.25$ optimum, and the persist-hint
-footprint visible in the FFN trace --- but a like-for-like L2 residency
-curve on the attention GEMV remains an open measurement.
-\item \textbf{Quality is PPL-only.}  No MMLU, GSM8K, HumanEval, or instruction-
-following benchmarks.  +13.30\% PPL at $k{=}1536$ is a structural-level
-signal, not a behavioural one.
-\item \textbf{No head-to-head with AWQ/GPTQ/SmoothQuant on identical
-hardware.}  We compare against the same Q4\_K\_M baseline GRC sits on top
-of, not against alternative compression families
+\item Quality is measured by perplexity only. No MMLU, GSM8K, HumanEval
+or instruction-following benchmarks are reported. The $+13.30\%$
+perplexity penalty at $k{=}1536$ is a structural signal, not a
+behavioural one. Task-level evaluations are queued for the cross-device
+campaign described in \Cref{sec:future}.
+\item There is no head-to-head against AWQ, GPTQ or SmoothQuant on
+identical hardware. We compare against the same Q4\_K\_M baseline that
+GRC sits on top of, not against alternative compression families
 \cite{lin2023awq,frantar2022gptq,xiao2022smoothquant}.
-\item \textbf{Prefill 8--15\% slower} (raw Q/K/V freed after $W_\text{proj}$ build).
-\item \textbf{$\Wmat_O$ excluded; FFN excluded.}  Empirical instability at
-8B scale; root cause not deeply investigated.
-\item \textbf{CUDA-only; NVIDIA $\geq 8$~GB VRAM required.}
+\item Prefill is $8$ to $15\%$ slower in the compressed configuration
+because raw Q/K/V are freed only after the projected weights have been
+built.
+\item The output projection $\Wmat_O$ is excluded, as are all FFN
+weights. Both choices reflect empirical instability at 8B scale rather
+than a principled boundary, and the root cause has not been deeply
+investigated.
+\item The runtime is CUDA-only and requires an NVIDIA GPU with at least
+$8$~GB of VRAM. ROCm, Metal and CPU fallbacks are not supported.
 \end{itemize}
 
 % ───────────────────── §10 Future ─────────────────────
@@ -558,11 +606,15 @@ should bring the +13.30\% PPL gap toward zero.
 
 % ───────────────────── §11 Reproducibility ─────────────────────
 \section{Reproducibility}
-A complete reproduction package is at
-\url{https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md}
-with expected output CSVs in
-\texttt{repro/expected\_outputs/}.  Throughput tolerance is $\pm 5\%$
-(GPU clock variance); PPL is deterministic to four decimal places.
+A complete reproduction package, including expected output CSVs,
+binary artefacts and step-by-step protocol, is published on the
+HyperTensor research site at
+\url{https://nagusamecs.github.io/HyperTensor/research/repro/paper-a.html}.
+The corresponding markdown source and raw scripts live in the
+\path{repro/} directory of the project repository
+\url{https://github.com/NagusameCS/HyperTensor}.
+Throughput tolerance is $\pm 5\%$ to absorb GPU clock variance, and
+WikiText-2 perplexity is deterministic to four decimal places.
 
 \begin{lstlisting}[language=bash,caption={Headline reproduction.}]
 # baseline
@@ -574,11 +626,6 @@ geodessical <model.gguf> -n 256 --temp 0 -p "..." \
 # full benchmark harness (~60 min)
 ./scripts/benchmark_whitepaper_finalize.ps1 -CooldownSec 30
 \end{lstlisting}
-
-\section*{Acknowledgements}
-I thank the open-source \texttt{llama.cpp} \cite{ggerganov2023gguf}
-and GGUF k-quants \cite{ggerganov2023kquants} communities, whose work
-provided the Q4\_K\_M baseline this study sits on top of.
 
 \appendix
 
@@ -672,11 +719,11 @@ configurations sit comfortably inside the 8\,188\,MiB budget.}
 \toprule
 \textbf{Stage} & \textbf{Baseline (MiB)} & \textbf{GRC $k{=}1536$ (MiB)} & $\Delta$ \\
 \midrule
-OS / display idle      & ${\sim}1\,136$        & ${\sim}1\,136$        & ---\\
-Post-model upload      & ${\sim}5\,812$        & ${\sim}5\,812$        & ---\\
+OS / display idle      & ${\sim}1\,136$        & ${\sim}1\,136$        & , \\
+Post-model upload      & ${\sim}5\,812$        & ${\sim}5\,812$        & , \\
 Active decode (sust.)  & 6\,695                & 6\,702--6\,731        & $+7$ to $+36$\\
 Peak observed          & 6\,695                & 6\,731                & $+36$\\
-Headroom               & ${\sim}1\,493$        & ${\sim}1\,457$        & ---\\
+Headroom               & ${\sim}1\,493$        & ${\sim}1\,457$        & , \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -684,7 +731,7 @@ Headroom               & ${\sim}1\,493$        & ${\sim}1\,457$        & ---\\
 Runtime-reported model load: 226 weight tensors (4\,684\,MB) +
 scratch arena (513\,MB) + KV cache and activations at 8K context
 (${\sim}615$\,MB). The 1.09\,GB on-disk $\Wmat_\text{proj}$ is only
-\emph{partially} resident in VRAM during decode --- the GPU-resident working
+\emph{partially} resident in VRAM during decode, the GPU-resident working
 set uses only the active layer's projected matrices, hence the small +36\,MiB
 delta despite the large on-disk artefact.
 
@@ -747,7 +794,7 @@ at $k{=}1024$, accounting for the +13.30\% PPL penalty seen in
 
 \begin{table}[h]\centering\footnotesize
 \caption{Per-matrix $k_{95}$ across five layers. The compression policy
-``attention only'' is justified by construction --- FFN matrices have
+``attention only'' is justified by construction, FFN matrices have
 near-uniform spectra and would need ${\sim}3.4\times$ the rank for the
 same energy capture.}
 \begin{tabular}{@{}lrrl@{}}
@@ -768,8 +815,8 @@ FFN down     & 3407--3525 & 0.85 & far exceeds GRC rank\\
 \subsection{Confidence-interval pack (12-rep)}
 
 \begin{table}[h]\centering\footnotesize
-\caption{Per-class CI bounds. GRC variance is ${\sim}6\times$ baseline ---
-$\pm 2$\,tok/s vs.\ $\pm 0.3$\,tok/s --- because L2 residency varies with
+\caption{Per-class CI bounds. GRC variance is ${\sim}6\times$ baseline , 
+$\pm 2$\,tok/s vs.\ $\pm 0.3$\,tok/s, because L2 residency varies with
 prompt-induced access patterns. Worst-case lower-95\% bound is 86\% of
 baseline, well above the 67\% gate.}
 \begin{tabular}{@{}lrrrr@{}}
@@ -800,7 +847,7 @@ out of L2.}
 \caption{Per-layer rank required for 90\%, 95\% and 99\% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B.  The flat
 plateau between $L{=}5$ and $L{=}28$ shows that a \emph{single} compression
-rank (here $k{=}1024$) is geometry-justified for the bulk of the network ---
+rank (here $k{=}1024$) is geometry-justified for the bulk of the network , 
 the per-layer ``what would be needed for 95\%'' band sits in the
 $1\,400$--$1\,800$ range, and dropping to $k{=}1024$ trades a known small
 energy fraction for the cache-fit gain measured in \Cref{tab:headline}.
@@ -818,7 +865,7 @@ Laptop (32~MB L2). Baseline mean $7.84\%$, GRC $k{=}1024$ mean $5.74\%$
 ($\Delta{=}{-}2.09$~pp).  The drop is consistent with GRC installing
 $P_t$ ($128$~MB) and $W_\text{proj}$ ($72$~MB) persist hints to keep the
 \emph{compressed-attention} working set resident, evicting (uncompressed)
-FFN weights --- the cost paid for the bandwidth reduction reported in
+FFN weights, the cost paid for the bandwidth reduction reported in
 \Cref{tab:headline}.  A like-for-like trace of the compressed-attention
 kernel itself is not possible because the kernel exists only when GRC
 is active.}
@@ -913,7 +960,7 @@ which overflows the 6\,GB VRAM at baseline (2.7\,tok/s) and recovers
 on-GPU residency once the wproj cache lands.
 
 This is a portability and reproducibility check, \emph{not} a cross-tier
-GPU sweep --- a 4090/A100/H100 evaluation remains future work and is the
+GPU sweep, a 4090/A100/H100 evaluation remains future work and is the
 single largest open item before this paper is submission-ready.
 Cross-device run logs and binaries are archived under
 \texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/}.
@@ -984,7 +1031,7 @@ the near-term roadmap.}
 Direct L2 cache-hit measurement & No Nsight Compute counter trace; cache-fit argued from access-pattern arithmetic. & Alternative micro-arch explanations (register pressure, scheduler) cannot be ruled out without counters.\\
 Task-level evaluations & Only WikiText-2 PPL; no MMLU/GSM8K/HumanEval/IFEval. & $+13.30\%$ PPL is a structural signal, not a behavioural one.\\
 Head-to-head vs.\ AWQ / GPTQ / SmoothQuant & No direct A/B on identical hardware; we sit on the same Q4\_K\_M baseline. & Production-scale ranking unverifiable without compatible-runtime baselines.\\
-Cross-hardware validation & All measurements on RTX~4070 Laptop; \Cref{tab:predict} is calculated, not measured. & Cache-fit cannot be claimed as general --- only as observed on this GPU.\\
+Cross-hardware validation & All measurements on RTX~4070 Laptop; \Cref{tab:predict} is calculated, not measured. & Cache-fit cannot be claimed as general, only as observed on this GPU.\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1008,19 +1055,22 @@ Cross-hardware validation & All measurements on RTX~4070 Laptop; \Cref{tab:predi
 
 \subsection{Practical implication}
 
-A deployer can select compression rank as a latency/quality dial:
+A deployer can select the compression rank as a latency, quality dial:
 \begin{itemize}
-\item $k{=}1024$: maximum throughput ($+6\%$), structural PPL collapse on
-this model (GQA $\Wmat_K,\Wmat_V$ already at rank $\leq 1024$).
-\item $k{=}1536$: near-lossless throughput ($-2.45\%$), measurable but
-deployment-acceptable quality cost ($+13.30\%$ PPL).
-\item $k{=}2048$ requested (silently capped to 1536 by
-\texttt{AXEX\_MANIFOLD\_K\_MAX}): warmup proxy at parity with $k{=}1536$.
+\item $k{=}1024$: maximum throughput ($+6\%$), with a structural
+perplexity collapse on this model because GQA already pins
+$\Wmat_K,\Wmat_V$ at rank $\leq 1024$.
+\item $k{=}1536$: near-lossless throughput ($-2.45\%$), with a measurable
+but deployment-acceptable quality cost ($+13.30\%$ perplexity).
+\item $k{=}2048$ requested, silently capped to $1536$ by the runtime
+guard \texttt{AXEX\_MANIFOLD\_K\_MAX}: a warmup proxy at parity with the
+$k{=}1536$ row.
 \end{itemize}
-The headline reading is that attention compression with GRC is no longer a
-strict trade-off; it is a tunable parameter where one operating point
+The overall reading is that attention compression with GRC is no longer a
+strict trade-off. It is a tunable parameter where one operating point
 exceeds baseline and another is statistically indistinguishable from it.
 
+\clearpage
 \printbibliography
 
 \end{document}

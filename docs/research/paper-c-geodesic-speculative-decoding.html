@@ -57,14 +57,13 @@ MathJax = {
 </nav>
 
 <header class="paper-header">
-  <span class="tag">Paper C · OTT-Decode</span>
+  <span class="tag">Paper C - OTT-Decode</span>
   <h1>Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance</h1>
   <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
   <p class="meta">
     HyperTensor Project &middot; April 2026
-     &middot; <a href="pdfs/paper-c-geodesic-speculative-decoding.pdf">PDF</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.tex">TeX source</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/ARXIV_SUBMISSIONS/paper-C">arXiv tree</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.pdf">PDF</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-C/geodesic-speculative-decoding.tex">TeX source</a>
   </p>
 </header>
 
@@ -89,35 +88,6 @@ geodesic trajectory caching.</p>
 cost over multiple accepted tokens. Compression reduces the drafter’s
 cost. These look independent, and on first principles they are, but the
 interaction has a specific shape that matters.</p>
-<figure class="paper-diagram">
-<svg viewBox="0 0 920 240" role="img" aria-label="Geodesic speculative decoding overview">
-  <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="currentColor"></polygon>
-    </marker>
-  </defs>
-  <rect class="accent" x="24" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="support" x="254" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="box" x="484" y="56" width="180" height="118" rx="14"></rect>
-  <rect class="good" x="714" y="56" width="180" height="118" rx="14"></rect>
-  <line class="arrow" x1="204" y1="115" x2="254" y2="115"></line>
-  <line class="arrow" x1="434" y1="115" x2="484" y2="115"></line>
-  <line class="arrow" x1="664" y1="115" x2="714" y2="115"></line>
-  <text class="label" x="114" y="95" text-anchor="middle">GP Drafter</text>
-  <text class="small" x="114" y="126" text-anchor="middle">cheap draft tokens</text>
-  <text class="small" x="114" y="150" text-anchor="middle">through compressed weights</text>
-  <text class="label" x="344" y="95" text-anchor="middle">gamma-token Proposal</text>
-  <text class="small" x="344" y="126" text-anchor="middle">bandwidth saved in TD</text>
-  <text class="small" x="344" y="150" text-anchor="middle">risk appears in alpha</text>
-  <text class="label" x="574" y="95" text-anchor="middle">Verifier Pass</text>
-  <text class="small" x="574" y="126" text-anchor="middle">EOS-aware accept / reject</text>
-  <text class="small" x="574" y="150" text-anchor="middle">exactness preserved</text>
-  <text class="label" x="804" y="95" text-anchor="middle">Net Decode Gain</text>
-  <text class="small" x="804" y="126" text-anchor="middle">wins when verifier cost</text>
-  <text class="small" x="804" y="150" text-anchor="middle">dominates any alpha loss</text>
-</svg>
-<figcaption>Paper C is a balance-of-terms argument: compression helps by lowering drafter cost, but only pays off when verifier amortisation still dominates after any acceptance-rate loss.</figcaption>
-</figure>
 <p>Let <span class="math inline">\(T_V\)</span> be the verifier-step cost, <span class="math inline">\(T_D\)</span> the drafter-step cost, <span class="math inline">\(\gamma\)</span>
 the draft length, and <span class="math inline">\(\alpha\)</span> the per-token acceptance rate
 <span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span>. Standard speculative throughput is
@@ -330,6 +300,77 @@ greedy-only. Greedy-only on the same binary measures <span class="math inline">\
 this prompt. Measured: <span class="math inline">\(76.5/50\!=\!1.53\times\)</span>. Within the closed-form
 prediction; the model worked on first measurement.</p>
 </section>
+<section id="llama-3.1-8b-instruct-q4_k_m-end-to-end-2026-04-28." class="level5">
+<h5>Llama-3.1-8B-Instruct Q4_K_M end-to-end (2026-04-28).</h5>
+<p>We repeat the measurement on the frontier-scale model
+<em>Meta-Llama-3.1-8B-Instruct Q4_K_M</em> (RTX 4070 Laptop, 32 MB L2,
+<span class="math inline">\(\gamma{=}2\)</span>, threshold <span class="math inline">\(0.45\)</span>). An eight-prompt sweep at <span class="math inline">\(n{=}64\)</span>
+generated tokens per prompt (single-greedy decode, <code>temp=0</code>) yields
+<span class="math display">\[\alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
+(\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)\]</span>
+with no per-prompt variance under deterministic decoding ,
+the geodesic verifier accepts drafts at a rate determined by the
+model’s residual-stream geometry, not by prompt content.
+The Llama-8B operating point sits <em>above</em> SmolLM2-135M’s
+<span class="math inline">\(\alpha{=}38.5\%\)</span>, consistent with the hypothesis that as residual-stream
+manifolds become smoother at scale (lower intrinsic dimension relative
+to model dimension; see <a href="#sec:why" data-reference-type="ref+Label" data-reference="sec:why">1</a>) the geodesic draft becomes more
+accurate. This is the first frontier-model end-to-end speculative-decode
+acceptance number for the Christoffel-step drafter and is calibrated
+without the OneDecode prefetch table (which fails to bake on Llama-8B
+under the present runtime; see <a href="#sec:status" data-reference-type="ref+Label" data-reference="sec:status">10</a>).
+Raw CSVs and the bench script are at
+and
+.</p>
+</section>
+<section id="compression-cost-curve." class="level5">
+<h5>Compression-cost curve.</h5>
+<p>Speculative decoding sits on top of the GP/GRC compression layer; the
+verifier and drafter both pay whatever throughput cost compression imposes,
+so understanding <span class="math inline">\(T_V(k)\)</span> matters for picking the operating rank.
+<a href="#fig:throughput-vs-rank" data-reference-type="ref+Label" data-reference="fig:throughput-vs-rank">1</a> plots decode throughput as a function of
+compression rank <span class="math inline">\(k\)</span> on the companion paper’s reference pack
+(<code>whitepaper_pack_20260427_121815</code>, 4 prompt classes <span class="math inline">\(\times\)</span>
+2 decode budgets, <span class="math inline">\(n{=}8\)</span> per point). The shape that matters for
+<a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a> is the <em>peak at <span class="math inline">\(k{=}1024\)</span></em> (the cache-fit super-baseline),
+not the absolute numbers, it tells the speculative scheduler that
+choosing the verifier rank below the natural <span class="math inline">\(k_{95}\)</span> of attention can
+<em>accelerate</em> verification rather than slow it, which is why GRC and
+spec-decode compose multiplicatively rather than antagonistically
+(<a href="#sec:compose" data-reference-type="ref+Label" data-reference="sec:compose">7</a>).</p>
+</section>
+<section id="spec-decode-acceptance-under-low-rank-compression-2026-04-29." class="level5">
+<h5>Spec-decode acceptance under low-rank compression
+(2026-04-29).</h5>
+<p>A direct <span class="math inline">\(\alpha\)</span> vs. <span class="math inline">\(k\)</span> sweep on Llama-3.1-8B-Instruct
+Q4_K_M (RTX 4070 Laptop, <span class="math inline">\(-n{=}64\)</span>, <span class="math inline">\(\gamma{=}2\)</span>, deterministic, attn-only,
+skip-O) produced a partial result: at <span class="math inline">\(k{\in}\{128, 256\}\)</span> the geodesic
+draft acceptance rate <em>collapses to <span class="math inline">\(\alpha\approx 0\%\)</span> on most
+prompts</em> (1 of 4 prompts at <span class="math inline">\(k{=}256\)</span> retained <span class="math inline">\(\alpha{=}56.2\%\)</span>;
+the other 7 ran <span class="math inline">\(\alpha{=}0\%\)</span>). Decode throughput remained
+healthy (<span class="math inline">\(31\)</span>–<span class="math inline">\(36\)</span> tok/s), so the failure mode is verifier rejection,
+not compute starvation. At <span class="math inline">\(k{=}512\)</span> the cold-cache PCA exceeded a
+<span class="math inline">\(15{:}00\)</span> wallclock budget and the run was abandoned; the wproj cache
+required to make <span class="math inline">\(k{=}512\)</span> feasible at warm-cache cost is in the cache
+backlog. The headline number (<span class="math inline">\(\alpha{=}46.9\%\)</span> at <span class="math inline">\(k{=}\infty\)</span>, no
+GP compression) remains; the negative finding is that
+<strong>geodesic spec-decode and aggressive GP compression do not
+compose at low <span class="math inline">\(k\)</span></strong>, which contradicts the multiplicative-composition
+hypothesis above and re-opens a calibration question for v0.2: at what
+<span class="math inline">\(k\)</span> does the compressed-attention basis still preserve the geodesic
+draft’s first-token alignment? Raw partial CSV at
+<code>docs/figures/paper-c/tv_of_k_sweep_partial.csv</code>.</p>
+<figure id="fig:throughput-vs-rank" data-latex-placement="h">
+<img src="../../docs/figures/paper-c/throughput_vs_rank.png" style="width:85.0%" />
+<figcaption>Decode throughput vs. compression rank <span class="math inline">\(k\)</span> on Llama-3.1-8B
+Q4_K_M, RTX 4070 Laptop, 4 prompt classes. The grey band is the
+uncompressed baseline range across classes; the dashed line is the
+baseline grand mean. All four classes peak at <span class="math inline">\(k{=}1024\)</span> (the cache-fit
+rank predicted in the companion paper) before settling back near baseline
+at <span class="math inline">\(k{=}1536, 2048\)</span>. This is the empirical input that calibrates
+<span class="math inline">\(T_V(k)\)</span> in <a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a>.</figcaption>
+</figure>
+</section>
 <section id="sec:eos" class="level3">
 <h3>The Instruct-Greedy-EOS Pathology</h3>
 <section id="why-the-standard-acceptance-rule-fails-on-eos." class="level5">
@@ -492,7 +533,7 @@ independently here. StreamingLLM <span class="citation" data-cites="xiao2023stre
 treatment is referenced but orthogonal.</p>
 </section>
 <section id="sec:status" class="level2">
-<h2>Status, Limitations</h2>
+<h2>Limitations</h2>
 <section id="open-issues." class="level5">
 <h5>Open issues.</h5>
 <ul>
@@ -519,7 +560,7 @@ extrapolations transfer is the central uncertainty.</p>
 </section>
 <section id="acknowledgements" class="level2 unnumbered">
 <h2 class="unnumbered">Acknowledgements</h2>
-<p>The author thanks the open-source SmolLM2 release that made fast
+<p>I thank the open-source SmolLM2 release that made fast
 end-to-end iteration possible and the existing speculative-decoding
 literature on which the rejection rule is based.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">

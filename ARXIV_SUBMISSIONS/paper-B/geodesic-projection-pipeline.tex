@@ -18,8 +18,8 @@ with Adaptive Phase-, Gauge-, Thermal-, and Drift-Aware Extensions}}
 \begin{htnote}
 \textbf{Project nomenclature.}  We use a four-level naming hierarchy throughout
 this paper series.  \textit{HyperTensor} is the project (compiler, runtime,
-kernels, theory).  \textit{Geodesic Projection (GP)} --- the subject of this
-paper --- is the inference-time pipeline that factorises every compressible
+kernels, theory).  \textit{Geodesic Projection (GP)}, the subject of this
+paper, is the inference-time pipeline that factorises every compressible
 weight along its dominant geometric directions.  \textit{Geodesic Runtime
 Compression (GRC)} is the attention-only subset of GP and is the empirical
 anchor of the companion paper.  \textit{OTT/GTC} is the Riemannian-manifold
@@ -85,7 +85,7 @@ projected weights) validated by the depth-sink layer's spectrum hash.
 \end{itemize}
 Two things this paper does \emph{not} do, and the reader should treat them
 as scope limits.  We do not provide multi-model end-to-end PPL/throughput
-sweeps---the empirical anchor remains the Llama-3.1-8B-Instruct~Q4\_K\_M
+sweeps, the empirical anchor remains the Llama-3.1-8B-Instruct~Q4\_K\_M
 number set from the companion paper.  We do not yet report Llama-3.1-70B
 numbers: compute is approved, the run is queued, and the pack is not in this
 revision.  Throughout we use the term \emph{design-validated} for code paths
@@ -106,13 +106,13 @@ run-to-run noise ($-0.13\%$, $1{\times}$ variance).  An earlier
 contaminated pass spuriously suggested $-2.2\%$ with $21{\times}$
 variance; the variance ratio was the contamination signal and the
 measurement was retaken.  We retain MCR as v1 because the null finding
-at the cache-fit knee is itself the v1 contribution --- it shows that
+at the cache-fit knee is itself the v1 contribution, it shows that
 phase-aware rebalancing neither helps nor hurts above the knee, and
 reframes the open question as a low-$k$ sweep where the knee is
-closer. The remaining three mechanisms --- the
+closer. The remaining three mechanisms, the
 GL$(d)$ Axiom Gauge (\Cref{sec:gauge}), thermal-aware rank
 (\Cref{sec:thermal}) and rejection-driven Oja online basis
-(\Cref{sec:online}) --- are presented as \emph{v0.2 design
+(\Cref{sec:online}), are presented as \emph{v0.2 design
 specifications}: the geometry is derived, the algorithm is given, and
 the runtime hooks exist, but the paired ablations are deferred to a
 companion v0.2 release.
@@ -140,11 +140,11 @@ companion v0.2 release.
   arr/.style={-{Stealth[length=4pt]}, draw=HTgrey, line width=0.5pt},
   ghostarr/.style={-{Stealth[length=3pt]}, draw=HTgrey!50, dashed, line width=0.4pt},
 ]
-% --- input
+%, input
 \node[stage] (weights) {GGUF weights\\(Q4\_K\_M)};
 \node[stage, right=14mm of weights] (samples) {Activation\\samples};
 
-% --- 7 slots column
+%, 7 slots column
 \node[slot, right=12mm of weights, yshift=12mm] (s1) {$\Wmat_Q$};
 \node[slot, below=1.5mm of s1] (s2) {$\Wmat_K$};
 \node[slot, below=1.5mm of s2] (s3) {$\Wmat_V$};
@@ -158,20 +158,20 @@ companion v0.2 release.
 \node[draw=HTred!50, dashed, fit=(s1)(s7), inner sep=3pt, label={[font=\scriptsize\itshape, HTred]above:7 slots / layer}] (slotbox) {};
 \end{pgfonlayer}
 
-% --- manifold fit
+%, manifold fit
 \node[stage, right=10mm of slotbox] (mfit) {Manifold fit\\(PCA + Fisher)};
 \node[stage, below=4mm of mfit] (mcr) {MCR phase tag\\(Mix/Compress/Refine)};
 
-% --- per-layer rank
+%, per-layer rank
 \node[stage, right=10mm of mfit] (rank) {Per-layer\\rank $k_\ell$};
 
-% --- cache
+%, cache
 \node[output, below=8mm of rank] (cache) {Persistent\\geometry cache};
 
-% --- runtime
+%, runtime
 \node[output, right=10mm of rank] (runtime) {Inference\\runtime};
 
-% --- arrows
+%, arrows
 \draw[arr] (weights) -- (slotbox.west);
 \draw[arr] (samples.east) -- ++(4mm, 0) |- (mfit.west);
 \draw[arr] (slotbox.east) -- (mfit.west);
@@ -233,7 +233,7 @@ construction; the actual weight-space evidence is per-slot SVD spectra
 \paragraph{Fourth datapoint: Llama-3.1-8B at $d{=}4096$.}
 A 2026-04-28 run of the same Phase-1 pipeline on Llama-3.1-8B-Instruct
 (reported in \texttt{axiom\_beta\_report.json}) keeps $102$~PCA components
-at the same 95\% variance threshold --- $k_\text{int}/d = 102/4096 =
+at the same 95\% variance threshold, $k_\text{int}/d = 102/4096 =
 2.49\%$.  This is the same order-of-magnitude regime as the smaller
 models; it is \emph{not} a per-architecture artefact.  Crucially, the
 empirical GRC operating point $k{=}1024$ in the companion paper sits
@@ -353,7 +353,7 @@ $37.93\pm 0.05$ tok/s baseline vs.\ $37.10\pm 1.05$ tok/s MCR
 ($-2.2\%$, $21\times$ higher MCR variance). A clean repeat with no
 co-resident processes (verified by \texttt{nvidia-smi} idle pre-launch
 and process audit) yields baseline $39.28\pm 0.05$ tok/s vs.\ MCR
-$39.23\pm 0.05$ tok/s --- a \textbf{$-0.13\%$ delta within run-to-run
+$39.23\pm 0.05$ tok/s, a \textbf{$-0.13\%$ delta within run-to-run
 noise, $1{\times}$ variance}. The variance gap in the first run was
 the contamination signal; both means rose by $\sim 1.4$~tok/s once the
 machine was quiet, confirming $\sim 3.5\%$ throughput was being eaten
@@ -361,7 +361,7 @@ by the unrelated workload. We therefore report MCR at this rank as
 \textbf{statistically indistinguishable from the shared-rank baseline,
 not worse}. The interpretive question remains: at $k{=}1024$ the
 shared-rank already sits above the cache-fit knee, so per-layer
-rebalancing has little room to act --- the right test is a sweep across
+rebalancing has little room to act, the right test is a sweep across
 lower base ranks $k{\in}\{256, 512, 768\}$ where the knee is closer.
 Raw CSVs at \texttt{docs/figures/paper-b/mcr\_ablation.csv} (clean) and
 \texttt{mcr\_ablation\_run1\_contaminated.csv} (preserved for audit).
@@ -373,7 +373,7 @@ since v0.6.0). MCR computes the layer-wise curvature ratio from the
 activation phase tags produced during the calibration forward pass; in
 weight-PCA mode no calibration pass is performed, so the activation
 variance vector is identically zero. The runtime correctly detects this
-(\texttt{[MCR] Flat activation-variance profile --- uniform rank
+(\texttt{[MCR] Flat activation-variance profile, uniform rank
 recommended}, \texttt{phases\_valid=0/32}) and falls back to a uniform
 $k_\ell{=}K_\text{max}$ allocation, which is identical to the
 shared-rank baseline. The implication is that MCR's per-layer
@@ -465,7 +465,7 @@ self-containment.  Hardware: RTX~4070 Laptop, 32~MB L2.
 \toprule
 Configuration & Decode (\%base) & PPL & $W_\text{proj}$ disk \\
 \midrule
-Baseline & 100.00 & 6.7902 & --- \\
+Baseline & 100.00 & 6.7902 &, \\
 GP attn-only $k{=}1024$ & 106.27 & 10.96 (+61.4\%) & 729 MB \\
 GP attn-only $k{=}1536$ & 97.55  & 7.69 (+13.30\%) & 1{,}093 MB \\
 GP attn-only $k{=}2048$ requested & 101.04 & 7.69 (+13.30\%) & 1{,}093 MB \\
@@ -576,8 +576,8 @@ suffice; we normalise so $\prod_i g_i^{1/d}=1$ to remove the global scale.
 \paragraph{Bakeable, zero-overhead inference.}  Once $g^\star$ is found it
 is baked into the compressed factors before GPU upload: stored
 $\widetilde V_t[k][i]=S_kV_{k,i}\,g_i$ (read), $\widetilde
-U[i][k]=U_{i,k}/g_i$ (write).  The inference path---the two-GEMV
-$\mathrm{tmp}=V_r^\top x$, $\mathrm{out}=U_r\mathrm{tmp}$---is unchanged.
+U[i][k]=U_{i,k}/g_i$ (write).  The inference path, the two-GEMV
+$\mathrm{tmp}=V_r^\top x$, $\mathrm{out}=U_r\mathrm{tmp}$, is unchanged.
 This is the cleanest possible deployment: a free pre-compute step at
 calibration time, no runtime branch, no extra memory traffic.
 
@@ -618,7 +618,7 @@ coefficient $\hat c_\text{rank}$ (joules per unit-rank per token),
 \quad r^\text{soft}_\ell=\sum_r p_\ell^{(r)}R^{(r)}.
 \]
 The plan-level objective becomes $\mathcal L_\text{recon}+\alpha\norm{r}_1
-+\lambda\,\hat c_\text{rank}\,r^\text{soft}$---a weighted blend of accuracy,
++\lambda\,\hat c_\text{rank}\,r^\text{soft}$, a weighted blend of accuracy,
 headroom, and energy.
 
 \paragraph{Predicted gain.}  At $r{=}1024$ baseline tok/s drops $\sim 40\%$
@@ -644,7 +644,7 @@ p90 of $74\,^\circ\mathrm{C}$ enters the Thermal Rank actuation band
 [$T_\text{low}{=}65,\,T_\text{high}{=}85$]\,$^\circ\mathrm{C}$ but does
 not saturate it, so on this hardware/load pair the controller would
 operate at intermediate rank rather than $r_\text{min}$ or
-$r_\text{max}$ alone --- the regime in which closed-loop measurements
+$r_\text{max}$ alone, the regime in which closed-loop measurements
 are most informative. Raw trace:
 \texttt{docs/figures/paper-b/v02\_empirical/thermal\_sustained\_8b.csv}
 and summary at \texttt{thermal\_summary.json}.
@@ -679,7 +679,7 @@ $x$ at rate $\eta_t$.  The learning-rate schedule $\eta_t=\eta_0/\sqrt t$
 satisfies the Robbins--Monro conditions $\sum\eta_t=\infty$,
 $\sum\eta_t^2<\infty$ \cite{robbins1951sa}; default $\eta_0=0.01$.
 Convergence to the leading eigenvectors of the running covariance is
-classical \cite{oja1982}; what is new is the \emph{trigger}---only
+classical \cite{oja1982}; what is new is the \emph{trigger}, only
 rejection residuals are fed in, by construction the directions the basis
 fails to capture.
 

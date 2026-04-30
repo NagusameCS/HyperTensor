@@ -43,7 +43,7 @@ two-line fix (\texttt{llm\_topk\_excluding} plus a four-token min-response
 guard) shipped in the runtime.  Headline measurement: $\alpha{=}38.5\%$
 acceptance, $76.5$~tok/s end-to-end at $\gamma{=}4$,
 threshold $0.45$, against a baseline of $\sim 50$~tok/s greedy-only on the
-same model and binary---a $1.53\times$ measured speedup, within the
+same model and binary, a $1.53\times$ measured speedup, within the
 closed-form prediction.  We extend this to a second model:
 \textbf{Meta-Llama-3.1-8B-Instruct Q4\_K\_M} achieves
 $\alpha{=}46.9\%$ at $\gamma{=}2$ on an eight-prompt sweep, with
@@ -107,7 +107,7 @@ The runtime exposes
 \texttt{llm\_generate\_geodesic\_speculative()} (declared in
 \texttt{runtime/nn/llm.h}) implementing the textbook draft-and-verify
 pattern with two specifics.  \emph{(i)}~Drafter and verifier share KV
-cache structure but not weights---the drafter is the GP-compressed
+cache structure but not weights, the drafter is the GP-compressed
 model loaded once, the verifier is uncompressed and loaded once.  Both
 resident in VRAM simultaneously is infeasible for an 8B model on 8~GB
 VRAM; speculative-decode-of-Llama-3.1-8B-with-itself requires either an
@@ -129,7 +129,7 @@ gain.
 On the reference RTX~4070 Laptop, baseline Llama-3.1-8B Q4\_K\_M decode
 is $35.6$~tok/s, so $T_D^\text{full}{=}28.1$~ms/token.  At GP
 $k{=}1024$, decode rises to $37.8$~tok/s
-($T_D^\text{GP}{=}26.5$~ms/token---a $5.7\%$ saving).  Verifier prefill
+($T_D^\text{GP}{=}26.5$~ms/token, a $5.7\%$ saving).  Verifier prefill
 at $\gamma{=}4$ on the same hardware is $\approx 90$~ms (extrapolated
 from the companion paper, not measured under spec).
 
@@ -154,7 +154,7 @@ the full 8B as verifier is \emph{not} faster than just decoding the full
 GP.  Speculative decoding helps when $T_V\gg T_D$, the deployment shape
 ``8B drafter on commodity GPU, 70B verifier on a server GPU'' that we
 cannot currently test.  \emph{(ii)}~On hypothetical hardware where a 70B
-verifier is the slow side, the GP saving on the drafter compounds---but
+verifier is the slow side, the GP saving on the drafter compounds, but
 only if $\Delta\alpha$ is small.
 
 % =================================================================
@@ -246,7 +246,7 @@ generated tokens per prompt (single-greedy decode, \texttt{temp=0}) yields
 \alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
 (\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)
 \]
-with no per-prompt variance under deterministic decoding ---
+with no per-prompt variance under deterministic decoding , 
 the geodesic verifier accepts drafts at a rate determined by the
 model's residual-stream geometry, not by prompt content.
 The Llama-8B operating point sits \emph{above} SmolLM2-135M's
@@ -270,7 +270,7 @@ compression rank $k$ on the companion paper's reference pack
 (\texttt{whitepaper\_pack\_20260427\_121815}, 4~prompt classes $\times$
 2~decode budgets, $n{=}8$~per~point).  The shape that matters for
 \Cref{eq:spec} is the \emph{peak at $k{=}1024$} (the cache-fit super-baseline),
-not the absolute numbers --- it tells the speculative scheduler that
+not the absolute numbers, it tells the speculative scheduler that
 choosing the verifier rank below the natural $k_{95}$ of attention can
 \emph{accelerate} verification rather than slow it, which is why GRC and
 spec-decode compose multiplicatively rather than antagonistically
@@ -410,7 +410,7 @@ of the OTT/GTC companion paper.
 \paragraph{OneDecode (\texttt{--one-decode}).}  Bakes a geodesic flow
 map once over a vocabulary slice (default $V_\text{bake}{=}2048$
 tokens) and persists it to \texttt{ott\_one\_decode.bin}.  At decode
-time, a hit on the table returns (token, confidence) in $O(1)$---the
+time, a hit on the table returns (token, confidence) in $O(1)$, the
 model forward is skipped.  On miss, fall back to the geodesic drafter
 and then the verifier.
 
@@ -436,7 +436,7 @@ None of the three has the closed-form throughput model of
 The exactness-preserving rejection rule is from Leviathan et~al.\
 \cite{leviathan2023speculative} and Chen et~al.\ \cite{chen2023speculative}.
 EAGLE \cite{li2024eagle} and Medusa \cite{cai2024medusa} train auxiliary
-drafter heads against the same backbone; we do not---we use a
+drafter heads against the same backbone; we do not, we use a
 GP-compressed copy.  This is closer to ``self-speculative''
 decoding.  Production runtimes (vLLM \cite{kwon2023vllm}, TensorRT-LLM)
 ship speculative paths; we are not competing on raw tok/s, we are

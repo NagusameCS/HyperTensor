@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper A: GRC attention compression, HyperTensor Research</title>
+<meta name="description" content="Step-by-step reproduction guide for HyperTensor Paper A (Geodesic Runtime Compression).">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Reproduce A &middot; GRC</span>
+  <h1>Reproduce Paper A: Geodesic Runtime Compression</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">
+    HyperTensor Project &middot; April 2026
+     &middot; <a href="../paper-a-grc-attention-compression.html">Paper A (HTML)</a>
+     &middot; <a href="../../../ARXIV_SUBMISSIONS/paper-A/grc-attention-compression.pdf">Paper A (PDF)</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+
+<article class="paper-body">
+
+<h2>Scope</h2>
+<p>This guide reproduces the headline 106.27 percent decode-throughput
+result and the Nsight Compute L2 trace that refutes the cache-fit
+hypothesis. Everything runs from the repository root on a Windows host
+with an NVIDIA GPU.</p>
+
+<h2>Hardware target</h2>
+<ul>
+  <li>Reference GPU: NVIDIA RTX 4070 Laptop (Ada AD106), 8 GB GDDR6,
+      32 MB L2.</li>
+  <li>Minimum: any CUDA 12.x GPU with at least 8 GB VRAM.</li>
+  <li>Host: 16 GB RAM, NVMe storage with at least 10 GB free.</li>
+</ul>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>CUDA driver 552 or later.</li>
+  <li>Zig CC toolchain (build script <code>build_host.ps1</code> pins the
+      version).</li>
+  <li>PowerShell 7+.</li>
+  <li>The model file
+      <code>Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf</code> from
+      <a href="https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF">bartowski on HuggingFace</a>.</li>
+  <li>Optional but recommended: NVIDIA Nsight Compute 2026.1 or later
+      for the L2 trace step.</li>
+</ul>
+
+<h2>1. Build the runtime</h2>
+<pre><code class="language-powershell">cd &lt;repo_root&gt;
+.\build_host.ps1
+# expect: build_host\geodessical.exe
+</code></pre>
+
+<h2>2. Set model path and verify a baseline run</h2>
+<pre><code class="language-powershell">$model = "C:\path\to\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+.\build_host\geodessical.exe $model -p "Hello, world" -n 32
+# expect: a [GD] line reporting tok/s. Reference GPU is around 35-36 tok/s.
+</code></pre>
+
+<h2>3. Headline 106.27 percent measurement</h2>
+<p>Apply the calibration-free attention compression at rank 1024 and
+compare against the same baseline. The 30-second pre-run idle is
+mandatory to avoid the thermal-throttling false negative reported in
+the paper.</p>
+<pre><code class="language-powershell">Start-Sleep -Seconds 30
+# baseline (8 conditions, 12 reps each)
+.\scripts\benchmark_whitepaper_finalize.ps1 -CooldownSec 30
+</code></pre>
+<p>Expected ranges on the reference GPU:</p>
+<ul>
+  <li>k=1024 decode ratio: 1.060 to 1.065 (paper measured 1.0627).</li>
+  <li>k=1536 decode ratio: 0.95 to 1.02 (paper measured 0.9755).</li>
+  <li>WikiText-2 perplexity at k=1536: about 7.69 (baseline 6.79).</li>
+</ul>
+
+<h2>4. NCU L2 trace</h2>
+<p>Reproduces table 4 of the paper. Profiles 200 representative decode
+launches per kernel under both configurations.</p>
+<pre><code class="language-powershell">$metrics = "lts__t_sectors_op_read.sum,lts__t_sector_hit_rate.pct,dram__bytes_read.sum,sm__warps_active.avg.pct_of_peak_sustained_active"
+New-Item -ItemType Directory -Force docs\figures\paper-a\ncu | Out-Null
+
+# baseline trace
+ncu --csv --metrics $metrics --target-processes all `
+    --launch-count 200 --launch-skip 50 --print-summary per-kernel `
+    .\build_host\geodessical.exe $model -p "the quick brown fox" -n 16 --temp 0 `
+    *> docs\figures\paper-a\ncu\baseline_raw.txt
+
+# compressed trace
+ncu --csv --metrics $metrics --target-processes all `
+    --launch-count 200 --launch-skip 50 --print-summary per-kernel `
+    .\build_host\geodessical.exe $model `
+    --axex-compress --axex-compress-rank 1024 --axex-skip-o `
+    -p "the quick brown fox" -n 16 --temp 0 `
+    *> docs\figures\paper-a\ncu\k1024_raw.txt
+
+# parse to summary
+python scripts\parse_ncu.py
+</code></pre>
+<p>Expected weighted L2 hit rates: 17.0 percent baseline against 16.3
+percent at k=1024, a delta of 0.71 percentage points (which is the
+finding that refutes cache-fit).</p>
+
+<h2>5. Outputs to commit</h2>
+<ul>
+  <li><code>docs/figures/paper-a/ncu/summary.csv</code></li>
+  <li><code>docs/figures/paper-a/ncu/summary.json</code></li>
+  <li><code>docs/figures/paper-a/ncu/baseline_raw.txt</code></li>
+  <li><code>docs/figures/paper-a/ncu/k1024_raw.txt</code></li>
+  <li>The whitepaper pack under <code>benchmarks/whitepaper_pack_*</code>.</li>
+</ul>
+
+<h2>Tolerances</h2>
+<ul>
+  <li>Throughput: plus or minus 5 percent to absorb GPU clock variance.</li>
+  <li>Perplexity: deterministic to four decimal places.</li>
+  <li>L2 hit rate: noise floor about 1 percentage point at the launch
+      count above.</li>
+</ul>
+
+<h2>What can go wrong</h2>
+<ul>
+  <li>Skipping the 30-second pre-run idle on a laptop will produce a
+      false 50-60 percent retention reading. Always cool down.</li>
+  <li>Running with another GPU-bound process resident produces about
+      3.5 percent throughput contamination on both arms (this was the
+      Paper B MCR contamination, but it applies to A as well).</li>
+  <li>If <code>ncu</code> emits empty CSV the most likely cause is a
+      stale CUDA driver. Update to 552 or later.</li>
+</ul>
+
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot;
+  <a href="../../index.html">back to index</a>
+</footer>
+
+</body>
+</html>

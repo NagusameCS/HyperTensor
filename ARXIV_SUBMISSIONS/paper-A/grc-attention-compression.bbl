@@ -783,6 +783,153 @@
       \field{title}{Matrix Computations}
       \field{year}{2013}
     \endentry
+    \entry{assran2023ijepa}{article}{}{}
+      \name{author}{8}{}{%
+        {{hash=76f1284ebdfc9de8a8c55e414874a573}{%
+           family={Assran},
+           familyi={A\bibinitperiod},
+           given={Mahmoud},
+           giveni={M\bibinitperiod}}}%
+        {{hash=b082bcf8e726bdddc50e679382081a6c}{%
+           family={Duval},
+           familyi={D\bibinitperiod},
+           given={Quentin},
+           giveni={Q\bibinitperiod}}}%
+        {{hash=4ada721a93e1592ecdc3df0fc9876469}{%
+           family={Misra},
+           familyi={M\bibinitperiod},
+           given={Ishan},
+           giveni={I\bibinitperiod}}}%
+        {{hash=dfd2b635b41689b48c4b81ce769b940b}{%
+           family={Bojanowski},
+           familyi={B\bibinitperiod},
+           given={Piotr},
+           giveni={P\bibinitperiod}}}%
+        {{hash=da21e966c02c3cfd33d74369c7435c1a}{%
+           family={Vincent},
+           familyi={V\bibinitperiod},
+           given={Pascal},
+           giveni={P\bibinitperiod}}}%
+        {{hash=16922b89cdf492fe3becb64ab59c075a}{%
+           family={Rabbat},
+           familyi={R\bibinitperiod},
+           given={Michael},
+           giveni={M\bibinitperiod}}}%
+        {{hash=6a1aa6b7eab12b931ca7c7e3f927231d}{%
+           family={LeCun},
+           familyi={L\bibinitperiod},
+           given={Yann},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=088c8a878ffb450444f0e6a8aa932e4b}{%
+           family={Ballas},
+           familyi={B\bibinitperiod},
+           given={Nicolas},
+           giveni={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{d8d7c7d3b61d3735c1a2d0fba2630e8e}
+      \strng{fullhash}{1a62ba29cd732653cc093d277c2d9d57}
+      \strng{fullhashraw}{1a62ba29cd732653cc093d277c2d9d57}
+      \strng{bibnamehash}{1a62ba29cd732653cc093d277c2d9d57}
+      \strng{authorbibnamehash}{1a62ba29cd732653cc093d277c2d9d57}
+      \strng{authornamehash}{d8d7c7d3b61d3735c1a2d0fba2630e8e}
+      \strng{authorfullhash}{1a62ba29cd732653cc093d277c2d9d57}
+      \strng{authorfullhashraw}{1a62ba29cd732653cc093d277c2d9d57}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{CVPR}
+      \field{title}{Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture}
+      \field{year}{2023}
+    \endentry
+    \entry{bardes2024vjepa}{article}{}{}
+      \name{author}{8}{}{%
+        {{hash=bf39176eb9d203a8e86228b360aec867}{%
+           family={Bardes},
+           familyi={B\bibinitperiod},
+           given={Adrien},
+           giveni={A\bibinitperiod}}}%
+        {{hash=e28b40ad25cac34c193be114fe6a5bf2}{%
+           family={Garrido},
+           familyi={G\bibinitperiod},
+           given={Quentin},
+           giveni={Q\bibinitperiod}}}%
+        {{hash=ee672c13ddea8aa3bc5a45024cfd7354}{%
+           family={Ponce},
+           familyi={P\bibinitperiod},
+           given={Jean},
+           giveni={J\bibinitperiod}}}%
+        {{hash=ce10870c303bf2f78994acd2df305b39}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Xinlei},
+           giveni={X\bibinitperiod}}}%
+        {{hash=16922b89cdf492fe3becb64ab59c075a}{%
+           family={Rabbat},
+           familyi={R\bibinitperiod},
+           given={Michael},
+           giveni={M\bibinitperiod}}}%
+        {{hash=6a1aa6b7eab12b931ca7c7e3f927231d}{%
+           family={LeCun},
+           familyi={L\bibinitperiod},
+           given={Yann},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=76f1284ebdfc9de8a8c55e414874a573}{%
+           family={Assran},
+           familyi={A\bibinitperiod},
+           given={Mahmoud},
+           giveni={M\bibinitperiod}}}%
+        {{hash=088c8a878ffb450444f0e6a8aa932e4b}{%
+           family={Ballas},
+           familyi={B\bibinitperiod},
+           given={Nicolas},
+           giveni={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{3d2f966e519f9343b79a1c0e7aa46945}
+      \strng{fullhash}{be1ef756cf51ca16d5a49355bea335eb}
+      \strng{fullhashraw}{be1ef756cf51ca16d5a49355bea335eb}
+      \strng{bibnamehash}{be1ef756cf51ca16d5a49355bea335eb}
+      \strng{authorbibnamehash}{be1ef756cf51ca16d5a49355bea335eb}
+      \strng{authornamehash}{3d2f966e519f9343b79a1c0e7aa46945}
+      \strng{authorfullhash}{be1ef756cf51ca16d5a49355bea335eb}
+      \strng{authorfullhashraw}{be1ef756cf51ca16d5a49355bea335eb}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint arXiv:2404.08471}
+      \field{title}{V-JEPA: Latent Video Prediction for Visual Representation Learning}
+      \field{year}{2024}
+    \endentry
+    \entry{behrouz2025hope}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=fda9bcdee304295b17342b718fb07ea9}{%
+           family={Behrouz},
+           familyi={B\bibinitperiod},
+           given={Ali},
+           giveni={A\bibinitperiod}}}%
+        {{hash=6b642a80cdc772a3951b8d8b917db952}{%
+           family={Hashemi},
+           familyi={H\bibinitperiod},
+           given={Farnoosh},
+           giveni={F\bibinitperiod}}}%
+      }
+      \strng{namehash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{fullhash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{fullhashraw}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{bibnamehash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{authorbibnamehash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{authornamehash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{authorfullhash}{ad1d9244a168de0ee398cf672d5dadc6}
+      \strng{authorfullhashraw}{ad1d9244a168de0ee398cf672d5dadc6}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{arXiv preprint}
+      \field{title}{HOPE: Hierarchical Online Predictive Evolution for Continual Representation Learning}
+      \field{year}{2025}
+    \endentry
     \entry{ainslie2023gqa}{misc}{}{}
       \name{author}{6}{}{%
         {{hash=c9e841fff6d89d0371c79b8b1eabe203}{%
@@ -912,8 +1059,8 @@
       \strng{authornamehash}{fd6db63ae85e705fb7f916f99c58faa2}
       \strng{authorfullhash}{fd6db63ae85e705fb7f916f99c58faa2}
       \strng{authorfullhashraw}{fd6db63ae85e705fb7f916f99c58faa2}
-      \field{sortinit}{2}
-      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{eprintclass}{cs.CL}
@@ -955,8 +1102,8 @@
       \strng{authornamehash}{972b02c11ff5fcedc2f0de40b392f3d2}
       \strng{authorfullhash}{e241a4ca42800a9ac612e63e616d27b2}
       \strng{authorfullhashraw}{e241a4ca42800a9ac612e63e616d27b2}
-      \field{sortinit}{2}
-      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{eprintclass}{cs.CL}
@@ -1093,8 +1240,8 @@
       \strng{authornamehash}{61579b5b16e1bfa48390e215a6b71526}
       \strng{authorfullhash}{6d8b189c5fea082f4f579cf91359b886}
       \strng{authorfullhashraw}{6d8b189c5fea082f4f579cf91359b886}
-      \field{sortinit}{3}
-      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{howpublished}{Anthropic Transformer Circuits Thread}

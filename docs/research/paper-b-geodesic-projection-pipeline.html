@@ -57,14 +57,13 @@ MathJax = {
 </nav>
 
 <header class="paper-header">
-  <span class="tag">Paper B · GP</span>
+  <span class="tag">Paper B - GP</span>
   <h1>Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut</h1>
   <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
   <p class="meta">
     HyperTensor Project &middot; April 2026
-     &middot; <a href="pdfs/paper-b-geodesic-projection-pipeline.pdf">PDF</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-B/geodesic-projection-pipeline.tex">TeX source</a>
-     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/ARXIV_SUBMISSIONS/paper-B">arXiv tree</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-B/geodesic-projection-pipeline.pdf">PDF</a>
+     &middot; <a href="../../ARXIV_SUBMISSIONS/paper-B/geodesic-projection-pipeline.tex">TeX source</a>
   </p>
 </header>
 
@@ -99,7 +98,7 @@ implements. GP extends the companion-paper construction along three axes:</p>
 path for FFN down.</p></li>
 <li><p><strong>Per-layer rank</strong>: driven by a manifold-curvature-ratio (MCR)
 heuristic with a hard floor.</p></li>
-<li><p><strong>Persistent caching</strong>: a two-tier on-disk artefact (basis +
+<li><p><strong>Persistent caching</strong>: a two-tier on-disk artifact (basis +
 projected weights) validated by the depth-sink layer’s spectrum hash.</p></li>
 </ul>
 <p>Two things this paper does <em>not</em> do, and the reader should treat them
@@ -111,46 +110,59 @@ revision. Throughout we use the term <em>design-validated</em> for code paths
 that exist, run without error, and are consistent with the implemented
 behaviour of their components, but for which no end-to-end benchmark has
 produced numbers.</p>
-<figure class="paper-diagram">
-<svg viewBox="0 0 920 240" role="img" aria-label="Geodesic Projection pipeline overview">
-  <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="currentColor"></polygon>
-    </marker>
-  </defs>
-  <rect class="box" x="20" y="56" width="190" height="118" rx="14"></rect>
-  <rect class="accent" x="250" y="56" width="190" height="118" rx="14"></rect>
-  <rect class="support" x="480" y="56" width="190" height="118" rx="14"></rect>
-  <rect class="good" x="710" y="56" width="190" height="118" rx="14"></rect>
-  <line class="arrow" x1="210" y1="115" x2="250" y2="115"></line>
-  <line class="arrow" x1="440" y1="115" x2="480" y2="115"></line>
-  <line class="arrow" x1="670" y1="115" x2="710" y2="115"></line>
-  <text class="label" x="115" y="95" text-anchor="middle">7 Compressible Slots</text>
-  <text class="small" x="115" y="126" text-anchor="middle">Q, K, V, O</text>
-  <text class="small" x="115" y="150" text-anchor="middle">plus FFN up/gate/down</text>
-  <text class="label" x="345" y="95" text-anchor="middle">Per-slot Bases</text>
-  <text class="small" x="345" y="126" text-anchor="middle">MCR rank rule</text>
-  <text class="small" x="345" y="150" text-anchor="middle">plus FFN-down SVD path</text>
-  <text class="label" x="575" y="95" text-anchor="middle">Persistent Cache</text>
-  <text class="small" x="575" y="126" text-anchor="middle">basis + projected weights</text>
-  <text class="small" x="575" y="150" text-anchor="middle">validated by sink-layer hash</text>
-  <text class="label" x="805" y="95" text-anchor="middle">Runtime Reuse</text>
-  <text class="small" x="805" y="126" text-anchor="middle">one geometry fit</text>
-  <text class="small" x="805" y="150" text-anchor="middle">serves many quantised builds</text>
-</svg>
-<figcaption>Paper B expands the attention-only result into a production pipeline: more slots, non-uniform ranks, and a persistent cache layer that decouples geometry fitting from deployment-time quantisation.</figcaption>
-</figure>
+<section id="v1-versus-v0.2-mechanisms-this-revision." class="level7">
+<p class="heading">v1 versus v0.2 mechanisms (this revision).</p>
+<p>This revision
+ships <em>four</em> adaptive mechanisms. Of those, exactly one
+(<strong>MCR</strong>, <a href="#sec:mcr" data-reference-type="ref+Label" data-reference="sec:mcr">4</a>) is the v1 measurement target
+of this paper: phase-aware per-layer rank allocation has a complete
+implementation, a documented calibration recipe, and an executed
+A/B against the shared-rank super-baseline of the companion paper.
+The result of that A/B (<a href="#sec:mcr" data-reference-type="ref+Label" data-reference="sec:mcr">4</a>) is a <em>measured null</em>
+at <span class="math inline">\(k_\text{target}{=}1024\)</span> on Llama-3.1-8B: in a clean repeat with
+no co-resident workloads MCR matches the shared-rank baseline within
+run-to-run noise (<span class="math inline">\(-0.13\%\)</span>, <span class="math inline">\(1{\times}\)</span> variance). An earlier
+contaminated pass spuriously suggested <span class="math inline">\(-2.2\%\)</span> with <span class="math inline">\(21{\times}\)</span>
+variance; the variance ratio was the contamination signal and the
+measurement was retaken. We retain MCR as v1 because the null finding
+at the cache-fit knee is itself the v1 contribution, it shows that
+phase-aware rebalancing neither helps nor hurts above the knee, and
+reframes the open question as a low-<span class="math inline">\(k\)</span> sweep where the knee is
+closer. The remaining three mechanisms, the
+GL<span class="math inline">\((d)\)</span> Axiom Gauge (<a href="#sec:gauge" data-reference-type="ref+Label" data-reference="sec:gauge">2</a>), thermal-aware rank
+(<a href="#sec:thermal" data-reference-type="ref+Label" data-reference="sec:thermal">3</a>) and rejection-driven Oja online basis
+(<a href="#sec:online" data-reference-type="ref+Label" data-reference="sec:online">4</a>), are presented as <em>v0.2 design
+specifications</em>: the geometry is derived, the algorithm is given, and
+the runtime hooks exist, but the paired ablations are deferred to a
+companion v0.2 release.</p>
+</section>
 </section>
 <section id="sec:manifold" class="level4">
 <h4>Cross-Architecture Manifold Evidence</h4>
+<figure id="fig:gp-pipeline" data-latex-placement="h">
+
+<figcaption>End-to-end Geodesic Projection (GP) pipeline. Per layer, the
+seven compressible weights (left, red) feed a manifold fit driven by
+both their Frobenius spectra and a small set of activation samples. The
+fit produces (i) an MCR phase tag (Mix / Compress / Refine,
+§<a href="#sec:adaptive-mcr" data-reference-type="ref" data-reference="sec:adaptive-mcr">1</a>) and (ii) a per-layer rank <span class="math inline">\(k_\ell\)</span> which together
+populate a persistent geometry cache. At inference time, the runtime
+reads the compressed slots and the cache; rejected speculative tokens or
+drift signals feed back (dashed) into the online Oja update of the basis
+(§<a href="#sec:online" data-reference-type="ref" data-reference="sec:online">4</a>). GRC (the empirical anchor in the companion paper)
+is the same pipeline restricted to the three attention slots
+<span class="math inline">\(\{\Wmat_Q,\Wmat_K,\Wmat_V\}\)</span> with <span class="math inline">\(k_\ell\)</span> uniform across layers.</figcaption>
+</figure>
 <p>The premise of GP is that the local activation manifold of a trained
 transformer has intrinsic dimension much smaller than the ambient model
 dim <span class="math inline">\(d\)</span>. If that premise is false, low-rank weight projection should be
 uniformly destructive. We ran the manifold-extraction pipeline of
-<code><a href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a></code> (sampling <span class="math inline">\(\to\)</span> symmetry detection <span class="math inline">\(\to\)</span> Ricci
+<code>legacy/axiom_vis/</code> (sampling <span class="math inline">\(\to\)</span> symmetry detection <span class="math inline">\(\to\)</span> Ricci
 curvature <span class="math inline">\(\to\)</span> axiom-set extraction) on three open-weight models.</p>
 <table>
-<caption>Intrinsic-dimensionality estimates (PCA, 95% variance retained) across three open-weight architectures. Source data: <a href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/&lt;model&gt;/phase{1,4}_*.json</a>.</caption>
+<caption>Intrinsic-dimensionality estimates (PCA, 95% variance retained)
+across three open-weight architectures. Source data:
+<code>legacy/axiom_vis/&lt;model&gt;/phase{1,4}_*.json</code>.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">Model</th>
@@ -195,6 +207,18 @@ linear-representation hypothesis <span class="citation" data-cites="elhage2022s
 Activation-space intrinsic dim is necessary but not sufficient for the GP
 construction; the actual weight-space evidence is per-slot SVD spectra
 (<a href="#sec:spectra" data-reference-type="ref+Label" data-reference="sec:spectra">3</a>).</p>
+<section id="fourth-datapoint-llama-3.1-8b-at-d4096." class="level7">
+<p class="heading">Fourth datapoint: Llama-3.1-8B at <span class="math inline">\(d{=}4096\)</span>.</p>
+<p>A 2026-04-28 run of the same Phase-1 pipeline on Llama-3.1-8B-Instruct
+(reported in <code>axiom_beta_report.json</code>) keeps <span class="math inline">\(102\)</span> PCA components
+at the same 95% variance threshold, <span class="math inline">\(k_\text{int}/d = 102/4096 =
+2.49\%\)</span>. This is the same order-of-magnitude regime as the smaller
+models; it is <em>not</em> a per-architecture artefact. Crucially, the
+empirical GRC operating point <span class="math inline">\(k{=}1024\)</span> in the companion paper sits
+<em>ten times above</em> this intrinsic dimension, which is why the
++13.30% PPL penalty is small enough to be cache-fit dominated rather
+than information-loss dominated.</p>
+</section>
 </section>
 <section id="sec:spectra" class="level4">
 <h4>The Seven Slots and Their Spectra</h4>
@@ -341,8 +365,50 @@ with <span class="math inline">\(K_\text{max}{=}1536\)</span> (<code>AXEX_MANIFO
 <div class="htnote">
 <p>The MCR-driven allocation is the part of GP we are <em>least</em> confident
 about; it is enabled by default but the companion-paper measurements all
-use shared-rank for a clean calibration-free claim. An MCR vs. shared-rank A/B at matched mean-<span class="math inline">\(k\)</span> is in the v0.2 milestone.</p>
+use shared-rank for a clean calibration-free claim.</p>
 </div>
+</section>
+<section id="mcr-vs.-shared-rank-ab-llama-3.1-8b-2026-04-29." class="level7">
+<p class="heading">MCR vs. shared-rank A/B (Llama-3.1-8B, 2026-04-29).</p>
+<p>We ran the matched-budget A/B at <span class="math inline">\(k_\text{target}{=}1024\)</span> on
+Llama-3.1-8B-Instruct Q4_K_M (RTX 4070 Laptop, <span class="math inline">\(-n\,64\)</span>, deterministic,
+<span class="math inline">\(n{=}4\)</span> reps + cold-cache warmup) twice. An initial pass conducted with
+unrelated background workloads on the same machine reported
+<span class="math inline">\(37.93\pm 0.05\)</span> tok/s baseline vs. <span class="math inline">\(37.10\pm 1.05\)</span> tok/s MCR
+(<span class="math inline">\(-2.2\%\)</span>, <span class="math inline">\(21\times\)</span> higher MCR variance). A clean repeat with no
+co-resident processes (verified by <code>nvidia-smi</code> idle pre-launch
+and process audit) yields baseline <span class="math inline">\(39.28\pm 0.05\)</span> tok/s vs. MCR
+<span class="math inline">\(39.23\pm 0.05\)</span> tok/s, a <strong><span class="math inline">\(-0.13\%\)</span> delta within run-to-run
+noise, <span class="math inline">\(1{\times}\)</span> variance</strong>. The variance gap in the first run was
+the contamination signal; both means rose by <span class="math inline">\(\sim 1.4\)</span> tok/s once the
+machine was quiet, confirming <span class="math inline">\(\sim 3.5\%\)</span> throughput was being eaten
+by the unrelated workload. We therefore report MCR at this rank as
+<strong>statistically indistinguishable from the shared-rank baseline,
+not worse</strong>. The interpretive question remains: at <span class="math inline">\(k{=}1024\)</span> the
+shared-rank already sits above the cache-fit knee, so per-layer
+rebalancing has little room to act, the right test is a sweep across
+lower base ranks <span class="math inline">\(k{\in}\{256, 512, 768\}\)</span> where the knee is closer.
+Raw CSVs at <code>docs/figures/paper-b/mcr_ablation.csv</code> (clean) and
+<code>mcr_ablation_run1_contaminated.csv</code> (preserved for audit).</p>
+</section>
+<section id="weight-pca-flat-fallback-finding-2026-04-29." class="level7">
+<p class="heading">Weight-PCA flat-fallback finding (2026-04-29).</p>
+<p>A second measurement reveals an interaction between MCR and the
+activation-free <code>--axex-compress</code> basis (weight-PCA mode, default
+since v0.6.0). MCR computes the layer-wise curvature ratio from the
+activation phase tags produced during the calibration forward pass; in
+weight-PCA mode no calibration pass is performed, so the activation
+variance vector is identically zero. The runtime correctly detects this
+(<code>[MCR] Flat activation-variance profile, uniform rank recommended</code>, <code>phases_valid=0/32</code>) and falls back to a uniform
+<span class="math inline">\(k_\ell{=}K_\text{max}\)</span> allocation, which is identical to the
+shared-rank baseline. The implication is that MCR’s per-layer
+rebalancing is only active when paired with
+<code>--axex-actaware-pca</code>; pure weight-PCA users get a uniform
+allocation regardless of whether <code>--axex-mcr</code> is set. We disclose
+this explicitly because it confounds any naive comparison between MCR
+and baseline runs that share the weight-PCA basis: in that pairing the
+A/B is a no-op by construction, not a null result. Run log:
+<code>docs/figures/paper-b/v02_empirical/mcr_8b_ppl.log</code>.</p>
 </section>
 <section id="sec:sink-basis-bypass" class="level5">
 <h5>Sink-Basis Bypass</h5>
@@ -376,7 +442,7 @@ that shared-rank GP otherwise exhibits at very low <span class="math inline">\(k
 <h4>Geometry Cache and Depth-Sink Shortcut</h4>
 <p>Building GP bases from scratch on Llama-3.1-8B takes <span class="math inline">\(\sim\)</span>70 s on the
 reference GPU; on the 70B target it is extrapolated at <span class="math inline">\(\sim\)</span>70 min. The
-runtime persists two artefacts:</p>
+runtime persists two artifacts:</p>
 <ol>
 <li><p><code>ott_geometry.bin</code>: per-layer spectra, axiom set, depth-sink
 index, intrinsic-dim estimate, weight-blob hash; a few MB.</p></li>
@@ -456,7 +522,7 @@ self-containment. Hardware: RTX 4070 Laptop, 32 MB L2.</p>
 <td style="text-align: left;">Baseline</td>
 <td style="text-align: right;">100.00</td>
 <td style="text-align: right;">6.7902</td>
-<td style="text-align: right;">, </td>
+<td style="text-align: right;">,</td>
 </tr>
 <tr>
 <td style="text-align: left;">GP attn-only <span class="math inline">\(k{=}1024\)</span></td>
@@ -638,6 +704,29 @@ cost of a controlled rank reduction; if rank–PPL elasticity is <span class="ma
 rank-step in the operating regime (typical for <span class="math inline">\(r\in[768,1280]\)</span> on
 Llama-3.1-8B), the trade is favourable.</p>
 </section>
+<section id="measured-sustained-decode-trace-2026-04-29." class="level7">
+<p class="heading">Measured sustained-decode trace (2026-04-29).</p>
+<p>We instrumented a 4-pass back-to-back decode of Llama-3.1-8B-Instruct
+Q4_K_M (4 <span class="math inline">\(\times\)</span> 384 tokens, <span class="math inline">\(T{=}0.7\)</span>, RTX 4070 Laptop) with a
+1 Hz <code>nvidia-smi</code> probe on the channels Thermal Rank consumes
+(<code>temperature.gpu</code>, <code>clocks.sm</code>, <code>power.draw</code>) for
+<span class="math inline">\(\sim\)</span> 90 s wall-clock. Of 94 samples, 86 fell in the active band
+(util <span class="math inline">\(\geq\)</span> 20 %): GPU temperature reached <span class="math inline">\(T_\text{max}{=}75\,^\circ\mathrm{C}\)</span>
+with <span class="math inline">\(T_{p90}{=}74\,^\circ\mathrm{C}\)</span> and mean <span class="math inline">\(61.2\,^\circ\mathrm{C}\)</span>;
+SM clock held at the boost ceiling (median 2235 MHz, max 2235 MHz);
+power drew a mean of 66.3 W with peak 116 W. Decode throughput was
+25.8 <span class="math inline">\(\to\)</span> 28.0 tok/s across the four passes (a +8.5 % <em>warm-up</em>
+rather than throttle), giving an estimated
+<strong>0.415 tokens/joule</strong> at the active-window mean. The active-window
+p90 of <span class="math inline">\(74\,^\circ\mathrm{C}\)</span> enters the Thermal Rank actuation band
+[<span class="math inline">\(T_\text{low}{=}65,\,T_\text{high}{=}85\)</span>] <span class="math inline">\(^\circ\mathrm{C}\)</span> but does
+not saturate it, so on this hardware/load pair the controller would
+operate at intermediate rank rather than <span class="math inline">\(r_\text{min}\)</span> or
+<span class="math inline">\(r_\text{max}\)</span> alone, the regime in which closed-loop measurements
+are most informative. Raw trace:
+<code>docs/figures/paper-b/v02_empirical/thermal_sustained_8b.csv</code>
+and summary at <code>thermal_summary.json</code>.</p>
+</section>
 </section>
 <section id="sec:online" class="level4">
 <h4>Online Basis: Rejection-Driven Oja</h4>
@@ -706,7 +795,7 @@ different (one-shot, one-shot, 500 ms, per-rejection). All four are
 runtime-flag-gated and individually disabling.</p>
 </section>
 <section id="sec:limits" class="level4">
-<h4>Limitations and Status</h4>
+<h4>Limitations</h4>
 <ul>
 <li><p>The static-GP empirical anchor is single-model, single-GPU, single
 quantisation (Llama-3.1-8B-Instruct Q4_K_M, RTX 4070 Laptop, dequantised
@@ -714,7 +803,7 @@ to fp32). No cross-hardware or cross-model end-to-end measurement is
 included for the adaptive layers.</p></li>
 <li><p>All four adaptive extensions are <em>design-validated</em>: code paths
 exist, runtime flags work, but the v0.2 measurement sweep is the next
-milestone. Predicted gains in <a href="#sec:adaptive-mcr" data-reference-type="ref+Label" data-reference="sec:adaptive-mcr">§Adaptive MCR</a>, <a href="#sec:gauge" data-reference-type="ref+Label" data-reference="sec:gauge">§Gauge</a>, <a href="#sec:thermal" data-reference-type="ref+Label" data-reference="sec:thermal">§Thermal</a>, and <a href="#sec:online" data-reference-type="ref+Label" data-reference="sec:online">§Online</a>
+milestone. Predicted gains in <a href="#sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online" data-reference-type="ref+Label" data-reference="sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online">[sec:adaptive-mcr,sec:gauge,sec:thermal,sec:online]</a>
 are upper-bound estimates from closed-form arithmetic, not measurements.</p></li>
 <li><p>The <span class="math inline">\(W_\text{proj}\)</span> cache is fp32; converting to Q8_0
 <span class="citation" data-cites="ggerganov2023kquants">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023b)</span> would close the disk-footprint gap but
@@ -743,7 +832,7 @@ Cross-model intrinsic-dim numbers are reproducible via:</p>
 </section>
 <section id="acknowledgements" class="level4 unnumbered">
 <h4 class="unnumbered">Acknowledgements</h4>
-<p>The author thanks the open-source <code>llama.cpp</code> <span class="citation" data-cites="ggerganov2023gguf">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023a)</span>
+<p>I thank the open-source <code>llama.cpp</code> <span class="citation" data-cites="ggerganov2023gguf">(<span class="nocase">Gerganov and llama.cpp contributors</span> 2023a)</span>
 community. The MCR phase-detection borrows the Mix/Compress/Refine
 terminology from recent training-dynamics literature; the residual-stream
 gauge has been observed across multiple architectures
