@@ -947,7 +947,51 @@ the attention working set below the 32\,MB L2 capacity, the win is
 context-independent at these decode budgets. Source CSV at
 \texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/docs\_data/context\_length\_sweep.csv}.
 
-\subsection{Second-device portability}
+\subsection{Cross-model transfer to SmolLM2-135M}
+\label{sec:cross-model}
+
+To check whether the cache-fit win generalises to a different model
+family and a much smaller parameter count we ran the same construction
+against SmolLM2-135M-Instruct at Q8\_0 on the same RTX 4070 Laptop, with
+$k{=}512$ (the natural per-head rank for $d_\text{model}{=}576$ and $9$
+heads). The build path uses the same \texttt{--axex-compress} flag as
+the 8B run; only $k$ differs.
+
+\begin{table}[h]\centering\footnotesize
+\caption{Cross-model check: SmolLM2-135M Q8\_0 on RTX 4070 Laptop. Decode
+tok/s reported from steady-state \texttt{[GD]} lines, matched
+\texttt{--temp 0.7} sampling on both rows.}
+\label{tab:cross-model}
+\begin{tabular}{lrr}
+\toprule
+Configuration & Decode tok/s & Ratio vs.\ baseline \\
+\midrule
+Baseline                              & $270.8$ & $1.000$ \\
+GRC (\texttt{--axex-compress} $k{=}512$) & $392.3$ & $1.449$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The $+44.87\%$ uplift on a model two orders of magnitude smaller than
+Llama-3.1-8B is a single point and does not establish a curve, but it is
+consistent with the cache-fit reading: the SmolLM2 attention working set
+already fits comfortably in L2 at baseline, so the headline saving is
+the avoided pointer chase through the full $\Wmat_Q,\Wmat_K,\Wmat_V$
+rather than an L2-residency transition. This distinguishes two
+mechanisms that the 8B measurement alone conflates, and motivates the
+RTX 4090 / A100 / H100 cross-tier sweep listed in
+\Cref{sec:future} as a way to separate the two contributions
+quantitatively. Logs at
+\texttt{benchmarks/cross\_hw\_local\_fix\_20260428\_192807/session\_logs/local/}.
+
+A greedy-decode ($\texttt{--temp 0}$) repeat of the same configuration
+exhibits early end-of-sequence on \emph{both} the baseline and the
+\texttt{--axex-compress} path; the behaviour reproduces without GRC and
+is therefore a SmolLM2 sampling-mode property, not a runtime regression.
+The \texttt{--temp 0.7} numbers above are the apples-to-apples
+comparison.
+
+
 \label{sec:second-device}
 
 Beyond the headline 4070-Laptop numbers we rebuilt the binary on a

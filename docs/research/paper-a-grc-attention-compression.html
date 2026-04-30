@@ -1343,8 +1343,58 @@ the attention working set below the 32 MB L2 capacity, the win is
 context-independent at these decode budgets. Source CSV at
 <code>benchmarks/cross_hw_local_fix_20260428_192807/docs_data/context_length_sweep.csv</code>.</p>
 </section>
-<section id="sec:second-device" class="level3">
-<h3>Second-device portability</h3>
+<section id="sec:cross-model" class="level3">
+<h3>Cross-model transfer to SmolLM2-135M</h3>
+<p>To check whether the cache-fit win generalises to a different model
+family and a much smaller parameter count we ran the same construction
+against SmolLM2-135M-Instruct at Q8_0 on the same RTX 4070 Laptop, with
+<span class="math inline">\(k{=}512\)</span> (the natural per-head rank for <span class="math inline">\(d_\text{model}{=}576\)</span> and <span class="math inline">\(9\)</span>
+heads). The build path uses the same <code>--axex-compress</code> flag as
+the 8B run; only <span class="math inline">\(k\)</span> differs.</p>
+<div id="tab:cross-model">
+<table>
+<caption>Cross-model check: SmolLM2-135M Q8_0 on RTX 4070 Laptop. Decode
+tok/s reported from steady-state <code>[GD]</code> lines, matched
+<code>--temp 0.7</code> sampling on both rows.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Configuration</th>
+<th style="text-align: right;">Decode tok/s</th>
+<th style="text-align: right;">Ratio vs. baseline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Baseline</td>
+<td style="text-align: right;"><span class="math inline">\(270.8\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(1.000\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">GRC (<code>--axex-compress</code> <span class="math inline">\(k{=}512\)</span>)</td>
+<td style="text-align: right;"><span class="math inline">\(392.3\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(1.449\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <span class="math inline">\(+44.87\%\)</span> uplift on a model two orders of magnitude smaller than
+Llama-3.1-8B is a single point and does not establish a curve, but it is
+consistent with the cache-fit reading: the SmolLM2 attention working set
+already fits comfortably in L2 at baseline, so the headline saving is
+the avoided pointer chase through the full <span class="math inline">\(\Wmat_Q,\Wmat_K,\Wmat_V\)</span>
+rather than an L2-residency transition. This distinguishes two
+mechanisms that the 8B measurement alone conflates, and motivates the
+RTX 4090 / A100 / H100 cross-tier sweep listed in
+<a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a> as a way to separate the two contributions
+quantitatively. Logs at
+<code>benchmarks/cross_hw_local_fix_20260428_192807/session_logs/local/</code>.</p>
+<p>A greedy-decode (<span class="math inline">\(\texttt{--temp 0}\)</span>) repeat of the same configuration
+exhibits early end-of-sequence on <em>both</em> the baseline and the
+<code>--axex-compress</code> path; the behaviour reproduces without GRC and
+is therefore a SmolLM2 sampling-mode property, not a runtime regression.
+The <code>--temp 0.7</code> numbers above are the apples-to-apples
+comparison.</p>
+<p><span id="sec:second-device" data-label="sec:second-device"></span></p>
 <p>Beyond the headline 4070-Laptop numbers we rebuilt the binary on a
 second physical machine (Arch Linux 6.19, RTX 3050 6 GB, sm_86, zig
 0.14, CUDA 13) using <code>scripts/campaign/build_remote_arch_cuda.sh</code>

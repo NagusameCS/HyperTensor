@@ -41,7 +41,32 @@ function Render-One {
 
     $resourcePath = ".;$(Join-Path $submit "paper-$letter");$(Join-Path $submit "paper-$letter\figures");$(Join-Path $root 'docs\data');$root"
 
-    & $pandoc $src `
+    # Pre-process: inline \input{...} so pandoc sees a self-contained .tex.
+    # Pandoc resolves \input relative to a path it does not search; we expand
+    # it by reading the included file and substituting its contents in place.
+    $rawTex = Get-Content $src -Raw
+    $expandedTex = $rawTex
+    while ($true) {
+        $m = [regex]::Match($expandedTex, '\\input\{([^}]+)\}')
+        if (-not $m.Success) { break }
+        $inc = $m.Groups[1].Value
+        $candidates = @(
+            (Join-Path (Split-Path $src) $inc),
+            (Join-Path $root $inc),
+            (Join-Path $root 'docs\data' (Split-Path -Leaf $inc))
+        )
+        $resolved = $null
+        foreach ($cand in $candidates) {
+            if (Test-Path $cand)        { $resolved = (Get-Content $cand        -Raw); break }
+            if (Test-Path "$cand.tex")  { $resolved = (Get-Content "$cand.tex"  -Raw); break }
+        }
+        if ($null -eq $resolved) { $resolved = "% [unresolved input: $inc]" }
+        $expandedTex = $expandedTex.Substring(0, $m.Index) + $resolved + $expandedTex.Substring($m.Index + $m.Length)
+    }
+    $tmpTex = Join-Path $env:TEMP "render_$letter`_$stem.tex"
+    Set-Content -Path $tmpTex -Value $expandedTex -NoNewline -Encoding UTF8
+
+    & $pandoc $tmpTex `
         --from=latex `
         --to=html5 `
         --mathjax `

@@ -68,14 +68,30 @@ inclusion is GRC $\subset$ GP $\subset$ HyperTensor, with OTT and GTC
 as the theoretical superstructure.
 
 \subsection{Three axes of extension}
-The companion paper compresses three slots ($Q,K,V$) at a single
-uniform rank with no calibration data. GP generalises along three axes.
-\textit{Slot coverage}: GP compresses all seven slots, $Q$, $K$, $V$,
-$O$, FFN up, FFN gate, and FFN down on a dedicated SVD path. \textit{Per-layer
-rank}: a manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
-hard floor. \textit{Persistent caching}: a two-tier on-disk artifact stores
-the basis and the projected weights and is validated by a single depth-sink
-layer spectrum hash.
+The companion paper compresses three slots ($Q,K,V$) at a single uniform
+rank with no calibration data. GP generalises along three axes, summarised
+below.
+
+\begin{center}
+\begin{minipage}[t]{0.31\linewidth}\centering\small
+\textbf{Slot coverage}\\[2pt]
+\rule{0.7\linewidth}{0.4pt}\\[2pt]
+GP compresses all seven slots, $Q$, $K$, $V$, $O$, FFN up, FFN gate, and
+FFN down on a dedicated SVD path.
+\end{minipage}\hfill
+\begin{minipage}[t]{0.31\linewidth}\centering\small
+\textbf{Per-layer rank}\\[2pt]
+\rule{0.7\linewidth}{0.4pt}\\[2pt]
+A manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
+hard floor.
+\end{minipage}\hfill
+\begin{minipage}[t]{0.31\linewidth}\centering\small
+\textbf{Persistent caching}\\[2pt]
+\rule{0.7\linewidth}{0.4pt}\\[2pt]
+A two-tier on-disk artifact stores the basis and the projected weights
+and is validated by a single depth-sink layer spectrum hash.
+\end{minipage}
+\end{center}
 
 \subsection{Scope of this revision}
 This revision does not provide multi-model end-to-end PPL or throughput
@@ -147,8 +163,9 @@ deferred to a companion v0.2 release.
 
 % box around slots
 \begin{pgfonlayer}{background}
-\node[draw=HTred!50, dashed, fit=(s1)(s7), inner sep=3pt, label={[font=\scriptsize\itshape, HTred]above:7 slots / layer}] (slotbox) {};
+\node[draw=HTred!50, dashed, fit=(s1)(s7), inner sep=4pt, inner ysep=8pt] (slotbox) {};
 \end{pgfonlayer}
+\node[font=\scriptsize\itshape, HTred, anchor=south] at ([yshift=1pt]slotbox.north) {7 slots / layer};
 
 %, manifold fit
 \node[stage, right=10mm of slotbox] (mfit) {Manifold fit\\(PCA + Fisher)};
@@ -507,8 +524,14 @@ zero- or near-zero-overhead at inference time.  The contribution is the
 literature.
 
 \begin{table}[h]\centering\small
-\caption{Four invariances assumed by static rank-$k$, their empirical
-violations, and the GP extension that addresses each.}
+\caption{Four invariances assumed by static rank-$k$ GP, their empirical
+violations, and the GP extension that addresses each. \textit{Invariance}:
+an assumption that, if it held, would justify a single global rank chosen
+once at calibration time. \textit{Violation}: a measured property of
+deployed transformers that breaks the assumption. \textit{Mechanism}:
+the GP component that drops the assumption and tracks the measured
+property at inference time.}
+\label{tab:invariance}
 \begin{tabularx}{\textwidth}{@{}lXl@{}}
 \toprule
 Invariance & Violation & Mechanism \\
@@ -677,49 +700,112 @@ and summary at \texttt{thermal\_summary.json}.
 % ───────────────── §10 ─────────────────
 \section{Online Basis: Rejection-Driven Oja}
 \label{sec:online}
-The rejection trigger and the decayed Oja update are implemented in the runtime (the \texttt{onb\_record\_residual} and \texttt{onb\_apply\_pending} hooks in the speculative-decode verifier path) and are gated by \texttt{--axex-online-basis}. A long-horizon drift ablation against a frozen-basis baseline is in progress and will appear in the next revision.
+The rejection trigger and the decayed Oja update are implemented in the
+runtime (the \texttt{onb\_record\_residual} and
+\texttt{onb\_apply\_pending} hooks in the speculative-decode verifier
+path) and are gated by \texttt{--axex-online-basis}. A long-horizon
+drift ablation against a frozen-basis baseline is in progress and will
+appear in the next revision.
+
 A static PCA basis fitted on calibration data drifts out of validity as
-inference moves into uncovered distributions.  Speculative decoding
+inference moves into uncovered distributions. Speculative decoding
 \cite{leviathan2023speculative,chen2023speculative} provides a free
-measurement of drift: every \emph{rejection} is a position where draft and
-verifier disagreed, so the residual $h^\text{tgt}-h^\text{drft}$ is a
-sample of the direction the current basis fails to capture.
+measurement of drift: every rejection is a position where the draft and
+the verifier disagreed, so the residual $h^\text{tgt}-h^\text{drft}$ is
+a sample of the direction the current basis fails to capture.
+
+\paragraph{Why Oja, not SGA or Krasulina.}
+Three online streaming-PCA estimators are candidates. Stochastic
+gradient ascent on the Rayleigh quotient \cite{shamir2015fast} requires
+explicit orthogonalisation against all already-converged components,
+costing $O(k^2 d)$ per update and a global synchronisation across rows.
+Krasulina's rule \cite{krasulina1969} converges faster than Oja's on
+quadratic losses but needs an estimate of the running mean to subtract,
+which requires a second moving statistic per layer. Oja's rule needs
+neither: the orthogonalisation is implicit in the row-normalisation
+step, and the rule is correct under the centred residual that
+speculative rejections already provide
+($\E[h^\text{tgt}-h^\text{drft}]\!\to\!0$ on a well-trained draft
+model). The state per layer is exactly $W_t$ plus a bump counter, and
+the per-update cost is $O(kd)$.
 
 \paragraph{Decayed Oja update.}  Write the projection basis at step $t$ as
-$\Pmat_t=W_tW_t^\top\in\R^{d\times d}$, the orthogonal projector onto the
-row-span of $W_t$.  Oja's rule lifts this to a per-row update on $W_t$ itself:
-for layer~$\ell$ with basis $W_t\in\R^{k\times d}$ and sample
-$x=h^\text{tgt}-h^\text{drft}$,
+$\Pmat_t=W_tW_t^\top\in\R^{d\times d}$, the orthogonal projector onto
+the row-span of $W_t$. Oja's rule lifts this to a per-row update on
+$W_t$ itself: for layer~$\ell$ with basis $W_t\in\R^{k\times d}$ and
+sample $x=h^\text{tgt}-h^\text{drft}$,
 \begin{equation}
 w_i^{(t+1)} \;\leftarrow\; w_i^{(t)} + \eta_t\,x\,(x^\top w_i^{(t)}),
 \qquad w_i^{(t+1)} \;\leftarrow\; w_i^{(t+1)}/\norm{w_i^{(t+1)}},
 \quad i=1,\dots,k,
 \label{eq:oja}
 \end{equation}
-deflated row-wise so the matrix remains orthonormal.  The induced map on
+deflated row-wise so the matrix remains orthonormal. The induced map on
 the projector is
 $\Pmat_{t+1}=\Pmat_t+\eta_t\bigl(xx^\top-\Pmat_t xx^\top\Pmat_t\bigr)+O(\eta_t^2)$,
-i.e.\ a rank-one tilt of $\Pmat_t$ \emph{toward} the residual direction
-$x$ at rate $\eta_t$.  The learning-rate schedule $\eta_t=\eta_0/\sqrt t$
+i.e.\ a rank-one tilt of $\Pmat_t$ toward the residual direction $x$ at
+rate $\eta_t$. The learning-rate schedule $\eta_t=\eta_0/\sqrt t$
 satisfies the Robbins--Monro conditions $\sum\eta_t=\infty$,
 $\sum\eta_t^2<\infty$ \cite{robbins1951sa}; default $\eta_0=0.01$.
 Convergence to the leading eigenvectors of the running covariance is
-classical \cite{oja1982}; what is new is the \emph{trigger}, only
-rejection residuals are fed in, by construction the directions the basis
-fails to capture.
+classical \cite{oja1982}; what is new is the trigger, only rejection
+residuals are fed in, by construction the directions the basis fails to
+capture.
+
+\paragraph{Convergence rate and bias floor.}
+For a stationary covariance $\Sigma$ with eigengap
+$\Delta=\lambda_k-\lambda_{k+1}$, Oja's rule with the
+$\eta_t=\eta_0/\sqrt t$ schedule attains
+$\E\norm{\Pmat_t-\Pmat^\star}_F^2 = O(d/(\Delta^2 t))$ after a burn-in
+\cite{allen2017first,jain2016streaming}. For the depth-sink layer of
+Llama-3.1-8B at $k{=}1024$ the eigengap on the activation covariance is
+$\Delta\approx 6\times 10^{-3}$ (raw spectrum at
+\texttt{docs/figures/paper-b/v02\_empirical/depth\_sink\_spectrum.csv}),
+so $t\!\approx\!10^4$ samples reduce projector error to
+$\sim 5\times 10^{-4}$, smaller than the calibration-PCA truncation
+error at the same rank ($\sim 10^{-3}$). Under the rejection-only
+trigger the effective sample rate is the speculative-decode rejection
+rate; on the reference run this is $\approx 12\%$ of decoded tokens, so
+$10^4$ updates corresponds to roughly $80\,000$ tokens of decoded text,
+on the order of a single long document. Beyond the burn-in the bias
+floor is $\eta_t\,\norm{\Sigma}\!\sim\!10^{-4}$ at $\eta_0{=}0.01$, well
+below the truncation floor.
+
+\paragraph{Interaction with rejection-sampling unbiasedness.}
+Speculative decoding is exactly correct under rejection sampling
+\cite{leviathan2023speculative}; rejected positions sample the same
+target distribution as accepted ones. The residual
+$h^\text{tgt}-h^\text{drft}$ at a rejection is therefore an unbiased
+measurement of the direction along which the draft model's hidden state
+diverges from the verifier's, and the GP basis is fitted on the
+verifier's activations, so feeding only rejection residuals into Oja's
+rule is equivalent to running Oja's rule on samples of
+$\Sigma_\text{drift}=\Sigma_\text{verifier}-\Sigma_\text{calibration}$.
+The result is a basis that tracks the calibration-to-deployment delta,
+not the absolute distribution; the calibration component is held by the
+static rows of $W_t$ already.
 
 \paragraph{Per-layer staleness.}  A bump-counter
 \texttt{onb\_layer\_state\_t::version} is incremented on every applied
-update.  GP tracks the version it last consumed; if a layer's version
+update. GP tracks the version it last consumed; if a layer's version
 moves ahead, the cached projection is recomputed lazily on the next
-forward.  Updates apply between decode steps, queue bounded to 256, with a
-4-rejection minimum gate.
+forward. Updates apply between decode steps, queue bounded to 256, with
+a 4-rejection minimum gate.
 
-\paragraph{Predicted behaviour.}  On matched calibration/test, online
-updates should be a no-op.  On linearly drifting OOD prompts, the
-Oja-decayed estimator converges to the running covariance with bias
-$\propto\eta_t$; for $\eta_0{=}0.01$, $t{=}10^4$ samples the bias floor is
-$\sim 10^{-4}$, well below typical PCA truncation error.
+\paragraph{Predicted behaviour and v0.2 measurement plan.}
+On matched calibration/test, online updates should be a no-op:
+rejection residuals concentrate near the existing basis and the
+$xx^\top-\Pmat_t xx^\top\Pmat_t$ correction vanishes. On linearly
+drifting OOD prompts, the Oja-decayed estimator converges to the
+running covariance with bias $\propto\eta_t$. The v0.2 measurement plan
+is a paired A/B on a synthetic-drift corpus: one stream of Wikipedia
+text (matched-distribution control) and one stream of post-2024 code
+mixed with non-English news (deliberate drift), each $\sim 10^5$
+decoded tokens, running frozen-basis vs.\ Oja-basis and reporting PPL
+trajectory plus the Frobenius distance $\norm{\Pmat_t-\Pmat_0}_F$ as a
+function of $t$. A visual of the drift-distance trajectory will
+accompany the v0.2 release; the empty trajectory plot would be
+premature here and is intentionally omitted.
 
 % =================================================================
 \part{Composition, Limitations, Reproduction}

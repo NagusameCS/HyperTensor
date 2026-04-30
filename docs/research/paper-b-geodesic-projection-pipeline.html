@@ -93,14 +93,35 @@ as the theoretical superstructure.</p>
 </section>
 <section id="three-axes-of-extension" class="level5">
 <h5>Three axes of extension</h5>
-<p>The companion paper compresses three slots (<span class="math inline">\(Q,K,V\)</span>) at a single
-uniform rank with no calibration data. GP generalises along three axes.
-<em>Slot coverage</em>: GP compresses all seven slots, <span class="math inline">\(Q\)</span>, <span class="math inline">\(K\)</span>, <span class="math inline">\(V\)</span>,
-<span class="math inline">\(O\)</span>, FFN up, FFN gate, and FFN down on a dedicated SVD path. <em>Per-layer
-rank</em>: a manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
-hard floor. <em>Persistent caching</em>: a two-tier on-disk artifact stores
-the basis and the projected weights and is validated by a single depth-sink
-layer spectrum hash.</p>
+<p>The companion paper compresses three slots (<span class="math inline">\(Q,K,V\)</span>) at a single uniform
+rank with no calibration data. GP generalises along three axes, summarised
+below.</p>
+<div class="center">
+<div class="minipage">
+<p><strong>Slot coverage</strong><br />
+</p>
+<hr />
+<p><br />
+GP compresses all seven slots, <span class="math inline">\(Q\)</span>, <span class="math inline">\(K\)</span>, <span class="math inline">\(V\)</span>, <span class="math inline">\(O\)</span>, FFN up, FFN gate, and
+FFN down on a dedicated SVD path.</p>
+</div>
+<div class="minipage">
+<p><strong>Per-layer rank</strong><br />
+</p>
+<hr />
+<p><br />
+A manifold-curvature-ratio (MCR) heuristic budgets rank by layer with a
+hard floor.</p>
+</div>
+<div class="minipage">
+<p><strong>Persistent caching</strong><br />
+</p>
+<hr />
+<p><br />
+A two-tier on-disk artifact stores the basis and the projected weights
+and is validated by a single depth-sink layer spectrum hash.</p>
+</div>
+</div>
 </section>
 <section id="scope-of-this-revision" class="level5">
 <h5>Scope of this revision</h5>
@@ -580,9 +601,15 @@ static rank-<span class="math inline">\(k\)</span> GP, are mutually orthogonal i
 zero- or near-zero-overhead at inference time. The contribution is the
 <em>combination</em>; each individual mechanism has antecedents in the
 literature.</p>
+<div id="tab:invariance">
 <table>
-<caption>Four invariances assumed by static rank-<span class="math inline">\(k\)</span>, their empirical
-violations, and the GP extension that addresses each.</caption>
+<caption>Four invariances assumed by static rank-<span class="math inline">\(k\)</span> GP, their empirical
+violations, and the GP extension that addresses each. <em>Invariance</em>:
+an assumption that, if it held, would justify a single global rank chosen
+once at calibration time. <em>Violation</em>: a measured property of
+deployed transformers that breaks the assumption. <em>Mechanism</em>:
+the GP component that drops the assumption and tracks the measured
+property at inference time.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">Invariance</th>
@@ -616,6 +643,7 @@ of <span class="math inline">\(W\,\mathrm{diag}(g)^{-1}\)</span> depends on <spa
 </tr>
 </tbody>
 </table>
+</div>
 <section id="sec:adaptive-mcr" class="level4">
 <h4>MCR Phase-Aware Rank Allocation</h4>
 <p>For each layer <span class="math inline">\(\ell\)</span>, compute the per-feature variance of captured hidden
@@ -760,20 +788,41 @@ and summary at <code>thermal_summary.json</code>.</p>
 </section>
 <section id="sec:online" class="level4">
 <h4>Online Basis: Rejection-Driven Oja</h4>
-<p>The rejection trigger and the decayed Oja update are implemented in the runtime (the <code>onb_record_residual</code> and <code>onb_apply_pending</code> hooks in the speculative-decode verifier path) and are gated by <code>--axex-online-basis</code>. A long-horizon drift ablation against a frozen-basis baseline is in progress and will appear in the next revision.
-A static PCA basis fitted on calibration data drifts out of validity as
+<p>The rejection trigger and the decayed Oja update are implemented in the
+runtime (the <code>onb_record_residual</code> and
+<code>onb_apply_pending</code> hooks in the speculative-decode verifier
+path) and are gated by <code>--axex-online-basis</code>. A long-horizon
+drift ablation against a frozen-basis baseline is in progress and will
+appear in the next revision.</p>
+<p>A static PCA basis fitted on calibration data drifts out of validity as
 inference moves into uncovered distributions. Speculative decoding
 <span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span> provides a free
-measurement of drift: every <em>rejection</em> is a position where draft and
-verifier disagreed, so the residual <span class="math inline">\(h^\text{tgt}-h^\text{drft}\)</span> is a
-sample of the direction the current basis fails to capture.</p>
+measurement of drift: every rejection is a position where the draft and
+the verifier disagreed, so the residual <span class="math inline">\(h^\text{tgt}-h^\text{drft}\)</span> is
+a sample of the direction the current basis fails to capture.</p>
+<section id="why-oja-not-sga-or-krasulina." class="level7">
+<p class="heading">Why Oja, not SGA or Krasulina.</p>
+<p>Three online streaming-PCA estimators are candidates. Stochastic
+gradient ascent on the Rayleigh quotient <span class="citation" data-cites="shamir2015fast">(Shamir 2015)</span> requires
+explicit orthogonalisation against all already-converged components,
+costing <span class="math inline">\(O(k^2 d)\)</span> per update and a global synchronisation across rows.
+Krasulina’s rule <span class="citation" data-cites="krasulina1969">(Krasulina 1969)</span> converges faster than Oja’s on
+quadratic losses but needs an estimate of the running mean to subtract,
+which requires a second moving statistic per layer. Oja’s rule needs
+neither: the orthogonalisation is implicit in the row-normalisation
+step, and the rule is correct under the centred residual that
+speculative rejections already provide
+(<span class="math inline">\(\E[h^\text{tgt}-h^\text{drft}]\!\to\!0\)</span> on a well-trained draft
+model). The state per layer is exactly <span class="math inline">\(W_t\)</span> plus a bump counter, and
+the per-update cost is <span class="math inline">\(O(kd)\)</span>.</p>
+</section>
 <section id="decayed-oja-update." class="level7">
 <p class="heading">Decayed Oja update.</p>
 <p>Write the projection basis at step <span class="math inline">\(t\)</span> as
-<span class="math inline">\(\Pmat_t=W_tW_t^\top\in\R^{d\times d}\)</span>, the orthogonal projector onto the
-row-span of <span class="math inline">\(W_t\)</span>. Oja’s rule lifts this to a per-row update on <span class="math inline">\(W_t\)</span> itself:
-for layer <span class="math inline">\(\ell\)</span> with basis <span class="math inline">\(W_t\in\R^{k\times d}\)</span> and sample
-<span class="math inline">\(x=h^\text{tgt}-h^\text{drft}\)</span>,
+<span class="math inline">\(\Pmat_t=W_tW_t^\top\in\R^{d\times d}\)</span>, the orthogonal projector onto
+the row-span of <span class="math inline">\(W_t\)</span>. Oja’s rule lifts this to a per-row update on
+<span class="math inline">\(W_t\)</span> itself: for layer <span class="math inline">\(\ell\)</span> with basis <span class="math inline">\(W_t\in\R^{k\times d}\)</span> and
+sample <span class="math inline">\(x=h^\text{tgt}-h^\text{drft}\)</span>,
 <span class="math display">\[\begin{equation}
 w_i^{(t+1)} \;\leftarrow\; w_i^{(t)} + \eta_t\,x\,(x^\top w_i^{(t)}),
 \qquad w_i^{(t+1)} \;\leftarrow\; w_i^{(t+1)}/\norm{w_i^{(t+1)}},
@@ -783,14 +832,49 @@ w_i^{(t+1)} \;\leftarrow\; w_i^{(t)} + \eta_t\,x\,(x^\top w_i^{(t)}),
 deflated row-wise so the matrix remains orthonormal. The induced map on
 the projector is
 <span class="math inline">\(\Pmat_{t+1}=\Pmat_t+\eta_t\bigl(xx^\top-\Pmat_t xx^\top\Pmat_t\bigr)+O(\eta_t^2)\)</span>,
-i.e. a rank-one tilt of <span class="math inline">\(\Pmat_t\)</span> <em>toward</em> the residual direction
-<span class="math inline">\(x\)</span> at rate <span class="math inline">\(\eta_t\)</span>. The learning-rate schedule <span class="math inline">\(\eta_t=\eta_0/\sqrt t\)</span>
+i.e. a rank-one tilt of <span class="math inline">\(\Pmat_t\)</span> toward the residual direction <span class="math inline">\(x\)</span> at
+rate <span class="math inline">\(\eta_t\)</span>. The learning-rate schedule <span class="math inline">\(\eta_t=\eta_0/\sqrt t\)</span>
 satisfies the Robbins–Monro conditions <span class="math inline">\(\sum\eta_t=\infty\)</span>,
 <span class="math inline">\(\sum\eta_t^2&lt;\infty\)</span> <span class="citation" data-cites="robbins1951sa">(Robbins and Monro 1951)</span>; default <span class="math inline">\(\eta_0=0.01\)</span>.
 Convergence to the leading eigenvectors of the running covariance is
-classical <span class="citation" data-cites="oja1982">(Oja 1982)</span>; what is new is the <em>trigger</em>, only
-rejection residuals are fed in, by construction the directions the basis
-fails to capture.</p>
+classical <span class="citation" data-cites="oja1982">(Oja 1982)</span>; what is new is the trigger, only rejection
+residuals are fed in, by construction the directions the basis fails to
+capture.</p>
+</section>
+<section id="convergence-rate-and-bias-floor." class="level7">
+<p class="heading">Convergence rate and bias floor.</p>
+<p>For a stationary covariance <span class="math inline">\(\Sigma\)</span> with eigengap
+<span class="math inline">\(\Delta=\lambda_k-\lambda_{k+1}\)</span>, Oja’s rule with the
+<span class="math inline">\(\eta_t=\eta_0/\sqrt t\)</span> schedule attains
+<span class="math inline">\(\E\norm{\Pmat_t-\Pmat^\star}_F^2 = O(d/(\Delta^2 t))\)</span> after a burn-in
+<span class="citation" data-cites="allen2017first jain2016streaming">(Allen-Zhu and Li 2017; Jain et al. 2016)</span>. For the depth-sink layer of
+Llama-3.1-8B at <span class="math inline">\(k{=}1024\)</span> the eigengap on the activation covariance is
+<span class="math inline">\(\Delta\approx 6\times 10^{-3}\)</span> (raw spectrum at
+<code>docs/figures/paper-b/v02_empirical/depth_sink_spectrum.csv</code>),
+so <span class="math inline">\(t\!\approx\!10^4\)</span> samples reduce projector error to
+<span class="math inline">\(\sim 5\times 10^{-4}\)</span>, smaller than the calibration-PCA truncation
+error at the same rank (<span class="math inline">\(\sim 10^{-3}\)</span>). Under the rejection-only
+trigger the effective sample rate is the speculative-decode rejection
+rate; on the reference run this is <span class="math inline">\(\approx 12\%\)</span> of decoded tokens, so
+<span class="math inline">\(10^4\)</span> updates corresponds to roughly <span class="math inline">\(80\,000\)</span> tokens of decoded text,
+on the order of a single long document. Beyond the burn-in the bias
+floor is <span class="math inline">\(\eta_t\,\norm{\Sigma}\!\sim\!10^{-4}\)</span> at <span class="math inline">\(\eta_0{=}0.01\)</span>, well
+below the truncation floor.</p>
+</section>
+<section id="interaction-with-rejection-sampling-unbiasedness." class="level7">
+<p class="heading">Interaction with rejection-sampling unbiasedness.</p>
+<p>Speculative decoding is exactly correct under rejection sampling
+<span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span>; rejected positions sample the same
+target distribution as accepted ones. The residual
+<span class="math inline">\(h^\text{tgt}-h^\text{drft}\)</span> at a rejection is therefore an unbiased
+measurement of the direction along which the draft model’s hidden state
+diverges from the verifier’s, and the GP basis is fitted on the
+verifier’s activations, so feeding only rejection residuals into Oja’s
+rule is equivalent to running Oja’s rule on samples of
+<span class="math inline">\(\Sigma_\text{drift}=\Sigma_\text{verifier}-\Sigma_\text{calibration}\)</span>.
+The result is a basis that tracks the calibration-to-deployment delta,
+not the absolute distribution; the calibration component is held by the
+static rows of <span class="math inline">\(W_t\)</span> already.</p>
 </section>
 <section id="per-layer-staleness." class="level7">
 <p class="heading">Per-layer staleness.</p>
@@ -798,16 +882,24 @@ fails to capture.</p>
 <code>onb_layer_state_t::version</code> is incremented on every applied
 update. GP tracks the version it last consumed; if a layer’s version
 moves ahead, the cached projection is recomputed lazily on the next
-forward. Updates apply between decode steps, queue bounded to 256, with a
-4-rejection minimum gate.</p>
+forward. Updates apply between decode steps, queue bounded to 256, with
+a 4-rejection minimum gate.</p>
 </section>
-<section id="predicted-behaviour." class="level7">
-<p class="heading">Predicted behaviour.</p>
-<p>On matched calibration/test, online
-updates should be a no-op. On linearly drifting OOD prompts, the
-Oja-decayed estimator converges to the running covariance with bias
-<span class="math inline">\(\propto\eta_t\)</span>; for <span class="math inline">\(\eta_0{=}0.01\)</span>, <span class="math inline">\(t{=}10^4\)</span> samples the bias floor is
-<span class="math inline">\(\sim 10^{-4}\)</span>, well below typical PCA truncation error.</p>
+<section id="predicted-behaviour-and-v0.2-measurement-plan." class="level7">
+<p class="heading">Predicted behaviour and v0.2 measurement plan.</p>
+<p>On matched calibration/test, online updates should be a no-op:
+rejection residuals concentrate near the existing basis and the
+<span class="math inline">\(xx^\top-\Pmat_t xx^\top\Pmat_t\)</span> correction vanishes. On linearly
+drifting OOD prompts, the Oja-decayed estimator converges to the
+running covariance with bias <span class="math inline">\(\propto\eta_t\)</span>. The v0.2 measurement plan
+is a paired A/B on a synthetic-drift corpus: one stream of Wikipedia
+text (matched-distribution control) and one stream of post-2024 code
+mixed with non-English news (deliberate drift), each <span class="math inline">\(\sim 10^5\)</span>
+decoded tokens, running frozen-basis vs. Oja-basis and reporting PPL
+trajectory plus the Frobenius distance <span class="math inline">\(\norm{\Pmat_t-\Pmat_0}_F\)</span> as a
+function of <span class="math inline">\(t\)</span>. A visual of the drift-distance trajectory will
+accompany the v0.2 release; the empty trajectory plot would be
+premature here and is intentionally omitted.</p>
 </section>
 </section>
 </section>
@@ -867,6 +959,9 @@ Cross-model intrinsic-dim numbers are reproducible via:</p>
 <div id="ref-ainslie2023gqa" class="csl-entry" role="listitem">
 Ainslie, Joshua, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit Sanghai. 2023. <em><span>GQA</span>: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</em>. <a href="https://arxiv.org/abs/2305.13245">https://arxiv.org/abs/2305.13245</a>.
 </div>
+<div id="ref-allen2017first" class="csl-entry" role="listitem">
+Allen-Zhu, Zeyuan, and Yuanzhi Li. 2017. <span>“First Efficient Convergence for Streaming k-PCA: A Global, Gap-Free, and Near-Optimal Rate.”</span> <em>Proc. FOCS</em>.
+</div>
 <div id="ref-chen2023speculative" class="csl-entry" role="listitem">
 Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>“Accelerating Large Language Model Decoding with Speculative Sampling.”</span> <em>arXiv Preprint</em>. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
 </div>
@@ -885,6 +980,12 @@ Geva, Mor, Roei Schuster, Jonathan Berant, and Omer Levy. 2021. <span>“Transfo
 <div id="ref-golub2013matrix" class="csl-entry" role="listitem">
 Golub, Gene H., and Charles F. Van Loan. 2013. <em>Matrix Computations</em>. 4th ed. Johns Hopkins University Press.
 </div>
+<div id="ref-jain2016streaming" class="csl-entry" role="listitem">
+Jain, Prateek, Chi Jin, Sham M. Kakade, Praneeth Netrapalli, and Aaron Sidford. 2016. <span>“Streaming PCA: Matching Matrix Bernstein and Near-Optimal Finite Sample Guarantees for Oja’s Algorithm.”</span> <em>Proc. COLT</em>.
+</div>
+<div id="ref-krasulina1969" class="csl-entry" role="listitem">
+Krasulina, T. P. 1969. <span>“The Method of Stochastic Approximation for the Determination of the Least Eigenvalue of a Symmetrical Matrix.”</span> <em>USSR Comp. Math. Math. Phys.</em> 9 (6): 189–95.
+</div>
 <div id="ref-leviathan2023speculative" class="csl-entry" role="listitem">
 Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference from Transformers via Speculative Decoding.”</span> <em>ICML</em>.
 </div>
@@ -893,6 +994,9 @@ Oja, Erkki. 1982. <span>“Simplified Neuron Model as a Principal Component Anal
 </div>
 <div id="ref-robbins1951sa" class="csl-entry" role="listitem">
 Robbins, Herbert, and Sutton Monro. 1951. <span>“A Stochastic Approximation Method.”</span> <em>The Annals of Mathematical Statistics</em> 22 (3): 400–407.
+</div>
+<div id="ref-shamir2015fast" class="csl-entry" role="listitem">
+Shamir, Ohad. 2015. <span>“A Stochastic PCA and SVD Algorithm with an Exponential Convergence Rate.”</span> <em>Proc. ICML</em>.
 </div>
 <div id="ref-stewart2026grc" class="csl-entry" role="listitem">
 Stewart, William Ken Ohara. 2026. <span>“Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression.”</span> <em>HyperTensor Companion Paper, to Appear</em>.
