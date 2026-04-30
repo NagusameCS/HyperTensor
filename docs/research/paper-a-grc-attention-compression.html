@@ -527,10 +527,24 @@ attention-specific cache-fit prediction.</p>
 attention-projection <code>gemv_q4_k(512)</code> L2 hit-rate rises from <span class="math inline">\(7.47\%\)</span>
 to <span class="math inline">\(12.15\%\)</span> (<span class="math inline">\(+4.68\)</span> pp). This is the kernel whose weight working set GRC
 directly shrinks. The <span class="math inline">\(+4.68\)</span> pp improvement is consistent with the
-geometric prediction: reducing the attention working set from <span class="math inline">\(\sim 25\)</span> MB
-(full <span class="math inline">\(d{=}4096\)</span> Q/K/V) to <span class="math inline">\(\sim 10\)</span> MB (projected <span class="math inline">\(k{=}1024\)</span>) moves it
-from a regime where it competes with FFN for L2 capacity into one where
-there is headroom. We report both numbers in <a href="#tab:ncu-l2" data-reference-type="ref+Label" data-reference="tab:ncu-l2">2</a> so the
+geometric prediction that reducing the compressed-weight footprint from
+<span class="math inline">\({\sim}25\)</span> MB (full <span class="math inline">\(d{=}4096\)</span> Q/K/V) to <span class="math inline">\({\sim}10\)</span> MB (projected
+<span class="math inline">\(k{=}1024\)</span>) reduces L2 competition.</p>
+<p>One caveat is required for the DRAM column: the measured DRAM for
+<code>gemv_q4_k(512)</code> rises from <span class="math inline">\(9.46\)</span> MB to <span class="math inline">\(18.47\)</span> MB in GRC mode,
+not falls. This is expected: in GRC mode the same kernel is also responsible
+for applying the stored basis matrix <span class="math inline">\(P_k\)</span> (<span class="math inline">\(d{\times}k\)</span> in FP16, <span class="math inline">\({\sim}8\)</span> MB
+per call), so total bytes read per dispatch includes both the compressed
+weight tensor and the basis vectors. The theoretical <span class="math inline">\({\sim}10\)</span> MB refers
+strictly to the compressed weight portion; it does not account for the
+additional <span class="math inline">\(P_k\)</span> read. A multi-<span class="math inline">\(k\)</span> sweep isolating weight reads from basis
+reads is the experiment that would cleanly separate these contributions and
+is listed under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>. The L2 hit-rate improvement (<span class="math inline">\(+4.68\)</span> pp)
+is the primary evidence: it measures the fraction of sectors served from L2
+regardless of which data source, and it rises with compression even as total
+DRAM rises, indicating that the compressed data layout or reduced working-set
+pressure has improved cache utilisation in the attention path.</p>
+<p>We report both numbers in <a href="#tab:ncu-l2" data-reference-type="ref+Label" data-reference="tab:ncu-l2">2</a> so the
 reader can verify: the FFN row is flat (GRC does not touch it), and the
 attention projection row is up.</p>
 <p>The quantitative statement therefore has two parts. First, the
@@ -571,15 +585,16 @@ and
 viable (calculation, not measurement). Optimal <span class="math inline">\(k^\star\)</span> is the
 largest power-of-two <span class="math inline">\(k\)</span> for which the attention working set
 <span class="math inline">\(W_\text{set}(k)+\text{KV}+\text{residual}\)</span> fits L2 with <span class="math inline">\(25\)</span> %
-headroom; the original derivation interpreted this as predicting an
-L2-residency speed-up, but the NCU trace in <a href="#sec:cachefit-ncu" data-reference-type="ref+Label" data-reference="sec:cachefit-ncu">6.2</a>
-refutes that mechanism (L2 hit-rate at <span class="math inline">\(k{=}1024\)</span> is <span class="math inline">\(16.3\)</span> % vs. <span class="math inline">\(17.0\)</span> % at baseline). The capacity bound is retained because it
-correctly predicted the rank (<span class="math inline">\(k{=}1024\)</span>) at which the fused dual-Q8
-GEMV trio becomes launch-throughput-bound on the test GPU; the
-“Predicted <span class="math inline">\(T/T_\text{base}\)</span>” column should therefore be read as a
-fusion-viability indicator, not as a residency prediction. Validation
-on RTX 4090 / A100 / H100 is filed under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a> and is the
-critical experiment for cross-GPU generalisation.</caption>
+headroom. The NCU trace in <a href="#sec:cachefit-ncu" data-reference-type="ref+Label" data-reference="sec:cachefit-ncu">6.2</a> supports this
+prediction: the attention-projection kernel shows a measured
+<span class="math inline">\(+4.68\)</span> pp L2 hit-rate improvement at <span class="math inline">\(k{=}1024\)</span> (<span class="math inline">\(7.47\%\to12.15\%\)</span>),
+consistent with the geometric model. The capacity bound also correctly
+predicted the rank (<span class="math inline">\(k{=}1024\)</span>) at which the fused dual-Q8
+GEMV trio becomes viable on the test GPU, so the
+“Predicted <span class="math inline">\(T/T_\text{base}\)</span>” column carries a dual interpretation:
+both L2 residency benefit and fusion-viability indicator.
+Validation on RTX 4090 / A100 / H100 is filed under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>
+and is the critical experiment for cross-GPU generalisation.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">GPU</th>
@@ -1144,7 +1159,12 @@ explicitly listed as a limitation.</caption>
 </table>
 <p>First-run calibration time (CPU-bound truncated SVD over 32 layers <span class="math inline">\(\times\)</span>
 3 weight sets, dequantised Q4_K_M <span class="math inline">\(\to\)</span> fp32) is 60–120 s on the
-Ryzen 9 7940HS; warm cache hit elides this entirely.</p>
+Ryzen 9 7940HS; warm cache hit elides this entirely.
+The <span class="math inline">\(\Wmat_\text{proj}\)</span> cache file is a self-contained, model-specific
+binary artefact. It can be distributed independently of the model file:
+any session (on any machine) that holds both the GGUF model and the
+matching cache file incurs zero calibration time. Two separate inference
+sessions sharing the same cache file will produce bit-identical outputs.</p>
 </section>
 <section id="vram-profile" class="level3">
 <h3>VRAM profile</h3>
@@ -1731,6 +1751,12 @@ Yuan, Zhihang, Yuzhang Shang, Yang Zhou, et al. 2024. <em><span>LLM</span> Infer
 </div>
 </div>
 </section>
+</section>
+<section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>A relative penalty can be misleading without anchoring to the absolute scale: <span class="math inline">\(+13\%\)</span> on a PPL of <span class="math inline">\(6.79\)</span> yields <span class="math inline">\(7.69\)</span>, which remains in good-quality territory. The same relative penalty applied to a model with PPL <span class="math inline">\(50\)</span> would yield <span class="math inline">\(56.5\)</span>, a qualitatively different situation.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
 </section>
 </article>
 
