@@ -2382,19 +2382,20 @@
     <bcf:citekey order="3" intorder="1">leviathan2023speculative</bcf:citekey>
     <bcf:citekey order="3" intorder="2">chen2023speculative</bcf:citekey>
     <bcf:citekey order="4" intorder="1">kwon2023vllm</bcf:citekey>
-    <bcf:citekey order="5" intorder="1">leviathan2023speculative</bcf:citekey>
-    <bcf:citekey order="5" intorder="2">chen2023speculative</bcf:citekey>
+    <bcf:citekey order="5" intorder="1">stewart2026grc</bcf:citekey>
     <bcf:citekey order="6" intorder="1">leviathan2023speculative</bcf:citekey>
     <bcf:citekey order="6" intorder="2">chen2023speculative</bcf:citekey>
-    <bcf:citekey order="6" intorder="3">cai2024medusa</bcf:citekey>
-    <bcf:citekey order="6" intorder="4">li2024eagle</bcf:citekey>
-    <bcf:citekey order="7" intorder="1">cai2024medusa</bcf:citekey>
-    <bcf:citekey order="8" intorder="1">leviathan2023speculative</bcf:citekey>
-    <bcf:citekey order="9" intorder="1">chen2023speculative</bcf:citekey>
-    <bcf:citekey order="10" intorder="1">li2024eagle</bcf:citekey>
-    <bcf:citekey order="11" intorder="1">cai2024medusa</bcf:citekey>
-    <bcf:citekey order="12" intorder="1">kwon2023vllm</bcf:citekey>
-    <bcf:citekey order="13" intorder="1">xiao2023streamingllm</bcf:citekey>
+    <bcf:citekey order="7" intorder="1">leviathan2023speculative</bcf:citekey>
+    <bcf:citekey order="7" intorder="2">chen2023speculative</bcf:citekey>
+    <bcf:citekey order="7" intorder="3">cai2024medusa</bcf:citekey>
+    <bcf:citekey order="7" intorder="4">li2024eagle</bcf:citekey>
+    <bcf:citekey order="8" intorder="1">cai2024medusa</bcf:citekey>
+    <bcf:citekey order="9" intorder="1">leviathan2023speculative</bcf:citekey>
+    <bcf:citekey order="10" intorder="1">chen2023speculative</bcf:citekey>
+    <bcf:citekey order="11" intorder="1">li2024eagle</bcf:citekey>
+    <bcf:citekey order="12" intorder="1">cai2024medusa</bcf:citekey>
+    <bcf:citekey order="13" intorder="1">kwon2023vllm</bcf:citekey>
+    <bcf:citekey order="14" intorder="1">xiao2023streamingllm</bcf:citekey>
   </bcf:section>
   <!-- SORTING TEMPLATES -->
   <bcf:sortingtemplate name="none">

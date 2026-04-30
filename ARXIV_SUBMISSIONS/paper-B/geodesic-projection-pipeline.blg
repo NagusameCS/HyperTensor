@@ -1,15 +1,15 @@
 [0] Config.pm:328> INFO - This is Biber 2.21
 [0] Config.pm:331> INFO - Logfile is 'geodesic-projection-pipeline.blg'
 [45] biber-MSWIN64:342> INFO - === 
-[58] Biber.pm:421> INFO - Reading 'geodesic-projection-pipeline.bcf'
-[129] Biber.pm:1002> INFO - Found 16 citekeys in bib section 0
-[140] Biber.pm:4487> INFO - Processing section 0
-[149] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
-[159] bibtex.pm:1713> INFO - LaTeX decoding ...
-[197] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
-[287] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[287] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
-[287] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
-[287] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
-[295] bbl.pm:676> INFO - Writing 'geodesic-projection-pipeline.bbl' with encoding 'UTF-8'
-[302] bbl.pm:779> INFO - Output to geodesic-projection-pipeline.bbl
+[61] Biber.pm:421> INFO - Reading 'geodesic-projection-pipeline.bcf'
+[135] Biber.pm:1002> INFO - Found 16 citekeys in bib section 0
+[146] Biber.pm:4487> INFO - Processing section 0
+[155] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[166] bibtex.pm:1713> INFO - LaTeX decoding ...
+[209] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[305] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[305] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[305] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[305] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[313] bbl.pm:676> INFO - Writing 'geodesic-projection-pipeline.bbl' with encoding 'UTF-8'
+[321] bbl.pm:779> INFO - Output to geodesic-projection-pipeline.bbl

@@ -416,7 +416,7 @@ BW_\text{HBM}\;\;(256\,\text{GB/s}) &amp; S(k)&gt;C_\text{L2},
 \end{cases}
 \label{eq:bweff}
 \end{equation}\]</span>
-with <span class="math inline">\(C_\text{L2}=32\)</span> MB on the test GPU. The transition is not sharp ,
+with <span class="math inline">\(C_\text{L2}=32\)</span> MB on the test GPU. The transition is not sharp;
 L1/register pressure and KV-cache traffic spread it over a band of <span class="math inline">\(k\)</span>
 values, but the order of magnitude jump in <span class="math inline">\(BW_\text{eff}\)</span> at the
 crossing is what makes the super-baseline numerically possible: a <span class="math inline">\(\sim\!10\times\)</span>
@@ -546,9 +546,19 @@ and
 .</p>
 <div id="tab:predict">
 <table>
-<caption>Predicted cache-fit ranks across GPUs (calculation, not
-measurement). Optimal <span class="math inline">\(k^\star\)</span> is the largest power-of-two <span class="math inline">\(k\)</span> for which
-<span class="math inline">\(W_\text{set}(k)+\text{KV}+\text{residual}\!&lt;\!\text{L2}\)</span> with 25% headroom.</caption>
+<caption>Predicted ranks at which the kernel-fusion path becomes
+viable (calculation, not measurement). Optimal <span class="math inline">\(k^\star\)</span> is the
+largest power-of-two <span class="math inline">\(k\)</span> for which the attention working set
+<span class="math inline">\(W_\text{set}(k)+\text{KV}+\text{residual}\)</span> fits L2 with <span class="math inline">\(25\)</span> %
+headroom; the original derivation interpreted this as predicting an
+L2-residency speed-up, but the NCU trace in <a href="#sec:cachefit-ncu" data-reference-type="ref+Label" data-reference="sec:cachefit-ncu">6.2</a>
+refutes that mechanism (L2 hit-rate at <span class="math inline">\(k{=}1024\)</span> is <span class="math inline">\(16.3\)</span> % vs. <span class="math inline">\(17.0\)</span> % at baseline). The capacity bound is retained because it
+correctly predicted the rank (<span class="math inline">\(k{=}1024\)</span>) at which the fused dual-Q8
+GEMV trio becomes launch-throughput-bound on the test GPU; the
+“Predicted <span class="math inline">\(T/T_\text{base}\)</span>” column should therefore be read as a
+fusion-viability indicator, not as a residency prediction. Validation
+on RTX 4090 / A100 / H100 is filed under <a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a> and is the
+critical experiment for cross-GPU generalisation.</caption>
 <thead>
 <tr>
 <th style="text-align: left;">GPU</th>
@@ -1194,8 +1204,8 @@ same energy capture.</caption>
 <section id="confidence-interval-pack-12-rep" class="level3">
 <h3>Confidence-interval pack (12-rep)</h3>
 <table>
-<caption>Per-class CI bounds. GRC variance is <span class="math inline">\({\sim}6\times\)</span> baseline ,
-<span class="math inline">\(\pm 2\)</span> tok/s vs. <span class="math inline">\(\pm 0.3\)</span> tok/s, because L2 residency varies with
+<caption>Per-class CI bounds. GRC variance is <span class="math inline">\({\sim}6\times\)</span> baseline
+(<span class="math inline">\(\pm 2\)</span> tok/s vs. <span class="math inline">\(\pm 0.3\)</span> tok/s) because L2 residency varies with
 prompt-induced access patterns. Worst-case lower-95% bound is 86% of
 baseline, well above the 67% gate.</caption>
 <thead>
@@ -1240,7 +1250,7 @@ out of L2.</figcaption>
 <figcaption>Per-layer rank required for 90%, 95% and 99% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B. The flat
 plateau between <span class="math inline">\(L{=}5\)</span> and <span class="math inline">\(L{=}28\)</span> shows that a <em>single</em> compression
-rank (here <span class="math inline">\(k{=}1024\)</span>) is geometry-justified for the bulk of the network ,
+rank (here <span class="math inline">\(k{=}1024\)</span>) is geometry-justified for the bulk of the network:
 the per-layer “what would be needed for 95%” band sits in the
 <span class="math inline">\(1\,400\)</span>–<span class="math inline">\(1\,800\)</span> range, and dropping to <span class="math inline">\(k{=}1024\)</span> trades a known small
 energy fraction for the cache-fit gain measured in <a href="#tab:headline" data-reference-type="ref+Label" data-reference="tab:headline">1</a>.

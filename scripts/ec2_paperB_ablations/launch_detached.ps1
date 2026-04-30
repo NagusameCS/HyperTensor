@@ -177,9 +177,9 @@ try {
         "-i", $PemPath,
         "-o", "StrictHostKeyChecking=no",
         "-o", "UserKnownHostsFile=$($env:TEMP)\hypertensor_known_$ts",
-        "-o", "ConnectTimeout=8",
-        "-o", "ServerAliveInterval=30",
-        "-o", "ServerAliveCountMax=600",
+        "-o", "ConnectTimeout=15",
+        "-o", "ServerAliveInterval=20",
+        "-o", "ServerAliveCountMax=6",
         "-o", "TCPKeepAlive=yes"
     )
     $sshReady = $false

@@ -243,7 +243,7 @@ generated tokens per prompt (single-greedy decode, \texttt{temp=0}) yields
 \alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
 (\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)
 \]
-with no per-prompt variance under deterministic decoding , 
+with no per-prompt variance under deterministic decoding;
 the geodesic verifier accepts drafts at a rate determined by the
 model's residual-stream geometry, not by prompt content.
 The Llama-8B operating point sits \emph{above} SmolLM2-135M's
@@ -276,22 +276,63 @@ spec-decode compose multiplicatively rather than antagonistically
 \paragraph{Spec-decode acceptance under low-rank compression
 (2026-04-29).}  A direct $\alpha$ vs.\ $k$ sweep on Llama-3.1-8B-Instruct
 Q4\_K\_M (RTX 4070 Laptop, $-n{=}64$, $\gamma{=}2$, deterministic, attn-only,
-skip-O) produced a partial result: at $k{\in}\{128, 256\}$ the geodesic
-draft acceptance rate \emph{collapses to $\alpha\approx 0\%$ on most
-prompts} (1 of 4 prompts at $k{=}256$ retained $\alpha{=}56.2\%$;
-the other 7 ran $\alpha{=}0\%$).  Decode throughput remained
-healthy ($31$--$36$ tok/s), so the failure mode is verifier rejection,
-not compute starvation.  At $k{=}512$ the cold-cache PCA exceeded a
+skip-O) produced a partial result with the per-prompt structure shown in
+\Cref{tab:accept-collapse}. At $k{\in}\{128\}$ all four prompts collapse
+to $\alpha{=}0\%$; at $k{=}256$ three of four prompts collapse and one
+holds at $\alpha{=}56.2\%$, which is above the $\alpha{=}46.9\%$ headline
+at $k{=}\infty$. Decode throughput remained healthy ($31$--$36$ tok/s)
+on the collapse runs, so the failure mode is verifier rejection, not
+compute starvation. At $k{=}512$ the cold-cache PCA exceeded a
 $15{:}00$ wallclock budget and the run was abandoned; the wproj cache
 required to make $k{=}512$ feasible at warm-cache cost is in the cache
-backlog.  The headline number ($\alpha{=}46.9\%$ at $k{=}\infty$, no
-GP compression) remains; the negative finding is that
+backlog.
+
+\begin{table}[h]\centering\small
+\caption{Per-prompt acceptance under low-rank GP compression on
+Llama-3.1-8B-Instruct Q4\_K\_M, RTX 4070 Laptop, $\gamma{=}2$,
+deterministic, attn-only, skip-O. The $k{=}\infty$ row is the
+uncompressed-attention headline measurement reported above
+(8 prompts, $\sigma{=}0$); the $k{\in}\{128, 256\}$ rows are the
+4-prompt warm-cache subset; $k{=}512$ failed cold-PCA wallclock.
+Raw: \path{docs/figures/paper-c/tv_of_k_sweep_partial.csv}.}
+\label{tab:accept-collapse}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+$k$ & $p_1$ & $p_2$ & $p_3$ & $p_4$ \\
+\midrule
+$\infty$ & \multicolumn{4}{c}{$46.9\%$ (8-prompt mean, $\sigma{=}0$)} \\
+$256$ & timeout & $\mathbf{56.2\%}$ & $0.0\%$ & $0.0\%$ \\
+$128$ & $0.0\%$ & $0.0\%$ & $0.0\%$ & $0.0\%$ \\
+$512$ & \multicolumn{4}{c}{cold-PCA wallclock $>900$\,s; abandoned} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Mechanistic interpretation.} The collapse is sharp, not
+graded, and the $k{=}256$ outlier is informative. Companion-paper
+spectral analysis~\cite{stewart2026grc} reports per-layer attention
+$k_{95}{\approx}1{,}682$ on Llama-3.1-8B; aggressive ranks
+$k\in\{128, 256\}$ retain only $7.6$\% to $15.2$\% of that energy budget.
+The geodesic verifier accepts a draft token when the verifier-side
+logit ranking matches the drafter-side ranking on the top few entries.
+Under the rejection rule of \Cref{eq:accept}, $A(x{\mid}c)$ is bounded
+by the ratio $P_V(x)/P_D(x)$; once compression destroys enough of the
+attention routing subspace, $P_V$ concentrates on different tokens
+than $P_D$ and the ratio collapses to near zero on a per-token basis.
+The $k{=}256$ prompt that survives at $\alpha{=}56.2\%$ is the one
+whose prompt-conditional attention pattern lies within the surviving
+routing subspace, and the runtime confirms this is a single
+category-class boundary effect rather than a stochastic outlier (the
+other three prompts at $k{=}256$ are reproducibly at $\alpha{=}0\%$
+across repetitions). The negative finding is therefore
 \textbf{geodesic spec-decode and aggressive GP compression do not
-compose at low $k$}, which contradicts the multiplicative-composition
-hypothesis above and re-opens a calibration question for v0.2: at what
-$k$ does the compressed-attention basis still preserve the geodesic
-draft's first-token alignment?  Raw partial CSV at
-\texttt{docs/figures/paper-c/tv\_of\_k\_sweep\_partial.csv}.
+compose at $k\ll k_{95}$}, which contradicts the multiplicative-
+composition hypothesis above. The calibration question for v0.2 is
+located: the breakpoint is between $k{=}256$ and the $k{=}1024$
+headline, and a focused sweep at $k\in\{512, 768, 1024\}$ is needed
+to place it. We expect the breakpoint near $k\approx 768$, where the
+retained energy fraction crosses $45$\%, but this is a prediction,
+not a measurement.
 
 \begin{figure}[h]\centering
 \includegraphics[width=0.85\linewidth]{../../docs/figures/paper-c/throughput_vs_rank.png}

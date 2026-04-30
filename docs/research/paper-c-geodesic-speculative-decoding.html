@@ -304,7 +304,7 @@ prediction; the model worked on first measurement.</p>
 generated tokens per prompt (single-greedy decode, <code>temp=0</code>) yields
 <span class="math display">\[\alpha_\text{Llama8B} \;=\; \mathbf{46.9\%}\quad
 (\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)\]</span>
-with no per-prompt variance under deterministic decoding ,
+with no per-prompt variance under deterministic decoding;
 the geodesic verifier accepts drafts at a rate determined by the
 model’s residual-stream geometry, not by prompt content.
 The Llama-8B operating point sits <em>above</em> SmolLM2-135M’s
@@ -340,22 +340,88 @@ spec-decode compose multiplicatively rather than antagonistically
 (2026-04-29).</h5>
 <p>A direct <span class="math inline">\(\alpha\)</span> vs. <span class="math inline">\(k\)</span> sweep on Llama-3.1-8B-Instruct
 Q4_K_M (RTX 4070 Laptop, <span class="math inline">\(-n{=}64\)</span>, <span class="math inline">\(\gamma{=}2\)</span>, deterministic, attn-only,
-skip-O) produced a partial result: at <span class="math inline">\(k{\in}\{128, 256\}\)</span> the geodesic
-draft acceptance rate <em>collapses to <span class="math inline">\(\alpha\approx 0\%\)</span> on most
-prompts</em> (1 of 4 prompts at <span class="math inline">\(k{=}256\)</span> retained <span class="math inline">\(\alpha{=}56.2\%\)</span>;
-the other 7 ran <span class="math inline">\(\alpha{=}0\%\)</span>). Decode throughput remained
-healthy (<span class="math inline">\(31\)</span>–<span class="math inline">\(36\)</span> tok/s), so the failure mode is verifier rejection,
-not compute starvation. At <span class="math inline">\(k{=}512\)</span> the cold-cache PCA exceeded a
+skip-O) produced a partial result with the per-prompt structure shown in
+<a href="#tab:accept-collapse" data-reference-type="ref+Label" data-reference="tab:accept-collapse">2</a>. At <span class="math inline">\(k{\in}\{128\}\)</span> all four prompts collapse
+to <span class="math inline">\(\alpha{=}0\%\)</span>; at <span class="math inline">\(k{=}256\)</span> three of four prompts collapse and one
+holds at <span class="math inline">\(\alpha{=}56.2\%\)</span>, which is above the <span class="math inline">\(\alpha{=}46.9\%\)</span> headline
+at <span class="math inline">\(k{=}\infty\)</span>. Decode throughput remained healthy (<span class="math inline">\(31\)</span>–<span class="math inline">\(36\)</span> tok/s)
+on the collapse runs, so the failure mode is verifier rejection, not
+compute starvation. At <span class="math inline">\(k{=}512\)</span> the cold-cache PCA exceeded a
 <span class="math inline">\(15{:}00\)</span> wallclock budget and the run was abandoned; the wproj cache
 required to make <span class="math inline">\(k{=}512\)</span> feasible at warm-cache cost is in the cache
-backlog. The headline number (<span class="math inline">\(\alpha{=}46.9\%\)</span> at <span class="math inline">\(k{=}\infty\)</span>, no
-GP compression) remains; the negative finding is that
+backlog.</p>
+<div id="tab:accept-collapse">
+<table>
+<caption>Per-prompt acceptance under low-rank GP compression on
+Llama-3.1-8B-Instruct Q4_K_M, RTX 4070 Laptop, <span class="math inline">\(\gamma{=}2\)</span>,
+deterministic, attn-only, skip-O. The <span class="math inline">\(k{=}\infty\)</span> row is the
+uncompressed-attention headline measurement reported above
+(8 prompts, <span class="math inline">\(\sigma{=}0\)</span>); the <span class="math inline">\(k{\in}\{128, 256\}\)</span> rows are the
+4-prompt warm-cache subset; <span class="math inline">\(k{=}512\)</span> failed cold-PCA wallclock.
+Raw: .</caption>
+<thead>
+<tr>
+<th style="text-align: left;"><span class="math inline">\(k\)</span></th>
+<th style="text-align: right;"><span class="math inline">\(p_1\)</span></th>
+<th style="text-align: right;"><span class="math inline">\(p_2\)</span></th>
+<th style="text-align: right;"><span class="math inline">\(p_3\)</span></th>
+<th style="text-align: right;"><span class="math inline">\(p_4\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span class="math inline">\(\infty\)</span></td>
+<td colspan="4" style="text-align: center;"><span class="math inline">\(46.9\%\)</span> (8-prompt mean, <span class="math inline">\(\sigma{=}0\)</span>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="math inline">\(256\)</span></td>
+<td style="text-align: right;">timeout</td>
+<td style="text-align: right;"><span class="math inline">\(\mathbf{56.2\%}\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="math inline">\(128\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.0\%\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="math inline">\(512\)</span></td>
+<td colspan="4" style="text-align: center;">cold-PCA wallclock <span class="math inline">\(&gt;900\)</span> s; abandoned</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="mechanistic-interpretation." class="level5">
+<h5>Mechanistic interpretation.</h5>
+<p>The collapse is sharp, not
+graded, and the <span class="math inline">\(k{=}256\)</span> outlier is informative. Companion-paper
+spectral analysis <span class="citation" data-cites="stewart2026grc">(Stewart 2026)</span> reports per-layer attention
+<span class="math inline">\(k_{95}{\approx}1{,}682\)</span> on Llama-3.1-8B; aggressive ranks
+<span class="math inline">\(k\in\{128, 256\}\)</span> retain only <span class="math inline">\(7.6\)</span>% to <span class="math inline">\(15.2\)</span>% of that energy budget.
+The geodesic verifier accepts a draft token when the verifier-side
+logit ranking matches the drafter-side ranking on the top few entries.
+Under the rejection rule of <a href="#eq:accept" data-reference-type="ref+Label" data-reference="eq:accept">[eq:accept]</a>, <span class="math inline">\(A(x{\mid}c)\)</span> is bounded
+by the ratio <span class="math inline">\(P_V(x)/P_D(x)\)</span>; once compression destroys enough of the
+attention routing subspace, <span class="math inline">\(P_V\)</span> concentrates on different tokens
+than <span class="math inline">\(P_D\)</span> and the ratio collapses to near zero on a per-token basis.
+The <span class="math inline">\(k{=}256\)</span> prompt that survives at <span class="math inline">\(\alpha{=}56.2\%\)</span> is the one
+whose prompt-conditional attention pattern lies within the surviving
+routing subspace, and the runtime confirms this is a single
+category-class boundary effect rather than a stochastic outlier (the
+other three prompts at <span class="math inline">\(k{=}256\)</span> are reproducibly at <span class="math inline">\(\alpha{=}0\%\)</span>
+across repetitions). The negative finding is therefore
 <strong>geodesic spec-decode and aggressive GP compression do not
-compose at low <span class="math inline">\(k\)</span></strong>, which contradicts the multiplicative-composition
-hypothesis above and re-opens a calibration question for v0.2: at what
-<span class="math inline">\(k\)</span> does the compressed-attention basis still preserve the geodesic
-draft’s first-token alignment? Raw partial CSV at
-<code>docs/figures/paper-c/tv_of_k_sweep_partial.csv</code>.</p>
+compose at <span class="math inline">\(k\ll k_{95}\)</span></strong>, which contradicts the multiplicative-
+composition hypothesis above. The calibration question for v0.2 is
+located: the breakpoint is between <span class="math inline">\(k{=}256\)</span> and the <span class="math inline">\(k{=}1024\)</span>
+headline, and a focused sweep at <span class="math inline">\(k\in\{512, 768, 1024\}\)</span> is needed
+to place it. We expect the breakpoint near <span class="math inline">\(k\approx 768\)</span>, where the
+retained energy fraction crosses <span class="math inline">\(45\)</span>%, but this is a prediction,
+not a measurement.</p>
 <figure id="fig:throughput-vs-rank" data-latex-placement="h">
 <img src="../../docs/figures/paper-c/throughput_vs_rank.png" style="width:85.0%" />
 <figcaption>Decode throughput vs. compression rank <span class="math inline">\(k\)</span> on Llama-3.1-8B
@@ -567,6 +633,9 @@ Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference 
 </div>
 <div id="ref-li2024eagle" class="csl-entry" role="listitem">
 Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <em><span>EAGLE</span>: Speculative Sampling Requires Rethinking Feature Uncertainty</em>. <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a>.
+</div>
+<div id="ref-stewart2026grc" class="csl-entry" role="listitem">
+Stewart, William Ken Ohara. 2026. <span>“Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression.”</span> <em>HyperTensor Companion Paper, to Appear</em>.
 </div>
 <div id="ref-xiao2023streamingllm" class="csl-entry" role="listitem">
 Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.

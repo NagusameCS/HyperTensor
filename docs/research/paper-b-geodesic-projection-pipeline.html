@@ -940,9 +940,20 @@ quantisation boundary is uncharacterised.</p></li>
 <li><p>Cache invalidation forces a full rebuild (<span class="math inline">\(\sim 70\)</span> min for the 70B
 target), making model upgrades an event rather than a transparent rolling
 deploy.</p></li>
-<li><p>FFN-only configurations are observably slower than baseline at
-<span class="math inline">\(k{=}1024\)</span>; the FFN spectrum is too flat for the attention-only construction
-to be a net win. We have not characterised this with a full sweep.</p></li>
+<li><p><strong>FFN-only configurations are not yet quantified end-to-end.</strong>
+A preliminary single-prompt run at <span class="math inline">\(k{=}1024\)</span> on Llama-3.1-8B-Instruct
+Q4_K_M (RTX 4070 Laptop) produced no measurable speed-up over
+baseline; this is consistent with the <span class="math inline">\(k_{95}\)</span> spectrum analysis (FFN
+<span class="math inline">\(k_{95}/d{\approx}0.85\)</span> vs. attention <span class="math inline">\(k_{95}/d{\approx}0.41\)</span>, see
+companion paper <span class="citation" data-cites="stewart2026grc">(Stewart 2026)</span> Section “Spectral evidence for
+compressing attention only”), which predicts that the FFN spectrum is
+too flat for low-rank substitution to be a net win at this rank. We
+flag this as the spectrum predicting a null result rather than a
+characterised regression: a full FFN-only sweep at
+<span class="math inline">\(k\in\{512, 768, 1024, 1536\}\)</span> with <span class="math inline">\(n_\text{prompts}{=}8\)</span> and
+<span class="math inline">\(\geq 6\)</span> repetitions per cell is a v0.2 milestone. Until then we do
+not claim a regression number, only that the design rationale of GP
+(attention-first) is consistent with the spectrum.</p></li>
 </ul>
 </section>
 <section id="sec:repro" class="level4">

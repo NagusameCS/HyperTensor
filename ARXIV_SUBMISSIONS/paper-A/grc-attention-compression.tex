@@ -348,7 +348,7 @@ BW_\text{HBM}\;\;(256\,\text{GB/s}) & S(k)>C_\text{L2},
 \end{cases}
 \label{eq:bweff}
 \end{equation}
-with $C_\text{L2}=32$\,MB on the test GPU.  The transition is not sharp , 
+with $C_\text{L2}=32$\,MB on the test GPU.  The transition is not sharp;
 L1/register pressure and KV-cache traffic spread it over a band of $k$
 values, but the order of magnitude jump in $BW_\text{eff}$ at the
 crossing is what makes the super-baseline numerically possible: a $\sim\!10\times$
@@ -436,9 +436,20 @@ Raw CSVs and the parser are at
 \path{docs/figures/paper-a/ncu/{baseline,k1024}_raw.txt}.
 
 \begin{table}[h]\centering\small
-\caption{Predicted cache-fit ranks across GPUs (calculation, not
-measurement).  Optimal $k^\star$ is the largest power-of-two $k$ for which
-$W_\text{set}(k)+\text{KV}+\text{residual}\!<\!\text{L2}$ with 25\% headroom.}
+\caption{Predicted ranks at which the kernel-fusion path becomes
+viable (calculation, not measurement). Optimal $k^\star$ is the
+largest power-of-two $k$ for which the attention working set
+$W_\text{set}(k)+\text{KV}+\text{residual}$ fits L2 with $25$\,\%
+headroom; the original derivation interpreted this as predicting an
+L2-residency speed-up, but the NCU trace in \Cref{sec:cachefit-ncu}
+refutes that mechanism (L2 hit-rate at $k{=}1024$ is $16.3$\,\% vs.\
+$17.0$\,\% at baseline). The capacity bound is retained because it
+correctly predicted the rank ($k{=}1024$) at which the fused dual-Q8
+GEMV trio becomes launch-throughput-bound on the test GPU; the
+``Predicted $T/T_\text{base}$'' column should therefore be read as a
+fusion-viability indicator, not as a residency prediction. Validation
+on RTX 4090 / A100 / H100 is filed under \Cref{sec:future} and is the
+critical experiment for cross-GPU generalisation.}
 \label{tab:predict}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
@@ -816,8 +827,8 @@ FFN down     & 3407--3525 & 0.85 & far exceeds GRC rank\\
 \subsection{Confidence-interval pack (12-rep)}
 
 \begin{table}[h]\centering\footnotesize
-\caption{Per-class CI bounds. GRC variance is ${\sim}6\times$ baseline , 
-$\pm 2$\,tok/s vs.\ $\pm 0.3$\,tok/s, because L2 residency varies with
+\caption{Per-class CI bounds. GRC variance is ${\sim}6\times$ baseline
+($\pm 2$\,tok/s vs.\ $\pm 0.3$\,tok/s) because L2 residency varies with
 prompt-induced access patterns. Worst-case lower-95\% bound is 86\% of
 baseline, well above the 67\% gate.}
 \begin{tabular}{@{}lrrrr@{}}
@@ -848,7 +859,7 @@ out of L2.}
 \caption{Per-layer rank required for 90\%, 95\% and 99\% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B.  The flat
 plateau between $L{=}5$ and $L{=}28$ shows that a \emph{single} compression
-rank (here $k{=}1024$) is geometry-justified for the bulk of the network , 
+rank (here $k{=}1024$) is geometry-justified for the bulk of the network:
 the per-layer ``what would be needed for 95\%'' band sits in the
 $1\,400$--$1\,800$ range, and dropping to $k{=}1024$ trades a known small
 energy fraction for the cache-fit gain measured in \Cref{tab:headline}.
