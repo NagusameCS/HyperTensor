@@ -702,38 +702,40 @@ footer a:hover { text-decoration: underline; }
     </p>
 
     <div class="papers-grid">
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1024">
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-FFBC2BB6">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1024</span></div>
         <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1024 cache</h3>
-        <p>Pre-computed shared-basis projection cache for the Paper&nbsp;A
-        super-baseline configuration. ~1.07&nbsp;GB. VRAM at decode:
+        <p>Pre-computed shared-basis projection cache for a Paper&nbsp;A
+        super-baseline configuration. 729&nbsp;MB. VRAM at decode:
         +36&nbsp;MiB over baseline. Skip first-run calibration
         (60-120&nbsp;s on Ryzen&nbsp;9 7940HS).</p>
       </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1536">
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-2405A3B6">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536</span></div>
         <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 cache</h3>
         <p>Headline configuration: throughput statistically indistinguishable
-        from baseline at +13.30% perplexity (6.79 -&gt; 7.69). ~1.07&nbsp;GB.
+        from baseline at +13.30% perplexity (6.79 -&gt; 7.69). 1.09&nbsp;GB.
         VRAM same as above.</p>
       </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/ott-cache-llama31-8b-q4km">
-        <div class="paper-head"><span class="paper-num">OTT</span><span class="paper-version">cache</span></div>
-        <h3>OTT hidden-state cache snapshot</h3>
-        <p>Pre-warmed one-decode hidden state for the OTT/GTC manifold runtime
-        (Paper&nbsp;D). 1.0&nbsp;GB. Required for verifier-side speculative
-        decoding warm-start.</p>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-626D1BB6">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=2048</span></div>
+        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=2048 cache</h3>
+        <p>Higher-rank reference point used in the multi-k NCU sweep
+        (Paper&nbsp;A sec:falsification). 1.46&nbsp;GB. Working set still
+        below the 32&nbsp;MiB L2 budget.</p>
       </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1280">
-        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1280</span></div>
-        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1280 cache</h3>
-        <p>Intermediate rank used in the multi-k NCU sweep. 1.31&nbsp;GB.</p>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-D4DB0E08">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536*</span></div>
+        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 (alt. preset)</h3>
+        <p>Alternate calibration preset (heavier W_proj footprint) at the same
+        nominal rank. 1.31&nbsp;GB. Useful for ablating calibration-corpus
+        sensitivity.</p>
       </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-smollm2-135m-k512">
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-3C2C89D7">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">small</span></div>
         <h3>SmolLM2-135M-Instruct Q8_0, GRC k=512 cache</h3>
         <p>Cross-model transfer check from Paper&nbsp;A (1.45&times; decode
-        ratio). 728&nbsp;MB.</p>
+        ratio). 59&nbsp;MB.</p>
       </a>
     </div>
 
