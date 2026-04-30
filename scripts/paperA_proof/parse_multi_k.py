@@ -121,9 +121,17 @@ def main():
         else:
             k_label = int(m.group(2))
         rep = int(m.group(3))
+        # Skip files that haven't finished being written (NCU banner only).
+        if c.stat().st_size < 50_000:
+            print(f"[skip] {c.name} too small ({c.stat().st_size} B); still in progress")
+            continue
         rows = list(parse_ncu_csv(c))
         agg_attn = aggregate_attention_kernel(rows)
         agg_all = aggregate_all_gemv(rows)
+        # Only include if we actually captured the attention kernel.
+        if not agg_attn or "lts__t_sector_hit_rate.pct" not in agg_attn:
+            print(f"[skip] {c.name}: no attention kernel data")
+            continue
         by_k[k_label].append((rep, agg_attn, agg_all))
 
     # build summary
@@ -196,9 +204,15 @@ def main():
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         ks_sorted = sorted([int(k) for k in summary["by_k"] if k != "baseline"])
-        attn_means = [summary["by_k"][str(k)]["attention_kernel_l2_hit_pct_mean"] for k in ks_sorted]
-        attn_stds  = [summary["by_k"][str(k)]["attention_kernel_l2_hit_pct_std"]  for k in ks_sorted]
-        baseline_attn = summary["by_k"]["baseline"]["attention_kernel_l2_hit_pct_mean"]
+        # Filter out ks with no usable mean
+        ks_pairs = [(k, summary["by_k"][str(k)]) for k in ks_sorted
+                    if summary["by_k"][str(k)]["attention_kernel_l2_hit_pct_mean"] is not None]
+        if not ks_pairs:
+            raise RuntimeError("no usable k points to plot")
+        ks_sorted = [p[0] for p in ks_pairs]
+        attn_means = [p[1]["attention_kernel_l2_hit_pct_mean"] for p in ks_pairs]
+        attn_stds  = [p[1]["attention_kernel_l2_hit_pct_std"] or 0.0 for p in ks_pairs]
+        baseline_attn = summary["by_k"].get("baseline", {}).get("attention_kernel_l2_hit_pct_mean")
         plt.figure(figsize=(7, 4.5))
         plt.errorbar(ks_sorted, attn_means, yerr=attn_stds, fmt="o-",
                      capsize=3, label="Attention proj. kernel (gemv_q4_k grid=512)")
