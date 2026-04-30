@@ -148,6 +148,35 @@ finding that refutes cache-fit).</p>
       stale CUDA driver. Update to 552 or later.</li>
 </ul>
 
+<h2>Pre-built W_proj caches (skip calibration)</h2>
+<p>
+  First-run calibration (~90&nbsp;s on Ryzen&nbsp;9 7940HS) can be skipped
+  by downloading a pre-computed <code>ott_wproj_cache_*.bin</code> from
+  the HyperTensor GitHub Releases page. Each release is keyed by
+  (base&nbsp;model, quantisation, rank&nbsp;k) and includes the SHA256, exact
+  base-model commit, and resource requirements. Browse them on the
+  <a href="../../index.html#models">Models &amp; caches</a> tab.
+</p>
+<pre><code># Headline configuration (k=1536)
+gh release download grc-cache-llama31-8b-q4km-k1536 \
+  --repo NagusameCS/HyperTensor \
+  --pattern 'ott_wproj_cache_*.bin'
+
+# Verify checksum (matches the release page)
+Get-FileHash ott_wproj_cache_*.bin -Algorithm SHA256
+
+# Place next to the GGUF and run; the runtime auto-detects.
+.\build_host\geodessical.exe `
+  --model models\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf `
+  --axex-compress --axex-attn-only --axex-weight-pca `
+  --axex-compress-rank 1536 --tokens 64 --prompt "..."
+</code></pre>
+<p>
+  See <a href="../../data/release_manifest.json">docs/data/release_manifest.json</a>
+  for the full machine-readable manifest of available caches and their resource
+  requirements.
+</p>
+
 </article>
 
 <footer class="paper-footer">

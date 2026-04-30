@@ -390,10 +390,13 @@ footer a:hover { text-decoration: underline; }
       Engineering papers <span class="count">7</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
-      Research papers <span class="count">4</span>
+      Research papers <span class="count">5</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-reproduce" data-tab="reproduce">
-      Reproduce <span class="count">4</span>
+      Reproduce <span class="count">5</span>
+    </button>
+    <button class="tab-btn" role="tab" aria-controls="tab-models" data-tab="models">
+      Models &amp; caches <span class="count">5+</span>
     </button>
   </div>
 
@@ -678,8 +681,70 @@ footer a:hover { text-decoration: underline; }
         warp 0/12 cross-model null, and the HJB pre-training feasibility
         result.</p>
       </a>
+      <a class="paper-card" href="research/repro/paper-e.html">
+        <div class="paper-head"><span class="paper-num">E</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper E: Light Distillation for GRC</h3>
+        <p>Phase 1 calibration-free reference (CPU-only, ~60&nbsp;s) and
+        the Phase 2 LoRA-residual training scaffold for EC2 A100. Phase 2
+        empirical numbers are listed as Pending in the paper.</p>
+      </a>
     </div>
   </div><!-- /#tab-reproduce -->
+
+  <div id="tab-models" class="tab-panel" role="tabpanel" aria-hidden="true">
+    <p style="max-width:62ch;color:var(--text-soft);margin-bottom:1.4rem">
+      Pre-computed model artefacts published as GitHub Releases. Each entry
+      lists the underlying base model, the rank or training preset, the
+      file size, and the resource requirements (VRAM, host RAM, calibration
+      time elided). Drop the cache file next to the matching GGUF and the
+      runtime will detect and use it on next launch; first-run calibration
+      is skipped entirely.
+    </p>
+
+    <div class="papers-grid">
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1024">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1024</span></div>
+        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1024 cache</h3>
+        <p>Pre-computed shared-basis projection cache for the Paper&nbsp;A
+        super-baseline configuration. ~1.07&nbsp;GB. VRAM at decode:
+        +36&nbsp;MiB over baseline. Skip first-run calibration
+        (60-120&nbsp;s on Ryzen&nbsp;9 7940HS).</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1536">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536</span></div>
+        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 cache</h3>
+        <p>Headline configuration: throughput statistically indistinguishable
+        from baseline at +13.30% perplexity (6.79 -&gt; 7.69). ~1.07&nbsp;GB.
+        VRAM same as above.</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/ott-cache-llama31-8b-q4km">
+        <div class="paper-head"><span class="paper-num">OTT</span><span class="paper-version">cache</span></div>
+        <h3>OTT hidden-state cache snapshot</h3>
+        <p>Pre-warmed one-decode hidden state for the OTT/GTC manifold runtime
+        (Paper&nbsp;D). 1.0&nbsp;GB. Required for verifier-side speculative
+        decoding warm-start.</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-llama31-8b-q4km-k1280">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1280</span></div>
+        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1280 cache</h3>
+        <p>Intermediate rank used in the multi-k NCU sweep. 1.31&nbsp;GB.</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/grc-cache-smollm2-135m-k512">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">small</span></div>
+        <h3>SmolLM2-135M-Instruct Q8_0, GRC k=512 cache</h3>
+        <p>Cross-model transfer check from Paper&nbsp;A (1.45&times; decode
+        ratio). 728&nbsp;MB.</p>
+      </a>
+    </div>
+
+    <p style="max-width:62ch;color:var(--text-soft);margin-top:2rem;font-size:0.92rem">
+      Each release page documents: file SHA256, exact base-model commit,
+      rank parameter, peak VRAM during build, peak VRAM during decode,
+      build time, runtime version, and the matching binary commit hash.
+      A full machine-readable manifest lives at
+      <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/data/release_manifest.json">docs/data/release_manifest.json</a>.
+    </p>
+  </div><!-- /#tab-models -->
 
 </section>
 
@@ -723,7 +788,7 @@ footer a:hover { text-decoration: underline; }
   });
   // Honour #engineering / #research from the URL.
   var hash = (location.hash || '').replace('#', '');
-  if (hash === 'engineering' || hash === 'research' || hash === 'reproduce') {
+  if (hash === 'engineering' || hash === 'research' || hash === 'reproduce' || hash === 'models') {
     activate(hash);
   } else {
     var saved = null;

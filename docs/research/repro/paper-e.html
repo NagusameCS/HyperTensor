@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper E: Light Distillation, HyperTensor Research</title>
+<meta name="description" content="Step-by-step reproduction guide for HyperTensor Paper E (Light Distillation).">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Reproduce E &middot; Distillation</span>
+  <h1>Reproduce Paper E: Light Distillation for Calibration-Permitted GRC</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">
+    HyperTensor Project &middot; April 2026
+     &middot; <a href="../paper-e-grc-light-distillation.html">Paper E (HTML)</a>
+     &middot; <a href="/pdfs/grc-light-distillation.pdf">Paper E (PDF)</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/scripts">scripts</a>
+  </p>
+</header>
+
+<article class="paper-body">
+
+<h2>Status</h2>
+<p>
+  Paper E is a scaffold companion to Paper A. The Phase 1 reference
+  implementation (calibration-free GRC projection in numpy) is functional
+  and ships in <code>scripts/grc_distill.py</code>. Phase 2 (LoRA-residual
+  fit on Q/K/V against teacher logit MSE) requires a torch + GPU runtime
+  and is not yet end-to-end. Phase 3 (re-quantise and ship a single GGUF)
+  delegates to <code>llama.cpp</code>.
+</p>
+
+<h2>Hardware target</h2>
+<ul>
+  <li><strong>Phase 1</strong>: any x86_64 host with Python 3.11+ and 16 GB RAM. CPU only. Runs in 60-120&nbsp;s for an 8B model.</li>
+  <li><strong>Phase 2</strong>: 1x A100/L40S/H100 with 24 GB VRAM and PyTorch 2.4. Estimated wall clock for 500 steps at LoRA r=8: 30-60&nbsp;min on A100.</li>
+  <li><strong>Phase 3</strong>: same host as Phase 2, plus a working <code>llama.cpp</code> build with the <code>quantize</code> tool.</li>
+</ul>
+
+<h2>Quick start (Phase 1, CPU-only)</h2>
+<pre><code># 1. From the repo root
+python -m venv .venv
+.venv\Scripts\activate
+pip install numpy
+
+# 2. Run the calibration-free reference (k=1024, no sink-channel)
+python scripts/grc_distill.py \
+  --model models/Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+  --rank 1024 \
+  --out distill_out/
+
+# 3. Inspect the manifest
+type distill_out\distill_manifest.json
+</code></pre>
+
+<h2>Phase 2 (GPU, calibration-permitted)</h2>
+<pre><code># Requires PyTorch + transformers; runs on EC2 A100/L40S
+python scripts/grc_distill.py \
+  --model models/Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+  --rank 1024 \
+  --distill \
+  --corpus calibration/wikitext_calib_2k.txt \
+  --lora-rank 8 \
+  --steps 500 \
+  --device cuda \
+  --out distill_out/
+</code></pre>
+
+<h2>Expected outputs</h2>
+<ul>
+  <li><code>distill_out/distill_manifest.json</code>: configuration record + stage marker (<code>scaffold</code>, <code>calibration_free</code>, or <code>distill_requested</code>).</li>
+  <li><strong>Pending (Phase 2)</strong>: per-layer LoRA residual weights and a final perplexity delta against the un-distilled GRC k=1024 baseline. Expected: closure of approximately half of the 61.4% PPL gap, hitting roughly +30% over the uncompressed baseline at unchanged decode throughput.</li>
+</ul>
+
+<h2>Caveats</h2>
+<ul>
+  <li>The empirical Phase-2 results in Paper E are explicitly listed as <em>Pending</em> until the EC2 A100 runner is functional.</li>
+  <li>The Wikitext-2 calibration corpus citation in the paper triggers a pandoc warning; this is a known harmless reference issue and does not affect the rendered PDF or HTML.</li>
+</ul>
+
+</article>
+
+<footer class="paper-footer">
+  <p>HyperTensor Project &middot; William Ken Ohara Stewart (NagusameCS) &middot; 2026</p>
+</footer>
+
+</body>
+</html>

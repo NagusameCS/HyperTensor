@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "generated": "2026-04-29",
+  "description": "Manifest of GitHub Releases for HyperTensor pre-computed model artefacts. Each entry is a release tag on github.com/NagusameCS/HyperTensor with cache files attached.",
+  "releases": [
+    {
+      "tag": "grc-cache-llama31-8b-q4km-k1024",
+      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1024",
+      "category": "GRC W_proj cache",
+      "asset_filename": "ott_wproj_cache_2405A3B6.bin",
+      "asset_sha256_local": "TBD",
+      "asset_size_bytes_local": 1145778176,
+      "asset_size_mb_local": 1092.7,
+      "base_model": {
+        "name": "Meta-Llama-3.1-8B-Instruct",
+        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+        "quantisation": "Q4_K_M",
+        "size_gb": 4.583
+      },
+      "rank_k": 1024,
+      "calibration_time_seconds_skipped": 90,
+      "vram_at_decode_mib": 6731,
+      "vram_delta_vs_baseline_mib": 36,
+      "host_ram_required_mib": 8192,
+      "min_compute_capability": "sm_80",
+      "geodessical_runtime_min": "2026-04-25",
+      "performance_notes": "Super-baseline configuration: 106.27% of baseline decode throughput at +61.4% perplexity; throughput-quality trade-off, see Paper A Sec 4.",
+      "doi": null
+    },
+    {
+      "tag": "grc-cache-llama31-8b-q4km-k1536",
+      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 (headline)",
+      "category": "GRC W_proj cache",
+      "asset_filename": "ott_wproj_cache_7CC1AFB6.bin",
+      "asset_sha256_local": "TBD",
+      "asset_size_bytes_local": 1145778176,
+      "asset_size_mb_local": 1092.7,
+      "base_model": {
+        "name": "Meta-Llama-3.1-8B-Instruct",
+        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+        "quantisation": "Q4_K_M",
+        "size_gb": 4.583
+      },
+      "rank_k": 1536,
+      "calibration_time_seconds_skipped": 110,
+      "vram_at_decode_mib": 6731,
+      "vram_delta_vs_baseline_mib": 36,
+      "host_ram_required_mib": 8192,
+      "min_compute_capability": "sm_80",
+      "geodessical_runtime_min": "2026-04-25",
+      "performance_notes": "Headline config: throughput indistinguishable from baseline (97.55%, p=0.48) at +13.30% perplexity (6.79 -> 7.69).",
+      "doi": null
+    },
+    {
+      "tag": "grc-cache-llama31-8b-q4km-k1280",
+      "title": "Llama-3.1-8B-Instruct Q4_K_M, GRC k=1280",
+      "category": "GRC W_proj cache",
+      "asset_filename": "ott_wproj_cache_D4DB0E08.bin",
+      "asset_sha256_local": "TBD",
+      "asset_size_bytes_local": 1372192768,
+      "asset_size_mb_local": 1308.7,
+      "base_model": {
+        "name": "Meta-Llama-3.1-8B-Instruct",
+        "huggingface_repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+        "quantisation": "Q4_K_M",
+        "size_gb": 4.583
+      },
+      "rank_k": 1280,
+      "performance_notes": "Intermediate rank used in the multi-k NCU sweep (Paper A Sec sec:falsification). Not on the headline path."
+    },
+    {
+      "tag": "grc-cache-smollm2-135m-k512",
+      "title": "SmolLM2-135M-Instruct Q8_0, GRC k=512",
+      "category": "GRC W_proj cache",
+      "asset_filename": "ott_wproj_cache_FFBC2BB6.bin",
+      "asset_sha256_local": "TBD",
+      "asset_size_bytes_local": 763788288,
+      "asset_size_mb_local": 728.6,
+      "base_model": {
+        "name": "SmolLM2-135M-Instruct",
+        "huggingface_repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+        "quantisation": "Q8_0",
+        "size_gb": 0.135
+      },
+      "rank_k": 512,
+      "performance_notes": "Cross-model transfer check: 1.45x decode ratio vs uncompressed (Paper A sec:cross-model)."
+    },
+    {
+      "tag": "ott-cache-llama31-8b-q4km",
+      "title": "Llama-3.1-8B-Instruct Q4_K_M, OTT hidden-state warm-start",
+      "category": "OTT runtime cache",
+      "asset_filename": "ott_hs_cache_*.bin",
+      "asset_size_mb_local": 1024,
+      "rank_k": null,
+      "performance_notes": "Pre-warmed one-decode hidden state for OTT/GTC verifier. Used by Paper D speculative decoding warm-start."
+    }
+  ],
+  "notes": [
+    "asset_sha256_local fields are placeholders; the actual SHA256 is computed at upload time via scripts/paperA_proof/publish_releases.ps1 and recorded against the release asset on GitHub.",
+    "Each release page on github.com/NagusameCS/HyperTensor/releases includes the SHA256, exact base-model commit hash, rank, peak VRAM during build, peak VRAM during decode, build time, runtime version, and binary commit hash.",
+    "The cache file format is documented in runtime/nn/axiom_exploit.c (search for AXEX_WPROJ_MAGIC, value 0x3130564A4F525057).",
+    "To use a released cache: download the .bin, place it in the working directory of geodessical, and the runtime will load it automatically on the next compatible (--axex-compress --axex-compress-rank K) invocation."
+  ]
+}
