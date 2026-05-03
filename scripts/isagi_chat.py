@@ -90,8 +90,13 @@ N_CAL_PROMPTS = 30        # More calibration for 32B model
 if os.path.exists("D:/"):
     STATE_DIR = "D:/hyperchat_states"
     CACHE_DIR = "D:/huggingface_cache"
+elif os.path.exists("/home/ubuntu"):
+    STATE_DIR = "/home/ubuntu/benchmarks/isagi_states"
+    CACHE_DIR = None
 else:
-    STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "benchmarks", "isagi_states")
+    # Running from /tmp or other location — use home directory
+    home = os.path.expanduser("~")
+    STATE_DIR = os.path.join(home, "hyperchat_states")
     CACHE_DIR = None
 os.makedirs(STATE_DIR, exist_ok=True)
 
@@ -272,7 +277,7 @@ class OTTSpeculator:
         
         return drafts
     
-    def verify_and_select(self, drafts, safe_h_func, to_k_func, trajectories):
+    def verify_and_select(self, drafts, safe_h_func, to_k_func, trajectories, get_h_func=None):
         """Verify drafts against COG manifold. Select the most coherent one.
         
         Returns (best_draft, acceptance_score, was_accepted).
@@ -284,7 +289,13 @@ class OTTSpeculator:
         best_score = -float('inf')
         
         for draft in drafts:
-            h = safe_h_func(draft)
+            # Convert text to hidden state if get_h_func provided
+            if get_h_func is not None:
+                h_raw = get_h_func(draft)
+                h = safe_h_func(h_raw)
+            else:
+                # Assume draft is already a hidden state tensor
+                h = safe_h_func(draft)
             hk = to_k_func(h)
             
             # Score 1: Coherence — cosine similarity to nearest trajectory
@@ -735,7 +746,8 @@ def isagi_turn(system, user_input, verbose=False):
     # ── Step 8: Verify response (OTT verification) ──
     if drafts:
         best_draft, ott_score, ott_accepted = s["ott"].verify_and_select(
-            [response] + drafts, s["safe_h"], s["to_k"], s["trajectories"]
+            [response] + drafts, s["safe_h"], s["to_k"], s["trajectories"],
+            get_h_func=s["get_h"],
         )
         if ott_accepted and best_draft != response:
             response = best_draft + "\n\n[OTT-verified: geometrically optimal response selected]"
