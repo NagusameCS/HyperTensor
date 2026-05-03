@@ -1,0 +1,18 @@
+{
+  "phase": 2,
+  "title": "Symmetry Extraction",
+  "model_name": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+  "model_arch": "llama",
+  "model_dim": 576,
+  "model_layers": 30,
+  "model_vocab": 49152,
+  "model_heads": 9,
+  "quant_type": "Q8_0",
+  "symmetry_score": 0.931281,
+  "generators_found": 72,
+  "head_similarity_mean": 0.931281,
+  "head_similarity_max": 0.996885,
+  "n_heads": 0,
+  "similarity_matrix": [
+  ]
+}

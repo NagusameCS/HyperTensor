@@ -1,0 +1,30 @@
+commit d4fef8619d4aa9ffb5c883a72e8df883eeef97be
+Author:  <150973942+NagusameCS@users.noreply.github.com>
+Date:   Wed Apr 29 17:19:00 2026 -0600
+
+    v0.2 empiricalization: HJB feasibility stub + Thermal sustained trace + MCR weight-PCA disclosure
+    
+    - scripts/hjb_feasibility.py: discrete Jacobi residual on Phase-3 manifolds for smollm2-135m, gemma-4-e2b, phi-3.5-mini across baked geodesic / NN-walk / random-straight trajectory classes. Outputs floor/conformant/off-manifold magnitudes and kinetic-vs-curvature decomposition. Finding: kinetic term dominates curvature by 17-32 orders of magnitude on frozen-network manifolds.
+    
+    - scripts/analyze_thermal.py: nvidia-smi CSV -> thermal_summary.{json,md} with active-window stats, sustained-decode drift, throughput drift, and tokens-per-joule estimate.
+    
+    - docs/figures/paper-b/v02_empirical/: 4-pass back-to-back 384-tok decode of Llama-3.1-8B Q4_K_M, 1Hz nvidia-smi sample. T_p90=74C reaches Thermal Rank actuation band [65,85]C; mean 27.5 tok/s @ 66.3W -> 0.415 tok/J. MCR run captures Flat activation-variance fallback in weight-PCA mode.
+    
+    - docs/figures/paper-d/hjb_feasibility/: per-model SHF residual magnitudes; FLOPs per residual at n=8 ~5.6e5.
+    
+    - paper-B (geodesic-projection-pipeline.tex): MCR section adds weight-PCA flat-fallback paragraph; Thermal section adds measured sustained-decode trace paragraph.
+    
+    - paper-D (ott-gtc-manifold-runtime.tex): HJB section adds Empirical feasibility stub paragraph with SHF magnitudes; Open Problems adds Knowledge-injection curvature warp negative-result subsection citing 0/32 sweep.
+
+ .../paper-B/geodesic-projection-pipeline.tex       |    85 +-
+ .../paper-D/ott-gtc-manifold-runtime.tex           |    86 +
+ docs/figures/paper-b/v02_empirical/mcr_8b_ppl.log  |   Bin 0 -> 11224 bytes
+ .../paper-b/v02_empirical/thermal_summary.json     |   120 +
+ .../paper-b/v02_empirical/thermal_summary.md       |    39 +
+ .../paper-b/v02_empirical/thermal_sustained_8b.csv |    95 +
+ .../paper-b/v02_empirical/thermal_sustained_8b.log |   Bin 0 -> 51174 bytes
+ .../hjb_feasibility/hjb_residual_magnitudes.json   | 11858 +++++++++++++++++++
+ .../hjb_feasibility/hjb_residual_summary.md        |    50 +
+ scripts/analyze_thermal.py                         |   224 +
+ scripts/hjb_feasibility.py                         |   431 +
+ 11 files changed, 12977 insertions(+), 11 deletions(-)

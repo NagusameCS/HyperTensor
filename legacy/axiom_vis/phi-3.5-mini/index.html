@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Geodessical — Riemannian Manifold Visualization</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0f; color: #e0e0e0; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+#header { padding: 20px; border-bottom: 1px solid #222; text-align: center; }
+#header h1 { font-size: 1.6em; color: #7af; letter-spacing: 2px; }
+#header .sub { font-size: 0.85em; color: #667; margin-top: 4px; }
+#phases { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 12px; }
+.phase-btn { padding: 8px 18px; border: 1px solid #333; background: #151520; color: #8af;
+  cursor: pointer; border-radius: 4px; font-family: inherit; font-size: 0.85em; }
+.phase-btn.active { background: #1a2a4a; border-color: #5af; color: #fff; }
+.phase-btn:hover { background: #1a1a2a; }
+#view { padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+.panel { background: #111118; border: 1px solid #222; border-radius: 8px; padding: 16px;
+  min-width: 320px; max-width: 700px; flex: 1; }
+.panel h2 { font-size: 1.1em; color: #7af; margin-bottom: 10px; }
+.stat { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1a1a2a; }
+.stat-label { color: #889; }
+.stat-value { color: #aef; font-weight: bold; }
+canvas { display: block; margin: 10px auto; border: 1px solid #222; border-radius: 4px; background: #08080d; }
+.legend { font-size: 0.75em; color: #667; text-align: center; margin-top: 4px; }
+#loading { text-align: center; padding: 80px; color: #556; font-size: 1.2em; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>GEODESSICAL</h1>
+  <div class="sub">Riemannian Manifold Visualization — Organic Training Theory</div>
+</div>
+<div id="phases"></div>
+<div id="view"><div id="loading">Loading manifold data...</div></div>
+
+<script>
+const FILES = [
+  'phase1_manifold.json', 'phase2_symmetry.json',
+  'phase3_curvature.json', 'phase4_axioms.json', 'phase5_geodesic.json'
+];
+const PHASE_LABELS = ['Phase 1: Manifold', 'Phase 2: Symmetry', 'Phase 3: Curvature',
+                      'Phase 4: Axioms', 'Phase 5: Geodesic'];
+let data = {};
+data['phase1_manifold.json'] = {
+  "phase": 1,
+  "title": "Manifold Identification",
+  "model_name": "Phi 3.5 Mini Instruct",
+  "model_arch": "phi3",
+  "model_dim": 3072,
+  "model_layers": 32,
+  "model_vocab": 32064,
+  "model_heads": 32,
+  "quant_type": "Q4_0",
+  "intrinsic_dim": 11,
+  "pca_components": 31,
+  "explained_ratio": 0.951519,
+  "total_variance": 15.945763,
+  "twonn_raw": 11.3139,
+  "embedding_dim": 3072,
+  "n_samples": 64,
+  "eigenvalues": [9.00552299, 2.49357685, 0.74929154, 0.39100899, 0.31966272, 0.23708180, 0.20650280, 0.15851718, 0.14574192, 0.11243351, 0.10346445, 0.09413261, 0.09148421, 0.08849298, 0.08328579, 0.07849235, 0.07363516, 0.06906168, 0.06523629, 0.06214009, 0.06132799, 0.05663805, 0.05536802, 0.05408177, 0.05035742, 0.04837003, 0.04627913, 0.04452496, 0.04356695, 0.04177122, 0.04165167],
+  "cloud": [
+    [-4.819321, -2.464738, 0.245712],
+    [6.666070, 2.406092, 0.137084],
+    [-3.792036, -2.702925, 0.369647],
+    [2.385488, -1.093125, 0.781697],
+    [3.258091, 0.266322, 0.516433],
+    [2.778567, 1.520894, 0.163617],
+    [-1.664414, 3.588279, -0.535094],
+    [3.135951, -1.139736, 0.665329],
+    [0.624505, -1.397092, 0.907632],
+    [1.091842, 0.547867, 0.396721],
+    [3.121246, 1.407919, -1.515401],
+    [-0.838458, -2.174466, 0.463813],
+    [-3.303095, -1.902055, 0.486335],
+    [1.541799, -0.342586, 0.282612],
+    [1.496473, -1.380949, -0.537471],
+    [-1.523922, -0.613873, 0.880544],
+    [-0.075633, -0.089164, -0.912307],
+    [1.235171, -0.066076, 1.944322],
+    [0.450456, -0.252055, -1.035827],
+    [-3.932110, 1.687108, -1.063730],
+    [4.678861, 0.583390, 0.259210],
+    [-7.562511, -2.516383, 0.010884],
+    [1.301858, 0.860753, 2.311695],
+    [-4.222737, -1.646799, 0.808716],
+    [0.070151, 3.295041, 0.029826],
+    [-1.489411, 0.893009, 0.258120],
+    [1.066137, -0.581102, 0.898740],
+    [-0.981116, 1.970542, 1.508290],
+    [2.179746, -0.748208, -0.291666],
+    [-2.745598, -3.185774, -0.756816],
+    [3.780122, -1.631682, -0.891981],
+    [-0.709419, -0.492920, 0.033306],
+    [3.099346, 0.586116, 1.426475],
+    [-2.477710, 1.527533, 0.373295],
+    [1.306462, 0.733765, -0.092187],
+    [0.518586, -0.086237, 1.499230],
+    [-5.338399, 1.429807, 0.151481],
+    [2.096966, -0.713988, -0.489264],
+    [-7.266523, -0.200958, -1.084266],
+    [-3.839408, 1.905913, -0.095002],
+    [-2.762174, 1.892425, 0.608814],
+    [3.040832, -0.659363, -0.505754],
+    [-2.567767, 0.273972, 1.168920],
+    [-3.131702, 1.803599, 0.618785],
+    [5.755280, 0.185969, -0.179541],
+    [-3.792657, 1.044155, 0.773921],
+    [2.232056, -1.064241, -0.531457],
+    [1.470276, -2.405508, -0.589561],
+    [-0.106850, -2.051853, -0.416037],
+    [4.186407, -1.416455, -0.916372],
+    [-3.183304, 0.996224, -0.728089],
+    [0.112150, -0.671254, -0.744804],
+    [0.807937, -2.245248, -0.461936],
+    [0.397287, 0.520478, -0.169442],
+    [-1.311475, 2.111276, -2.435831],
+    [-0.136674, 3.169511, -1.098120],
+    [-3.240877, 1.711252, -0.833612],
+    [2.189083, -0.521842, -0.501458],
+    [1.578477, -0.239319, -0.294692],
+    [2.307046, -0.912290, -0.138386],
+    [1.526999, 1.228324, 1.028755],
+    [-0.136730, -0.980495, -1.151785],
+    [0.352484, 1.578353, -0.343477],
+    [3.111822, -1.135129, -0.668600]
+  ]
+}
+;
+data['phase2_symmetry.json'] = {
+  "phase": 2,
+  "title": "Symmetry Extraction",
+  "model_name": "Phi 3.5 Mini Instruct",
+  "model_arch": "phi3",
+  "model_dim": 3072,
+  "model_layers": 32,
+  "model_vocab": 32064,
+  "model_heads": 32,
+  "quant_type": "Q4_0",
+  "symmetry_score": 0.984891,
+  "generators_found": 256,
+  "head_similarity_mean": 0.984891,
+  "head_similarity_max": 0.998731,
+  "n_heads": 0,
+  "similarity_matrix": [
+  ]
+}
+;
+data['phase3_curvature.json'] = {
+  "phase": 3,
+  "title": "Curvature Field",
+  "model_name": "Phi 3.5 Mini Instruct",
+  "model_arch": "phi3",
+  "model_dim": 3072,
+  "model_layers": 32,
+  "model_vocab": 32064,
+  "model_heads": 32,
+  "quant_type": "Q4_0",
+  "mean_scalar_curvature": 0.00365550,
+  "max_scalar_curvature": 0.00365550,
+  "min_scalar_curvature": 0.00000000,
+  "curvature_std": 0.00361372,
+  "high_curvature_loci": 0,
+  "metric_field_points": 44,
+  "dim": 11,
+  "fisher_trace_mean": 34.26174529,
+  "fisher_det_log_mean": 12.49745378,
+  "points": [
+    {"pos": [-0.686425, -0.183409, -0.630311], "R": 0.00365550, "g_diag": [0.879833, 0.879572, 0.879984], "christoffel_norm": 0.11338123},
+    {"pos": [-0.680068, -0.189173, -0.643518], "R": 0.00000000, "g_diag": [0.879792, 0.879424, 0.879991], "christoffel_norm": 0.11338123},
+    {"pos": [-0.693879, -0.183096, -0.620498], "R": 0.00000000, "g_diag": [0.879263, 0.879233, 0.879777], "christoffel_norm": 0.11338123},
+    {"pos": [-0.690417, -0.191250, -0.629265], "R": 0.00000000, "g_diag": [0.879800, 0.879770, 0.879687], "christoffel_norm": 0.11338123},
+    {"pos": [-0.672305, -0.190388, -0.626743], "R": 0.00000000, "g_diag": [0.879352, 0.880165, 0.879769], "christoffel_norm": 0.11338123},
+    {"pos": [-0.681924, -0.168669, -0.636171], "R": 0.00000000, "g_diag": [0.879944, 0.879938, 0.880030], "christoffel_norm": 0.11338123},
+    {"pos": [-0.704585, -0.183669, -0.613571], "R": 0.00000000, "g_diag": [0.879789, 0.879705, 0.879846], "christoffel_norm": 0.11338123},
+    {"pos": [-0.685255, -0.184452, -0.641956], "R": 0.00000000, "g_diag": [0.879744, 0.880096, 0.879981], "christoffel_norm": 0.11338123},
+    {"pos": [-0.695702, -0.178563, -0.630994], "R": 0.00000000, "g_diag": [0.879174, 0.879643, 0.879815], "christoffel_norm": 0.11338123},
+    {"pos": [-0.682476, -0.169119, -0.623637], "R": 0.00000000, "g_diag": [0.879598, 0.879666, 0.879145], "christoffel_norm": 0.11338123},
+    {"pos": [-0.673945, -0.160868, -0.615654], "R": 0.00000000, "g_diag": [0.879531, 0.880008, 0.879850], "christoffel_norm": 0.11338123},
+    {"pos": [-0.671564, -0.185968, -0.626170], "R": 0.00000000, "g_diag": [0.879187, 0.879621, 0.879630], "christoffel_norm": 0.11338123},
+    {"pos": [-0.685967, -0.160084, -0.627564], "R": 0.00000000, "g_diag": [0.879342, 0.879804, 0.879647], "christoffel_norm": 0.11338123},
+    {"pos": [-0.685288, -0.189486, -0.627545], "R": 0.00000000, "g_diag": [0.879877, 0.879954, 0.879700], "christoffel_norm": 0.11338123},
+    {"pos": [-0.702836, -0.186893, -0.617944], "R": 0.00000000, "g_diag": [0.879566, 0.879645, 0.879601], "christoffel_norm": 0.11338123},
+    {"pos": [-0.692375, -0.168519, -0.613286], "R": 0.00000000, "g_diag": [0.879669, 0.880141, 0.879905], "christoffel_norm": 0.11338123},
+    {"pos": [-0.692330, -0.176381, -0.637714], "R": 0.00000000, "g_diag": [0.879606, 0.879662, 0.879831], "christoffel_norm": 0.11338123},
+    {"pos": [-0.684140, -0.181798, -0.634363], "R": 0.00000000, "g_diag": [0.878942, 0.880021, 0.879936], "christoffel_norm": 0.11338123},
+    {"pos": [-0.697111, -0.174121, -0.626089], "R": 0.00000000, "g_diag": [0.879653, 0.879909, 0.879460], "christoffel_norm": 0.11338123},
+    {"pos": [-0.690800, -0.171283, -0.620170], "R": 0.00000000, "g_diag": [0.879319, 0.879824, 0.879357], "christoffel_norm": 0.11338123},
+    {"pos": [-0.686532, -0.179348, -0.626408], "R": 0.00000000, "g_diag": [0.879532, 0.879441, 0.879970], "christoffel_norm": 0.11338123},
+    {"pos": [-0.696096, -0.196233, -0.646848], "R": 0.00000000, "g_diag": [0.879522, 0.879872, 0.879958], "christoffel_norm": 0.11338123},
+    {"pos": [-0.688912, -0.170202, -0.627063], "R": 0.00000000, "g_diag": [0.879783, 0.880074, 0.879960], "christoffel_norm": 0.11338123},
+    {"pos": [-0.697296, -0.180692, -0.633179], "R": 0.00000000, "g_diag": [0.879299, 0.880448, 0.879686], "christoffel_norm": 0.11338123},
+    {"pos": [-0.699706, -0.177441, -0.626061], "R": 0.00000000, "g_diag": [0.879325, 0.879906, 0.879770], "christoffel_norm": 0.11338123},
+    {"pos": [-0.691766, -0.167415, -0.627276], "R": 0.00000000, "g_diag": [0.879493, 0.880145, 0.879702], "christoffel_norm": 0.11338123},
+    {"pos": [-0.671040, -0.170061, -0.627212], "R": 0.00000000, "g_diag": [0.879673, 0.880011, 0.879396], "christoffel_norm": 0.11338123},
+    {"pos": [-0.694358, -0.174464, -0.631328], "R": 0.00000000, "g_diag": [0.879919, 0.880033, 0.879706], "christoffel_norm": 0.11338123},
+    {"pos": [-0.687833, -0.189839, -0.616978], "R": 0.00000000, "g_diag": [0.879741, 0.880156, 0.879990], "christoffel_norm": 0.11338123},
+    {"pos": [-0.697573, -0.163071, -0.635648], "R": 0.00000000, "g_diag": [0.879580, 0.880220, 0.879937], "christoffel_norm": 0.11338123},
+    {"pos": [-0.679216, -0.171717, -0.618927], "R": 0.00000000, "g_diag": [0.879560, 0.879597, 0.879299], "christoffel_norm": 0.11338123},
+    {"pos": [-0.689517, -0.160222, -0.626052], "R": 0.00000000, "g_diag": [0.879242, 0.879831, 0.879619], "christoffel_norm": 0.11338123},
+    {"pos": [-0.690730, -0.165249, -0.614784], "R": 0.00000000, "g_diag": [0.879944, 0.880436, 0.879695], "christoffel_norm": 0.11338123},
+    {"pos": [-0.698851, -0.171994, -0.622972], "R": 0.00000000, "g_diag": [0.879435, 0.879692, 0.879741], "christoffel_norm": 0.11338123},
+    {"pos": [-0.683912, -0.167700, -0.621910], "R": 0.00000000, "g_diag": [0.879779, 0.879828, 0.879607], "christoffel_norm": 0.11338123},
+    {"pos": [-0.704933, -0.172517, -0.626792], "R": 0.00000000, "g_diag": [0.879480, 0.880085, 0.879697], "christoffel_norm": 0.11338123},
+    {"pos": [-0.687793, -0.170491, -0.630169], "R": 0.00000000, "g_diag": [0.879656, 0.880470, 0.879503], "christoffel_norm": 0.11338123},
+    {"pos": [-0.692661, -0.171344, -0.611361], "R": 0.00000000, "g_diag": [0.879631, 0.879867, 0.879808], "christoffel_norm": 0.11338123},
+    {"pos": [-0.699622, -0.168457, -0.621241], "R": 0.00000000, "g_diag": [0.879097, 0.879725, 0.879708], "christoffel_norm": 0.11338123},
+    {"pos": [-0.683010, -0.157729, -0.636819], "R": 0.00000000, "g_diag": [0.879846, 0.879740, 0.879849], "christoffel_norm": 0.11338123},
+    {"pos": [-0.706930, -0.176047, -0.618968], "R": 0.00000000, "g_diag": [0.878569, 0.880011, 0.879973], "christoffel_norm": 0.11338123},
+    {"pos": [-0.703683, -0.155385, -0.625552], "R": 0.00000000, "g_diag": [0.879741, 0.880255, 0.879889], "christoffel_norm": 0.11338123},
+    {"pos": [-0.684236, -0.150130, -0.636789], "R": 0.00000000, "g_diag": [0.879782, 0.879906, 0.879395], "christoffel_norm": 0.11338123},
+    {"pos": [-0.695320, -0.160943, -0.631723], "R": 0.00000000, "g_diag": [0.879246, 0.880029, 0.879975], "christoffel_norm": 0.11338123}
+  ]
+}
+;
+data['phase4_axioms.json'] = {
+  "phase": 4,
+  "title": "Axiom Formalization",
+  "model_name": "Phi 3.5 Mini Instruct",
+  "model_arch": "phi3",
+  "model_dim": 3072,
+  "model_layers": 32,
+  "model_vocab": 32064,
+  "model_heads": 32,
+  "quant_type": "Q4_0",
+  "axiom_count": 22,
+  "consistency_score": 0.959012,
+  "candidates_tested": 96,
+  "candidates_accepted": 96,
+  "oracle_calls_used": 10,
+  "information_gain": 1.350593
+}
+;
+
+function loadData() { buildUI(); }
+
+function buildUI() {
+  const pb = document.getElementById('phases');
+  pb.innerHTML = '';
+  FILES.forEach((f, i) => {
+    if (!data[f]) return;
+    const btn = document.createElement('button');
+    btn.className = 'phase-btn';
+    btn.textContent = PHASE_LABELS[i];
+    btn.onclick = () => showPhase(i, btn);
+    pb.appendChild(btn);
+  });
+  /* Auto-show first available phase */
+  const first = pb.querySelector('.phase-btn');
+  if (first) first.click();
+  else document.getElementById('view').innerHTML = '<div id="loading">No manifold data found.</div>';
+}
+
+function showPhase(idx, btn) {
+  document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const view = document.getElementById('view');
+  view.innerHTML = '';
+  switch(idx) {
+    case 0: renderPhase1(view); break;
+    case 1: renderPhase2(view); break;
+    case 2: renderPhase3(view); break;
+    case 3: renderPhase4(view); break;
+    case 4: renderPhase5(view); break;
+  }
+}
+
+/* ─── Helpers ─── */
+function mkPanel(parent, title) {
+  const p = document.createElement('div'); p.className = 'panel';
+  const h = document.createElement('h2'); h.textContent = title;
+  p.appendChild(h); parent.appendChild(p); return p;
+}
+function addStat(panel, label, value) {
+  const d = document.createElement('div'); d.className = 'stat';
+  d.innerHTML = `<span class="stat-label">${label}</span>`
+    + `<span class="stat-value">${value}</span>`;
+  panel.appendChild(d);
+}
+function mkCanvas(panel, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  panel.appendChild(c); return c;
+}
+
+/* Color ramps */
+function curvColor(v, lo, hi) {
+  let t = (hi > lo) ? (v - lo) / (hi - lo) : 0.5;
+  t = Math.max(0, Math.min(1, t));
+  /* Blue (low R) → Cyan → Green → Yellow → Red (high R) */
+  const r = Math.floor(255 * Math.min(1, 2*t));
+  const g = Math.floor(255 * (t < 0.5 ? 2*t : 2*(1-t)));
+  const b = Math.floor(255 * Math.min(1, 2*(1-t)));
+  return `rgb(${r},${g},${b})`;
+}
+function simColor(v) {
+  const t = Math.max(0, Math.min(1, v));
+  return `rgb(${Math.floor(30+200*t)},${Math.floor(50+150*t)},${Math.floor(200-100*t)})`;
+}
+
+/* ─── Phase 1: PCA Cloud & Scree Plot ─── */
+function renderPhase1(view) {
+  const d = data['phase1_manifold.json']; if (!d) return;
+  /* Stats */
+  const sp = mkPanel(view, 'Manifold Identification');
+  addStat(sp, 'Intrinsic Dimension (TwoNN)', d.intrinsic_dim);
+  addStat(sp, 'PCA Components Kept', d.pca_components);
+  addStat(sp, 'Explained Variance', (d.explained_ratio * 100).toFixed(2) + '%');
+  addStat(sp, 'Total Variance', d.total_variance.toFixed(4));
+  addStat(sp, 'Embedding Dim', d.embedding_dim);
+  addStat(sp, 'Samples', d.n_samples);
+
+  /* Scree plot */
+  if (d.eigenvalues && d.eigenvalues.length > 0) {
+    const cp = mkPanel(view, 'Scree Plot (PCA Eigenvalues)');
+    const c = mkCanvas(cp, 600, 280);
+    const ctx = c.getContext('2d');
+    const ev = d.eigenvalues;
+    const maxE = Math.max(...ev);
+    const pad = 50;
+    ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,c.width,c.height);
+    /* Axes */
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, 10); ctx.lineTo(pad, c.height-pad);
+    ctx.lineTo(c.width-10, c.height-pad); ctx.stroke();
+    /* Bars */
+    const bw = Math.max(2, (c.width - pad - 20) / ev.length - 1);
+    for (let i = 0; i < ev.length; i++) {
+      const h = (ev[i] / maxE) * (c.height - pad - 20);
+      const x = pad + 5 + i * (bw + 1);
+      ctx.fillStyle = i < d.intrinsic_dim ? '#5af' : '#334';
+      ctx.fillRect(x, c.height - pad - h, bw, h);
+    }
+    /* Labels */
+    ctx.fillStyle = '#778'; ctx.font = '10px monospace';
+    ctx.fillText('Component', c.width/2-30, c.height-5);
+    ctx.save(); ctx.translate(12, c.height/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('Eigenvalue', 0, 0); ctx.restore();
+    const lg = document.createElement('div'); lg.className = 'legend';
+    lg.textContent = `Blue = within intrinsic dim (${d.intrinsic_dim}), Gray = beyond`;
+    cp.appendChild(lg);
+  }
+
+  /* 2D/3D PCA cloud */
+  if (d.cloud && d.cloud.length > 0) {
+    const cp = mkPanel(view, 'Embedding Cloud (PCA Projection)');
+    const c = mkCanvas(cp, 600, 500);
+    drawCloud(c, d.cloud);
+    const lg = document.createElement('div'); lg.className = 'legend';
+    lg.textContent = `${d.cloud.length} samples in ${d.cloud[0].length}D PCA subspace`;
+    cp.appendChild(lg);
+  }
+}
+
+function drawCloud(canvas, pts) {
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  if (pts.length === 0) return;
+  const nd = pts[0].length;
+  /* Find bounds */
+  let mins = new Array(nd).fill(Infinity), maxs = new Array(nd).fill(-Infinity);
+  for (const p of pts) {
+    for (let d = 0; d < nd; d++) { mins[d] = Math.min(mins[d], p[d]); maxs[d] = Math.max(maxs[d], p[d]); }
+  }
+  const pad = 40, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  function proj(p) {
+    const x = (maxs[0] > mins[0]) ? (p[0]-mins[0])/(maxs[0]-mins[0]) : 0.5;
+    const y = (nd > 1 && maxs[1] > mins[1]) ? (p[1]-mins[1])/(maxs[1]-mins[1]) : 0.5;
+    return [pad + x*w, pad + (1-y)*h];
+  }
+  /* Grid */
+  ctx.strokeStyle = '#181825'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const gy = pad + i*h/4; ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(pad+w, gy); ctx.stroke();
+    const gx = pad + i*w/4; ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, pad+h); ctx.stroke();
+  }
+  /* Points */
+  for (const p of pts) {
+    const [x, y] = proj(p);
+    let depth = nd > 2 ? (maxs[2] > mins[2] ? (p[2]-mins[2])/(maxs[2]-mins[2]) : 0.5) : 0.5;
+    const alpha = 0.3 + 0.5 * depth;
+    const size = 1.5 + 2 * depth;
+    ctx.fillStyle = `rgba(100,180,255,${alpha})`;
+    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+  }
+  /* Axis labels */
+  ctx.fillStyle = '#556'; ctx.font = '11px monospace';
+  ctx.fillText('PC1', canvas.width/2, canvas.height - 5);
+  ctx.save(); ctx.translate(10, canvas.height/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('PC2', 0, 0); ctx.restore();
+}
+
+/* ─── Phase 2: Head Similarity Heatmap ─── */
+function renderPhase2(view) {
+  const d = data['phase2_symmetry.json']; if (!d) return;
+  const sp = mkPanel(view, 'Symmetry Extraction');
+  addStat(sp, 'Symmetry Score', d.symmetry_score.toFixed(4));
+  addStat(sp, 'Generators Found', d.generators_found);
+  addStat(sp, 'Head Similarity (mean)', d.head_similarity_mean.toFixed(4));
+  addStat(sp, 'Head Similarity (max)', d.head_similarity_max.toFixed(4));
+  addStat(sp, 'Total Heads', d.n_heads);
+
+  if (d.similarity_matrix && d.similarity_matrix.length > 0) {
+    const hp = mkPanel(view, 'Head Similarity Heatmap');
+    const n = d.n_heads;
+    const cellSize = Math.min(16, Math.floor(500 / n));
+    const sz = cellSize * n + 60;
+    const c = mkCanvas(hp, sz, sz);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,sz,sz);
+    const off = 40;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        ctx.fillStyle = simColor(d.similarity_matrix[i][j]);
+        ctx.fillRect(off + j*cellSize, off + i*cellSize, cellSize-1, cellSize-1);
+      }
+    }
+    ctx.fillStyle = '#556'; ctx.font = '10px monospace';
+    ctx.fillText('Head j →', sz/2-20, sz-5);
+    ctx.save(); ctx.translate(8, sz/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('Head i →', 0, 0); ctx.restore();
+    const lg = document.createElement('div'); lg.className = 'legend';
+    lg.textContent = `${n}x${n} cosine similarity, bright = high similarity`;
+    hp.appendChild(lg);
+  }
+}
+
+/* ─── Phase 3: Curvature Heatmap ─── */
+function renderPhase3(view) {
+  const d = data['phase3_curvature.json']; if (!d) return;
+  const sp = mkPanel(view, 'Curvature Field');
+  addStat(sp, 'Mean Scalar R', d.mean_scalar_curvature.toExponential(3));
+  addStat(sp, 'Max Scalar R', d.max_scalar_curvature.toExponential(3));
+  addStat(sp, 'Min Scalar R', d.min_scalar_curvature.toExponential(3));
+  addStat(sp, 'Std Dev', d.curvature_std.toExponential(3));
+  addStat(sp, 'High-Curvature Loci', d.high_curvature_loci);
+  addStat(sp, 'Fisher Trace (mean)', d.fisher_trace_mean.toExponential(3));
+  addStat(sp, 'Metric Field Points', d.metric_field_points);
+  addStat(sp, 'Subspace Dim', d.dim);
+
+  if (d.points && d.points.length > 0) {
+    /* Curvature scatter plot */
+    const cp = mkPanel(view, 'Scalar Curvature Map');
+    const c = mkCanvas(cp, 600, 500);
+    drawCurvatureMap(c, d.points);
+    const lg = document.createElement('div'); lg.className = 'legend';
+    lg.textContent = 'Blue = low R (flat), Red = high |R| (curved). Size = ||Γ|| (connection strength)';
+    cp.appendChild(lg);
+
+    /* Christoffel norm distribution */
+    const np = mkPanel(view, 'Christoffel Norm Distribution');
+    const c2 = mkCanvas(np, 600, 250);
+    drawChristoffelHist(c2, d.points);
+  }
+}
+
+function drawCurvatureMap(canvas, points) {
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  if (points.length === 0) return;
+  let Rs = points.filter(p=>p.R!==undefined).map(p=>p.R);
+  let absRs = Rs.map(Math.abs);
+  const minR = Math.min(...Rs), maxR = Math.max(...Rs);
+  const maxAbsR = Math.max(...absRs) || 1;
+  let cNorms = points.filter(p=>p.christoffel_norm!==undefined).map(p=>p.christoffel_norm);
+  const maxCN = cNorms.length > 0 ? Math.max(...cNorms) : 1;
+  /* Bounds from position */
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  for (const p of points) {
+    if (!p.pos) continue;
+    minX = Math.min(minX, p.pos[0]); maxX = Math.max(maxX, p.pos[0]);
+    if (p.pos.length > 1) { minY = Math.min(minY, p.pos[1]); maxY = Math.max(maxY, p.pos[1]); }
+  }
+  const pad = 50, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  for (const p of points) {
+    if (!p.pos) continue;
+    const x = pad + (maxX>minX ? (p.pos[0]-minX)/(maxX-minX) : 0.5) * w;
+    const y = pad + (1 - (maxY>minY && p.pos.length>1 ? (p.pos[1]-minY)/(maxY-minY) : 0.5)) * h;
+    const R = p.R || 0;
+    const cn = p.christoffel_norm || 0;
+    const size = 3 + 8 * (maxCN > 0 ? cn / maxCN : 0);
+    ctx.fillStyle = curvColor(Math.abs(R), 0, maxAbsR);
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = '#556'; ctx.font = '11px monospace';
+  ctx.fillText('PC1', canvas.width/2, canvas.height - 5);
+  ctx.save(); ctx.translate(10, canvas.height/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('PC2', 0, 0); ctx.restore();
+}
+
+function drawChristoffelHist(canvas, points) {
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  let cns = points.filter(p=>p.christoffel_norm!==undefined).map(p=>p.christoffel_norm).sort((a,b)=>a-b);
+  if (cns.length === 0) return;
+  const nbins = 30;
+  const lo = cns[0], hi = cns[cns.length-1];
+  const binW = (hi - lo) / nbins || 1;
+  let bins = new Array(nbins).fill(0);
+  for (const v of cns) { const b = Math.min(nbins-1, Math.floor((v-lo)/binW)); bins[b]++; }
+  const maxBin = Math.max(...bins);
+  const pad = 50, w = canvas.width - pad - 20, h2 = canvas.height - pad - 20;
+  const bw = w / nbins;
+  ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.moveTo(pad, 10); ctx.lineTo(pad, canvas.height-pad);
+  ctx.lineTo(canvas.width-10, canvas.height-pad); ctx.stroke();
+  for (let i = 0; i < nbins; i++) {
+    const bh = maxBin > 0 ? (bins[i]/maxBin)*h2 : 0;
+    ctx.fillStyle = '#5a8';
+    ctx.fillRect(pad + i*bw, canvas.height-pad-bh, bw-1, bh);
+  }
+  ctx.fillStyle = '#556'; ctx.font = '10px monospace';
+  ctx.fillText('||Γ||_F', canvas.width/2-15, canvas.height-5);
+}
+
+/* ─── Phase 4: Axiom Summary ─── */
+function renderPhase4(view) {
+  const d = data['phase4_axioms.json']; if (!d) return;
+  const sp = mkPanel(view, 'Axiom Formalization');
+  addStat(sp, 'Unique Axioms', d.axiom_count);
+  addStat(sp, 'Consistency Score', d.consistency_score.toFixed(4));
+  addStat(sp, 'Candidates Tested', d.candidates_tested);
+  addStat(sp, 'Candidates Accepted', d.candidates_accepted);
+  addStat(sp, 'Oracle Calls', d.oracle_calls_used);
+  addStat(sp, 'Information Gain', d.information_gain.toFixed(4));
+
+  /* Simple bar chart: accepted vs tested */
+  const cp = mkPanel(view, 'Axiom Discovery Funnel');
+  const c = mkCanvas(cp, 400, 200);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,c.width,c.height);
+  const bars = [
+    { label: 'Tested', val: d.candidates_tested, color: '#335' },
+    { label: 'Accepted', val: d.candidates_accepted, color: '#358' },
+    { label: 'Unique', val: d.axiom_count, color: '#5af' }
+  ];
+  const maxV = Math.max(...bars.map(b=>b.val)) || 1;
+  const bw = 80, gap = 30, startX = 60;
+  bars.forEach((b, i) => {
+    const h = (b.val / maxV) * 140;
+    const x = startX + i * (bw + gap);
+    ctx.fillStyle = b.color;
+    ctx.fillRect(x, 170 - h, bw, h);
+    ctx.fillStyle = '#aaf'; ctx.font = '11px monospace';
+    ctx.fillText(b.val.toString(), x + bw/2 - 8, 165 - h);
+    ctx.fillStyle = '#778';
+    ctx.fillText(b.label, x + 5, 190);
+  });
+}
+
+/* ─── Phase 5: Geodesic Trajectories ─── */
+function renderPhase5(view) {
+  const d = data['phase5_geodesic.json']; if (!d) return;
+  const sp = mkPanel(view, 'Geodesic Pilot');
+  addStat(sp, 'Cosine Similarity', d.cosine_similarity.toFixed(4));
+  addStat(sp, 'Reconstruction Error (L2)', d.reconstruction_error.toFixed(4));
+  addStat(sp, 'Path Length', d.path_length.toFixed(4));
+  addStat(sp, 'Top-1 Match Rate', (d.top1_match_rate*100).toFixed(1) + '%');
+  addStat(sp, 'Target MRR', d.target_mrr.toFixed(4));
+  addStat(sp, 'Projected Speedup', d.projected_speedup.toFixed(1) + 'x');
+  addStat(sp, 'Converged', d.converged ? 'Yes' : 'No');
+
+  if (d.trajectories && d.trajectories.length > 0) {
+    const tp = mkPanel(view, 'Geodesic Trajectories (PCA Subspace)');
+    const c = mkCanvas(tp, 600, 500);
+    drawTrajectories(c, d.trajectories);
+    const lg = document.createElement('div'); lg.className = 'legend';
+    lg.textContent = `${d.trajectories.length} geodesic paths. ○ = start, × = target, ● = endpoint. `
+      + 'Green = high cos_sim, Red = low.';
+    tp.appendChild(lg);
+  }
+}
+
+function drawTrajectories(canvas, trajs) {
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#08080d'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  /* Gather all points for bounds */
+  let allX = [], allY = [];
+  for (const t of trajs) {
+    if (!t.path) continue;
+    for (const p of t.path) { allX.push(p[0]); if (p.length > 1) allY.push(p[1]); }
+    if (t.target) { allX.push(t.target[0]); if (t.target.length > 1) allY.push(t.target[1]); }
+  }
+  if (allX.length === 0) return;
+  const minX = Math.min(...allX), maxX = Math.max(...allX);
+  const minY = allY.length > 0 ? Math.min(...allY) : 0;
+  const maxY = allY.length > 0 ? Math.max(...allY) : 1;
+  const pad = 50, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  function proj(p) {
+    const x = pad + (maxX>minX ? (p[0]-minX)/(maxX-minX) : 0.5) * w;
+    const y = pad + (1 - (maxY>minY && p.length>1 ? (p[1]-minY)/(maxY-minY) : 0.5)) * h;
+    return [x, y];
+  }
+  /* Grid */
+  ctx.strokeStyle = '#181825'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const gy = pad + i*h/4; ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(pad+w, gy); ctx.stroke();
+    const gx = pad + i*w/4; ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, pad+h); ctx.stroke();
+  }
+  /* Draw each trajectory */
+  for (const t of trajs) {
+    if (!t.path || t.path.length < 2) continue;
+    const cs = t.cos_sim || 0;
+    const r = Math.floor(255 * (1 - Math.max(0, cs)));
+    const g = Math.floor(255 * Math.max(0, cs));
+    const col = `rgb(${r},${g},80)`;
+    /* Path line */
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    const [sx, sy] = proj(t.path[0]); ctx.moveTo(sx, sy);
+    for (let i = 1; i < t.path.length; i++) {
+      const [px, py] = proj(t.path[i]); ctx.lineTo(px, py);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+    /* Start marker (circle) */
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    /* Endpoint marker (filled dot) */
+    const lastPt = t.path[t.path.length - 1];
+    const [ex, ey] = proj(lastPt);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI*2); ctx.fill();
+    /* Target marker (cross) */
+    if (t.target) {
+      const [tx, ty] = proj(t.target);
+      ctx.strokeStyle = '#fa0'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(tx-5,ty-5); ctx.lineTo(tx+5,ty+5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx+5,ty-5); ctx.lineTo(tx-5,ty+5); ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#556'; ctx.font = '11px monospace';
+  ctx.fillText('PC1', canvas.width/2, canvas.height - 5);
+  ctx.save(); ctx.translate(10, canvas.height/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('PC2', 0, 0); ctx.restore();
+}
+
+/* Boot */
+loadData();
+</script>
+</body>
+</html>

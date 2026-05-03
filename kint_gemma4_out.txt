@@ -1,0 +1,8 @@
+[kint] model=Gemma4-27B  n_layers=60  d=5376
+[kint] sampling layers: [0, 12, 24, 36, 48, 59]
+  layer   0  loading Q/K/V ... shapes Q=(8192, 5376) K=(4096, 5376) V=(4096, 5376) ... k_int=3416  (k/d=0.6354)
+  layer  12  loading Q/K/V ... shapes Q=(8192, 5376) K=(4096, 5376) V=(4096, 5376) ... k_int=3165  (k/d=0.5887)
+  layer  24  loading Q/K/V ... shapes Q=(8192, 5376) K=(4096, 5376) V=(4096, 5376) ... k_int=3896  (k/d=0.7247)
+  layer  36  loading Q/K/V ... shapes Q=(8192, 5376) K=(4096, 5376) V=(4096, 5376) ... k_int=3998  (k/d=0.7437)
+  layer  48  loading Q/K/V ... shapes Q=(8192, 5376) K=(4096, 5376) V=(4096, 5376) ... k_int=4342  (k/d=0.8077)
+  layer  59  loading Q/K/V ...

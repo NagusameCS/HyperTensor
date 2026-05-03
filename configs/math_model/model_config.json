@@ -1,0 +1,52 @@
+{
+  "base_model": "HuggingFaceTB/SmolLM2-135M",
+  "architecture": "LlamaForCausalLM",
+  "max_seq_length": 2048,
+  "dtype": "bfloat16",
+  "use_flash_attention_2": true,
+  "training": {
+    "per_device_train_batch_size": 8,
+    "gradient_accumulation_steps": 4,
+    "learning_rate": 2e-05,
+    "warmup_steps": 100,
+    "max_steps": 50000,
+    "save_steps": 5000,
+    "eval_steps": 1000,
+    "logging_steps": 100,
+    "weight_decay": 0.01,
+    "lr_scheduler_type": "cosine",
+    "optim": "adamw_8bit",
+    "bf16": true,
+    "gradient_checkpointing": true
+  },
+  "description": "Dedicated Math Model \u2014 trained exclusively on mathematical reasoning data",
+  "output_name": "smollm2-135m-math-only",
+  "datasets": [
+    {
+      "name": "gsm8k",
+      "path": "gsm8k",
+      "split": "train",
+      "filter": "math",
+      "max_samples": 8000,
+      "format": "### Question: {question}\n### Answer: {answer}"
+    },
+    {
+      "name": "math_dataset",
+      "path": "HuggingFaceH4/MATH-500",
+      "split": "train",
+      "filter": null,
+      "max_samples": 5000
+    }
+  ],
+  "data_filters": {
+    "exclude_patterns": [
+      "(?i)once upon a time",
+      "(?i)chapter \\d+",
+      "^\\s*$"
+    ],
+    "include_patterns": [
+      "\\d+",
+      "[+\\-*/=<>]"
+    ]
+  }
+}

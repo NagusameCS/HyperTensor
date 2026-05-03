@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "C:\Users\legom\HyperTensor\scripts\paperA_proof\compute_kint.py", line 170, in <module>
+    main()
+  File "C:\Users\legom\HyperTensor\scripts\paperA_proof\compute_kint.py", line 132, in main
+    Wq, Wk, Wv = load_qkv(args.blob, layer)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\legom\HyperTensor\scripts\paperA_proof\compute_kint.py", line 37, in load_qkv
+    Wq = _get(f"{prefix}.attn_q.weight")    # (n_heads*head_dim, d)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\legom\HyperTensor\scripts\paperA_proof\compute_kint.py", line 34, in _get
+    t = tm[key]
+        ~~^^^^^
+KeyError: 'blk.0.attn_q.weight'

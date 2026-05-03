@@ -1,0 +1,26 @@
+{
+  "telemetry_path": "test_live.tsv",
+  "axiom_report_path": "axiom_beta_report.json",
+  "metric": "cosine",
+  "online_stats": {
+    "n_online_states": 24,
+    "consecutive": {
+      "mean": 0.2754178598495825,
+      "p50": 0.24296287627303592,
+      "p90": 0.4765936567500523,
+      "max": 0.8007405509805333
+    },
+    "nn_distance": {
+      "mean": 0.13241520574211837,
+      "p50": 0.09338602734048612,
+      "p90": 0.34849547355423083,
+      "max": 0.5889594999293541
+    }
+  },
+  "offline_stats": {},
+  "bridge_gap": {
+    "offline_coverage_radius": null,
+    "online_nn_mean": 0.13241520574211837,
+    "online_nn_p90": 0.34849547355423083
+  }
+}

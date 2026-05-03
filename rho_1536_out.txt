@@ -1,0 +1,35 @@
+[rho] model=C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\snapshots\bf5b95e96dac0462e2a09145ec66cae9a3f12067\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf  n_layers=32  k=1536  lora_rank=8  sink_T=0
+  layer  0  rho=0.2112
+  layer  1  rho=0.1440
+  layer  2  rho=0.1370
+  layer  3  rho=0.1332
+  layer  4  rho=0.1324
+  layer  5  rho=0.1360
+  layer  6  rho=0.1318
+  layer  7  rho=0.1331
+  layer  8  rho=0.1375
+  layer  9  rho=0.1385
+  layer 10  rho=0.1375
+  layer 11  rho=0.1376
+  layer 12  rho=0.1347
+  layer 13  rho=0.1385
+  layer 14  rho=0.1381
+  layer 15  rho=0.1356
+  layer 16  rho=0.1347
+  layer 17  rho=0.1359
+  layer 18  rho=0.1346
+  layer 19  rho=0.1295
+  layer 20  rho=0.1294
+  layer 21  rho=0.1293
+  layer 22  rho=0.1297
+  layer 23  rho=0.1279
+  layer 24  rho=0.1295
+  layer 25  rho=0.1288
+  layer 26  rho=0.1267
+  layer 27  rho=0.1294
+  layer 28  rho=0.1271
+  layer 29  rho=0.1264
+  layer 30  rho=0.1324
+  layer 31  rho=0.1274
+[rho] mean rho = 0.1355  (k=1536)
+[rho] wrote docs\figures\paper-e\rho_sweep_1536\rho_summary.json

@@ -1,0 +1,20 @@
+commit 7418a3ece1079fc58fbad26d6d09b1a65d885ea3
+Author:  <150973942+NagusameCS@users.noreply.github.com>
+Date:   Wed Apr 29 17:22:34 2026 -0600
+
+    papers: first-person voice + curvature-warp 0/12 cross-model strengthening
+    
+    - Replace 'The author thanks/the author's' with first-person 'I thank/my' across paper-A/B/C acknowledgements and docs/WHITEPAPER.md (4 occurrences). Sole-author byline metadata unchanged.
+    
+    - paper-D §curvature-warp-negative: upgrade single-model 0/32 sweep with cross-model 0/12 replication (3 architectures x 2 protocols x 2 intrinsic dims) from docs/figures/curvature_warp/cross_model_summary.json. v2 covariant variant produces NEGATIVE target improvements on Phi-3.5-mini, NaN on Phi-3.5-mini v1 n=6. Strengthens negative conclusion.
+    
+    - paper-D gap-table: update curvature-warp row to 'negative: 0/32 single-model + 0/12 cross-model'.
+    
+    - paper-B Thermal Rank fbox: change 'v0.2 design specification ... deferred to v0.2' to 'v0.2 status' citing the new sustained-decode trace; only closed-loop A/B remains as next step.
+
+ .../paper-A/grc-attention-compression.tex          |  2 +-
+ .../paper-B/geodesic-projection-pipeline.tex       |  4 +-
+ .../paper-C/geodesic-speculative-decoding.tex      |  2 +-
+ .../paper-D/ott-gtc-manifold-runtime.tex           | 56 +++++++++++++++++-----
+ docs/WHITEPAPER.md                                 |  2 +-
+ 5 files changed, 49 insertions(+), 17 deletions(-)

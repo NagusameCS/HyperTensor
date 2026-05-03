@@ -1,0 +1,11 @@
+{
+  "phase": 2,
+  "title": "Symmetry Extraction",
+  "symmetry_score": 0.931281,
+  "generators_found": 72,
+  "head_similarity_mean": 0.931281,
+  "head_similarity_max": 0.996885,
+  "n_heads": 0,
+  "similarity_matrix": [
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "description": "Dedicated Math Model \u2014 trained exclusively on mathematical reasoning data",
+  "datasets": [
+    {
+      "name": "gsm8k",
+      "path": "gsm8k",
+      "split": "train",
+      "max_samples": 8000,
+      "format": "### Question: {question}\n### Answer: {answer}",
+      "filter": "math"
+    },
+    {
+      "name": "math_dataset",
+      "path": "HuggingFaceH4/MATH-500",
+      "split": "train",
+      "max_samples": 5000,
+      "format": "{text}",
+      "filter": null
+    }
+  ],
+  "filters": {
+    "exclude_patterns": [
+      "(?i)once upon a time",
+      "(?i)chapter \\d+",
+      "^\\s*$"
+    ],
+    "include_patterns": [
+      "\\d+",
+      "[+\\-*/=<>]"
+    ]
+  },
+  "max_total_tokens": 3276800000
+}
