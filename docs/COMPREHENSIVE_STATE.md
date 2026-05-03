@@ -276,6 +276,78 @@ The **MIKU Creativity Benchmark (MCB v1)** is a 5-dimension objective test:
 
 ---
 
+## ISAGI v1.0 — The Adaptive Living Model (New, May 3, 2026)
+
+Named after Yoichi Isagi (Blue Lock) — the footballer who sees the entire field,
+adapts instantly, and never stops believing in victory. ISAGI is the culmination
+of all HyperTensor research: a 32B-class model that integrates every technology
+from Papers I-XV into a single living intelligence.
+
+### Architecture
+
+```
+ISAGI Stack (7 layers):
+┌─────────────────────────────────────────┐
+│  PERSONA: Absolute confidence + rigor    │
+├─────────────────────────────────────────┤
+│  COG+TEH (XV): Living manifold           │
+├─────────────────────────────────────────┤
+│  Snipe (XIV): Behavioral precision       │
+├─────────────────────────────────────────┤
+│  Safe OGD (XIII): Geometric safety       │
+├─────────────────────────────────────────┤
+│  UGT (XI): Taxonomic basis (k=512)      │
+├─────────────────────────────────────────┤
+│  GRC (IX): k-projection compression      │
+│  OTT (VII): Speculative decoding         │
+│  GTC (VIII): Trajectory caching          │
+├─────────────────────────────────────────┤
+│  BASE: Qwen2.5-32B-Instruct (4-bit NF4) │
+└─────────────────────────────────────────┘
+```
+
+### ISAGI Personality
+
+| Trait | Principle |
+|---|---|
+| **Absolute Confidence** | No problem is unsolvable — only a question of time and depth |
+| **Extreme Rigor** | Demands proof at every step, validates assumptions, quantifies uncertainty |
+| **Adaptive Metacognition** | Routes problems through optimal UGT knowledge zones |
+| **Living Memory** | COG manifold grows with every interaction; GTC caches solutions |
+| **Honest Confidence** | Distinguishes proven / likely / speculative / unknown |
+
+**Never says:** "This is too difficult", "I can't solve this", "I give up"
+**Instead says:** "This requires deeper analysis. Let me break it down systematically."
+
+### Model Specs
+
+| Variant | Model | VRAM (4-bit) | Deployment |
+|---|---|---|---|
+| ISAGI Full | Qwen2.5-32B-Instruct (d=5120, 64L, ~27B) | ~15GB | EC2 L40S (46GB) |
+| ISAGI Local | Qwen2.5-7B-Instruct (d=3584, 28L, ~7B) | ~4.5GB | RTX 4070 Laptop (8GB) |
+
+### Compression Stack
+
+| Technology | Paper | Function | Speedup |
+|---|---|---|---|
+| GTC | VIII | Geodesic Trajectory Cache — instant response for known patterns | 15.5x vs RAG |
+| OTT | VII | Optimal Tensor Transport — speculative decode with manifold verification | 1.5-2x |
+| GRC | IX | Geodesic Residual Compression — k-projection attention | 1.04-1.06x throughput |
+
+### Disk Layout (Balanced)
+
+- **C:** (1862GB) — Code, venv, workspace
+- **D:** (1863GB) — HF cache, model weights, benchmark results, chat states
+  - `D:\huggingface_cache` — HF_HOME
+  - `D:\hyperchat_states` — .miku save files
+  - `D:\hyperbench` — benchmark outputs
+
+**Implementation:** `scripts/isagi_chat.py`
+**Launchers:** `isagi.bat` (local 7B), `isagi_full.bat` (32B EC2)
+**EC2 Setup:** `scripts/isagi_ec2_setup.py`
+
+---
+
 ## Local Deployment — RTX 4070 Laptop (8GB VRAM)
 
 The 7B model runs **locally** via 4-bit NF4 quantization (bitsandbytes):
