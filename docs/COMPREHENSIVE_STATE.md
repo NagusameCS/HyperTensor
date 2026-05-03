@@ -191,6 +191,10 @@
 | ACM involution | ι²≈id, error 0.009 | 135M |
 | ECM rank detection | 88.7% from topology | 135M |
 | GOM mass gap | λ₁ = 0.0017 > 0 | 135M |
+| **HyperChat interactive CLI** | 7-turn conversation, 7/7 COG EXPANDED, 0% TEH | **7B (EC2 L40S)** |
+| **.MIKU living model format** | 146KB JSON + 8.2MB tensors, miku-v1 spec | **7B** |
+| **Creativity Benchmark (MCB v1)** | 5-dimension CCI: D1-D5, 0-100 scale | **Any model** |
+| **Local 4-bit deployment** | NF4 quantization, 4.5GB VRAM (fits 8GB) | **7B local** |
 
 ### What Remains (By Difficulty)
 
@@ -223,3 +227,70 @@ All 10 papers have:
 - Reproduce tab: 5 repro guides (A-E)
 - Models tab: 5 GRC caches linked to GitHub Releases
 - XI+ content scrubbed from public pages
+
+---
+
+## .MIKU File Format (New — May 3, 2026)
+
+Named after Hatsune Miku, the iconic vocaloid — a fixed synthesis engine that
+generates infinite novel creative works. The analogy is precise:
+- Miku's voicebank = frozen model weights
+- Each new song = each COG manifold expansion
+- The vocaloid software = HyperTensor stack (UGT + Safe OGD + Snipe + COG)
+- A `.miku` file = a saved session with all its creative growth
+
+**Format:** JSON metadata (`.miku`) + PyTorch tensor blob (`.miku.pt`)
+- JSON: human-readable, diffable, contains model_id, k_ugt, d_model,
+  forbidden_coords, snipe_coords, trajectory cache, conversation log
+- Tensors: UGT basis [d,k] + COG metric [k,k]
+- Format version: `miku-v1`
+
+**Spec:** `docs/MIKU_FORMAT_SPEC.md`
+**Implementation:** `scripts/hyper_chat.py` (save_hyper_state / load_hyper_state)
+**First saved state:** 146KB JSON + 8.2MB tensors (7B model, 5-turn conversation)
+
+**Why not safetensors/GGUF?** Existing formats capture static weights only.
+No format supports a model whose geometric structure changes through use.
+The COG metric tensor is a learned Riemannian metric on the k-manifold — not a weight.
+
+---
+
+## Creativity Benchmark (MCB v1 — New, May 3, 2026)
+
+Chatting with the model doesn't measure creativity quantitatively.
+The **MIKU Creativity Benchmark (MCB v1)** is a 5-dimension objective test:
+
+| Dimension | Test | Metric | Weight |
+|---|---|---|---|
+| D1 Divergent Thinking | Alternative Uses Test (AUT) | Semantic diversity, pairwise embedding distance | 30% |
+| D2 Associative Breadth | Remote Associates + Concept Blending | RAT accuracy, concept-pair distance | 20% |
+| D3 Narrative Originality | Story Generation (5 prompts) | Self-BLEU₃ (↓better), Distinct-3, embedding σ² | 20% |
+| D4 Constraint Creativity | Lipogram, rhyme, exact word count | Constraint satisfaction × novelty | 15% |
+| D5 Metaphorical Thinking | Novel metaphor generation | Metaphor distance (source↔target), σ² | 15% |
+
+**Composite Creativity Index (CCI):** Weighted average, 0–100 scale.
+**Tiers:** S (≥80), A (≥65), B (≥50), C (≥35), D (<35)
+
+**Implementation:** `scripts/creativity_benchmark.py`
+**Usage:** `python creativity_benchmark.py --model Qwen/Qwen2.5-7B-Instruct [--4bit] [--quick]`
+
+---
+
+## Local Deployment — RTX 4070 Laptop (8GB VRAM)
+
+The 7B model runs **locally** via 4-bit NF4 quantization (bitsandbytes):
+- Qwen2.5-7B-Instruct fp16: ~15.2GB — does NOT fit 8GB
+- Qwen2.5-7B-Instruct 4-bit NF4: ~4.5GB — fits comfortably in 8GB
+- UGT basis (k=512): ~7MB — negligible
+- COG metric (512×512): ~1MB — negligible
+
+**Usage:**
+```powershell
+# Interactive chat (4-bit local)
+.venv\Scripts\python scripts\hyper_chat.py --4bit
+
+# Creativity benchmark (4-bit local, quick mode)
+.venv\Scripts\python scripts\creativity_benchmark.py --4bit --quick
+```
+
+**Requirements:** bitsandbytes 0.49.2 ✓ (already installed)

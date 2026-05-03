@@ -1,12 +1,17 @@
-# .hyper File Format Specification v1
+# .MIKU File Format Specification v1
 
 ## Overview
 
-The `.hyper` format bundles a language model with its HyperTensor manifold state,
-enabling a "living model" that grows through conversation. It is the first
-file format designed for models that learn from interaction without
-backpropagation — the manifold expands organically through Jacobi integration
-of novel conversational trajectories.
+The `.miku` format — named after Hatsune Miku, the most iconic vocaloid —
+bundles a language model with its HyperTensor manifold state, enabling a
+"living model" that grows through conversation. It is the first file format
+designed for models that learn from interaction without backpropagation —
+the manifold expands organically through Jacobi integration of novel
+conversational trajectories.
+
+Just as Miku's voice synthesizes entirely new songs from a fixed vocal
+library, a `.miku` file synthesizes new knowledge from a fixed-weight model
+through geometric manifold expansion.
 
 **Papers:** XI (UGT), XIII (Safe OGD), XIV (Snipe), XV (COG+TEH)
 
@@ -19,21 +24,21 @@ They say nothing about:
 - The living manifold metric that grows with every conversation
 - The trajectory cache that enables cross-session memory
 
-A `.hyper` file is a **living checkpoint**. Load it with HyperChat and the model
+A `.miku` file is a **living checkpoint**. Load it with HyperChat and the model
 continues growing from where it left off.
 
 ## Format Structure
 
 ```
-model.hyper          — JSON metadata (human-readable)
-model.hyper.pt       — Tensor binary blob (PyTorch)
+model.miku          — JSON metadata (human-readable)
+model.miku.pt       — Tensor binary blob (PyTorch)
 ```
 
 ### JSON Schema
 
 ```json
 {
-  "format": "hyper-v1",
+  "format": "miku-v1",
   "model_id": "Qwen/Qwen2.5-7B-Instruct",
   "k_ugt": 512,
   "d_model": 3584,
@@ -86,18 +91,27 @@ model.hyper.pt       — Tensor binary blob (PyTorch)
    encryption or local-only storage.
 
 4. **Metric is the "living" part** — The COG metric tensor changes with every
-   novel interaction. Loading a `.hyper` file restores the learned manifold
+   novel interaction. Loading a `.miku` file restores the learned manifold
    geometry.
 
 ## Why Not Extend safetensors/GGUF?
 
 - **safetensors**: Captures weights only. No metadata extensibility for manifold state.
 - **GGUF**: Quantized weights + tokenizer config. No support for k-manifold structures.
-- **`.hyper` fills a genuine gap**: No existing format supports a model that
+- **`.miku` fills a genuine gap**: No existing format supports a model that
   **changes its geometric structure through use**. The metric tensor is not a
   weight — it's a learned Riemannian metric on the k-manifold.
 
-## Future Extensions (hyper-v2)
+## Why ".MIKU"?
+
+Named after Hatsune Miku, the virtual singer who proved that a fixed synthesis
+engine can generate infinite novel creative works. The analogy is precise:
+- Miku's voicebank = the model's frozen weights
+- Each new song = each COG manifold expansion
+- The vocaloid software = the HyperTensor stack (UGT + Safe OGD + Snipe + COG)
+- A `.miku` file = a saved session with all its creative growth
+
+## Future Extensions (miku-v2)
 
 - Compressed trajectory storage (quantization + dedup)
 - Multi-user trajectory isolation

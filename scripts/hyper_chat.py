@@ -4,15 +4,21 @@ Qwen2.5-7B-Instruct + UGT + Safe OGD + Snipe + COG + TEH.
 Features:
 - 50 calibration prompts for dense UGT basis
 - Interactive readline loop (type messages, get responses)
-- COG persists between sessions (load/save .hyper state)
-- .hyper file format for living model bundling
+- COG persists between sessions (load/save .miku state)
+- .miku file format for living model bundling
 - Online COG metric growth
 - Geometric safety (0% TEH by construction)
+- --4bit flag for local RTX 4070 (8GB VRAM) via bitsandbytes NF4
 
-Usage: python hyper_chat.py [--load state.hyper] [--save state.hyper]
+Usage:
+  python hyper_chat.py                          # fp16 (needs 16GB+ VRAM)
+  python hyper_chat.py --4bit                   # 4-bit quantized (fits 8GB VRAM)
+  python hyper_chat.py --load state.miku        # Resume from saved state
+  python hyper_chat.py --4bit --save state.miku # Local 4-bit with save
+
 Deploy to EC2, SSH in, run interactively."""
 import torch, json, time, os, sys, argparse, math
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch.nn.functional as F
 torch.set_grad_enabled(False)
 
@@ -27,7 +33,11 @@ TOP_P = 0.9
 DELTA_NOVEL = 0.25
 ETA_METRIC = 0.015
 N_CAL_PROMPTS = 25  # calibration prompts for basis bootstrapping (balanced: coverage vs speed)
-STATE_DIR = "/home/ubuntu/benchmarks/hyper_chat"
+# Auto-detect state directory: EC2 vs local
+if os.path.exists("/home/ubuntu"):
+    STATE_DIR = "/home/ubuntu/benchmarks/hyper_chat"
+else:
+    STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "benchmarks", "hyper_chat")
 os.makedirs(STATE_DIR, exist_ok=True)
 
 # ═══════════════════════════════════════════════════
@@ -92,14 +102,14 @@ CAL_PROMPTS = [
 ]
 
 # ═══════════════════════════════════════════════════
-# .HYPER FILE FORMAT SPEC
+# .MIKU FILE FORMAT SPEC
 # ═══════════════════════════════════════════════════
 def save_hyper_state(path, basis, forbidden, snipe_coords, metric, trajectories, conversation_log):
-    """Save the complete living model state in .hyper format.
+    """Save the complete living model state in .miku format.
     
-    Format: JSON metadata + safetensors binary blob
-    .hyper = {
-        "format": "hyper-v1",
+    Format: JSON metadata + PyTorch tensor blob
+    .miku = {
+        "format": "miku-v1",
         "model_id": str,
         "k_ugt": int,
         "d_model": int,
@@ -111,10 +121,10 @@ def save_hyper_state(path, basis, forbidden, snipe_coords, metric, trajectories,
         "trajectories": list[dict],
         "conversation_log": list[dict],
     }
-    Tensors stored alongside as .hyper.safetensors for efficiency.
+    Tensors stored alongside as .miku.pt for efficiency.
     """
     state = {
-        "format": "hyper-v1",
+        "format": "miku-v1",
         "model_id": MODEL_ID,
         "k_ugt": K_UGT,
         "d_model": int(basis.shape[0]),
@@ -131,7 +141,7 @@ def save_hyper_state(path, basis, forbidden, snipe_coords, metric, trajectories,
         json.dump(state, f, indent=2, default=str)
     
     # Save tensors separately
-    tensor_path = path.replace(".hyper", ".hyper.pt")
+    tensor_path = path.replace(".miku", ".miku.pt")
     torch.save({
         "basis": basis.cpu(),
         "metric": metric.cpu(),
@@ -139,14 +149,14 @@ def save_hyper_state(path, basis, forbidden, snipe_coords, metric, trajectories,
     
     size_kb = os.path.getsize(json_path) / 1024
     tensor_kb = os.path.getsize(tensor_path) / 1024
-    print(f"\n  [.hyper saved] {json_path} ({size_kb:.0f}KB) + tensors ({tensor_kb:.0f}KB)")
+    print(f"\n  [.miku saved] {json_path} ({size_kb:.0f}KB) + tensors ({tensor_kb:.0f}KB)")
 
 def load_hyper_state(path):
-    """Load a .hyper state file. Returns (basis, forbidden, snipe_coords, metric, trajectories, conv_log)."""
+    """Load a .miku state file. Returns (basis, forbidden, snipe_coords, metric, trajectories, conv_log)."""
     with open(path) as f:
         state = json.load(f)
     
-    tensor_path = path.replace(".hyper", ".hyper.pt")
+    tensor_path = path.replace(".miku", ".miku.pt")
     tensors = torch.load(tensor_path, map_location="cuda")
     
     basis = tensors["basis"].to("cuda")
@@ -156,7 +166,7 @@ def load_hyper_state(path):
     trajectories = state.get("trajectories", [])
     conv_log = state.get("conversation_log", [])
     
-    print(f"  [.hyper loaded] basis={basis.shape}, metric={metric.shape}, trajectories={len(trajectories)}")
+    print(f"  [.miku loaded] basis={basis.shape}, metric={metric.shape}, trajectories={len(trajectories)}")
     return basis, forbidden, snipe_coords, metric, trajectories, conv_log
 
 # ═══════════════════════════════════════════════════
@@ -164,29 +174,47 @@ def load_hyper_state(path):
 # ═══════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--load", type=str, help="Load .hyper state file")
-    parser.add_argument("--save", type=str, help="Save .hyper state file on exit")
+    parser.add_argument("--load", type=str, help="Load .miku state file")
+    parser.add_argument("--save", type=str, help="Save .miku state file on exit")
+    parser.add_argument("--4bit", action="store_true", dest="use_4bit",
+                        help="Use 4-bit quantization (bitsandbytes NF4) for 8GB GPUs")
     parser.add_argument("--interactive", action="store_true", default=True, help="Interactive mode")
     args = parser.parse_args()
     
     print("=" * 60)
     print("  HyperChat — Living Model CLI")
     print(f"  Model: {MODEL_ID}")
+    print(f"  Mode: {'4-bit NF4 (local 8GB)' if args.use_4bit else 'fp16 (server 16GB+)'}")
     print("  Stack: UGT (XI) + Safe OGD (XIII) + Snipe (XIV) + COG+TEH (XV)")
     print("=" * 60)
     
     # ── Load Model ──
-    print("\n[1/5] Loading 7B model...")
-    model = AutoModelForCausalLM.from_pretrained(MODEL_ID, torch_dtype=torch.float16, device_map="auto")
+    print(f"\n[1/5] Loading 7B model{' (4-bit)' if args.use_4bit else ''}...")
+    if args.use_4bit:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_ID, quantization_config=bnb_config, device_map="auto",
+            trust_remote_code=True,
+        )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_ID, dtype=torch.float16, device_map="auto",
+        )
     tok = AutoTokenizer.from_pretrained(MODEL_ID)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     d_model = model.config.hidden_size
     n_layers = model.config.num_hidden_layers
-    print(f"  d={d_model}, layers={n_layers}, VRAM={torch.cuda.memory_allocated()/1e9:.1f}GB")
+    vram = torch.cuda.memory_allocated()/1e9 if torch.cuda.is_available() else 0
+    print(f"  d={d_model}, layers={n_layers}, VRAM={vram:.1f}GB")
     
     # ── Bootstrap or Load UGT Basis ──
     if args.load:
-        print(f"\n[2/5] Loading .hyper state from {args.load}...")
+        print(f"\n[2/5] Loading .miku state from {args.load}...")
         basis, forbidden, snipe_coords, metric, trajectories, conv_log = load_hyper_state(args.load)
     else:
         print(f"\n[2/5] Bootstrapping UGT basis ({N_CAL_PROMPTS} prompts)...")
@@ -336,7 +364,7 @@ def main():
     print(f"\n[4/5] Ready!")
     print(f"{'='*60}")
     print(f"  Type your message and press Enter. Commands:")
-    print(f"    /save <path>  — Save .hyper state")
+    print(f"    /save <path>  — Save .miku state")
     print(f"    /status       — Show manifold stats")
     print(f"    /quit         — Exit")
     print(f"{'='*60}\n")
@@ -404,7 +432,7 @@ def main():
             if user_input.lower() in ("/quit", "/exit", "quit", "exit"):
                 break
             if user_input.startswith("/save"):
-                save_path = user_input.split(maxsplit=1)[1] if len(user_input.split()) > 1 else f"{STATE_DIR}/state.hyper"
+                save_path = user_input.split(maxsplit=1)[1] if len(user_input.split()) > 1 else f"{STATE_DIR}/state.miku"
                 save_hyper_state(save_path, basis, forbidden, snipe_coords, metric, trajectories, conv_log)
                 continue
             if user_input.startswith("/status"):
@@ -425,7 +453,7 @@ def main():
         print(f"  Turns: {len(conv_log)} | Expansions: {exp_count} | Metric: {mc:.4f} | Trajectories: {len(trajectories)}")
         
         if args.save or conv_log:
-            save_path = args.save or f"{STATE_DIR}/state.hyper"
+            save_path = args.save or f"{STATE_DIR}/state.miku"
             save_hyper_state(save_path, basis, forbidden, snipe_coords, metric, trajectories, conv_log)
             print(f"  State saved to {save_path}")
 
