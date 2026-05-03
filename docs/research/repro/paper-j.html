@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper J: CECI Splicing, HyperTensor Research</title>
+<meta name="description" content="Step-by-step reproduction guide for HyperTensor Paper J (Cross-Encoded Component Interchange).">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Reproduce J · CECI Splicing</span>
+  <h1>Reproduce Paper J: CECI — Cross-Encoded Component Interchange</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">
+    HyperTensor Project · May 2026
+     · <a href="../paper_j_ceci_splicing.html">Paper J (HTML)</a>
+     · <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+<article class="paper-body">
+<h2>Scope</h2>
+<p>Reproduces the CECI (Cross-Encoded Component Interchange) splicing experiment:
+hot-swapping FFN layers between two independently UGT-trained models and
+measuring PPL degradation. Validates the bilateral UGT requirement — that
+component interchange only succeeds when both models share the same UGT
+taxonomic basis, proving the basis encodes functional semantics.</p>
+<h2>Hardware target</h2>
+<ul>
+  <li>Two UGT-trained models at 135M scale (SmolLM2-135M).</li>
+  <li>GPU: any CUDA 12.x with ≥4GB VRAM.</li>
+  <li>Or CPU-only: ~5 minutes for the 135M splice test.</li>
+</ul>
+<h2>Prerequisites</h2>
+<ul>
+  <li>Python 3.10+, PyTorch 2.x, transformers.</li>
+  <li>Two UGT-trained models (Phase 5, k=256, 100K steps).</li>
+  <li><code>scripts/e2e_pipeline.py</code> for the full UGT training pipeline.</li>
+</ul>
+<h2>Step 1: Train two UGT models (if not already available)</h2>
+<pre><code>python scripts/e2e_pipeline.py --model SmolLM2-135M --k 256 --steps 100000 \
+    --output-a ../models/ugt_model_a --output-b ../models/ugt_model_b</code></pre>
+<h2>Step 2: Run the CECI splice test</h2>
+<pre><code>python scripts/ceci_splice_test.py --model-a ../models/ugt_model_a \
+    --model-b ../models/ugt_model_b --layers 0,4,8,12,16,20,24,28</code></pre>
+<h2>Step 3: Expected output</h2>
+<ul>
+  <li><strong>Bilateral UGT (both models UGT-trained):</strong> 7/7 layers pass.
+    Mean ΔPPL = -0.11 (slight improvement from component diversity).</li>
+  <li><strong>Unilateral UGT (one model UGT, one vanilla):</strong> FFN transfer fails.
+    ΔPPL > +50, confirming bilateral requirement.</li>
+  <li><strong>Random splice (different layers):</strong> ΔPPL > +100, expected failure.</li>
+</ul>
+<h2>Validation</h2>
+<p>The key validation: FFN transfer works ONLY when both models share the UGT
+basis. This proves the basis encodes functional semantics — it's not just a
+compression artifact. The bilateral requirement is the central architectural
+claim of Paper XI (Universal Geodesic Taxonomy).</p>
+</article>
+</body>
+</html>

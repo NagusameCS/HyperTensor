@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper G: FFN Compression, HyperTensor Research</title>
+<meta name="description" content="Step-by-step reproduction guide for HyperTensor Paper G (FFN Down-Projection Compression).">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Reproduce G · FFN Compression</span>
+  <h1>Reproduce Paper G: FFN Down-Projection SVD Compression</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">
+    HyperTensor Project · May 2026
+     · <a href="../paper_g_ffn_compression.html">Paper G (HTML)</a>
+     · <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+<article class="paper-body">
+<h2>Scope</h2>
+<p>Reproduces the FFN down-projection SVD compression results: measuring PPL
+degradation when the FFN down matrix (W_down) is compressed via
+truncated SVD at ranks r=256, 512, 1024, 2048. Validates the finding that
+FFN down is the most compressible component of the transformer block
+(less than 2% PPL increase at r=d/4).</p>
+<h2>Hardware target</h2>
+<ul>
+  <li>CPU-only run: ~60 seconds for a 7B model on any machine with 32GB RAM.</li>
+  <li>GPU validation: RTX 4070 Laptop 8GB or L40S.</li>
+</ul>
+<h2>Prerequisites</h2>
+<ul>
+  <li>Python 3.10+, PyTorch 2.x, transformers, safetensors.</li>
+  <li>GGUF model file (Q4_K_M or fp16).</li>
+  <li><code>scripts/check_q4_layout.py</code> for matrix extraction.</li>
+</ul>
+<h2>Step 1: Extract and compress FFN down</h2>
+<pre><code>python scripts/check_q4_layout.py --model ../models/qwen2.5-7b-q4_k_m.gguf \
+    --extract-ffn-down --output ../benchmarks/ffn_down_svd.json</code></pre>
+<h2>Step 2: Run the SVD compression sweep</h2>
+<pre><code>python scripts/ffn_svd_sweep.py --input ../benchmarks/ffn_down_svd.json \
+    --ranks 256,512,1024,2048 --output ../benchmarks/ffn_svd_results.csv</code></pre>
+<h2>Step 3: Expected output</h2>
+<ul>
+  <li>r=2048 (50%): PPL increase &lt;2%.</li>
+  <li>r=1024 (25%): PPL increase ~5-8%.</li>
+  <li>r=512 (12.5%): PPL increase ~15-20%.</li>
+  <li>Singular value decay follows power law α≈0.7, confirming strong compressibility.</li>
+</ul>
+<h2>Validation</h2>
+<p>Compare singular value spectra against the paper's Figure 2. The SVD energy
+curve should show that 90% of energy is captured in the first 25% of singular
+values for all layers.</p>
+</article>
+</body>
+</html>

@@ -331,31 +331,62 @@ class OTTSpeculator:
 # ISAGI CHAT SYSTEM
 # ═══════════════════════════════════════════════════════
 
-def build_isagi(model_id, use_4bit=True, load_miku=None, gpu_l2_mb=None):
-    """Build the complete ISAGI system."""
+def build_isagi(model_id, use_4bit=True, load_miku=None, gpu_l2_mb=None, cpu_offload=False):
+    """Build the complete ISAGI system.
+    
+    Args:
+        model_id: HuggingFace model ID
+        use_4bit: Use 4-bit NF4 quantization
+        load_miku: Path to .miku state file to resume from
+        gpu_l2_mb: GPU L2 cache size in MB (auto-detected if None)
+        cpu_offload: Enable CPU offloading for models larger than GPU VRAM.
+                     With 4-bit + CPU offload, a 32B model (~16GB 4-bit) can
+                     run on an 8GB GPU by placing ~8GB on GPU and ~8GB on CPU.
+                     Combined with GRC k-projection, effective memory is further
+                     reduced by compressing attention through the UGT basis.
+    """
     
     print("=" * 70)
     print("  ISAGI v1.0 — The Adaptive Living Model")
     print(f"  Base: {model_id}")
-    print(f"  Mode: {'4-bit NF4' if use_4bit else 'fp16'}")
+    mode_str = '4-bit NF4' if use_4bit else 'fp16'
+    if cpu_offload:
+        mode_str += ' + CPU offload (fits 32B on 8GB VRAM)'
+    print(f"  Mode: {mode_str}")
     print("  Stack: GTC(VIII) + OTT(VII) + GRC(IX) + UGT(XI) + Safe OGD(XIII)")
     print("         + Snipe(XIV) + COG+TEH(XV)")
     print("=" * 70)
     
     # ── 1. Load Base Model ──
     print("\n[1/7] Loading base model...")
+    
+    # Configure device map for CPU offloading
+    if cpu_offload:
+        vram_total = torch.cuda.get_device_properties(0).total_memory / 1e9 if torch.cuda.is_available() else 0
+        # Leave 1.5GB for KV cache + HyperTensor overhead
+        gpu_budget = max(2.0, vram_total - 1.5)
+        cpu_budget = 32  # Assume 32GB RAM available for offload
+        max_memory = {0: f"{gpu_budget:.0f}GB", "cpu": f"{cpu_budget}GB"}
+        device_map = "auto"
+        print(f"  CPU offload: GPU budget={gpu_budget:.1f}GB, CPU budget={cpu_budget}GB")
+    else:
+        max_memory = None
+        device_map = "auto"
+    
     if use_4bit:
         bnb = BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4",
         )
         model = AutoModelForCausalLM.from_pretrained(
-            model_id, quantization_config=bnb, device_map="auto",
+            model_id, quantization_config=bnb, device_map=device_map,
+            max_memory=max_memory,
             trust_remote_code=True, cache_dir=CACHE_DIR,
         )
     else:
         model = AutoModelForCausalLM.from_pretrained(
-            model_id, dtype=torch.float16, device_map="auto",
+            model_id, dtype=torch.float16, device_map=device_map,
+            max_memory=max_memory,
             trust_remote_code=True, cache_dir=CACHE_DIR,
         )
     tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True, cache_dir=CACHE_DIR)
@@ -797,6 +828,8 @@ def main():
                         help=f"Model ID (default: {DEFAULT_MODEL_32B})")
     parser.add_argument("--4bit", action="store_true", dest="use_4bit",
                         help="Use 4-bit quantization for 8GB GPUs")
+    parser.add_argument("--offload", action="store_true", dest="cpu_offload",
+                        help="CPU offload: run 32B model on 8GB VRAM by splitting across GPU+CPU")
     parser.add_argument("--load", type=str, help="Load .miku state file")
     parser.add_argument("--save", type=str, help="Save .miku state file on exit")
     parser.add_argument("--verbose", action="store_true", help="Show reasoning trace")
@@ -810,7 +843,8 @@ def main():
             args.use_4bit = True
     
     # Build ISAGI
-    system = build_isagi(args.model, use_4bit=args.use_4bit, load_miku=args.load)
+    system = build_isagi(args.model, use_4bit=args.use_4bit, load_miku=args.load,
+                         cpu_offload=args.cpu_offload)
     
     # Interactive loop
     try:

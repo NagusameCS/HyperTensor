@@ -393,7 +393,7 @@ footer a:hover { text-decoration: underline; }
       Research papers <span class="count">10</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-reproduce" data-tab="reproduce">
-      Reproduce <span class="count">5</span>
+      Reproduce <span class="count">10</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-models" data-tab="models">
       Models &amp; caches <span class="count">5+</span>
@@ -737,6 +737,36 @@ footer a:hover { text-decoration: underline; }
         <p>Phase 1 calibration-free reference (CPU-only, ~60&nbsp;s) and
         the Phase 2 LoRA-residual training scaffold for EC2 A100. Phase 2
         empirical numbers are listed as Pending in the paper.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-f.html">
+        <div class="paper-head"><span class="paper-num">F</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper F: Per-Task Impact of GRC</h3>
+        <p>8-task PPL sweep at k=256-1024. Validates knowledge tasks degrade
+        faster than reasoning, confirming the UGT zone-specialisation hypothesis.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-g.html">
+        <div class="paper-head"><span class="paper-num">G</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper G: FFN Down-Projection SVD</h3>
+        <p>SVD compression sweep at ranks 256-2048. FFN down is the most
+        compressible component: &lt;2% PPL increase at r=d/4. CPU-only, ~60s.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-h.html">
+        <div class="paper-head"><span class="paper-num">H</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper H: GTC vs Vector-DB RAG</h3>
+        <p>100K-trajectory simulation proving 15.5× token-prediction speedup
+        over FAISS-backed RAG. Pure Python + NumPy, ~2 min on laptop.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-i.html">
+        <div class="paper-head"><span class="paper-num">I</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper I: Cross-GPU Super-Baseline</h3>
+        <p>Analytical simulator + measured throughput sweep. Validates k*
+        prediction from L2 cache size across RTX 4070, L40S, A100, H100.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-j.html">
+        <div class="paper-head"><span class="paper-num">J</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper J: CECI Component Splicing</h3>
+        <p>FFN hot-swap between two UGT-trained 135M models. 7/7 layers pass
+        (ΔPPL=-0.11) — validates the bilateral UGT requirement.</p>
       </a>
     </div>
   </div><!-- /#tab-reproduce -->
