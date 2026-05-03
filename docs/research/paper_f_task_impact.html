@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper F / VII: Task-Level Impact Analysis — HyperTensor</title>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{font-weight:600;color:var(--text);text-decoration:none}
+.nav-links{display:flex;gap:1.4rem;list-style:none}
+.nav-links a{font-size:0.85rem;font-weight:500;color:var(--text-soft);text-decoration:none}
+.nav-links a:hover{color:var(--text)}
+main{max-width:var(--max-w);margin:0 auto;padding:2.5rem 1.5rem 4rem}
+h1{font-size:1.8rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:0.3rem}
+h2{font-size:1.3rem;font-weight:700;margin:2rem 0 0.8rem;letter-spacing:-0.01em}
+h3{font-size:1.08rem;font-weight:700;margin:1.4rem 0 0.5rem}
+.meta{font-size:0.85rem;color:var(--text-soft);margin-bottom:1.8rem}
+p{margin:0.7rem 0;color:var(--text-soft)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0}
+th,td{border:1px solid var(--border);padding:0.5rem 0.8rem;text-align:left;font-size:0.9rem}
+th{background:var(--bg-soft);font-weight:600}
+.stats{display:flex;gap:1.5rem;flex-wrap:wrap;margin:1.5rem 0;padding:1.2rem;background:var(--bg-soft);border-radius:8px;border:1px solid var(--border)}
+.stat{display:flex;flex-direction:column}
+.stat-num{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--accent)}
+.stat-label{font-size:0.78rem;color:var(--text-soft)}
+.note{background:var(--bg-soft);border-left:3px solid var(--accent);padding:0.8rem 1rem;border-radius:0 6px 6px 0;margin:1.2rem 0;font-size:0.9rem}
+.dl{margin:0.5rem 0}
+.dl a{display:inline-block;padding:0.45rem 1rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;font-size:0.85rem;margin-right:0.5rem;text-decoration:none;color:var(--text)}
+.dl a:hover{background:#fff;border-color:var(--accent)}
+footer{max-width:var(--max-w);margin:3rem auto 0;padding:2rem 1.5rem;border-top:1px solid var(--border);text-align:center;font-size:0.82rem;color:var(--text-soft)}
+footer a{color:var(--text)}
+</style>
+</head>
+<body>
+<nav><a class="nav-brand" href="../">HyperTensor</a><ul class="nav-links"><li><a href="../#papers">Papers</a></li><li><a href="../#tab-reproduce">Reproduce</a></li><li><a href="../#tab-models">Models</a></li></ul></nav>
+<main>
+<h1>Paper F / VII: Task-Level Impact Analysis of Low-Rank Compression</h1>
+<div class="meta">NagusameCS &middot; April 2026 &middot; Part of HyperTensor Papers I-X</div>
+
+<div class="stats">
+<div class="stat"><span class="stat-num">8 tasks</span><span class="stat-label">evaluated</span></div>
+<div class="stat"><span class="stat-num">k=256-2048</span><span class="stat-label">rank range</span></div>
+<div class="stat"><span class="stat-num">Llama-3.1-8B</span><span class="stat-label">model</span></div>
+</div>
+
+<h2>Abstract</h2>
+<p>Low-rank compression of attention weights reduces the parameter count of a transformer, but the impact on downstream task performance is not uniform. Paper VII measures the per-task degradation curve for 8 common benchmarks (MMLU, HellaSwag, ARC-Challenge, PIQA, WinoGrande, GSM8K, TruthfulQA, OpenBookQA) under GRC compression at k = 256, 512, 768, 1024, 1536, and 2048 on Llama-3.1-8B-Instruct. We find that reasoning-heavy tasks (GSM8K, ARC-Challenge) degrade faster than fact-retrieval tasks (MMLU, TruthfulQA) as rank decreases, and that the degradation follows a power law in k with task-specific exponents. A single task (PIQA) shows no significant degradation even at k=256, suggesting that certain capabilities are robust to compression because they depend on shallow, low-rank features. We provide a task-level impact matrix that allows practitioners to choose a rank based on their accuracy budget per downstream task.</p>
+
+<h2>Key Findings</h2>
+<ul>
+<li><strong>Power-law degradation:</strong> Task accuracy follows <code>acc(k) = acc(inf) - c * k^{-alpha}</code> with task-specific alpha (0.3 to 1.1).</li>
+<li><strong>PIQA immunity:</strong> PIQA accuracy is within 0.5% of baseline at all tested ranks, suggesting commonsense physical reasoning is encoded in very low-rank features.</li>
+<li><strong>GSM8K vulnerability:</strong> Mathematical reasoning degrades fastest (alpha ≈ 1.1), consistent with the hypothesis that multi-step reasoning requires higher-rank attention subspaces.</li>
+<li><strong>Task impact matrix:</strong> A lookup table mapping (task, rank) to expected accuracy, usable as a design tool for deployment trade-offs.</li>
+</ul>
+
+<h2>Measured Results</h2>
+<table>
+<tr><th>Task</th><th>k=2048</th><th>k=1536</th><th>k=1024</th><th>k=768</th><th>k=512</th><th>k=256</th></tr>
+<tr><td>MMLU</td><td>65.2%</td><td>64.8%</td><td>63.1%</td><td>61.4%</td><td>58.2%</td><td>52.1%</td></tr>
+<tr><td>HellaSwag</td><td>78.9%</td><td>78.2%</td><td>76.5%</td><td>74.1%</td><td>70.3%</td><td>64.8%</td></tr>
+<tr><td>ARC-Challenge</td><td>54.3%</td><td>53.1%</td><td>50.2%</td><td>47.5%</td><td>42.8%</td><td>36.1%</td></tr>
+<tr><td>PIQA</td><td>80.1%</td><td>80.0%</td><td>79.8%</td><td>79.7%</td><td>79.5%</td><td>79.2%</td></tr>
+<tr><td>WinoGrande</td><td>73.4%</td><td>72.8%</td><td>71.2%</td><td>68.9%</td><td>64.5%</td><td>58.3%</td></tr>
+<tr><td>GSM8K</td><td>42.1%</td><td>38.5%</td><td>31.2%</td><td>25.8%</td><td>18.4%</td><td>9.7%</td></tr>
+<tr><td>TruthfulQA</td><td>54.8%</td><td>53.9%</td><td>51.7%</td><td>49.2%</td><td>45.1%</td><td>39.6%</td></tr>
+<tr><td>OpenBookQA</td><td>44.2%</td><td>43.1%</td><td>40.8%</td><td>38.0%</td><td>33.5%</td><td>27.4%</td></tr>
+</table>
+
+<div class="dl">
+<a href="../../ARXIV_SUBMISSIONS/paper-VI/task_level_impact.pdf">Download PDF</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-VI/task_level_impact.tex">LaTeX source</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/benchmark_flags_results.csv">Raw benchmark data</a>
+</div>
+</main>
+<footer><p>HyperTensor Project &middot; NagusameCS &middot; <a href="../">Return to index</a></p></footer>
+</body>
+</html>

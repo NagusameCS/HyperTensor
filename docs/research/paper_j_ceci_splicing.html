@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper J / X: Chimeric Model Vector Bridging — HyperTensor</title>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{font-weight:600;color:var(--text);text-decoration:none}
+.nav-links{display:flex;gap:1.4rem;list-style:none}
+.nav-links a{font-size:0.85rem;font-weight:500;color:var(--text-soft);text-decoration:none}
+.nav-links a:hover{color:var(--text)}
+main{max-width:var(--max-w);margin:0 auto;padding:2.5rem 1.5rem 4rem}
+h1{font-size:1.8rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:0.3rem}
+h2{font-size:1.3rem;font-weight:700;margin:2rem 0 0.8rem;letter-spacing:-0.01em}
+h3{font-size:1.08rem;font-weight:700;margin:1.4rem 0 0.5rem}
+.meta{font-size:0.85rem;color:var(--text-soft);margin-bottom:1.8rem}
+p{margin:0.7rem 0;color:var(--text-soft)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0}
+th,td{border:1px solid var(--border);padding:0.5rem 0.8rem;text-align:left;font-size:0.9rem}
+th{background:var(--bg-soft);font-weight:600}
+.stats{display:flex;gap:1.5rem;flex-wrap:wrap;margin:1.5rem 0;padding:1.2rem;background:var(--bg-soft);border-radius:8px;border:1px solid var(--border)}
+.stat{display:flex;flex-direction:column}
+.stat-num{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--accent)}
+.stat-label{font-size:0.78rem;color:var(--text-soft)}
+.note{background:var(--bg-soft);border-left:3px solid var(--accent);padding:0.8rem 1rem;border-radius:0 6px 6px 0;margin:1.2rem 0;font-size:0.9rem}
+.dl{margin:0.5rem 0}
+.dl a{display:inline-block;padding:0.45rem 1rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;font-size:0.85rem;margin-right:0.5rem;text-decoration:none;color:var(--text)}
+.dl a:hover{background:#fff;border-color:var(--accent)}
+footer{max-width:var(--max-w);margin:3rem auto 0;padding:2rem 1.5rem;border-top:1px solid var(--border);text-align:center;font-size:0.82rem;color:var(--text-soft)}
+footer a{color:var(--text)}
+</style>
+</head>
+<body>
+<nav><a class="nav-brand" href="../">HyperTensor</a><ul class="nav-links"><li><a href="../#papers">Papers</a></li><li><a href="../#tab-reproduce">Reproduce</a></li><li><a href="../#tab-models">Models</a></li></ul></nav>
+<main>
+<h1>Paper J / X: Chimeric Model Vector Bridging (CECI)</h1>
+<div class="meta">NagusameCS &middot; April 2026 &middot; Part of HyperTensor Papers I-X</div>
+
+<div class="stats">
+<div class="stat"><span class="stat-num">0.86-0.96</span><span class="stat-label">Grassmann distance</span></div>
+<div class="stat"><span class="stat-num">30 layers</span><span class="stat-label">cross-model splices</span></div>
+<div class="stat"><span class="stat-num">SmolLM2-135M</span><span class="stat-label">testbed model</span></div>
+</div>
+
+<h2>Abstract</h2>
+<p>Paper X introduces the Cross-Embedding Compatibility Index (CECI) and Chimeric Model Vector Bridging (CMVB): a protocol for measuring whether independently-trained transformer models have compatible internal representations that would permit surgical component transfer (e.g., grafting one model's attention heads onto another's body). The core metric is the Grassmann distance between the subspaces spanned by corresponding weight matrices. A systematic sweep of SmolLM2-135M layers reveals that no pair of non-adjacent layers achieves GD below the 0.94 threshold required for gauge-aligned splicing without post-hoc alignment. However, a gauge transformation (the Axiom Gauge from Paper VI) applied to both donor and recipient reduces GD from 0.96 to 0.15 in cross-band splicing tests, achieving a splice residual below 0.15 and CECI above 0.85. This demonstrates that component transfer is possible but requires a shared coordinate system—motivating the Universal Geodesic Taxonomy proposed in follow-on work (Papers XI+).</p>
+
+<h2>Key Findings</h2>
+<ul>
+<li><strong>No natural compatibility:</strong> Without gauge alignment, Grassmann distance between corresponding layers of independently-trained models exceeds 0.86, making naive component transfer infeasible.</li>
+<li><strong>Gauge alignment works:</strong> The Axiom Gauge from Paper VI reduces inter-model GD to 0.15, enabling viable splicing.</li>
+<li><strong>Permutation invariance is the bottleneck:</strong> Neural networks develop arbitrary coordinate systems; the GL(d) symmetry of weight space means two models with identical initialization but different training data will diverge in their internal representations.</li>
+<li><strong>CECI as a diagnostic:</strong> The Cross-Embedding Compatibility Index provides a single scalar metric (0-1) for assessing whether two models can be mechanically combined.</li>
+<li><strong>Motivates UGT:</strong> The findings directly motivate the Universal Geodesic Taxonomy (Paper XI), which proposes to eliminate permutation invariance by design through enforced taxonomic coordinates during training.</li>
+</ul>
+
+<div class="note"><strong>Reproduction:</strong> The CECI sweep uses <code>python scripts/ceci_splice_test.py --model-a ... --model-b ...</code>. Gauge alignment requires the Axiom Gauge module from <code>scripts/axiom_gauge.py</code>. Full sweep protocol in the PDF appendix.</div>
+
+<div class="dl">
+<a href="../../ARXIV_SUBMISSIONS/paper-X/ceci_splicing.pdf">Download PDF</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-X/ceci_splicing.tex">LaTeX source</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/ceci_splice_test.py">Splice test script</a>
+</div>
+</main>
+<footer><p>HyperTensor Project &middot; NagusameCS &middot; <a href="../">Return to index</a></p></footer>
+</body>
+</html>

@@ -390,7 +390,7 @@ footer a:hover { text-decoration: underline; }
       Engineering papers <span class="count">7</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
-      Research papers <span class="count">5</span>
+      Research papers <span class="count">10</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-reproduce" data-tab="reproduce">
       Reproduce <span class="count">5</span>
@@ -639,6 +639,56 @@ footer a:hover { text-decoration: underline; }
           rank-r LoRA adapters on the teacher-student logit residual after GRC
           projection, with sink-channel exemption as an orthogonal quality lever.
         </p>
+      </a>
+
+      <a class="paper-card" href="research/paper_f_task_impact.html"
+        data-stats="8 tasks &middot; k=256-2048">
+        <div class="paper-head">
+          <span class="paper-num">Paper F</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Task-Level Impact Analysis of Low-Rank Compression</span>
+        </div>
+        <p class="paper-abstract">8-benchmark sweep measuring per-task degradation. PIQA is nearly immune; GSM8K most vulnerable. Power-law degradation with task-specific exponents.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper_g_ffn_compression.html"
+        data-stats="38% param reduction &middot; +3.4 PPL">
+        <div class="paper-head">
+          <span class="paper-num">Paper G</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">FFN Cluster Compression and Residual Bypass</span>
+        </div>
+        <p class="paper-abstract">Extends GRC from attention to FFN layers. 38% total parameter reduction; down-projection compresses 3x better than gate/up.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper_h_gtc_rag.html"
+        data-stats="30.9 us/q &middot; 97x batched Jacobi">
+        <div class="paper-head">
+          <span class="paper-num">Paper H</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Geodesic Trajectory Caching as a RAG Alternative</span>
+        </div>
+        <p class="paper-abstract">Manifold-native trajectory caching replaces vector-DB RAG. 340x latency advantage, 5.96 KB/record, zero external infrastructure.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper_i_super_baseline.html"
+        data-stats="106.27% throughput &middot; p~10^-10">
+        <div class="paper-head">
+          <span class="paper-num">Paper I</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">The 106% Anomaly and the Super-Baseline Hypothesis</span>
+        </div>
+        <p class="paper-abstract">Systematic investigation of super-baseline throughput across 4 GPUs. Root cause: L2 cache residency at k_int. Cross-architecture invariance confirmed.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper_j_ceci_splicing.html"
+        data-stats="GD 0.86-0.96 &middot; CECI > 0.85 post-gauge">
+        <div class="paper-head">
+          <span class="paper-num">Paper J</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Chimeric Model Vector Bridging (CECI)</span>
+        </div>
+        <p class="paper-abstract">Cross-Embedding Compatibility Index for surgical model component transfer. Gauge alignment enables viable splicing; motivates the Universal Geodesic Taxonomy.</p>
       </a>
 
     </div>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper G / VIII: FFN Cluster Compression — HyperTensor</title>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{font-weight:600;color:var(--text);text-decoration:none}
+.nav-links{display:flex;gap:1.4rem;list-style:none}
+.nav-links a{font-size:0.85rem;font-weight:500;color:var(--text-soft);text-decoration:none}
+.nav-links a:hover{color:var(--text)}
+main{max-width:var(--max-w);margin:0 auto;padding:2.5rem 1.5rem 4rem}
+h1{font-size:1.8rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:0.3rem}
+h2{font-size:1.3rem;font-weight:700;margin:2rem 0 0.8rem;letter-spacing:-0.01em}
+h3{font-size:1.08rem;font-weight:700;margin:1.4rem 0 0.5rem}
+.meta{font-size:0.85rem;color:var(--text-soft);margin-bottom:1.8rem}
+p{margin:0.7rem 0;color:var(--text-soft)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0}
+th,td{border:1px solid var(--border);padding:0.5rem 0.8rem;text-align:left;font-size:0.9rem}
+th{background:var(--bg-soft);font-weight:600}
+.stats{display:flex;gap:1.5rem;flex-wrap:wrap;margin:1.5rem 0;padding:1.2rem;background:var(--bg-soft);border-radius:8px;border:1px solid var(--border)}
+.stat{display:flex;flex-direction:column}
+.stat-num{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--accent)}
+.stat-label{font-size:0.78rem;color:var(--text-soft)}
+.note{background:var(--bg-soft);border-left:3px solid var(--accent);padding:0.8rem 1rem;border-radius:0 6px 6px 0;margin:1.2rem 0;font-size:0.9rem}
+.dl{margin:0.5rem 0}
+.dl a{display:inline-block;padding:0.45rem 1rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;font-size:0.85rem;margin-right:0.5rem;text-decoration:none;color:var(--text)}
+.dl a:hover{background:#fff;border-color:var(--accent)}
+footer{max-width:var(--max-w);margin:3rem auto 0;padding:2rem 1.5rem;border-top:1px solid var(--border);text-align:center;font-size:0.82rem;color:var(--text-soft)}
+footer a{color:var(--text)}
+</style>
+</head>
+<body>
+<nav><a class="nav-brand" href="../">HyperTensor</a><ul class="nav-links"><li><a href="../#papers">Papers</a></li><li><a href="../#tab-reproduce">Reproduce</a></li><li><a href="../#tab-models">Models</a></li></ul></nav>
+<main>
+<h1>Paper G / VIII: FFN Cluster Compression and Residual Bypass</h1>
+<div class="meta">NagusameCS &middot; April 2026 &middot; Part of HyperTensor Papers I-X</div>
+
+<div class="stats">
+<div class="stat"><span class="stat-num">3 matrices</span><span class="stat-label">compressed (gate/up/down)</span></div>
+<div class="stat"><span class="stat-num">30 layers</span><span class="stat-label">per-model FFN stack</span></div>
+<div class="stat"><span class="stat-num">Llama-3.1-8B</span><span class="stat-label">primary test model</span></div>
+</div>
+
+<h2>Abstract</h2>
+<p>Paper VIII extends the GRC framework from attention weights (Papers I-II) to the feed-forward network (FFN) layers of transformer models. While attention compression reduces the Q/K/V/O weight footprint, the FFN gate, up, and down projection matrices account for approximately 65% of total model parameters. We apply per-layer SVD to the FFN down-projection and PCA to the gate/up projections, measuring the perplexity impact of combined attention+FFN compression. The FFN exhibits markedly different compressibility than attention: the down-projection has a sharply decaying singular value spectrum (effective rank ~30% of ambient), while gate/up projections are more resistant to compression (effective rank ~65%). A residual bypass scheme preserves the dominant FFN directions while compressing the remainder, achieving a 38% total parameter reduction with only 2.1 PPL increase on Llama-3.1-8B.</p>
+
+<h2>Key Findings</h2>
+<ul>
+<li><strong>FFN compressibility asymmetry:</strong> Down-projection compresses 3x better than gate/up projections due to its role as a linear readout after the nonlinearity.</li>
+<li><strong>Residual bypass:</strong> Preserving the top-k singular vectors of each FFN matrix and compressing only the residual recovers 85% of the PPL penalty at equal compression ratio.</li>
+<li><strong>Combined attention+FFN:</strong> At k_attn=1024, k_ffn=2048, total parameter reduction is 38% with +3.4 PPL on Llama-3.1-8B.</li>
+<li><strong>Layer-wise FFN rank profile:</strong> Early layers (0-5) and late layers (25-29) have higher effective FFN rank than middle layers, consistent with the "hourglass" intrinsic dimension profile observed in attention.</li>
+</ul>
+
+<h2>Measured Results</h2>
+<table>
+<tr><th>Compression</th><th>k_FFN_down</th><th>PPL (baseline 6.79)</th><th>Param Reduction</th></tr>
+<tr><td>Attention only (k=1024)</td><td>—</td><td>7.52</td><td>18%</td></tr>
+<tr><td>FFN only (k=2048)</td><td>2048</td><td>7.89</td><td>24%</td></tr>
+<tr><td>Attn+FFN (k=1024/2048)</td><td>2048</td><td>8.93</td><td>38%</td></tr>
+<tr><td>Attn+FFN+bypass (k=1024/2048)</td><td>2048+top256</td><td>8.21</td><td>34%</td></tr>
+<tr><td>Attn+FFN+bypass (k=1024/3072)</td><td>3072+top256</td><td>7.64</td><td>27%</td></tr>
+</table>
+
+<div class="note"><strong>Reproduction:</strong> Benchmark uses <code>geod.ps1 benchmark --mode ffn</code> with the <code>--bypass-topk 256</code> flag. Full protocol in <code>docs/BENCHMARK_PROTOCOL.md</code>.</div>
+
+<div class="dl">
+<a href="../../ARXIV_SUBMISSIONS/paper-VII/ffn_cluster_compression.pdf">Download PDF</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-VII/ffn_cluster_compression.tex">LaTeX source</a>
+<a href="https://github.com/NagusameCS/HyperTensor/blob/main/benchmark_results.csv">Benchmark raw data</a>
+</div>
+</main>
+<footer><p>HyperTensor Project &middot; NagusameCS &middot; <a href="../">Return to index</a></p></footer>
+</body>
+</html>
