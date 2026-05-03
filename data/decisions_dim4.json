@@ -1,0 +1,102 @@
+{
+  "solver": "diffeo_solver.py",
+  "test": "test_dim4.py",
+  "timestamp": "2026-04-18T20:29:53Z",
+  "theorem": "Theorem 2 (inherited-structure lemma, k=4 case)",
+  "manifolds": [
+    {
+      "name": "dim4_flat",
+      "k": 4,
+      "n": 32
+    },
+    {
+      "name": "dim4_curved",
+      "k": 4,
+      "n": 34
+    },
+    {
+      "name": "dim4_anisotropic",
+      "k": 4,
+      "n": 32
+    }
+  ],
+  "decisions": [
+    {
+      "pair": [
+        "dim4_flat",
+        "dim4_curved"
+      ],
+      "k_A": 4,
+      "k_B": 4,
+      "model_A": "dim4_flat",
+      "model_B": "dim4_curved",
+      "verdict": "diffeomorphic",
+      "reason": "both manifolds are star-shaped open submanifolds of standard \u211d\u2074 with the inherited smooth structure (axiom_geo pipeline). Theorem 2 rules out exotic smooth structures in this setting, so each is diffeomorphic to \u211d\u2074.",
+      "certificate": {
+        "n_probes": 32,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.5188673863236107,
+        "median_abs_det_dPhi": 1.4782838786179004,
+        "median_inverse_error": 1.2451339896634688e-16,
+        "max_inverse_error": 5.810469165661947e-16,
+        "within_tol": true,
+        "elapsed_s": 0.02,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    },
+    {
+      "pair": [
+        "dim4_flat",
+        "dim4_anisotropic"
+      ],
+      "k_A": 4,
+      "k_B": 4,
+      "model_A": "dim4_flat",
+      "model_B": "dim4_anisotropic",
+      "verdict": "diffeomorphic",
+      "reason": "both manifolds are star-shaped open submanifolds of standard \u211d\u2074 with the inherited smooth structure (axiom_geo pipeline). Theorem 2 rules out exotic smooth structures in this setting, so each is diffeomorphic to \u211d\u2074.",
+      "certificate": {
+        "n_probes": 32,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.8790667264429405,
+        "median_abs_det_dPhi": 2.3418753023468577,
+        "median_inverse_error": 1.3232547447827037e-16,
+        "max_inverse_error": 6.020890075792993e-16,
+        "within_tol": true,
+        "elapsed_s": 0.016,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    },
+    {
+      "pair": [
+        "dim4_curved",
+        "dim4_anisotropic"
+      ],
+      "k_A": 4,
+      "k_B": 4,
+      "model_A": "dim4_curved",
+      "model_B": "dim4_anisotropic",
+      "verdict": "diffeomorphic",
+      "reason": "both manifolds are star-shaped open submanifolds of standard \u211d\u2074 with the inherited smooth structure (axiom_geo pipeline). Theorem 2 rules out exotic smooth structures in this setting, so each is diffeomorphic to \u211d\u2074.",
+      "certificate": {
+        "n_probes": 34,
+        "sign_consistent_det": true,
+        "min_abs_det_dPhi": 0.6012016095582446,
+        "median_abs_det_dPhi": 2.3238808315296953,
+        "median_inverse_error": 1.1327021585916998e-16,
+        "max_inverse_error": 5.960283678688272e-16,
+        "within_tol": true,
+        "elapsed_s": 0.013,
+        "star_shaped_A": true,
+        "star_shaped_B": true
+      }
+    }
+  ],
+  "summary": {
+    "diffeomorphic": 3,
+    "not_diffeomorphic": 0,
+    "undecided": 0
+  }
+}

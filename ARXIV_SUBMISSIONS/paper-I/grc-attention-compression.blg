@@ -1,0 +1,15 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'grc-attention-compression.blg'
+[51] biber-MSWIN64:342> INFO - === 
+[122] Biber.pm:421> INFO - Reading 'grc-attention-compression.bcf'
+[197] Biber.pm:1002> INFO - Found 30 citekeys in bib section 0
+[208] Biber.pm:4487> INFO - Processing section 0
+[226] Biber.pm:4678> INFO - Looking for bibtex file 'refs.bib' for section 0
+[243] bibtex.pm:1713> INFO - LaTeX decoding ...
+[287] bibtex.pm:1519> INFO - Found BibTeX data source 'refs.bib'
+[492] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[493] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[493] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[493] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[507] bbl.pm:676> INFO - Writing 'grc-attention-compression.bbl' with encoding 'UTF-8'
+[525] bbl.pm:779> INFO - Output to grc-attention-compression.bbl

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="$lang$">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>$title$, HyperTensor Research</title>
+<meta name="description" content="$title$, research paper from the HyperTensor project (NagusameCS).">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$$','$$'],['\\(','\\)']],
+    displayMath: [['$$$$','$$$$'],['\\[','\\]']],
+    tags: 'ams',
+    processEscapes: true,
+    macros: {
+      Wmat: '{\\mathbf{W}}',
+      Kmat: '{\\mathbf{K}}',
+      Pmat: '{\\mathbf{P}}',
+      Qmat: '{\\mathbf{Q}}',
+      Vmat: '{\\mathbf{V}}',
+      R: '{\\mathbb{R}}',
+      norm: ['{\\lVert #1 \\rVert}', 1],
+      inner: ['{\\langle #1, #2 \\rangle}', 2],
+      rank: '{\\operatorname{rank}}',
+      diag: '{\\operatorname{diag}}',
+      tr: '{\\operatorname{tr}}',
+      Cov: '{\\operatorname{Cov}}',
+      Var: '{\\operatorname{Var}}',
+      argmax: '{\\operatorname*{arg\\,max}}',
+      argmin: '{\\operatorname*{arg\\,min}}'
+    }
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/research-paper.css">
+<script src="../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../index.html#engineering">Engineering</a></li>
+    <li><a href="../index.html#research">Research</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">$tag$</span>
+  <h1>$title$</h1>
+  <p class="author">$for(author)$$author$$sep$, $endfor$</p>
+  <p class="meta">
+    HyperTensor Project &middot; $date$
+    $if(arxiv-pdf)$ &middot; <a href="$arxiv-pdf$">PDF</a>$endif$
+    $if(tex-source)$ &middot; <a href="$tex-source$">TeX source</a>$endif$
+  </p>
+</header>
+
+<article class="paper-body">
+$body$
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot; rendered from LaTeX via pandoc &middot;
+  <a href="../index.html">back to index</a>
+</footer>
+
+</body>
+</html>

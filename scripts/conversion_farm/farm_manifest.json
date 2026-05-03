@@ -1,0 +1,518 @@
+{
+  "run_id": "grc_farm_spectrum_v1",
+  "jobs": [
+    {
+      "id": "A_kint_gemma4_31b",
+      "paper": "A",
+      "description": "k_int sweep for Gemma4-31B",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "gemma4:31b",
+      "name": "Gemma4-31B",
+      "layers": [0, 12, 24, 36, 48, 58],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 3600,
+      "cooldown_sec": 10,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Gemma4-31B.json"
+      ]
+    },
+    {
+      "id": "A_kint_qwen35_35b",
+      "paper": "A",
+      "description": "k_int sweep for Qwen3.5-35B",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "qwen3.5:35b",
+      "name": "Qwen3.5-35B",
+      "layers": [0, 10, 20, 30, 39],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 3600,
+      "cooldown_sec": 10,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Qwen3.5-35B.json"
+      ]
+    },
+    {
+      "id": "A_kint_smol135m",
+      "paper": "A",
+      "description": "k_int sweep for SmolLM2-135M",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "smollm2:135m",
+      "name": "SmolLM2-135M",
+      "layers": [0, 5, 10, 15, 20],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 1,
+      "timeout_sec": 1800,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_SmolLM2-135M.json"
+      ]
+    },
+    {
+      "id": "B_loadonly_gemma4_31b",
+      "paper": "B",
+      "description": "Load-only cache warmup and offload stats for Gemma4-31B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "gemma4:31b",
+      "baseline": true,
+      "load_only": true,
+      "ctx": 512,
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 10
+    },
+    {
+      "id": "B_loadonly_qwen35_35b",
+      "paper": "B",
+      "description": "Load-only cache warmup and offload stats for Qwen3.5-35B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "qwen3.5:35b",
+      "baseline": true,
+      "load_only": true,
+      "ctx": 512,
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 10
+    },
+    {
+      "id": "C_decode_gemma4_r128",
+      "paper": "C",
+      "description": "Decode smoke with GRC rank 128 for Gemma4-31B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "gemma4:31b",
+      "rank": 128,
+      "npredict": 8,
+      "ctx": 512,
+      "max_err": 0,
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 10
+    },
+    {
+      "id": "C_decode_qwen35_r128",
+      "paper": "C",
+      "description": "Decode smoke with GRC rank 128 for Qwen3.5-35B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "qwen3.5:35b",
+      "rank": 128,
+      "npredict": 8,
+      "ctx": 512,
+      "max_err": 0,
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 10
+    },
+    {
+      "id": "D_hjb_feasibility",
+      "paper": "D",
+      "description": "Paper D HJB feasibility sweep",
+      "mode": "script",
+      "enabled": true,
+      "file": "C:\\Users\\legom\\HyperTensor\\.venv\\Scripts\\python.exe",
+      "args": [
+        "scripts/hjb_feasibility.py",
+        "--out-dir",
+        "docs/figures/paper-d/hjb_feasibility_spectrum"
+      ],
+      "retries": 1,
+      "timeout_sec": 1800,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-d/hjb_feasibility_spectrum/hjb_residual_magnitudes.json",
+        "docs/figures/paper-d/hjb_feasibility_spectrum/hjb_residual_summary.md"
+      ]
+    },
+    {
+      "id": "E_rho_gemma4_2b",
+      "paper": "E",
+      "description": "rho print for Gemma4-2B",
+      "mode": "rho",
+      "enabled": true,
+      "model": "gemma4-2b:latest",
+      "rank": 1024,
+      "lora_rank": 8,
+      "out_dir": "docs/figures/paper-e/rho_sweep_spectrum",
+      "retries": 1,
+      "timeout_sec": 1800,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-e/rho_sweep_spectrum/rho_summary.json"
+      ]
+    },
+    {
+      "id": "E_rho_smol135m",
+      "paper": "E",
+      "description": "rho print for SmolLM2-135M",
+      "mode": "rho",
+      "enabled": true,
+      "model": "smollm2:135m",
+      "rank": 256,
+      "lora_rank": 8,
+      "out_dir": "docs/figures/paper-e/rho_sweep_spectrum",
+      "retries": 1,
+      "timeout_sec": 1800,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-e/rho_sweep_spectrum/rho_summary.json"
+      ]
+    },
+
+    {
+      "id": "A_kint_gemma3_12b",
+      "paper": "A",
+      "description": "k_int sweep for Gemma3-12B",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "gemma3:12b",
+      "name": "Gemma3-12B",
+      "layers": [0, 8, 16, 24, 32, 40, 45],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 1800,
+      "cooldown_sec": 10,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Gemma3-12B.json"
+      ]
+    },
+
+    {
+      "id": "A_kint_gemma3_4b",
+      "paper": "A",
+      "description": "k_int sweep for Gemma3-4B",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "gemma3:4b",
+      "name": "Gemma3-4B",
+      "layers": [0, 6, 12, 18, 24, 30, 34],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Gemma3-4B.json"
+      ]
+    },
+
+    {
+      "id": "A_kint_glm47_flash",
+      "paper": "A",
+      "description": "k_int sweep for GLM-4.7-Flash (9B)",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "glm-4.7-flash:latest",
+      "name": "GLM-4.7-Flash",
+      "layers": [0, 8, 16, 24, 32, 39],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 1800,
+      "cooldown_sec": 10,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_GLM-4.7-Flash.json"
+      ]
+    },
+
+    {
+      "id": "A_kint_gemma4_2b",
+      "paper": "A",
+      "description": "k_int sweep for Gemma4-2B",
+      "mode": "compute_kint",
+      "enabled": true,
+      "model": "gemma4-2b:latest",
+      "name": "Gemma4-2B",
+      "layers": [0, 4, 8, 12, 16, 20, 25],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 2,
+      "timeout_sec": 600,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Gemma4-2B.json"
+      ]
+    },
+
+    {
+      "id": "A_kint_llama31_70b",
+      "paper": "A",
+      "description": "k_int sweep for Llama-3.1-70B — the 70B proof of universality",
+      "mode": "compute_kint",
+      "enabled": false,
+      "model": "llama3.1:70b",
+      "name": "Llama3.1-70B",
+      "layers": [0, 16, 32, 48, 64, 79],
+      "out_dir": "docs/figures/paper-a/kint_30b",
+      "retries": 3,
+      "timeout_sec": 7200,
+      "cooldown_sec": 30,
+      "artifacts": [
+        "docs/figures/paper-a/kint_30b/kint_Llama3.1-70B.json"
+      ]
+    },
+
+    {
+      "id": "B_loadonly_gemma3_12b",
+      "paper": "B",
+      "description": "Load-only VRAM stats for Gemma3-12B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "gemma3:12b",
+      "baseline": true,
+      "load_only": true,
+      "ctx": 512,
+      "retries": 2,
+      "timeout_sec": 600,
+      "cooldown_sec": 10
+    },
+
+    {
+      "id": "B_loadonly_gemma3_4b",
+      "paper": "B",
+      "description": "Load-only VRAM stats for Gemma3-4B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "gemma3:4b",
+      "baseline": true,
+      "load_only": true,
+      "ctx": 512,
+      "retries": 2,
+      "timeout_sec": 300,
+      "cooldown_sec": 5
+    },
+
+    {
+      "id": "B_loadonly_glm47_flash",
+      "paper": "B",
+      "description": "Load-only VRAM stats for GLM-4.7-Flash",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "glm-4.7-flash:latest",
+      "baseline": true,
+      "load_only": true,
+      "ctx": 512,
+      "retries": 2,
+      "timeout_sec": 600,
+      "cooldown_sec": 10
+    },
+
+    {
+      "id": "B_loadonly_llama31_70b",
+      "paper": "B",
+      "description": "Load-only VRAM stats for Llama-3.1-70B — 70B on 8GB proof",
+      "mode": "run_local",
+      "enabled": false,
+      "model": "llama3.1:70b",
+      "baseline": false,
+      "load_only": true,
+      "rank": 128,
+      "ctx": 512,
+      "retries": 3,
+      "timeout_sec": 1800,
+      "cooldown_sec": 60
+    },
+
+    {
+      "id": "C_decode_gemma3_12b_r128",
+      "paper": "C",
+      "description": "Decode smoke GRC rank 128 for Gemma3-12B",
+      "mode": "run_local",
+      "enabled": true,
+      "model": "gemma3:12b",
+      "rank": 128,
+      "npredict": 32,
+      "ctx": 512,
+      "max_err": 0,
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 10
+    },
+
+    {
+      "id": "C_decode_llama31_70b_r128",
+      "paper": "C",
+      "description": "Decode with GRC rank 128 for Llama-3.1-70B — 70B inference on 8GB GPU",
+      "mode": "run_local",
+      "enabled": false,
+      "model": "llama3.1:70b",
+      "rank": 128,
+      "npredict": 16,
+      "ctx": 512,
+      "max_err": 0,
+      "retries": 3,
+      "timeout_sec": 3600,
+      "cooldown_sec": 60
+    },
+
+    {
+      "id": "E_rho_gemma3_4b",
+      "paper": "E",
+      "description": "rho sweep for Gemma3-4B",
+      "mode": "rho",
+      "enabled": true,
+      "model": "gemma3:4b",
+      "rank": 512,
+      "lora_rank": 8,
+      "out_dir": "docs/figures/paper-e/rho_sweep_spectrum",
+      "retries": 2,
+      "timeout_sec": 900,
+      "cooldown_sec": 5,
+      "artifacts": [
+        "docs/figures/paper-e/rho_sweep_spectrum/rho_summary.json"
+      ]
+    },
+
+    {
+      "id": "E_rho_llama31_70b",
+      "paper": "E",
+      "description": "rho sweep for Llama-3.1-70B",
+      "mode": "rho",
+      "enabled": false,
+      "model": "llama3.1:70b",
+      "rank": 512,
+      "lora_rank": 8,
+      "out_dir": "docs/figures/paper-e/rho_sweep_spectrum",
+      "retries": 3,
+      "timeout_sec": 7200,
+      "cooldown_sec": 60,
+      "artifacts": [
+        "docs/figures/paper-e/rho_sweep_spectrum/rho_summary.json"
+      ]
+    },
+
+    {
+      "id": "A_multi_k_sweep_llama8b",
+      "paper": "A",
+      "description": "Paper A Pareto curve: tok/s vs rank k on Llama-3.1-8B (ranks 64-2048+baseline)",
+      "mode": "script",
+      "enabled": true,
+      "file": "powershell",
+      "args": [
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        "scripts/paper_a/multi_k_sweep.ps1",
+        "-Reps", "3",
+        "-OutDir", "benchmarks/paper_a_multi_k"
+      ],
+      "retries": 2,
+      "timeout_sec": 14400,
+      "cooldown_sec": 30,
+      "artifacts": [
+        "benchmarks/paper_a_multi_k/multi_k_summary.json",
+        "benchmarks/paper_a_multi_k/multi_k_report.md",
+        "benchmarks/paper_a_multi_k/multi_k_results.csv"
+      ]
+    },
+
+    {
+      "id": "C_ott_empirical_smollm2",
+      "paper": "C",
+      "description": "OTT speculative empirical suite: acceptance rate, geo_frac, speedup grid on SmolLM2-135M",
+      "mode": "script",
+      "enabled": true,
+      "file": "C:\\Users\\legom\\HyperTensor\\.venv\\Scripts\\python.exe",
+      "args": [
+        "scripts/ott/empirical_suite.py",
+        "--models", "smollm2",
+        "--reps", "2",
+        "--out-dir", "benchmarks/ott_empirical"
+      ],
+      "retries": 2,
+      "timeout_sec": 7200,
+      "cooldown_sec": 30,
+      "artifacts": [
+        "benchmarks/ott_empirical/summary.json",
+        "benchmarks/ott_empirical/speedup_table.md",
+        "benchmarks/ott_empirical/raw.csv"
+      ]
+    },
+
+    {
+      "id": "C_ott_empirical_llama8b",
+      "paper": "C",
+      "description": "OTT speculative empirical suite on Llama-3.1-8B — baseline vs spec vs spec+GRC",
+      "mode": "script",
+      "enabled": true,
+      "file": "C:\\Users\\legom\\HyperTensor\\.venv\\Scripts\\python.exe",
+      "args": [
+        "scripts/ott/empirical_suite.py",
+        "--models", "llama8b",
+        "--reps", "2",
+        "--out-dir", "benchmarks/ott_empirical"
+      ],
+      "retries": 2,
+      "timeout_sec": 14400,
+      "cooldown_sec": 60,
+      "artifacts": [
+        "benchmarks/ott_empirical/summary.json",
+        "benchmarks/ott_empirical/speedup_table.md"
+      ]
+    },
+
+    {
+      "id": "C_attres_rank_interaction",
+      "paper": "C",
+      "description": "AttnRes x GRC rank: does compression rank k affect OTT acceptance rate alpha?",
+      "mode": "script",
+      "enabled": true,
+      "file": "C:\\Users\\legom\\HyperTensor\\.venv\\Scripts\\python.exe",
+      "args": [
+        "scripts/paper_c/attres_rank_interaction.py"
+      ],
+      "retries": 2,
+      "timeout_sec": 10800,
+      "cooldown_sec": 30,
+      "artifacts": [
+        "benchmarks/paper_c_attres/attres_summary.json",
+        "benchmarks/paper_c_attres/attres_report.md"
+      ]
+    },
+
+    {
+      "id": "C_ott_calibration_sweep_smollm2",
+      "paper": "C",
+      "description": "C3 calibration sweep: thresh x batch Pareto frontier on SmolLM2-135M",
+      "mode": "script",
+      "enabled": true,
+      "file": "powershell",
+      "args": [
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        "scripts/ott/calibration_sweep.ps1",
+        "-Model", "models\\smollm2-135m-instruct-q8_0.gguf",
+        "-MaxTokens", "64",
+        "-Reps", "2",
+        "-OutDir", "benchmarks/ott_calibration_smollm2"
+      ],
+      "retries": 2,
+      "timeout_sec": 7200,
+      "cooldown_sec": 30,
+      "artifacts": [
+        "benchmarks/ott_calibration_smollm2/calibration_sweep_results.csv",
+        "benchmarks/ott_calibration_smollm2/calibration_sweep_report.txt"
+      ]
+    },
+
+    {
+      "id": "C_ott_smoke_smollm2",
+      "paper": "C",
+      "description": "OTT smoke preflight on SmolLM2-135M before long empirical runs",
+      "mode": "script",
+      "enabled": true,
+      "file": "powershell",
+      "args": [
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        "scripts/ott/smoke_test.ps1",
+        "-OutDir", "benchmarks/ott_smoke"
+      ],
+      "retries": 1,
+      "timeout_sec": 600,
+      "cooldown_sec": 10,
+      "artifacts": [
+        "benchmarks/ott_smoke/smoke_summary.json"
+      ]
+    }
+  ]
+}

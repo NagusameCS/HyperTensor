@@ -1,0 +1,4 @@
+FROM C:/Users/legom/HyperTensor/outputs/ollama/math-pure
+PARAMETER temperature 0.0
+PARAMETER num_ctx 1024
+PARAMETER num_predict 64

@@ -1,0 +1,33 @@
+{
+  "L2_bytes_4070_laptop": 33554432,
+  "baseline_attn_l2_hit_pct": 7.536929824561404,
+  "grc_attn_l2_hit_pct_by_k": {
+    "1024": 11.461627906976744,
+    "1280": 11.475000000000001,
+    "1536": 11.462093023255814,
+    "384": 11.46406976744186,
+    "512": 11.469186046511627,
+    "768": 11.462906976744186
+  },
+  "approx_budget_mb_by_k": {
+    "1024": 5.0,
+    "1280": 6.5625,
+    "1536": 8.25,
+    "384": 1.640625,
+    "512": 2.25,
+    "768": 3.5625
+  },
+  "P1A_above_baseline": {
+    "verdict": "CONFIRMED",
+    "reason": "every GRC k beats baseline by >=3pp (min delta 3.92pp)"
+  },
+  "P1B_monotone_in_k": {
+    "verdict": "CONSISTENT",
+    "reason": "flat (no >0.5pp transitions in 5 steps); all k still under L2 budget"
+  },
+  "P2_thrasher_kills_speedup": {
+    "verdict": "CONSISTENT-OR-FUSION",
+    "reason": "flat speedup proxy (1.194 -> 1.194); fusion-only also explains this"
+  },
+  "overall_intra_run": "CONSISTENT-WITH-CONFIRMATION"
+}

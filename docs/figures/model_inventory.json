@@ -1,0 +1,37 @@
+[
+  {
+    "path": "<models>\\mistral-7b-v0.1\\mistral-7b-v0.1.Q4_K_M.gguf",
+    "size_MB": 4166.1,
+    "arch": "llama",
+    "name": "mistralai_mistral-7b-v0.1",
+    "quant": "Q5_K_S",
+    "n_tensors": 291,
+    "embedding_length": 4096,
+    "block_count": 32,
+    "context_length": 32768,
+    "feed_forward_length": 14336,
+    "head_count": 32,
+    "head_count_kv": 8,
+    "vocab_size": 32000
+  },
+  {
+    "path": "C:\\Users\\legom\\models\\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\\snapshots\\bf5b95e96dac0462e2a09145ec66cae9a3f12067\\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    "size_MB": 614.1,
+    "error": "[Errno 13] Permission denied: 'C:\\\\Users\\\\legom\\\\models\\\\models--bartowski--Meta-Llama-3.1-8B-Instruct-GGUF\\\\snapshots\\\\bf5b95e96dac0462e2a09145ec66cae9a3f12067\\\\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf'"
+  },
+  {
+    "path": "<models>\\smollm2-135m-instruct-q8_0.gguf",
+    "size_MB": 138.1,
+    "arch": "llama",
+    "name": "Smollm2 135M 8k Lc100K Mix1 Ep2",
+    "quant": "Q8_0",
+    "n_tensors": 272,
+    "embedding_length": 576,
+    "block_count": 30,
+    "context_length": 8192,
+    "feed_forward_length": 1536,
+    "head_count": 9,
+    "head_count_kv": 3,
+    "vocab_size": 49152
+  }
+]

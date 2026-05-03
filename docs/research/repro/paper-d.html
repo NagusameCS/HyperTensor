@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper D: OTT and the GTC manifold runtime, HyperTensor Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Reproduce D &middot; OTT/GTC</span>
+  <h1>Reproduce Paper D: OTT and the GTC manifold runtime</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">HyperTensor Project &middot; April 2026
+     &middot; <a href="../paper-d-ott-gtc-manifold-runtime.html">Paper D (HTML)</a>
+     &middot; <a href="/pdfs/ott-gtc-manifold-runtime.pdf">Paper D (PDF)</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+<article class="paper-body">
+<h2>Scope</h2>
+<p>Reproduces the 97x batched-Jacobi gain, the four-model TwoNN
+intrinsic-dimension survey, the curvature-warp 0/12 cross-model null,
+and the HJB pre-training feasibility result.</p>
+
+<h2>Hardware target</h2>
+<ul>
+  <li>Local: 8 GB CUDA GPU is sufficient for the Jacobi micro-benchmark
+      and the 8B TwoNN survey.</li>
+  <li>Mistral-Nemo-12B with full axiom-samples 512: g6e.xlarge L40S
+      (24 GB resident), about 60 minutes.</li>
+</ul>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>Same toolchain as Paper A.</li>
+  <li>For the cross-model TwoNN: model files for SmolLM2-135M,
+      Gemma-4-E2B and Phi-3.5-mini in addition to Llama-3.1-8B.</li>
+</ul>
+
+<h2>1. Batched-Jacobi micro-benchmark</h2>
+<pre><code class="language-powershell">.\build_host\geodessical.exe $model `
+    --axex-jacobi --axex-jacobi-batch 32 -p "warm" -n 8 --temp 0
+</code></pre>
+<p>Expected: a 97x speedup over the per-element Jacobi reference.</p>
+
+<h2>2. TwoNN intrinsic-dimension survey</h2>
+<pre><code class="language-powershell">python scripts\axiom_survey.py `
+    --models smollm2-135m,gemma-4-e2b,phi-3.5-mini,llama-3.1-8b `
+    --axiom-samples 256 --axiom-probe 1024
+</code></pre>
+<p>Expected k_int at 95 percent variance: 17 (SmolLM2), 25 (Gemma-4),
+11 (Phi-3.5), about 1682 for Llama-3.1-8B (note the 8B value is
+attention-only; FFN sits much higher).</p>
+
+<h2>3. Curvature warp cross-model null</h2>
+<pre><code class="language-powershell">python scripts\curvature_warp_eval.py
+</code></pre>
+<p>Expected: 0 of 12 cross-model arms exceed the equivariance gate.
+This is the negative result reported in Paper D and it is the
+correct outcome.</p>
+
+<h2>4. HJB pre-training feasibility</h2>
+<pre><code class="language-powershell">python scripts\hjb_residual_pretrain.py --steps 200
+</code></pre>
+<p>Expected: HJB residual decreases monotonically and converges within
+the 200-step budget. Outputs land in
+<code>docs/figures/paper-d/hjb_feasibility/</code>.</p>
+
+<h2>Outputs</h2>
+<ul>
+  <li><code>docs/figures/paper-d/jacobi_speedup.csv</code></li>
+  <li><code>docs/figures/paper-d/twonn_survey.json</code></li>
+  <li><code>docs/figures/paper-d/curvature_warp_results.csv</code></li>
+  <li><code>docs/figures/paper-d/hjb_feasibility/</code></li>
+</ul>
+
+<h2>Tolerances</h2>
+<ul>
+  <li>Jacobi gain: plus or minus 5x. The 97x figure is the median over
+      8 reps.</li>
+  <li>TwoNN k_int: integer-valued, deterministic for a given seed.</li>
+  <li>Curvature warp: 0 of 12 should be reproduced exactly. Any
+      positive arm indicates a regression.</li>
+</ul>
+</article>
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot;
+  <a href="../../index.html">back to index</a>
+</footer>
+</body>
+</html>

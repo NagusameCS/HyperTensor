@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Light Distillation for Calibration-Permitted Low-Rank Attention Compression, HyperTensor Research</title>
+<meta name="description" content="Light Distillation for Calibration-Permitted Low-Rank Attention Compression, research paper from the HyperTensor project (NagusameCS).">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams',
+    processEscapes: true,
+    macros: {
+      Wmat: '{\\mathbf{W}}',
+      Kmat: '{\\mathbf{K}}',
+      Pmat: '{\\mathbf{P}}',
+      Qmat: '{\\mathbf{Q}}',
+      Vmat: '{\\mathbf{V}}',
+      R: '{\\mathbb{R}}',
+      norm: ['{\\lVert #1 \\rVert}', 1],
+      inner: ['{\\langle #1, #2 \\rangle}', 2],
+      rank: '{\\operatorname{rank}}',
+      diag: '{\\operatorname{diag}}',
+      tr: '{\\operatorname{tr}}',
+      Cov: '{\\operatorname{Cov}}',
+      Var: '{\\operatorname{Var}}',
+      argmax: '{\\operatorname*{arg\\,max}}',
+      argmin: '{\\operatorname*{arg\\,min}}'
+    }
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/research-paper.css">
+<script src="../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../index.html#engineering">Engineering</a></li>
+    <li><a href="../index.html#research">Research</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Paper E - Distill</span>
+  <h1>Light Distillation for Calibration-Permitted Low-Rank Attention Compression</h1>
+  <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
+  <p class="meta">
+    HyperTensor Project &middot; April 2026
+     &middot; <a href="/pdfs/grc-light-distillation.pdf">PDF</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-E/grc-light-distillation.tex">TeX source</a>
+  </p>
+</header>
+
+<article class="paper-body">
+<section id="sec:motivation" class="level2">
+<h2>Motivation</h2>
+<p>Paper A is deliberately calibration-free: GRC requires no data, no
+fine-tuning, no per-deployment configuration beyond a single rank knob.
+That property is valuable for the deployment surface it targets
+(consumer GPUs, ad-hoc compression, no MLOps stack), and the empirical
+trade is that there is a quality floor set by the joint Gram spectrum
+itself. On Llama-3.1-8B-Instruct the floor at <span class="math inline">\(k{=}1024\)</span> is roughly the
+bottom <span class="math inline">\(9\%\)</span> of joint Q+K+V energy (<span class="math inline">\(k_{95}{\approx}1682\)</span>), and the
+realised perplexity penalty is <span class="math inline">\(+13.30\%\)</span> at <span class="math inline">\(k{=}1536\)</span> on WikiText-2
+<span class="citation" data-cites="merity2017wikitext">(<strong>merity2017wikitext?</strong>)</span>. Paper A’s Limitations section decomposes
+that penalty into intrinsic floor and reducible implementation choice.</p>
+<p>This paper exercises the largest reducible lever, light distillation,
+behind an opt-in flag. The design constraint is that turning it on
+must not break Paper A’s runtime path; turning it off must reproduce
+Paper A’s numbers exactly.</p>
+</section>
+<section id="sec:method" class="level2">
+<h2>Method</h2>
+<section id="phase-1-grc-projection-unchanged-from-paper-a" class="level3">
+<h3>Phase 1: GRC projection (unchanged from Paper A)</h3>
+<p>For each attention block, build the shared basis <span class="math inline">\(\Pmat_t\)</span> from the
+joint Gram of <span class="math inline">\(\Wmat_Q, \Wmat_K, \Wmat_V\)</span> and form the projected
+weights <span class="math inline">\(\Wmat_X^\prime = \Wmat_X \Pmat_k \Pmat_k^\top\)</span>. Optionally,
+exempt the top-<span class="math inline">\(T\)</span> highest-L2 columns from projection (sink-aware GRC,
+see Paper A Table 6 / <code>sink_channel_pilot.json</code>). This phase
+is pure NumPy and runs on any host.</p>
+</section>
+<section id="phase-2-teacher-student-lora-correction-new" class="level3">
+<h3>Phase 2: Teacher-student LoRA correction (new)</h3>
+<p>Fit per-layer rank-<span class="math inline">\(r\)</span> LoRA adapters
+<span class="math inline">\(\Amat_X \in \mathbb{R}^{m \times r}\)</span>, <span class="math inline">\(\Bmat_X \in \mathbb{R}^{r \times d}\)</span>
+for <span class="math inline">\(X \in \{Q, K, V\}\)</span> such that
+<span class="math display">\[\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X\]</span>
+minimises a teacher-student logit MSE over a small calibration corpus
+(target: 5<span>,</span>000 to 10<span>,</span>000 tokens, sequence length 512, batch 8;
+500-step schedule on AdamW with <span class="math inline">\(\eta{=}10^{-4}\)</span>, weight decay <span class="math inline">\(0\)</span>,
+cosine LR with warmup-100). The teacher is the original uncompressed
+model; the student is the projected model with frozen
+<span class="math inline">\(\Wmat_X^\prime\)</span> and trainable <span class="math inline">\((\Amat_X, \Bmat_X)\)</span>. Only the
+attention QKV adapters are fit; output projection <span class="math inline">\(\Wmat_O\)</span> and FFN
+weights remain at baseline. This holds the parameter budget below
+<span class="math inline">\(3rdL = 3 \cdot 8 \cdot 4096 \cdot 32 \approx 3.1\,\text{M}\)</span> trainable
+weights for <span class="math inline">\(L{=}32\)</span> layers and <span class="math inline">\(r{=}8\)</span>, two orders of magnitude below
+full LoRA fine-tuning.</p>
+</section>
+<section id="phase-3-merge-and-ship" class="level3">
+<h3>Phase 3: Merge and ship</h3>
+<p>The trained LoRA factors are folded into the projected weights
+(<span class="math inline">\(\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X\)</span>) and re-quantised
+to Q4_K_M via the standard llama.cpp quantize path. The runtime
+loads the resulting GGUF unchanged; no runtime code changes are
+needed. If the user disables distillation, Paper A’s pipeline runs
+unmodified.</p>
+</section>
+</section>
+<section id="sec:status" class="level2">
+<h2>Implementation status</h2>
+<ul>
+<li><p>Done. Phase 1 reference implementation in
+<code>scripts/analysis/sink_channel_grc.py</code> and
+<code>scripts/grc_distill.py</code> (NumPy; CPU-only).</p></li>
+<li><p>Done. Sink-channel pilot (Paper A Table 6) showing
+calibration-free sink exemption alone yields 1 to 3% relative
+reconstruction-error improvement at <span class="math inline">\(k\in\{512,1024,1536\}\)</span>.</p></li>
+<li><p>Pending. Phase 2 PyTorch runner. Requires a GPU host
+with at least one A100 / L40S / H100 to hold the teacher in BF16 with
+gradient activations. EC2 <code>g5.xlarge</code> or <code>g6.xlarge</code> is
+sufficient for an 8B model.</p></li>
+<li><p>Pending. WikiText-2 PPL evaluation on the merged
+artifact. The expected operating regimes:</p>
+<ol>
+<li><p>Vanilla GRC at <span class="math inline">\(k{=}1024\)</span>: <span class="math inline">\(+13.30\%\)</span> PPL (Paper A baseline).</p></li>
+<li><p>Sink-aware GRC at <span class="math inline">\(k{=}1024\)</span>, <span class="math inline">\(T{=}32\)</span>: predicted <span class="math inline">\(+12.5\%\)</span>
+to <span class="math inline">\(+13.0\%\)</span> (small effect; the calibration-free magnitude proxy
+weakly correlates with runtime sink channels).</p></li>
+<li><p>Distilled GRC at <span class="math inline">\(k{=}1024\)</span>, <span class="math inline">\(r{=}8\)</span>, 5<span>,</span>000-token corpus:
+target <span class="math inline">\(+5\%\)</span> to <span class="math inline">\(+8\%\)</span> PPL (50 to 60% gap closure).</p></li>
+<li><p>Distilled sink-aware GRC at <span class="math inline">\(k{=}1024\)</span>, <span class="math inline">\(T{=}32\)</span>, <span class="math inline">\(r{=}8\)</span>:
+target <span class="math inline">\(+3\%\)</span> to <span class="math inline">\(+5\%\)</span>.</p></li>
+</ol>
+<p>These targets are predictions, not measurements. The paper will be
+updated with measured numbers once the runner has executed.</p></li>
+<li><p>Pending. Throughput re-measurement on the distilled
+artifact. Hypothesis: throughput is unchanged from vanilla GRC,
+because the merged adapters do not alter the kernel-fusion path
+(<a href="#sec:fusion-fit" data-reference-type="ref+Label" data-reference="sec:fusion-fit">4</a>). If measurement contradicts the hypothesis,
+that becomes a result.</p></li>
+</ul>
+</section>
+<section id="sec:fusion-fit" class="level2">
+<h2>Why distillation does not break the fusion path</h2>
+<p>Paper A established that the GRC throughput improvement comes from
+kernel fusion: three <span class="math inline">\(\texttt{gemv\_q4\_k}\)</span> calls collapse into a
+fused <span class="math inline">\(\texttt{gemv\_dual\_q8\_0}\)</span> trio operating on
+<span class="math inline">\(k\)</span>-dimensional intermediates. The fusion-viability condition is that
+the projected weights <span class="math inline">\(\Wmat_X^\prime\)</span> have rank <span class="math inline">\(k\)</span>. The merged
+weights <span class="math inline">\(\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X\)</span> in general
+have rank <span class="math inline">\(k + r\)</span> (when <span class="math inline">\(r \le m - k\)</span>), but the <span class="math inline">\(\Amat_X \Bmat_X\)</span>
+term has rank exactly <span class="math inline">\(r\)</span> and is small; the runtime can either
+(a) treat <span class="math inline">\(\hat{\Wmat}_X\)</span> as a full-rank matrix and lose fusion (the
+<span class="math inline">\(+6.27\%\)</span> throughput gain reverts), (b) keep <span class="math inline">\(\Wmat_X^\prime\)</span> on the
+fused path and run the LoRA correction as a separate small
+matmul-add (cost <span class="math inline">\(\sim r/k\)</span> of the main GEMV; negligible at <span class="math inline">\(r{=}8\)</span>,
+<span class="math inline">\(k{=}1024\)</span>), or (c) re-quantise the merged <span class="math inline">\(\hat{\Wmat}\)</span> to Q4_K_M
+at rank <span class="math inline">\(k\)</span> via a second SVD pass and accept the merge-loss. Default
+recommendation is (b); (c) is reserved for the lowest-VRAM target
+where adapter storage matters.</p>
+</section>
+<section id="sec:repro" class="level2">
+<h2>Reproducibility</h2>
+<p>The reference Phase-1 code lives in
+<code>scripts/analysis/sink_channel_grc.py</code> and
+<code>scripts/grc_distill.py</code>. The Phase-2 runner will live in
+<code>scripts/grc_distill_runner.py</code> (PyTorch + transformers) and
+the EC2 driver in <code>scripts/ec2_paperE_distill/</code>. A complete
+empirical reproduction will be published alongside the populated
+results once the runner has executed.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-hu2021lora" class="csl-entry" role="listitem">
+Hu, Edward, Yelong Shen, Phillip Wallis, et al. 2021. <em><span>LoRA</span>: Low-Rank Adaptation of Large Language Models</em>. <a href="https://arxiv.org/abs/2106.09685">https://arxiv.org/abs/2106.09685</a>.
+</div>
+<div id="ref-sun2024massive" class="csl-entry" role="listitem">
+Sun, Mingjie, Xinlei Chen, J. Zico Kolter, and Zhuang Liu. 2024. <em>Massive Activations in Large Language Models</em>. <a href="https://arxiv.org/abs/2402.17762">https://arxiv.org/abs/2402.17762</a>.
+</div>
+<div id="ref-xiao2024streamingllm" class="csl-entry" role="listitem">
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+</div>
+</div>
+</section>
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot; rendered from LaTeX via pandoc &middot;
+  <a href="../index.html">back to index</a>
+</footer>
+
+</body>
+</html>

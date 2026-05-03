@@ -1,0 +1,240 @@
+{
+  "layers": {
+    "0": {
+      "512": {
+        "Q": {
+          "eckart_young_relF2": 0.07347187399864197,
+          "grc_relF2": 0.22135242819786072,
+          "excess_factor": 3.0127505418189298
+        },
+        "K": {
+          "eckart_young_relF2": 0.007283943705260754,
+          "grc_relF2": 0.14796236157417297,
+          "excess_factor": 20.313496034752255
+        },
+        "V": {
+          "eckart_young_relF2": 0.19113659858703613,
+          "grc_relF2": 0.8355302810668945,
+          "excess_factor": 4.371377785539208
+        }
+      },
+      "1024": {
+        "Q": {
+          "eckart_young_relF2": 0.017085188999772072,
+          "grc_relF2": 0.14266611635684967,
+          "excess_factor": 8.350280254947894
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.09546493738889694,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.6491180062294006,
+          "excess_factor": Infinity
+        }
+      },
+      "1536": {
+        "Q": {
+          "eckart_young_relF2": 0.005254331044852734,
+          "grc_relF2": 0.11071687191724777,
+          "excess_factor": 21.071544783176275
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.07522178441286087,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.48269185423851013,
+          "excess_factor": Infinity
+        }
+      },
+      "2048": {
+        "Q": {
+          "eckart_young_relF2": 0.0017366448882967234,
+          "grc_relF2": 0.10298613458871841,
+          "excess_factor": 59.30178085499434
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.0700831487774849,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.40708795189857483,
+          "excess_factor": Infinity
+        }
+      }
+    },
+    "15": {
+      "512": {
+        "Q": {
+          "eckart_young_relF2": 0.33257532119750977,
+          "grc_relF2": 0.42986947298049927,
+          "excess_factor": 1.292547719514066
+        },
+        "K": {
+          "eckart_young_relF2": 0.109979547560215,
+          "grc_relF2": 0.33495962619781494,
+          "excess_factor": 3.0456537931693246
+        },
+        "V": {
+          "eckart_young_relF2": 0.2446560561656952,
+          "grc_relF2": 0.8571939468383789,
+          "excess_factor": 3.5036694381186204
+        }
+      },
+      "1024": {
+        "Q": {
+          "eckart_young_relF2": 0.15351605415344238,
+          "grc_relF2": 0.22758354246616364,
+          "excess_factor": 1.4824738931779038
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.13220034539699554,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.694027304649353,
+          "excess_factor": Infinity
+        }
+      },
+      "1536": {
+        "Q": {
+          "eckart_young_relF2": 0.07002194970846176,
+          "grc_relF2": 0.12014324963092804,
+          "excess_factor": 1.7157941207171128
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.05854014307260513,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.5063256621360779,
+          "excess_factor": Infinity
+        }
+      },
+      "2048": {
+        "Q": {
+          "eckart_young_relF2": 0.029139842838048935,
+          "grc_relF2": 0.071463942527771,
+          "excess_factor": 2.452447767990635
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.032451480627059937,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.34175828099250793,
+          "excess_factor": Infinity
+        }
+      }
+    },
+    "31": {
+      "512": {
+        "Q": {
+          "eckart_young_relF2": 0.40101900696754456,
+          "grc_relF2": 0.4737216532230377,
+          "excess_factor": 1.1812947640693179
+        },
+        "K": {
+          "eckart_young_relF2": 0.13129980862140656,
+          "grc_relF2": 0.29641085863113403,
+          "excess_factor": 2.257511733972234
+        },
+        "V": {
+          "eckart_young_relF2": 0.21986423432826996,
+          "grc_relF2": 0.6452269554138184,
+          "excess_factor": 2.934660825509516
+        }
+      },
+      "1024": {
+        "Q": {
+          "eckart_young_relF2": 0.2112816423177719,
+          "grc_relF2": 0.28921371698379517,
+          "excess_factor": 1.3688539799819042
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.1518200784921646,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.36521413922309875,
+          "excess_factor": Infinity
+        }
+      },
+      "1536": {
+        "Q": {
+          "eckart_young_relF2": 0.10602419823408127,
+          "grc_relF2": 0.1809999942779541,
+          "excess_factor": 1.707157397015543
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.08942343294620514,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.21042181551456451,
+          "excess_factor": Infinity
+        }
+      },
+      "2048": {
+        "Q": {
+          "eckart_young_relF2": 0.04772206023335457,
+          "grc_relF2": 0.12704899907112122,
+          "excess_factor": 2.6622697857106
+        },
+        "K": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.06186578795313835,
+          "excess_factor": Infinity
+        },
+        "V": {
+          "eckart_young_relF2": 0.0,
+          "grc_relF2": 0.14404483139514923,
+          "excess_factor": Infinity
+        }
+      }
+    }
+  },
+  "summary": {
+    "512": {
+      "ey_mean_relF2": 0.19014293234795332,
+      "grc_mean_relF2": 0.47135862045817906,
+      "excess_factor_mean": 4.656995848495942,
+      "excess_factor_max": 20.313496034752255
+    },
+    "1024": {
+      "ey_mean_relF2": 0.042431431718998484,
+      "grc_mean_relF2": 0.3052564652429687,
+      "excess_factor_mean": Infinity,
+      "excess_factor_max": Infinity
+    },
+    "1536": {
+      "ey_mean_relF2": 0.020144497665266197,
+      "grc_mean_relF2": 0.2038316453496615,
+      "excess_factor_mean": Infinity,
+      "excess_factor_max": Infinity
+    },
+    "2048": {
+      "ey_mean_relF2": 0.008733171995522248,
+      "grc_mean_relF2": 0.1509767286479473,
+      "excess_factor_mean": Infinity,
+      "excess_factor_max": Infinity
+    }
+  }
+}

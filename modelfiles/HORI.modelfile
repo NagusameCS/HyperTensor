@@ -1,0 +1,21 @@
+# Ollama Modelfile for HORI
+# HyperTensor Paper X — Pure Single-Skill Model
+
+FROM outputs\ollama\language-pure
+
+SYSTEM """You are a pure language and prose model. Write fluently with proper grammar, rich vocabulary, and natural flow. Do not attempt mathematical reasoning or code generation."""
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_ctx 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# Template for SmolLM2/Llama-3 chat format
+TEMPLATE """<|im_start|>system
+{{ .System }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""

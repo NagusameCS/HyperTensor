@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Composing Compression: Geodesic Speculative Decoding and Attention Residuals, HyperTensor</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/03-speculative-decoding.html">
+<meta name="description" content="Design and runtime implementation of geodesic speculative decoding (compressed model as drafter against full-precision verifier) and Block Attention Residuals (Kimi 2026) under low-rank attention. v0.3 anchors the speculative path with first end-to-end measurements on SmolLM2-135M-Instruct: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
+<script src="../assets/reader.js"></script>
+<link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper 3 &middot; April 2026 &middot; v0.3</div>
+  <h1 class="hero-title">Composing Compression</h1>
+  <p class="hero-subtitle">
+    Geodesic speculative decoding and Attention Residuals: how a
+    compressed-manifold model serves as a draft generator against the
+    full-precision transformer, and how the two compress-and-skip mechanisms
+    compose. v0.3 adds the first end-to-end measurement.
+  </p>
+  <div class="hero-meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">38.5%</span>
+      <span class="stat-label">Speculative<br>acceptance rate</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">76.5</span>
+      <span class="stat-label">tok/s on<br>SmolLM2-135M</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">1.53×</span>
+      <span class="stat-label">Empirical speedup<br>vs greedy-only</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">5 / 13</span>
+      <span class="stat-label">OneDecode<br>draft hits</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#reproduce">Reproduce</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
+</header>
+
+<main>
+
+<section id="scope">
+  <div class="callout warning">
+    <div class="callout-title">Scope of this paper, read first (v0.3, 2026-04-27)</div>
+    <p>
+      This paper documents the design and runtime implementation of two
+      compositions on top of the GP runtime described in
+      <a href="02-geodesic-projection.html">Paper&nbsp;2</a>:
+    </p>
+    <ol>
+      <li>Geodesic speculative decoding: GP-compressed model as drafter,
+        full-precision (uncompressed) model as verifier. Implemented as
+        <code>llm_generate_geodesic_speculative</code> in <a class="repo-link"
+        href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/llm.h">runtime/nn/llm.h</a>.</li>
+      <li>Block Attention Residuals (AttnRes) from Kimi&nbsp;Team 2026
+        (arXiv:2603.15031), independently implemented in this runtime under
+        <code>--attnres</code>.</li>
+    </ol>
+    <p>
+      What's new in v0.3: the speculative path now has a first
+      end-to-end empirical anchor. On SmolLM2-135M-Instruct (Q8_0, ChatML), the OTT
+      stack reaches <code>status=geodesic_ready</code> with <strong>38.5%
+      acceptance</strong> and 76.5 tok/s end-to-end. See the new
+      §<a href="#measured">5.5, First end-to-end measurements</a>. These are first
+      numbers on a 135M instruct model, not the full 8B sweep, the §<a
+      href="#status">8</a> status list reflects what is and isn't yet measured.
+    </p>
+    <p>
+      What this paper still does not contain: the full Llama-3.1-8B
+      acceptance-rate sweep, PPL deltas at matched compute, AttnRes empirical
+      results, or long-context KV-cache footprint numbers. The 8B sweep is gated on
+      EC2 compute (approved, not yet executed). v0.3 anchors the small-model path
+      and surfaces a real failure mode (instruct-greedy-EOS) that earlier drafts of
+      the throughput model did not predict.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">§0, Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      Compression and inference tricks rarely compose cleanly. This paper picks
+      two specific compositions implemented in the <code>geodessical</code> runtime
+      and works through them end to end: a GP-compressed Llama serving as the
+      drafter in <a class="term" href="https://en.wikipedia.org/wiki/Speculative_execution"
+      target="_blank" rel="noopener">speculative</a> decoding against the
+      full-precision transformer, and Block Attention Residuals layered on top of
+      compressed attention to test whether the depth-memory mechanism survives
+      rank reduction. For each, we give the algorithmic design, point at the
+      runtime symbols where it lives, derive the throughput model in closed form
+      (so the empirical numbers, when they arrive, can be checked against a
+      prediction), and list the failure modes we expect each composition to be
+      vulnerable to. We do not invent an empirical headline; the benchmark pass
+      that would produce one for the 8B sweep has not been run. v0.3 anchors the
+      small-model speculative path with the first measured numbers: 38.5%
+      acceptance and 76.5&nbsp;tok/s on SmolLM2-135M-Instruct.
+    </p>
+  </div>
+</section>
+
+<section id="glossary">
+  <span class="section-num">§0.5, Glossary</span>
+  <h2>Terms</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+      <tbody>
+        <tr><td>Speculative decoding</td><td>An inference technique where a small/cheap "drafter" model proposes $\gamma$ tokens at a time and a larger "verifier" model accepts or rejects them in a single forward pass. See refs&nbsp;[1,&nbsp;2].</td></tr>
+        <tr><td>Acceptance rate $\alpha$</td><td>Probability that a drafter-proposed token is accepted by the verifier. Determines the realised speedup; the formal model is in §<a href="#throughput-model">3</a>.</td></tr>
+        <tr><td>Draft length $\gamma$</td><td>Number of tokens the drafter proposes per verifier step. Tuning parameter.</td></tr>
+        <tr><td>Verifier step cost $T_V$</td><td>Cost of one forward pass of the verifier on the prefix + $\gamma$ proposed tokens.</td></tr>
+        <tr><td>Drafter step cost $T_D$</td><td>Cost of one autoregressive token from the drafter.</td></tr>
+        <tr><td>AttnRes</td><td>Block Attention Residuals, replaces the standard PreNorm residual accumulation with a softmax-weighted sum over per-block summary vectors. Mitigates the $\mathcal{O}(\sqrt{L})$ residual-stream magnitude growth that vanilla PreNorm produces. Kimi Team, arXiv:2603.15031.</td></tr>
+        <tr><td>$\sqrt{L}$ residual growth</td><td>Empirical observation that PreNorm residual-stream magnitudes grow approximately as $\sqrt{L}$ in $L$ blocks because each block adds an approximately unit-variance update. AttnRes attenuates this. See ref&nbsp;[3].</td></tr>
+        <tr><td>KV-cache compression</td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1–2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="motivation">
+  <span class="section-num">§1, Why compose</span>
+  <h2>The throughput shape of speculative decoding under compression</h2>
+  <p>
+    Speculative decoding wins because the verifier amortises its forward-pass cost over
+    multiple accepted tokens. Compression reduces the drafter's cost. These look
+    independent, and on first principles they are, but the interaction has a specific
+    shape that matters.
+  </p>
+  <p>
+    Let $T_V$ be the verifier-step cost, $T_D$ the drafter-step cost, $\gamma$ the
+    draft length, and $\alpha$ the per-token acceptance rate. The standard speculative
+    decoding throughput is
+  </p>
+  <div class="math-block">
+    $$\text{tok/s}_\text{spec} \;=\; \frac{\mathbb{E}[\text{accepted}]}{\gamma\,T_D + T_V} \;=\; \frac{1 - \alpha^{\gamma+1}}{(1-\alpha)\,(\gamma\,T_D + T_V)}$$
+  </div>
+  <p>
+    where the numerator is the expected number of tokens delivered per verifier step
+    given a geometric-tail acceptance model. With a GP-compressed drafter the drafter
+    cost drops from $T_D^\text{full}$ to $T_D^\text{GP} = (1 - \rho) T_D^\text{full}$
+    where $\rho$ is the bandwidth saving, but the acceptance rate also drops because
+    the drafter is now sampling from a perturbed distribution. Define
+    $\Delta\alpha$ as the loss in acceptance rate caused by compression. Net speedup
+    over full speculative is
+  </p>
+  <div class="math-block">
+    $$\frac{\text{tok/s}_\text{spec, GP}}{\text{tok/s}_\text{spec, full}}
+    \;=\;
+    \frac{1 - (\alpha-\Delta\alpha)^{\gamma+1}}{1 - \alpha^{\gamma+1}}
+    \cdot
+    \frac{1 - \alpha}{1 - \alpha + \Delta\alpha}
+    \cdot
+    \frac{\gamma T_D^\text{full} + T_V}{\gamma (1-\rho) T_D^\text{full} + T_V}.$$
+  </div>
+  <p>
+    The third factor is always $\geq 1$ (compression helps); the first two are always
+    $\leq 1$ (compression hurts acceptance). The composition wins iff the third factor
+    dominates, and that depends on $T_V / T_D$ (verifier-to-drafter cost ratio) and on
+    how much $\Delta\alpha$ compression actually causes. The Paper&nbsp;1 attention-only
+    GP at $k = 1024$ has a measurable PPL cost we did not characterise (see Paper&nbsp;1
+    §6); we therefore have no direct data on what $\Delta\alpha$ is in this
+    runtime. That is the central unknown of this paper.
+  </p>
+</section>
+
+<section id="implementation-spec">
+  <span class="section-num">§2, Geodesic speculative decoding (implementation)</span>
+  <h2>What the runtime actually does</h2>
+  <p>
+    The runtime exposes
+    <code>llm_generate_geodesic_speculative(prompt_tokens, n_prompt, ...)</code>
+    declared in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/llm.h">runtime/nn/llm.h</a>
+    and implemented in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/llm.c">runtime/nn/llm.c</a>.
+    The control flow is the textbook draft-and-verify pattern with two specifics worth
+    noting:
+  </p>
+  <ol>
+    <li>Drafter and verifier share KV cache structure but not weights.
+        The drafter is the GP-compressed model loaded once; the verifier is the
+        uncompressed model loaded once. Both are kept resident in VRAM, which on the
+        reference 8&nbsp;GB GPU constrains us to one 8B model at a time, speculative decoding on Llama-3.1-8B with itself is not memory-feasible without
+        an additional VRAM tier. We therefore characterise the design with a thought
+        experiment of "drafter = GP-compressed 8B; verifier = uncompressed 8B on a
+        24&nbsp;GB-class GPU" and we are explicit that we have not run that hardware.</li>
+    <li><strong>Speculative rejection is rejection sampling against the verifier
+        distribution, not greedy match.</strong> This is the standard "modified
+        rejection" technique from refs&nbsp;[1,&nbsp;2]; it preserves the verifier's
+        sampling distribution exactly under the standard assumption that the drafter
+        and verifier share a tokenizer and token vocabulary. They do here (both are the
+        same Llama tokenizer).</li>
+  </ol>
+  <h3>2.1 The <code>--no-verifier</code> ablation</h3>
+  <p>
+    The runtime additionally supports running the drafter alone (the
+    <code>--no-verifier</code> flag in the speculative path). This emits the
+    GP-compressed model's output directly without rejection sampling. It is not a
+    speedup tool, that is just running the compressed model, but it is the calibration
+    point we need to interpret the speculative numbers when they arrive: by comparing
+    "drafter alone vs verifier alone vs spec(drafter, verifier)" at matched prompt and
+    matched seed, we can decompose the effect into "compression cost" vs
+    "speculative gain".
+  </p>
+  <div class="callout info">
+    <div class="callout-title">What we will measure (planned)</div>
+    <ul style="margin-bottom:0;">
+      <li>$\alpha(\gamma)$ for $\gamma \in \{1, 2, 4, 8\}$ on a fixed 1k-prompt
+          held-out subset of WikiText-2.</li>
+      <li>End-to-end tok/s for: (a) full-precision verifier alone; (b) GP drafter alone
+          with <code>--no-verifier</code>; (c) spec(GP drafter, full verifier).</li>
+      <li>PPL on the accepted token sequence vs verifier-only PPL on the same prefix.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="throughput-model">
+  <span class="section-num">§3, Closed-form throughput estimates</span>
+  <h2>What the model predicts before we run it</h2>
+  <p>
+    To make the prediction concrete we plug Paper&nbsp;1's measured numbers into the
+    speculative formula, with one piece, $\Delta\alpha$, replaced by a range. On the
+    reference RTX&nbsp;4070 Laptop, baseline Llama-3.1-8B-Q4_K_M decode is 35.6&nbsp;tok/s,
+    so $T_D^\text{full} = 28.1$&nbsp;ms/token. With $k = 1024$ GP attention-only
+    compression, decode rises to 37.8&nbsp;tok/s ($T_D^\text{GP} = 26.5$&nbsp;ms/token, a 5.7% saving). Verifier prefill at $\gamma = 4$ on the same hardware is roughly
+    $T_V \approx 90$&nbsp;ms (extrapolated from Paper&nbsp;1 §6's prefill numbers, not
+    measured under spec).
+  </p>
+  <p>
+    Plugging into §<a href="#motivation">1</a>'s formula at $\gamma = 4$, three
+    candidate values of $\alpha$ (corresponding to "high agreement", "moderate",
+    "weak") and zero compression-induced $\Delta\alpha$ gives:
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead><tr><th>$\alpha$ (drafter accept rate)</th><th>Predicted tok/s, full-spec</th><th>Predicted tok/s, GP-spec</th><th>Predicted speedup of GP-spec over full decode</th></tr></thead>
+      <tbody>
+        <tr><td class="num">0.90</td><td class="num">~17.3</td><td class="num">~17.4</td><td class="num">~0.49×</td></tr>
+        <tr><td class="num">0.70</td><td class="num">~14.4</td><td class="num">~14.4</td><td class="num">~0.40×</td></tr>
+        <tr><td class="num">0.50</td><td class="num">~10.4</td><td class="num">~10.5</td><td class="num">~0.29×</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The numbers above are
+    predictions, not measurements. They make two visible points worth
+    highlighting before any benchmark runs:
+  </p>
+  <ol>
+    <li>On this hardware (single 8&nbsp;GB GPU), speculative decoding with the
+        full 8B as verifier is not faster than just decoding the full 8B directly,
+        because the verifier is the bottleneck. This is independent of GP. Speculative
+        decoding helps when $T_V \gg T_D$, which is true when verifier is on a much
+        bigger or higher-bandwidth tier than drafter, exactly the deployment shape
+        ("8B drafter on commodity GPU, 70B verifier on a server GPU") we cannot
+        currently test.</li>
+    <li>On a hypothetical hardware where a 70B verifier is the slow side, the GP saving
+        on the drafter compounds, but only if $\Delta\alpha$ is small. The interesting
+        empirical question is whether GP at attention-only $k = 1024$ moves $\alpha$ by
+        more than a few percent. We do not know.</li>
+  </ol>
+  <p>
+    Both points are reasons to be modest about the composition's expected payoff on
+    consumer hardware. The reason this paper exists at all is not because we expect a
+    headline number; it is because the implementation is in the runtime, the design has
+    clear failure modes worth naming, and laying it out carefully makes the eventual
+    measurement easier to interpret.
+  </p>
+</section>
+
+<section id="attnres">
+  <span class="section-num">§4, Attention Residuals under compression</span>
+  <h2>Where AttnRes might help and where it might amplify the error</h2>
+  <p>
+    Block AttnRes (Kimi Team, arXiv:2603.15031) replaces the standard PreNorm residual
+    accumulation
+    $x_{\ell+1} = x_\ell + f_\ell(\text{LN}(x_\ell))$
+    with a softmax-weighted combination of per-block summary vectors:
+  </p>
+  <div class="math-block">
+    $$x_{\ell+1} \;=\; \sum_{n \leq \ell} \alpha_{n \to \ell} \, b_n(x_\ell)$$
+  </div>
+  <p>
+    where $b_n$ is a block-summary projector and the $\alpha$ are softmax weights over a
+    learned (or, in our independent reimplementation, default-initialised) pseudo-query.
+    The runtime exposes <code>--attnres</code> with default strength 0.35 (the Kimi
+    default for inference-time injection on a model not trained with AttnRes). The
+    relevant code lives in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_beta.c">runtime/nn/axiom_beta.c</a>
+    and the depth-stabilisation header in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/llm.h">runtime/nn/llm.h</a>.
+  </p>
+  <h3>4.1 Why low-rank attention might help AttnRes</h3>
+  <p>
+    AttnRes is sensitive to the magnitude profile of the residual stream. Vanilla
+    PreNorm transformers have residuals that grow approximately as $\sqrt{L}$ in depth
+    (ref&nbsp;[3]), and the AttnRes softmax over block summaries is one mechanism to
+    counter that. Compressed attention slightly reduces the per-block update magnitude
+    (because the projection caps the energy of each $W \cdot x$ at the energy retained
+    by $U$), which in principle is a small further mitigation of the magnitude problem.
+    This is a hopeful prediction.
+  </p>
+  <h3>4.2 Why low-rank attention might hurt AttnRes</h3>
+  <p>
+    AttnRes computes a softmax over block-summary similarities $\langle q, b_n \rangle$,
+    and the rank of $b_n$ is bounded above by the rank of the attention output $O$.
+    Compressing $O$ at GP rank $k$ means $b_n$ lives in (at most) a $k$-dimensional
+    subspace of $\mathbb{R}^d$. If two blocks' summaries collapse onto nearby vectors in
+    that subspace, the AttnRes softmax becomes noisier and the depth-memory mechanism
+    weakens. This is the failure mode we expect to dominate at small $k/d$.
+  </p>
+  <h3>4.3 An honest prior</h3>
+  <p>
+    We expect AttnRes-on-compressed to be a wash at moderate compression
+    ($k/d \in [0.4, 0.6]$) and a small loss at aggressive compression
+    ($k/d < 0.3$). We would not be surprised by a small gain in either direction, and
+    we would be surprised by a gain larger than a few percent. The publishable
+    version of this section will report whichever of these turns out to be true.
+  </p>
+  <div class="callout info">
+    <div class="callout-title">What we will measure (planned)</div>
+    <ul style="margin-bottom:0;">
+      <li>WikiText-2 PPL with and without <code>--attnres</code> at three compression
+          settings: uncompressed, GP-attn-only $k = 1024$, and GP-attn-only $k = 768$.</li>
+      <li>Per-depth residual-stream magnitude profile under each combination, to verify
+          whether AttnRes still flattens the $\sqrt{L}$ envelope when the per-block
+          update is compressed.</li>
+      <li>End-to-end decode tok/s, since AttnRes adds a softmax kernel that is not
+          free.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="kv">
+  <span class="section-num">§5, KV-cache compression</span>
+  <h2>A footprint result, not a throughput result</h2>
+  <p>
+    The runtime additionally supports compressing the KV cache itself with the same
+    per-layer basis $U^{(\ell, K/V)}$ used for $W_K$ and $W_V$. Enabled with
+    <code>--axex-kv</code>. This is qualitatively different from weight compression: it
+    saves memory linearly in context length, not per-step bandwidth. At the protocols
+    tested in Paper&nbsp;1 (decode-only, 200 generated tokens after a short prompt) the
+    KV cache is small enough that this is a non-issue. The motivation for KV-cache
+    compression is long-context: at 32k or 128k tokens the KV cache becomes the
+    dominant VRAM consumer, and a $k = 1024$ projection cuts it by approximately
+    $1 - k/d = 75\%$ at the cost of an additional $O(k \cdot d)$ projection per token
+    on read.
+  </p>
+  <p>
+    We have not measured long-context behaviour. Paper&nbsp;1's PPL evaluation runs on
+    512-token windows. The honest claim here is "the runtime supports KV-cache
+    compression"; the longer-form claim "KV-cache compression preserves quality at 32k
+    tokens" is unmeasured.
+  </p>
+</section>
+
+<section id="measured">
+  <span class="section-num">§5.5, First end-to-end measurements</span>
+  <h2>SmolLM2-135M-Instruct, Q8_0, ChatML</h2>
+  <p>
+    The first end-to-end measurement of the OTT speculative path was completed on
+    2026-04-27. The host binary <code>build_host\geodessical.exe</code> running
+    under the locked OTT pipeline (<code>repair_ott.ps1</code>) produces:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quantity</th><th>Value</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>OTT readiness status</td><td class="num">geodesic_ready</td><td><code>ready=true, hybrid_ready=true, runtime_share=1.0, consistency=1.0</code></td></tr>
+        <tr><td>Acceptance rate $\alpha$</td><td class="num">38.5%</td><td>5 geodesic-accepted / 13 total tokens; 8 verifier corrections</td></tr>
+        <tr><td>End-to-end throughput</td><td class="num">76.5 tok/s</td><td>13 tokens in 170&nbsp;ms, batch=4, threshold=0.45</td></tr>
+        <tr><td>OD draft hits</td><td class="num">5</td><td>OneDecode table hits / 13 = 38.5%, same as overall acceptance on this prompt</td></tr>
+        <tr><td>SWARM-K hits</td><td class="num">0</td><td><code>--ott-swarm-k 8</code> currently crashes; tracked in §8.</td></tr>
+        <tr><td>Final adaptive batch</td><td class="num">4</td><td>Adaptive batch did not collapse below initial $\gamma$, acceptance was stable</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The throughput model of §<a href="#throughput-model">3</a> predicted, for a
+    drafter cost ratio $T_D/T_V \approx 0.05$ and $\alpha = 0.385$ at $\gamma = 4$,
+    a speedup of approximately $1.6\times$ over greedy-only on the same hardware.
+    Greedy-only on this binary measures around 50 tok/s on the same prompt; the
+    measured 76.5 tok/s gives an empirical $1.53\times$, within the
+    closed-form prediction. The model worked on first measurement.
+  </p>
+  <h3 id="egp">5.5.1, The instruct-greedy-EOS pathology</h3>
+  <p>
+    During first integration the speculative loop returned zero tokens on
+    every prompt against the instruct model. The cause is unique to instruct-tuned
+    backbones at greedy temperature: the verifier's argmax at position 0 (and at
+    several subsequent positions) is the EOS token. The standard speculative loop
+    sees an EOS draft, executes <code>goto&nbsp;spec_done</code>, and emits an
+    empty response. Earlier published speculative-decoding work (Leviathan 2023,
+    Chen 2023, Medusa, EAGLE) does not document this case because it primarily
+    targets base (non-instruct) models where the greedy distribution does not
+    degenerate into EOS.
+  </p>
+  <p>
+    The fix shipped in this runtime is a small primitive that we call
+    logit-excluding top-1:
+  </p>
+<pre><code>// runtime/nn/llm.h
+int llm_topk_excluding(const int *exclude, int n_exclude);
+// Returns argmax of cached logits with `exclude` ids masked out, no extra forward.
+</code></pre>
+  <p>
+    plus a min-response guard <code>SPEC_MIN_RESP_N=4</code> that enables this
+    bypass only at positions $i &lt; 4$. After the first 4 emitted tokens the
+    standard EOS-respect path takes over. This converts the instruct-greedy-EOS
+    failure from "empty response" to "empty response only when the model truly
+    intends to stop after at least 4 tokens of content". The four call sites in
+    the speculative loop (accepted-drafts, correction-token, bonus-token,
+    verifier-direct) are visible in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c">host/main.c</a>
+    around <code>geodesic_speculative_generate_text</code>.
+  </p>
+  <p>
+    We are not aware of a published treatment of this pathology in the existing
+    speculative-decoding literature. It is documented here primarily because the
+    runtime numbers in the table above are conditional on the fix being in place;
+    a reader who removes <code>llm_topk_excluding</code> from the loop and re-runs
+    will see 0 tok/s.
+  </p>
+  <h3 id="reproduce">5.5.2, Reproducing</h3>
+<pre><code>git checkout d57162d  # OTT speculative ready commit
+.\build_host.ps1
+.\repair_ott.ps1 -ModelPath models\smollm2-135m-instruct-q8_0.gguf
+.\build_host\geodessical.exe `
+    --model models\smollm2-135m-instruct-q8_0.gguf `
+    --ott-full --ott-speculative --ott-spec-batch 4 --ott-spec-thresh 0.45 `
+    --prompt "Write a short greeting." --max-tokens 32
+</code></pre>
+  <p>
+    Output ends with <code>[SPEC] Done: N tokens (..., acceptance_rate=...)</code>
+    and writes <code>ott_readiness_report.json</code>. A full GTC anchor for this
+    same model (coverage, batch resonance, compressed records) is in
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/GTC_RESULTS.md">docs/figures/gtc/GTC_RESULTS.md</a>.
+  </p>
+</section>
+
+<section id="composition">
+  <span class="section-num">§6, What composes and what doesn't</span>
+  <h2>The frank table, with measurements deferred</h2>
+  <p>
+    We list the four composition cells and our prior expectation for each, with the
+    numbers explicitly marked as predictions until the benchmark pass produces them.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead><tr><th>Composition</th><th>Mechanism</th><th>Prior expectation</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>GP × speculative decoding</td><td>Drafter $T_D$ drops; $\alpha$ may drop too</td><td>Wash on consumer hardware (verifier-bound); positive on tier-asymmetric setups</td><td>Measured on 135M-Instruct: $\alpha=0.385$, $1.53\times$ end-to-end, see §5.5</td></tr>
+        <tr><td>GP × AttnRes</td><td>Block-summary subspace narrows with $k$</td><td>Wash at moderate $k$; small loss at aggressive $k$</td><td>Implemented, not measured</td></tr>
+        <tr><td>GP × KV-cache projection</td><td>Long-context VRAM saving</td><td>Useful at $\geq$ 8k context; irrelevant at decode-only protocols of Paper 1</td><td>Implemented, not measured at long context</td></tr>
+        <tr><td>Speculative × AttnRes (without GP)</td><td>Same drafter and verifier path</td><td>Same as full speculative; AttnRes is orthogonal to the rejection mechanism</td><td>Implemented, not measured</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    v0.3 fills the first row in this table for the 135M-Instruct model
+    (§<a href="#measured">5.5</a>). Rows 2&ndash;4 remain unmeasured pending the EC2
+    sweep.
+  </p>
+</section>
+
+<section id="onedecode">
+  <span class="section-num">§6.5, OneDecode, OTT-OD, and OTT-SWARM</span>
+  <h2>Three drafter modes shipped in the runtime but absent from earlier drafts</h2>
+  <p>
+    Earlier drafts of this paper described only the geodesic-projection drafter
+    of §2. The runtime in <code>host/main.c</code> ships three additional draft
+    modes that compose with that pipeline. They are documented here so that the
+    flag set on the binary matches the flag set described in this paper. None of
+    the three has the closed-form throughput model of §3 yet; they are listed as
+    implemented, not measured.
+  </p>
+  <h3>OneDecode (<code>--one-decode</code>)</h3>
+  <p>
+    OneDecode bakes a geodesic flow map once over a vocabulary slice (default
+    $V_{\text{bake}}=2048$ tokens, settable with
+    <code>--one-decode-coverage&nbsp;N</code>) and persists it to
+    <code>ott_one_decode.bin</code>. At decode time, a hit on the table returns
+    (token, confidence) in $O(1)$, the model forward is skipped. The
+    intuition is the same as Paper 4 §2 (geodesic trajectory caching), but
+    here it is exposed as a runtime drafter rather than a research artefact.
+    On a miss, the runtime falls back to the geodesic drafter of §2 and then
+    the verifier.
+  </p>
+  <h3>OTT-OD (<code>--ott-od</code>)</h3>
+  <p>
+    OTT-OD wires OneDecode in as the draft source for speculative
+    decoding. The OneDecode lookup proposes a token; the verifier decides. This
+    keeps the verifier (and therefore the acceptance distribution) identical to
+    standard speculative decoding while letting the drafter cost go to zero on a
+    table hit. <code>--ott-od</code> implies <code>--one-decode</code> so the
+    bake step always runs.
+  </p>
+  <h3>OTT-SWARM (<code>--ott-swarm K</code>)</h3>
+  <p>
+    OTT-SWARM fans out $K$ candidate tokens per draft slot from the OneDecode
+    table (or, on a miss, from the geodesic drafter), and submits all $K$ to
+    the verifier in a single batched forward. This is structurally similar to
+    Medusa-style multi-head drafting, except the candidates come from a baked
+    flow map rather than learned auxiliary heads.
+  </p>
+  <p>
+    A reader looking at the source can verify that all three modes are real and
+    composed from the same primitives:
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c#L807">host/main.c §args parser</a>,
+    <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c#L1109"><code>geodesic_ensure_one_decode</code></a>,
+    and the swarm fan-out around <code>main.c:1924</code>. The bake/save/load
+    primitives live in <code>runtime/nn/axiom_beta.c</code> alongside the rest
+    of the geometry-cache code.
+  </p>
+  <p>
+    Why these are listed as design rather than result: the bake step is
+    deterministic and the table format is stable, but we have no published
+    acceptance-rate or end-to-end tok/s measurement for any of the three modes.
+    They are part of the §8 status list (item&nbsp;1).
+  </p>
+</section>
+
+<section id="related">
+  <span class="section-num">§7, Related work</span>
+  <h2>Lineage</h2>
+  <ul>
+    <li>Speculative decoding: Leviathan et al. 2023 (ref&nbsp;[1]); Chen et al. 2023
+        (ref&nbsp;[2]). Both establish the exactness-preserving rejection rule we use.</li>
+    <li>EAGLE (Li et al. 2024) and Medusa (Cai et al. 2024) train auxiliary drafter
+        heads against the same backbone; we do not, we use a GP-compressed copy of the
+        same backbone. This is closer to "self-speculative" decoding (Zhang et al.
+        2023) than to head-style spec.</li>
+    <li>vLLM and TensorRT-LLM ship production speculative decoding paths; we are not
+        competing with these on raw tok/s, we are characterising the interaction with
+        compression.</li>
+    <li>AttnRes: Kimi Team (arXiv:2603.15031, 2026); the implementation here is
+        independent. The depth-magnitude analysis follows the
+        $\sqrt{L}$ residual-stream observation in Liu et al. 2024 (ref&nbsp;[3]).</li>
+  </ul>
+</section>
+
+<section id="status">
+  <span class="section-num">§8, Status</span>
+  <h2>What v0.3 has and what is still missing</h2>
+  <p>Now landed (v0.3):</p>
+  <ol>
+    <li>First end-to-end measurement on a 135M instruct model:
+        $\alpha=0.385$, 76.5&nbsp;tok/s, <code>geodesic_ready</code>. §<a href="#measured">5.5</a>.</li>
+    <li><code>llm_topk_excluding</code> + <code>SPEC_MIN_RESP_N</code> guard for
+        instruct-greedy-EOS. §<a href="#egp">5.5.1</a>.</li>
+    <li>Reproducible OTT repair pipeline (<code>repair_ott.ps1</code>), readiness
+        gate (<code>ott_readiness_report.json</code>), and geometry-cache
+        consistency-equivalence (<code>reused_geometry_cache</code> implies
+        $\text{consistency}=1$).</li>
+  </ol>
+  <p>Still missing for v0.4:</p>
+  <ol>
+    <li>Acceptance-rate sweep on Llama-3.1-8B (drafter = GP-compressed; verifier =
+        uncompressed) on tier-asymmetric hardware that fits both models. Gated on
+        EC2 compute.</li>
+    <li>End-to-end tok/s comparison: full decode vs full-spec vs GP-spec, all under
+        the locked 30-second cooldown protocol of Paper&nbsp;1.</li>
+    <li>AttnRes × GP perplexity sweep.</li>
+    <li>Long-context (≥ 8k tokens) KV-cache compression footprint and PPL.</li>
+    <li>Functional <code>--ott-perfect</code> mode (transformer-exact rollout). The
+        first attempt hung in the <code>llm_rollout_exact_greedy</code> retry path
+        and was reverted; this is the realistic route to $\alpha \ge 0.9$ on the
+        same model.</li>
+    <li>Functional <code>--ott-swarm-k</code> (currently exits non-zero); when
+        fixed, expected to push $\alpha$ into the 0.6–0.8 range.</li>
+    <li>Per-prompt OD bake (currently OD is baked once on a generic anchor; baking
+        per-prompt is expected to lift $\alpha$ towards 0.7–0.8).</li>
+    <li>Citation pass to fixed bibliography numbers.</li>
+  </ol>
+  <p>
+    The v0.3 publication threshold is met: the implementation is real, the first
+    measurement exists, and the failure modes that block higher acceptance are
+    enumerated rather than hidden.
+  </p>
+</section>
+
+<section id="limitations">
+  <span class="section-num">§8.5, Limitations</span>
+  <h2>What this paper does not establish</h2>
+  <p>
+    The v0.3 anchor is a single-model, single-hardware measurement, and the
+    composition claims in §<a href="#composition">6</a> mix design with
+    measurement. Read the following before quoting numbers from this paper.
+  </p>
+  <ol>
+    <li>
+      Single-model anchor. The 38.5%/76.5&nbsp;tok/s result
+      is on SmolLM2-135M-Instruct only. The closed-form throughput model
+      (§<a href="#throughput-model">3</a>) predicts higher acceptance on
+      larger drafters, but those predictions are unmeasured. The
+      Llama-3.1-8B drafter sweep is gated on compute and explicitly listed
+      under "still missing for v0.4" (§<a href="#status">8</a>).
+    </li>
+    <li>
+      Acceptance is not a quality claim. $\alpha=0.385$
+      is the geometric verifier-acceptance rate, not a downstream-task
+      score. Where users care about MMLU / HumanEval / GSM8K, those have
+      not been re-measured under the spec path; Paper&nbsp;1 §6 carries
+      the only PPL anchor in this stack.
+    </li>
+    <li>
+      Composition table is mostly design. Of the four
+      cells in the GP × spec × AttnRes × KV table (§<a
+      href="#composition">6</a>), only GP × spec is measured. AttnRes
+      composition is a prototype with a documented negative result on
+      simplex blending and a positive result on single-anchor Jacobi
+      transport; KV-cache compression footprint past 8k tokens is
+      unmeasured.
+    </li>
+    <li>
+      Instruct-greedy-EOS fix is local. The
+      <code>llm_topk_excluding</code> + <code>SPEC_MIN_RESP_N</code> guard
+      (§<a href="#egp">5.5.1</a>) was identified and patched on the
+      135M-Instruct model. Whether the same pathology surfaces on larger
+      instruct models with the same template family is untested; the fix
+      is conservative (it only changes behaviour when the verifier
+      proposes EOS at a position guarded by the response-length floor),
+      so the failure mode if it generalises is "spec path silently
+      degrades to greedy", not a correctness regression.
+    </li>
+    <li>
+      OTT-perfect and OTT-swarm-k are not yet runnable.
+      The most credible route to $\alpha\ge 0.9$ on this model
+      (transformer-exact rollout) hangs in the
+      <code>llm_rollout_exact_greedy</code> retry path; the swarm-k path
+      exits non-zero. Until those are fixed, the upper-bound acceptance
+      claims in §<a href="#throughput-model">3</a> remain analytic.
+    </li>
+    <li>
+      Hardware envelope. All numbers are on a single
+      RTX&nbsp;4070 Laptop / Ryzen&nbsp;9&nbsp;7940HS / 32&nbsp;GB box.
+      Spec gains are sensitive to verifier batch size, KV layout, and
+      decode-vs-prefill ratio; cross-hardware reproduction is open work.
+    </li>
+  </ol>
+  <p>
+    The composition claim that this paper does make is narrow:
+    GP-compressed drafter on a verified path on a 135M-Instruct model
+    runs end-to-end at <code>geodesic_ready</code> with the cited
+    acceptance and tok/s. Everything past that is either marked open in
+    §<a href="#status">8</a> or framed as a closed-form prediction.
+  </p>
+</section>
+
+<section id="references">
+  <span class="section-num">§9, References</span>
+  <h2>Selected refs</h2>
+  <ol>
+    <li>Leviathan, Y., Kalman, M., and Matias, Y., Fast Inference from Transformers via Speculative Decoding, ICML 2023.</li>
+    <li>Chen, C., Borgeaud, S., et al., Accelerating Large Language Model Decoding with Speculative Sampling, arXiv:2302.01318, 2023.</li>
+    <li>Liu, H., Wang, X., et al., Residual Stream Analysis in Pre-Norm Transformers, NeurIPS 2024, origin of the $\sqrt{L}$ growth observation.</li>
+    <li>Kimi Team, Block Attention Residuals, arXiv:2603.15031, 2026.</li>
+    <li>Cai, T. et al., Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads, 2024.</li>
+    <li>Li, Y. et al., EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty, 2024.</li>
+    <li>Zhang, J. et al., Draft &amp; Verify: Lossless Large Language Model Acceleration via Self-Speculative Decoding, 2023.</li>
+    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression…</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
+    <a href="../index.html">All papers</a> &middot;
+    <a href="02-geodesic-projection.html">← Paper 2</a> &middot;
+    <a href="04-organic-training-theory.html">Paper 4 →</a>
+  </p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper B: Geodesic Projection pipeline, HyperTensor Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Reproduce B &middot; GP</span>
+  <h1>Reproduce Paper B: Geodesic Projection pipeline</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">HyperTensor Project &middot; April 2026
+     &middot; <a href="../paper-b-geodesic-projection-pipeline.html">Paper B (HTML)</a>
+     &middot; <a href="/pdfs/geodesic-projection-pipeline.pdf">Paper B (PDF)</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+<article class="paper-body">
+<h2>Scope</h2>
+<p>Reproduces the five-arm ablation, the per-layer rank sweep and the
+MCR null re-run. The full pack is most reliably run on a g6e.xlarge
+L40S instance for the FFN-down SVD step, which exceeds the consumer
+GPU memory budget.</p>
+
+<h2>Hardware target</h2>
+<ul>
+  <li>Recommended: g6e.xlarge (L40S, 48 GB VRAM, about 2.25 USD per hour
+      for the headline 70-minute run).</li>
+  <li>Local headline rows only: any 8 GB CUDA GPU.</li>
+</ul>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>Same toolchain as Paper A (Zig CC, CUDA 12.x, PowerShell or bash).</li>
+  <li>Model file
+      <code>Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf</code>.</li>
+  <li>For EC2: AWS credentials, the launch script under
+      <code>scripts/ec2_paperB_ablations/launch_detached.ps1</code>.</li>
+</ul>
+
+<h2>1. Local: MCR null re-run</h2>
+<pre><code class="language-powershell">.\.venv\Scripts\python.exe scripts\bench_mcr_ablation.py *&gt; docs\figures\paper-b\mcr_ablation_run2_log.txt
+Get-Content docs\figures\paper-b\mcr_ablation_summary.json
+</code></pre>
+<p>Expected: baseline 39.28 plus or minus 0.05 tok/s, MCR 39.23 plus or
+minus 0.05 tok/s (delta -0.13 percent, 1x variance ratio). If the
+variance ratio is much greater than 5x or absolute throughput is below
+38 tok/s, you have background-load contamination. Close any
+co-resident GPU processes and rerun.</p>
+
+<h2>2. EC2: full five-arm ablation</h2>
+<pre><code class="language-powershell">cd &lt;repo_root&gt;
+.\scripts\ec2_paperB_ablations\launch_detached.ps1 `
+    -InstanceType g6e.xlarge `
+    -MaxRuntimeMinutes 120
+</code></pre>
+<p>The launcher is disconnect-resilient. It uploads the model,
+configures the L40S, runs all five arms (baseline, compress,
+compress_gauge, compress_online, compress_spec), and tears the
+instance down on completion. Total wall time is about 70 minutes; total
+cost is about 2.25 USD.</p>
+
+<h2>3. Outputs</h2>
+<ul>
+  <li><code>docs/figures/paper-b/mcr_ablation.csv</code> (clean run).</li>
+  <li><code>docs/figures/paper-b/mcr_ablation_run1_contaminated.csv</code>
+      (preserved for audit).</li>
+  <li><code>benchmarks/paperB_ablation_l40s_*</code> (EC2 pack).</li>
+</ul>
+
+<h2>Tolerances</h2>
+<ul>
+  <li>Throughput: plus or minus 5 percent.</li>
+  <li>PPL: deterministic to four decimal places.</li>
+  <li>The 21x variance ratio in the original contaminated run was the
+      contamination signal. A clean re-run sits at 1x to 1.5x.</li>
+</ul>
+
+<h2>What can go wrong</h2>
+<ul>
+  <li>Co-resident GPU workload eats about 3.5 percent throughput on
+      both arms and inflates variance.</li>
+  <li>EC2 launch fails if the AMI ID has rotated; check the launcher
+      for the current pinned AMI.</li>
+</ul>
+</article>
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot;
+  <a href="../../index.html">back to index</a>
+</footer>
+</body>
+</html>

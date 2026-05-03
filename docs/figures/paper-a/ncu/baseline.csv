@@ -1,0 +1,17 @@
+==PROF== Connected to process 39360 (C:\Users\legom\HyperTensor\build_host\geodessical.exe)
+==PROF== Disconnected from process 39360
+==WARNING== No kernels were profiled.
+Available Kernels:
+1. kernel_add
+2. kernel_argmax
+3. kernel_attention
+4. kernel_batch_fused_qk_norm_rope
+5. kernel_batch_kv_update
+6. kernel_batched_rmsnorm_out
+7. kernel_fused_swiglu
+8. kernel_gemv_q4_k
+9. kernel_gemv_q6_k
+10. kernel_kv_update
+11. kernel_prefill_attn_batched
+12. kernel_rmsnorm
+13. kernel_rope

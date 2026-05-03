@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperTensor, Whitepaper (all 7 engineering papers, back-to-back), NagusameCS</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/whitepaper.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams'
+  },
+  svg: { fontCache: 'global' },
+  startup: { typeset: false }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f9f9f8;
+  --bg-code:   #f4f4f4;
+  --border:    #e5e5e5;
+  --text:      #1a1a1a;
+  --text-soft: #5c5c5c;
+  --accent:    #c0392b;
+  --accent-l:  #e74c3c;
+  --green:     #1a7a4a;
+  --yellow-bg: #fffbeb;
+  --green-bg:  #edfbf3;
+  --red-bg:    #fff5f5;
+  --max-w:     780px;
+  --toc-w:     260px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  line-height: 1.75; -webkit-font-smoothing: antialiased;
+}
+
+nav.topnav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; display: flex;
+  align-items: center; justify-content: space-between;
+  height: 58px;
+}
+nav.topnav .nav-brand {
+  font-weight: 600; font-size: 0.95rem;
+  letter-spacing: -0.02em; color: var(--text);
+  text-decoration: none;
+}
+nav.topnav .nav-brand span { color: inherit; }
+nav.topnav ul {
+  display: flex; gap: 1.6rem; list-style: none;
+}
+nav.topnav a {
+  font-size: 0.85rem; font-weight: 500;
+  color: var(--text-soft); text-decoration: none;
+  transition: color .15s;
+}
+nav.topnav a:hover { color: var(--text); }
+
+header#whitepaper-hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 4rem 1.5rem 2rem;
+  text-align: center;
+}
+header#whitepaper-hero .tag {
+  display: inline-block;
+  font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 1rem;
+}
+header#whitepaper-hero h1 {
+  font-size: 2.4rem; font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1; margin-bottom: 0.6rem;
+}
+header#whitepaper-hero p {
+  font-size: 0.95rem; color: var(--text-soft);
+  max-width: 640px; margin: 0.6rem auto;
+}
+header#whitepaper-hero .stats {
+  display: inline-flex; gap: 1.4rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem; color: var(--text-soft);
+  margin-top: 1rem;
+  justify-content: center;
+}
+header#whitepaper-hero .stats strong { color: var(--text); }
+
+/* layout: TOC sidebar on wide, single-col on narrow */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: calc(var(--max-w) + var(--toc-w) + 4rem);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  gap: 2rem;
+}
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: var(--toc-w) minmax(0, 1fr);
+  }
+  aside.toc {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    font-size: 0.85rem;
+  }
+}
+@media (max-width: 1099px) { aside.toc { display: none; } }
+
+.toc-dots {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .toc-dots {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.75rem;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    backdrop-filter: blur(12px);
+    z-index: 120;
+  }
+  .toc-dots a {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: rgba(92,92,92,0.24);
+    border: 1px solid transparent;
+    text-indent: -9999px;
+    overflow: hidden;
+  }
+  .toc-dots a.active {
+    background: var(--accent);
+    border-color: rgba(192,57,43,0.2);
+    transform: scale(1.12);
+  }
+}
+
+aside.toc h3 {
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-soft); margin-bottom: 0.7rem;
+}
+aside.toc ol {
+  list-style: none;
+  border-left: 1px solid var(--border);
+  padding-left: 0;
+}
+aside.toc li { margin: 0; }
+aside.toc a {
+  display: block;
+  padding: 0.35rem 0.8rem;
+  color: var(--text-soft);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  line-height: 1.35;
+}
+aside.toc a:hover { color: var(--text); }
+aside.toc a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+main#chapters { min-width: 0; padding-bottom: 6rem; }
+
+section.chapter {
+  border-top: 1px solid var(--border);
+  padding-top: 3rem;
+  margin-top: 3rem;
+}
+section.chapter:first-child { border-top: none; padding-top: 1rem; margin-top: 0; }
+
+.chapter-marker {
+  font-size: 0.75rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.4rem;
+}
+.chapter-title {
+  font-size: 1.7rem; font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.2;
+  margin-bottom: 0.4rem;
+}
+.chapter-meta {
+  font-size: 0.85rem; color: var(--text-soft);
+  margin-bottom: 1.6rem;
+}
+.chapter-meta a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(192,57,43,0.35);
+  text-underline-offset: 0.18em;
+}
+.chapter-meta a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+.chapter-body { /* inherits all paper-side typography from injected fragments */ }
+.chapter-body h1 { font-size: 1.5rem; font-weight: 700; margin: 2.4rem 0 0.9rem; letter-spacing: -0.015em; }
+.chapter-body h2 { font-size: 1.2rem; font-weight: 700; margin: 2rem 0 0.7rem; }
+.chapter-body h3 { font-size: 1.02rem; font-weight: 600; margin: 1.4rem 0 0.5rem; }
+.chapter-body h4 { font-size: 0.95rem; font-weight: 600; margin: 1.2rem 0 0.4rem; color: var(--text); }
+.chapter-body p { margin: 0 0 1.1rem; }
+.chapter-body code { font-family: 'IBM Plex Mono', monospace; font-size: 0.88em; background: var(--bg-code); padding: 0.05em 0.35em; border-radius: 3px; }
+.chapter-body pre { background: var(--bg-code); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1.2rem 0; font-size: 0.85rem; }
+.chapter-body table { border-collapse: collapse; margin: 1.2rem 0; font-size: 0.9rem; width: 100%; }
+.chapter-body th, .chapter-body td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; }
+.chapter-body th { background: var(--bg-soft); font-weight: 600; }
+.chapter-body img { max-width: 100%; height: auto; }
+.chapter-body blockquote { border-left: 3px solid var(--border); padding: 0.4rem 1rem; color: var(--text-soft); margin: 1.2rem 0; }
+.chapter-body ul, .chapter-body ol { margin: 0 0 1.1rem 1.4rem; }
+.chapter-body li { margin: 0.3rem 0; }
+.chapter-body .callout { border-left: 3px solid var(--accent); background: var(--bg-soft); border-radius: 0 8px 8px 0; padding: 1rem 1.2rem; margin: 1.4rem 0; font-size: 0.93rem; }
+.chapter-body .callout-title { font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; color: var(--accent); }
+
+.chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+.chapter-card {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  padding: 1rem 1.05rem;
+  text-decoration: none;
+}
+.chapter-card strong {
+  display: block;
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+.chapter-card span {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+.chapter-ref-block + .chapter-ref-block {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+.chapter-ref-copy {
+  font-size: 0.92rem;
+  color: var(--text-soft);
+  margin-bottom: 1rem;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+a:hover, a:focus-visible { color: var(--accent); text-decoration-color: var(--accent); }
+a[href^="#"] { text-decoration-style: dotted; }
+a[href^="http"]::after {
+  content: " \2197"; font-size: 0.78em; color: var(--text-soft);
+  vertical-align: 0.15em; margin-left: 0.05em;
+}
+a[href^="http"]:hover::after { color: var(--accent); }
+
+.chapter-loading {
+  font-size: 0.88rem; color: var(--text-soft);
+  font-style: italic; padding: 1rem 0;
+}
+.chapter-error {
+  border: 1px solid var(--accent);
+  background: var(--red-bg);
+  color: var(--accent);
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+footer.foot {
+  border-top: 1px solid var(--border);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  margin-top: 4rem;
+}
+footer.foot a { color: var(--text); }
+
+/* Dark theme via reader.js */
+[data-theme="dark"] {
+  --bg: #1a1a1a; --bg-soft: #232323; --bg-code: #2a2a2a;
+  --border: #2e2e2e; --text: #e8e8e8; --text-soft: #999;
+}
+[data-theme="dark"] nav.topnav { background: rgba(26,26,26,0.92); }
+[data-theme="sepia"] {
+  --bg: #f7f1e3; --bg-soft: #efe7d2; --bg-code: #ebe2cb;
+  --border: #d8cbb1; --text: #2b2418; --text-soft: #6e6452;
+}
+[data-theme="sepia"] nav.topnav { background: rgba(247,241,227,0.92); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul>
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="../index.html#research">Research papers</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="whitepaper-hero">
+  <div class="tag">Whitepaper</div>
+  <h1>HyperTensor ,  the seven engineering papers, back-to-back.</h1>
+  <p>One scrollable document. Each paper is a chapter; cross-paper links resolve in-page.</p>
+  <div class="stats" id="hero-stats">
+    <span><strong id="stat-words">&hellip;</strong> words</span>
+    <span><strong id="stat-pages">&hellip;</strong> pages</span>
+  </div>
+</header>
+
+<div class="layout">
+
+<aside class="toc" aria-label="Table of contents">
+  <h3>Chapters</h3>
+  <ol id="toc-list">
+    <li><a href="#ch-00">Paper 0 ,  Introduction</a></li>
+    <li><a href="#ch-01">Paper 1 ,  Attention compression</a></li>
+    <li><a href="#ch-02">Paper 2 ,  Geodesic Projection</a></li>
+    <li><a href="#ch-03">Paper 3 ,  Speculative decoding</a></li>
+    <li><a href="#ch-04">Paper 4 ,  Organic Training Theory</a></li>
+    <li><a href="#ch-05">Paper 5 ,  GTC + OTT runtime</a></li>
+    <li><a href="#ch-06">Paper 6 ,  Adaptive compression</a></li>
+  </ol>
+</aside>
+
+<main id="chapters" aria-busy="true">
+  <!-- Chapters injected at runtime from sibling paper files. -->
+</main>
+
+<nav class="toc-dots" id="toc-dots" aria-label="Whitepaper progress"></nav>
+
+</div>
+
+<footer class="foot">
+  <p>HyperTensor ,  William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
+    <a href="../index.html">Home</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></p>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  // Each chapter declares its source paper file. data-stats is for the hero
+  // counter; the displayed values are the sum.
+  var CHAPTERS = [
+    { id: 'ch-00', file: '00-introduction.html',         num: 'Paper 0', title: 'Introduction',                                                meta: 'Background article',          words: 4932 },
+    { id: 'ch-01', file: '01-attention-compression.html',num: 'Paper 1', title: 'Calibration-Free Low-Rank Attention Compression',             meta: 'v0.4 \u00b7 April 2026',      words: 8382 },
+    { id: 'ch-02', file: '02-geodesic-projection.html',  num: 'Paper 2', title: 'Geodesic Projection: a production compression pipeline', meta: 'v0.2 \u00b7 April 2026',      words: 4156 },
+    { id: 'ch-03', file: '03-speculative-decoding.html', num: 'Paper 3', title: 'Composing Compression with Speculative Decoding',             meta: 'v0.3 \u00b7 April 2026',      words: 4092 },
+    { id: 'ch-04', file: '04-organic-training-theory.html', num: 'Paper 4', title: 'Organic Training Theory and Geodesic Trajectory Caching',  meta: '2026',                        words: 2512 },
+    { id: 'ch-05', file: '05-gtc-ott-runtime.html',      num: 'Paper 5', title: 'GTC and the OTT Runtime Anchor',                              meta: 'v0.1 \u00b7 2026-04-27',      words: 3076 },
+    { id: 'ch-06', file: '06-adaptive-compression.html', num: 'Paper 6', title: 'Adaptive Compression: Phase, Gauge, Thermal, Online',   meta: 'v0.1 \u00b7 2026-04-27',      words: 3846 }
+  ];
+  var references = [];
+  var NAV_ITEMS = [{ id: 'ch-contents', label: 'Contents' }]
+    .concat(CHAPTERS.map(function (c) { return { id: c.id, label: c.num }; }))
+    .concat([{ id: 'ch-references', label: 'References' }]);
+
+  // ── Render hero stats from total ──
+  function fmtWords(n) {
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
+  }
+  var totalWords = CHAPTERS.reduce(function (s, c) { return s + c.words; }, 0);
+  document.getElementById('stat-words').textContent = fmtWords(totalWords);
+  document.getElementById('stat-pages').textContent = Math.round(totalWords / 300);
+
+  function buildNav() {
+    var tocList = document.getElementById('toc-list');
+    var tocDots = document.getElementById('toc-dots');
+    tocList.innerHTML = '';
+    tocDots.innerHTML = '';
+    NAV_ITEMS.forEach(function (item) {
+      var li = document.createElement('li');
+      li.innerHTML = '<a href="#' + item.id + '">' + item.label + '</a>';
+      tocList.appendChild(li);
+      var dot = document.createElement('a');
+      dot.href = '#' + item.id;
+      dot.textContent = item.label;
+      dot.title = item.label;
+      dot.setAttribute('aria-label', item.label);
+      tocDots.appendChild(dot);
+    });
+  }
+
+  function buildContentsSection() {
+    var sec = document.createElement('section');
+    sec.className = 'chapter';
+    sec.id = 'ch-contents';
+    sec.innerHTML =
+      '<div class="chapter-marker">Frontmatter</div>' +
+      '<h1 class="chapter-title">Table of contents</h1>' +
+      '<p class="chapter-meta">Seven engineering papers in sequence, plus a consolidated references section at the end.</p>' +
+      '<div class="chapter-body">' +
+        '<p>Read straight through as a single whitepaper, or jump to the standalone paper pages when you need isolated citations, a shorter share link, or a cleaner print surface.</p>' +
+        '<div class="chapter-grid">' +
+          CHAPTERS.map(function (c) {
+            var pages = Math.max(1, Math.round(c.words / 300));
+            return '<a class="chapter-card" href="#' + c.id + '">' +
+              '' + c.num + '' +
+              '<span>' + c.title + '</span>' +
+              '<span>' + fmtWords(c.words) + ' words · ' + pages + ' pages</span>' +
+            '</a>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    chaptersEl.appendChild(sec);
+  }
+
+  function buildReferencesSection() {
+    var sec = document.createElement('section');
+    sec.className = 'chapter';
+    sec.id = 'ch-references';
+    sec.innerHTML =
+      '<div class="chapter-marker">Backmatter</div>' +
+      '<h1 class="chapter-title">Bibliography and references</h1>' +
+      '<p class="chapter-meta">Reference lists collected from each standalone paper so the main chapters stay focused on the argument.</p>' +
+      '<div class="chapter-body" id="chapter-references-body"><p class="chapter-loading">Collecting reference sections…</p></div>';
+    chaptersEl.appendChild(sec);
+  }
+
+  function renderReferencesSection() {
+    var body = document.getElementById('chapter-references-body');
+    if (!body) return;
+    if (!references.length) {
+      body.innerHTML = '<div class="chapter-error">No reference sections were found in the source papers.</div>';
+      return;
+    }
+    body.innerHTML = references.map(function (entry) {
+      return '<section class="chapter-ref-block">' +
+        '<div class="chapter-marker">' + entry.num + '</div>' +
+        '<h2>' + entry.title + '</h2>' +
+        '<p class="chapter-ref-copy">Source: <a href="' + entry.file + '">' + entry.file + '</a></p>' +
+        entry.html +
+      '</section>';
+    }).join('');
+  }
+
+  // ── Build chapter shells ──
+  var chaptersEl = document.getElementById('chapters');
+  buildNav();
+  buildContentsSection();
+  CHAPTERS.forEach(function (c) {
+    var sec = document.createElement('section');
+    sec.className = 'chapter';
+    sec.id = c.id;
+    sec.innerHTML =
+      '<div class="chapter-marker">' + c.num + '</div>' +
+      '<h1 class="chapter-title">' + c.title + '</h1>' +
+      '<p class="chapter-meta">' + c.meta +
+      ' &middot; <a href="' + c.file + '">open as standalone paper &rarr;</a></p>' +
+      '<div class="chapter-body" data-src="' + c.file + '">' +
+        '<p class="chapter-loading">Loading\u2026</p>' +
+      '</div>';
+    chaptersEl.appendChild(sec);
+  });
+
+  // ── Fetch + inject ──
+  // Strategy: fetch the paper HTML, parse with DOMParser, lift everything from
+  // <main> (or <body> if there's no <main>) minus nav/footer/aside/header,
+  // strip top-level <script> tags (they re-execute on insert otherwise),
+  // rewrite cross-paper href "NN-foo.html" -> "#ch-NN", and inject.
+
+  function rewriteCrossLinks(node) {
+    var as = node.querySelectorAll('a[href]');
+    [].forEach.call(as, function (a) {
+      var href = a.getAttribute('href') || '';
+      // Strip "./" prefix
+      href = href.replace(/^\.\//, '');
+      var m = href.match(/^(\d{2})-[^/?#]*\.html(#[^"]*)?$/);
+      if (m) {
+        a.setAttribute('href', '#ch-' + m[1] + (m[2] || ''));
+      } else if (/^https?:\/\//.test(href) || href.charAt(0) === '#') {
+        // leave as is
+      } else if (href.indexOf('../') === 0 || href.charAt(0) === '/') {
+        // leave as is, these point outside the papers folder
+      }
+    });
+  }
+
+  function rewriteAnchorIds(node, prefix) {
+    // Avoid id collisions across chapters by prefixing every id with the
+    // chapter prefix. Update fragment-only links to match.
+    var withId = node.querySelectorAll('[id]');
+    var idMap = {};
+    [].forEach.call(withId, function (el) {
+      var oldId = el.getAttribute('id');
+      var newId = prefix + '-' + oldId;
+      idMap[oldId] = newId;
+      el.setAttribute('id', newId);
+    });
+    var as = node.querySelectorAll('a[href^="#"]');
+    [].forEach.call(as, function (a) {
+      var href = a.getAttribute('href') || '';
+      var bare = href.slice(1);
+      if (idMap[bare]) a.setAttribute('href', '#' + idMap[bare]);
+    });
+  }
+
+  function extractMain(doc) {
+    var main = doc.querySelector('main');
+    if (main) return main;
+    // fallback: clone body, drop unwanted siblings
+    var clone = doc.body.cloneNode(true);
+    ['nav', 'footer', 'aside', 'header#hero', 'header'].forEach(function (sel) {
+      var nodes = clone.querySelectorAll(sel);
+      [].forEach.call(nodes, function (n) { n.remove(); });
+    });
+    return clone;
+  }
+
+  function injectChapter(chapter) {
+    var slot = document.querySelector('#' + chapter.id + ' .chapter-body');
+    if (!slot) return Promise.resolve();
+    return fetch(chapter.file, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var node = extractMain(doc);
+        // Strip scripts (avoid double-execution / page lib clashes)
+        [].forEach.call(node.querySelectorAll('script'), function (s) { s.remove(); });
+        // Strip per-paper inline <style>, body styles inherit from this page
+        [].forEach.call(node.querySelectorAll('style'), function (s) { s.remove(); });
+        // Strip per-paper aside/footer/nav if we fell back to body
+        [].forEach.call(node.querySelectorAll('nav, footer, aside'), function (s) { s.remove(); });
+        var refs = node.querySelector('#references');
+        if (refs) {
+          references.push({
+            num: chapter.num,
+            title: chapter.title,
+            file: chapter.file,
+            html: refs.outerHTML
+          });
+          refs.remove();
+        }
+        rewriteAnchorIds(node, chapter.id);
+        rewriteCrossLinks(node);
+        // Replace the loading placeholder with the actual fragment children
+        slot.innerHTML = '';
+        // Move children of <main> (or fallback) into slot
+        while (node.firstChild) slot.appendChild(node.firstChild);
+      })
+      .catch(function (err) {
+        slot.innerHTML = '<div class="chapter-error">Could not load ' +
+          chapter.file + ': ' + err.message +
+          '. <a href="' + chapter.file + '">Open the standalone paper instead.</a></div>';
+      });
+  }
+
+  // Fetch all in parallel; typeset MathJax once everything has landed.
+  buildReferencesSection();
+  Promise.all(CHAPTERS.map(injectChapter)).then(function () {
+    chaptersEl.setAttribute('aria-busy', 'false');
+    renderReferencesSection();
+    if (window.HyperTensorReader && window.HyperTensorReader.refresh) {
+      window.HyperTensorReader.refresh(chaptersEl);
+    }
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([chaptersEl]).catch(function () { /* tolerate render errors */ });
+    }
+    // Activate-on-scroll TOC highlighting
+    initTocSpy();
+  });
+
+  function setActiveNav(id) {
+    var links = [].slice.call(document.querySelectorAll('aside.toc a[href^="#"], .toc-dots a[href^="#"]'));
+    links.forEach(function (link) {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+    });
+  }
+
+  // ── TOC scroll-spy ──
+  function initTocSpy() {
+    var links = [].slice.call(document.querySelectorAll('aside.toc a[href^="#"], .toc-dots a[href^="#"]'));
+    if (!('IntersectionObserver' in window) || !links.length) return;
+    var byId = {};
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = true; });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!byId[e.target.id]) return;
+        if (e.isIntersecting) {
+          setActiveNav(e.target.id);
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+    NAV_ITEMS.forEach(function (item) {
+      var s = document.getElementById(item.id);
+      if (s) io.observe(s);
+    });
+    setActiveNav('ch-contents');
+  }
+})();
+</script>
+
+</body>
+</html>

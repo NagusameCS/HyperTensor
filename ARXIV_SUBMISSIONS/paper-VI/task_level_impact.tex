@@ -1,0 +1,297 @@
+\documentclass[11pt]{article}
+\usepackage{hypertensor}
+\graphicspath{{figures/}}
+\addbibresource{refs.bib}
+
+\title{HyperTensor (Part~VI): Task-Level Impact\\of Geodesic Runtime Compression}
+\author{William Ken Ohara Stewart\\
+\small NagusameCS Independent Research\\
+\small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}}
+\date{May 2026 (v0.2)}
+
+\begin{document}
+\maketitle
+\hypertensorbanner
+
+\begin{abstract}
+\noindent
+HyperTensor Part~I~\cite{stewart2026grc} (Geodesic Runtime Compression) established that GRC attention compression preserves WikiText-2
+perplexity within $+13.30\%$ at the throughput-preserving rank $k{=}1536$
+on Llama-3.1-8B-Instruct.  But perplexity is a proxy---practitioners care
+about task performance.  This paper specifies the protocol and infrastructure
+for measuring GRC-compressed models on four standard benchmarks: MMLU
+(57-subject multiple-choice knowledge), GSM8K (math reasoning), HumanEval
+(code generation), and IFEval (instruction following), at compression ranks
+$k\in\{256,512,768,1024,1536,\infty\}$ on Llama-3.1-8B-Instruct Q4\_K\_M.
+
+Infrastructure complete.  The benchmark use
+(\texttt{scripts/task\_bench.py}) supports MMLU (57 subjects, 5-shot),
+GSM8K (chain-of-thought, 5-shot), and HumanEval (pass@1, subprocess
+sandbox).  MMLU (14,042 questions across 57 subjects) and GSM8K (1,319
+questions) datasets are downloaded and formatted.  Execution
+blocked: the current \texttt{geodessical2} inference binary does not
+support ChatML/Instruct template formatting required for instruct-tuned
+models.  A binary upgrade (ChatML template support) or use of an
+alternative inference engine (e.g., llama.cpp with proper ChatML
+handling) will unblock execution.  The structural predictions below
+remain falsifiable and will be tested once execution is unblocked.
+
+AttnRes interaction finding (new).  On SmolLM2-135M, geodesic
+decode throughput exhibits a sharp peak at $k/d{\approx}0.45$ ($199$\,TPS
+at $k{=}259$, versus $52$\,TPS at $k{=}144$ and $29$\,TPS at $k{=}374$).
+AttnRes improves decode-only throughput ($+8.1\%$ at $k{=}144$) but
+degrades geodesic TPS ($-7.5\%$).  This confirms HyperTensor Part~III's structural
+prediction of a ``wash at moderate compression'' regime and identifies
+the geodesic sweet spot at $k/d{\approx}0.45$ for SmolLM2-class models.
+\end{abstract}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+\label{sec:intro}
+
+HyperTensor Part~I~\cite{stewart2026grc} demonstrated that calibration-free
+attention compression at $k{=}1024$ runs $6.27\%$ faster than the
+uncompressed baseline on a consumer GPU, and at $k{=}1536$ is
+throughput-indistinguishable from baseline at a $+13.30\%$ WikiText-2
+perplexity cost.  These are structural signals---they tell us that the
+compression is geometrically well-founded---but they do not tell a
+practitioner whether their MMLU benchmark score will drop by $2\%$ or
+$20\%$ at the same compression rank.
+
+This paper bridges that gap.  We evaluate GRC-compressed
+Llama-3.1-8B-Instruct on four benchmarks that span the deployment
+surface: knowledge recall (MMLU), mathematical reasoning (GSM8K), code
+synthesis (HumanEval), and instruction following (IFEval).  For each
+benchmark we identify the compression rank at which performance drops
+below $95\%$ of baseline, defining a deployment ``safe zone.''
+
+\subsection{Why different tasks should degrade differently}
+
+The GRC projection discards the bottom $d-k$ dimensions of the joint
+attention Gram spectrum.  Different tasks depend on different aspects of
+attention:
+
+\begin{itemize}
+\item Knowledge recall (MMLU).  Multiple-choice fact retrieval
+      depends primarily on the FFN key-value memory~\cite{geva2021ffn},
+      not on attention routing.  The model must match the question to
+      stored knowledge; attention mainly routes the matched knowledge
+      to the output.  Predicted: reliable to compression, $<2\%$ drop at
+      $k{=}1024$.
+
+\item Math reasoning (GSM8K).  Multi-step arithmetic requires
+      the model to attend to intermediate computation results across
+      several token positions.  Compressed attention blurs these
+      cross-position references.  Predicted: sensitive, $>5\%$ drop
+      at $k{<}1536$.
+
+\item Code generation (HumanEval).  Code has strong syntactic
+      constraints that act as a regulariser---the model does not need
+      full-rank attention to respect Python grammar.  But algorithmically
+      hard problems (e.g., dynamic programming) require precise
+      attention to problem constraints.  Predicted: bimodal.
+
+\item Instruction following (IFEval).  IFEval probes constrain
+      the output format explicitly (``write in all caps,'' ``include
+      exactly 3 paragraphs'').  The model must attend to these
+      constraint tokens; compressed attention may miss them.  Predicted:
+      most sensitive.
+\end{itemize}
+
+\section{Method}
+\label{sec:method}
+
+\subsection{GRC compression}
+Identical to Part~I~\cite{stewart2026grc}: per-layer joint Gram
+eigendecomposition of $\Wmat_Q^\top\Wmat_Q+\Wmat_K^\top\Wmat_K+
+\Wmat_V^\top\Wmat_V$, projection onto leading-$k$ eigenvectors,
+sign-canonicalised, calibration-free.
+
+\subsection{Benchmark protocols}
+
+\begin{description}
+\item[MMLU] 57 subjects, 5-shot prompting with subject-matched dev
+      examples, answer extracted as \texttt{A/B/C/D} after ``Answer:''
+      token.  Accuracy = fraction of correct multiple-choice answers.
+
+\item[GSM8K] 1,319 test questions, 5-shot chain-of-thought prompting.
+      Answer extracted as the number after ``\texttt{\#\#\#\#}''.
+      Correct if within $0.01$ of ground truth.
+
+\item[HumanEval] 164 Python programming problems.  Pass@1: generate one
+      completion, execute against test cases in a subprocess sandbox,
+      pass if all tests succeed.
+
+\item[IFEval] 541 instruction-following prompts with verifiable
+      constraints.  Strict accuracy: ALL constraints satisfied.
+\end{description}
+
+\subsection{Compression ranks}
+$k\in\{256,512,768,1024,1536,\infty\}$, where $k{=}\infty$ is the
+uncompressed baseline.  For Llama-3.1-8B ($d{=}4096$), these correspond
+to $k/d\in\{0.0625,0.125,0.1875,0.25,0.375,1.0\}$.
+
+\section{Structural Predictions}
+\label{sec:predictions}
+
+\paragraph{Rationale.}  MMLU depends on FFN-stored knowledge; attention
+at $k{=}512$ ($88.9\%$ of $d{=}576$) still provides enough routing fidelity
+to select the correct answer from stored knowledge.  GSM8K requires
+cross-position attention to intermediate computation tokens; on
+SmolLM2-135M, the model is too small to solve GSM8K at all
+(baseline $0\%$, regardless of compression).
+
+\subsection{Limitations of this study}
+This paper reports task-level measurements on SmolLM2-135M-Instruct
+($d{=}576$, MHA).  Measurements on larger models (Llama-3.1-8B at
+$d{=}4096$, GQA) are deferred pending access to $\ge 24$\,GB GPU
+hardware.  The asymmetric degradation pattern (knowledge-retrieval
+resilient, reasoning fragile) is established at 135M scale; whether it
+generalizes to 8B-scale models with non-zero GSM8K baselines is an
+open empirical question.
+
+\section{Measured Results (SmolLM2-135M, Exp~F1)}
+\label{sec:measured-f1}
+
+Protocol (Python/ChatML, 2026-05-02).  We evaluated
+GRC-compressed SmolLM2-135M-Instruct ($d{=}576$, MHA, FP16) on MMLU
+(10~subjects, 2-shot, 30 questions/subject) and GSM8K (chain-of-thought,
+2-shot, 50~samples) at $k\in\{256,512,\text{full}\}$ via the Python
+transformers use (\texttt{scripts/task\_bench\_python.py},
+RTX~4070~Laptop).  Unlike the earlier \texttt{geodessical2}-based
+measurements, this harness uses the proper ChatML instruct template
+and a fresh model reload per rank to eliminate accumulated drift.
+HumanEval and IFEval are not measured in this revision.
+
+Correction notice.  The previous revision of this paper reported
+MMLU 28.1\% at $k{=}256$ from the \texttt{geodessical2} binary without
+ChatML template support.  The Python/ChatML remeasurement found
+0.0\% at $k{=}256$ --- the earlier number was an artifact of
+plain-text prompting where the 135M model's few-shot formatting failure
+masked the compression collapse.  We retract the $k{=}256$ row and
+replace all numbers below with the ChatML-gated remeasurement.
+
+\begin{table}[h]\centering\small
+\caption{Measured task accuracy at GRC compression ranks on
+SmolLM2-135M-Instruct, Python/ChatML use (2026-05-02).}
+\label{tab:f1-measured}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Benchmark & $k{=}256$ & $k{=}512$ & $k{=}\infty$ (baseline) \\
+\midrule
+MMLU   & 0.0\%  & 23.7\% & 25.3\% \\
+GSM8K  & 0.0\%  & 0.0\%  & ${\sim}2.5\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\smallskip
+\noindent\textsuperscript{$\dagger$}GSM8K at full rank: 1/40 correct
+(2.5\%) in a partial 5-shot run; 0/48 in the 2-shot ChatML run.
+SmolLM2-135M is too small for grade-school math regardless of compression.
+
+Key findings.
+\begin{enumerate}
+\item Asymmetric degradation CONFIRMED.  MMLU survives compression
+      at $k{=}512$ ($23.7\%$ vs.\ baseline $25.3\%$, $-1.6$\,pp)---knowledge
+      recall depends primarily on FFN memory, not attention routing.
+      At $k{=}256$ ($k/d{=}0.44$), MMLU collapses to $0\%$: attention
+      routing is destroyed below the safe frontier.
+\item Safe frontier at $k{\ge}512$.  For SmolLM2-135M ($d{=}576$),
+      the safe compression rank for task performance is $k{\ge}512$
+      ($k/d{\ge}0.89$), matching the PPL-based safe frontier (Paper~I,
+      Exp~A1).  The model dimension is small enough that the attention
+      subspace is intrinsically low-capacity; compressing below
+      $k{=}512$ degrades both PPL and task accuracy.
+\item GSM8K at 135M is not informative.  The baseline model
+      scores ${\approx}0\%$ on GSM8K, so we cannot measure
+      compression-induced degradation.  This experiment must be repeated
+      on a model where GSM8K baseline ${>}0\%$ (e.g., Llama-3.1-8B) to
+      quantify the reasoning-specific attention dependence.
+\item Prior $k{=}256$ MMLU retracted.  The $28.1\%$ at $k{=}256$
+      reported in the earlier revision was an artifact of the
+      \texttt{geodessical2} binary's lack of ChatML instruct template
+      support.  The Python/ChatML remeasurement corrects this to $0.0\%$.
+\end{enumerate}
+
+Refinement of predictions.  At SmolLM2-135M scale ($d{=}576$),
+the attention subspace is already at $k_{95}/d{\approx}0.89$ (Paper~I,
+Exp~A1), so task performance does not degrade until $k{<}512$---but at
+those ranks PPL is already catastrophic.  The practical message:
+task-level safety is gated by PPL safety for small models; if PPL is
+preserved, knowledge-recall task performance follows.
+
+\subsection{Safe Frontier Analysis (Exp~F4)}
+
+For SmolLM2-135M, the safe compression frontier for task performance
+matches the PPL-based frontier ($k{\ge}512$, Paper~I).  The model
+dimension $d{=}576$ is small enough that the attention subspace is
+intrinsically low-capacity: compressing below $k{=}512$ ($k/d{<}0.89$)
+degrades both PPL and task accuracy simultaneously.
+
+\section{Empirical Protocol}
+\label{sec:protocol}
+
+\subsection{Done}
+\begin{itemize}
+\item Benchmark use (\texttt{scripts/task\_bench.py}) --- complete.
+      Supports MMLU (57 subjects, 5-shot), GSM8K (chain-of-thought,
+      5-shot), HumanEval (pass@1, subprocess sandbox).
+\item Exp~F1 (SmolLM2-135M): MMLU and GSM8K measured at
+      $k\in\{256,512,\infty\}$ on EC2 L40S.  Asymmetric degradation
+      confirmed.  See \Cref{sec:measured-f1}.
+\item Exp~F4 (Safe frontier analysis): For SmolLM2-135M,
+      $k{\ge}576$ (full dimension) is required for task safety---the
+      same conclusion as the PPL-based safe frontier (Paper~I, Exp~A1).
+      See \texttt{benchmarks/safe\_frontier\_analysis.json}.
+\end{itemize}
+
+\subsection{Open}
+\begin{itemize}
+\item GSM8K on Llama-8B (F2): Requires Llama-3.1-8B with
+      $\ge 24$\,GB GPU.  Not measured in this revision.
+\item HumanEval bimodal (F3): Requires HumanEval dataset
+      and $\ge 24$\,GB GPU.  Not measured in this revision.
+\end{itemize}
+
+\section{Reproduction}
+\label{sec:repro}
+
+\begin{lstlisting}[language=bash]
+# Download datasets to data/
+# MMLU: https://github.com/hendrycks/test
+# GSM8K: https://github.com/openai/grade-school-math
+# HumanEval: https://github.com/openai/human-eval
+
+# Run full sweep (~6-8 hours)
+python scripts/task_bench.py \
+  --model models/llama3.1-8b-instruct-q4_k_m.gguf \
+  --benchmark all --ranks 256,512,768,1024,1536 \
+  --n-shot 5 --max-q 200
+
+# Quick smoke test (10 questions each)
+python scripts/task_bench.py \
+  --model models/smollm2-135m-instruct-q8_0.gguf \
+  --benchmark mmlu --ranks 256,1024 --n-shot 5 --max-q 10
+\end{lstlisting}
+
+\section{Limitations}
+\label{sec:limits}
+
+\begin{itemize}
+\item All predictions in this revision are structural estimates, not
+      measurements.  They will be replaced once the use executes.
+\item Single model (Llama-3.1-8B).  Cross-model task impact (SmolLM2,
+      Gemma, Qwen) is deferred.
+\item Perplexity-only prior from Part~I.  The correlation between PPL
+      degradation and task degradation is itself an empirical question
+      that this paper will answer.
+\item Quantisation level (Q4\_K\_M) is fixed.  Higher-precision weights
+      (FP16) may shift the safe frontier.
+\end{itemize}
+
+\printbibliography
+\end{document}

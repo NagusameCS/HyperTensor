@@ -1,0 +1,42 @@
+{
+  "model": "Gemma3-4B",
+  "blob": "C:\\Users\\legom\\.ollama\\models\\blobs\\sha256-aeda25e63ebd698fab8638ffb778e68bed908b960d39d0becc650fa981609d25",
+  "n_layers": 34,
+  "d": 2560,
+  "threshold": 0.95,
+  "requested_layers": [
+    0,
+    6,
+    12,
+    18,
+    24,
+    30,
+    34
+  ],
+  "used_layers": [
+    0,
+    6,
+    12,
+    18,
+    24,
+    30
+  ],
+  "skipped_layers": [
+    {
+      "layer": 34,
+      "reason": "'blk.34: missing required Q/K/V tensors'"
+    }
+  ],
+  "per_layer_kint": [
+    1564,
+    1450,
+    1367,
+    1486,
+    1635,
+    1261
+  ],
+  "mean_kint": 1460.5,
+  "mean_kint_over_d": 0.5705078125,
+  "min_kint": 1261,
+  "max_kint": 1635
+}

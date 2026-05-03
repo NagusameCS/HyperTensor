@@ -1,0 +1,4 @@
+[console_scripts]
+hypertensor-eckart = eckart_young_bound:main
+hypertensor-spectra = compute_spectra:main
+hypertensor-stats = statistical_tests:main

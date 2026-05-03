@@ -1,0 +1,2 @@
+FROM C:\Users\legom\TensorOS\models\Phi-3.5-mini-instruct-Q4_0.gguf
+PARAMETER num_ctx 256

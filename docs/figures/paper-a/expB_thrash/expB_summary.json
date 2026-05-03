@@ -1,0 +1,85 @@
+{
+  "metric_definitions": {
+    "l2_hit_pct": "sector-weighted gemv L2 hit-rate",
+    "dram_mb": "sum of dram__bytes_read across the 200 sampled gemv launches",
+    "speedup_proxy": "baseline_dram / grc_dram (>1 means GRC moves less DRAM)"
+  },
+  "by_delta": {
+    "0": {
+      "delta_mb": 0,
+      "baseline": {
+        "n": 1,
+        "hit_pct_mean": 17.755762121804676,
+        "hit_pct_std": 0.0,
+        "dram_mb_mean": 4051.2908935546875,
+        "dram_mb_std": 0.0
+      },
+      "grc_k1024": {
+        "n": 2,
+        "hit_pct_mean": 17.080254249949405,
+        "hit_pct_std": 0.29076070532661713,
+        "dram_mb_mean": 3393.2083740234375,
+        "dram_mb_std": 0.021579186437577745
+      },
+      "speedup_proxy": 1.1939410867216917,
+      "hit_delta_pp": -0.6755078718552703
+    },
+    "8": {
+      "delta_mb": 8,
+      "baseline": {
+        "n": 1,
+        "hit_pct_mean": 17.868142306480912,
+        "hit_pct_std": 0.0,
+        "dram_mb_mean": 4051.1083984375,
+        "dram_mb_std": 0.0
+      },
+      "grc_k1024": {
+        "n": 2,
+        "hit_pct_mean": 17.07768367301844,
+        "hit_pct_std": 0.00408753735365124,
+        "dram_mb_mean": 3393.2623291015625,
+        "dram_mb_std": 0.013810679320049757
+      },
+      "speedup_proxy": 1.1938683206700722,
+      "hit_delta_pp": -0.790458633462471
+    },
+    "16": {
+      "delta_mb": 16,
+      "baseline": {
+        "n": 2,
+        "hit_pct_mean": 18.000414553126284,
+        "hit_pct_std": 0.2346400383345247,
+        "dram_mb_mean": 4051.6453857421875,
+        "dram_mb_std": 0.04488470779016171
+      },
+      "grc_k1024": {
+        "n": 1,
+        "hit_pct_mean": 17.184138088156,
+        "hit_pct_std": 0.0,
+        "dram_mb_mean": 3393.73779296875,
+        "dram_mb_std": 0.0
+      },
+      "speedup_proxy": 1.1938592881679047,
+      "hit_delta_pp": -0.8162764649702829
+    },
+    "22": {
+      "delta_mb": 22,
+      "baseline": {
+        "n": 2,
+        "hit_pct_mean": 18.260230100685106,
+        "hit_pct_std": 0.11446489074737994,
+        "dram_mb_mean": 4051.993896484375,
+        "dram_mb_std": 0.1501911376055411
+      },
+      "grc_k1024": {
+        "n": 2,
+        "hit_pct_mean": 17.21759074266484,
+        "hit_pct_std": 0.02964824462859151,
+        "dram_mb_mean": 3394.153564453125,
+        "dram_mb_std": 0.06421965883823137
+      },
+      "speedup_proxy": 1.1938157244624383,
+      "hit_delta_pp": -1.042639358020267
+    }
+  }
+}

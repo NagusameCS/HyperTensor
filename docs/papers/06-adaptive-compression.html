@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Compression: Phase, Gauge, Thermal, and Online Basis, HyperTensor</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/06-adaptive-compression.html">
+<meta name="description" content="Four adaptive-compression mechanisms shipped in the geodessical runtime: MCR phase-aware per-layer rank allocation, gauge-optimal residual-stream compression via GL(d) symmetry, thermal-budget-coupled rank scaling with NVML, and Oja's-rule online basis updates triggered by speculative-decode rejections. Design and runtime implementation; first-measurement sweep deferred.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
+<script src="../assets/reader.js"></script>
+<link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper 6 &middot; April 2026 &middot; v0.1</div>
+  <h1 class="hero-title">Adaptive Compression</h1>
+  <p class="hero-subtitle">
+    Four runtime mechanisms that target distinct invariance failures of static
+    rank-$r$ SVD: phase-aware allocation (MCR), GL($d$) gauge optimisation,
+    NVML-driven thermal-rank coupling with a tokens-per-joule policy gradient,
+    and Oja's-rule online basis updates fired by speculative rejections.
+  </p>
+  <div class="hero-meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num info">4</span>
+      <span class="stat-label">Adaptive<br>mechanisms</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">0</span>
+      <span class="stat-label">Inference overhead<br>(MCR + Gauge)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">GL($d$)</span>
+      <span class="stat-label">Residual-stream<br>gauge symmetry</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">$\eta_0/\sqrt{t}$</span>
+      <span class="stat-label">Oja decay<br>(Robbins–Monro)</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#repro">Flag reference</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
+</header>
+
+<main>
+
+<section id="scope">
+  <div class="callout warning">
+    <div class="callout-title">Scope ,  read first</div>
+    <p>
+      This paper documents the design and runtime implementation of four
+      adaptive-compression mechanisms layered on top of the static GP/GRC
+      compression of <a href="01-attention-compression.html">Paper&nbsp;1</a>
+      and the geodesic-projection runtime of <a
+      href="02-geodesic-projection.html">Paper&nbsp;2</a>:
+    </p>
+    <ol>
+      <li>MCR ,  Mix / Compress / Refine: per-layer rank
+        allocation driven by an empirical phase profile of the residual stream
+        plus an attention-sink bypass.</li>
+      <li>Axiom Gauge: gauge-optimal compression via the
+        GL($d$) residual-stream symmetry, baked into the compressed weights at
+        zero inference overhead.</li>
+      <li>Thermal Rank + Tokens-per-Joule: NVML-driven rank
+        scaling against thermal headroom, plus an energy-aware policy gradient
+        added to the differentiable rank plan.</li>
+      <li>Online Basis: Oja's-rule rank-1 PCA updates fired by
+        speculative-decode rejection events, with per-layer staleness
+        versioning.</li>
+    </ol>
+    <p>
+      What this paper does not contain: measured PPL or tok/s
+      sweeps for any of the four mechanisms in isolation or in combination.
+      Each mechanism is implemented and reachable from the host binary via a
+      CLI flag; a sweep over (rank, scale, $\eta_0$, temp threshold) on the
+      Paper&nbsp;1 locked protocol is the obvious next milestone but is not in
+      this revision. The publication threshold is the same as
+      Paper&nbsp;3&nbsp;v0.2: <em>real implementation, reviewable today, no
+      fabricated empirical headline</em>. Where a closed-form prediction can be
+      stated, it is.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">§0, Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      Static rank-$r$ SVD compression of a transformer treats every layer, every
+      weight matrix, and every operating point as exchangeable. None of those
+      invariances actually hold: layers fall into one of three empirical phases
+      (mix, compress, refine) with different sensitivity to rank reduction; the
+      residual stream carries an exact GL($d$) gauge symmetry that no static SVD
+      exploits; consumer hardware enters thermal throttling within $30$ seconds
+      of sustained load and the optimal rank changes accordingly; and the
+      inference distribution drifts away from the calibration distribution,
+      so yesterday's PCA basis goes stale. We present four mechanisms shipped
+      in the <code>geodessical</code> runtime that address each invariance
+      failure individually: MCR phase-aware rank allocation with attention-sink
+      bypass, gauge-optimal compression via diagonal $g \in \mathrm{GL}(d)$
+      optimisation, thermal-budget-coupled rank scaling driven by NVML with a
+      tokens-per-joule objective term, and rejection-triggered online PCA via
+      Oja's rule. All four are reachable from the host binary CLI and individually
+      composable with the GP and OTT pipelines. The contribution is the
+      combination: each mechanism targets one specific invariance
+      failure, all four are zero- or near-zero-overhead at inference time, and
+      none requires retraining. The first measurement sweep is the v0.2
+      milestone.
+    </p>
+  </div>
+</section>
+
+<section id="why">
+  <span class="section-num">§1 ,  Why static rank fails</span>
+  <h2>Four invariance failures of one-rank-fits-all</h2>
+  <p>
+    The simplest GP compression replaces every weight matrix $W$ with a rank-$r$
+    factorisation $W \approx U_r S_r V_r^\top$ at a single fixed $r$. This
+    works as a baseline (<a href="01-attention-compression.html">Paper&nbsp;1</a>)
+    but bakes in four assumptions, each of which the literature now contradicts.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead>
+        <tr><th>Invariance assumed by static rank-$r$</th><th>Empirical violation</th><th>Paper 6 mechanism</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>All layers compress equally well at the same rank</td>
+          <td>Queipo-de-Llano et al. (Oct&nbsp;2025) show three measurable phases (Mix / Compress / Refine) with order-of-magnitude variance differences</td>
+          <td>§<a href="#mcr">2</a> MCR rank allocation</td>
+        </tr>
+        <tr>
+          <td>The SVD spectrum is intrinsic to $W$</td>
+          <td>The residual stream has an exact GL($d$) gauge; the spectrum of $W \cdot \mathrm{diag}(1/g)$ depends on $g$</td>
+          <td>§<a href="#gauge">3</a> Axiom Gauge</td>
+        </tr>
+        <tr>
+          <td>Optimal rank is hardware-independent</td>
+          <td>Consumer GPUs thermal-throttle at $\sim 85\,^\circ\mathrm{C}$ within $\sim 30\,\mathrm{s}$ of sustained load; energy-per-token doubles in throttled regime</td>
+          <td>§<a href="#thermal">4</a> Thermal Rank + Tokens-per-Joule</td>
+        </tr>
+        <tr>
+          <td>The calibration distribution matches the inference distribution</td>
+          <td>Speculative-decode rejection events are a direct measurement of distribution drift</td>
+          <td>§<a href="#online">5</a> Online Basis (rejection-driven Oja)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Each row is a separate research thread in the existing literature; their
+    combination here is not. The novelty of this paper is not any single
+    mechanism ,  each has antecedents ,  but the orchestration: four
+    invariances fail in different ways, each with a known fix, and all four
+    fixes can be made zero-cost at inference time. We describe each in turn.
+  </p>
+</section>
+
+<section id="mcr">
+  <span class="section-num">§2 ,  MCR phase-aware rank allocation</span>
+  <h2>Detect the three layer phases, allocate accordingly</h2>
+  <p>
+    Queipo-de-Llano et al. (Oct&nbsp;2025) showed that transformer layers
+    process tokens in three measurable phases driven by the BOS attention sink:
+  </p>
+  <ul>
+    <li>Mix (early): broad token mixing, high activation
+      variance. Compression here is destructive because it discards the
+      cross-token representation the model is actively building.</li>
+    <li>Compress (middle): the model itself collapses
+      attentional mass onto a small set of directions, residual-stream
+      activation variance drops to its global minimum. Low-rank projection here
+      is nearly free ,  we are replicating what the model already does.</li>
+    <li>Refine (late): selective task-specific feature
+      extraction. Variance rises; rank matters again, but for different
+      reasons.</li>
+  </ul>
+  <p>
+    A static-rank pipeline ignores the structure. MCR detects phase boundaries
+    empirically from the per-layer activation-variance profile and allocates
+    non-uniform rank.
+  </p>
+  <h3 id="mcr-phase">2.1 ,  Phase detection</h3>
+  <p>
+    For each layer $\ell$, compute the per-feature variance of the captured
+    hidden states and reduce to a scalar
+    $\sigma_\ell^2 = \mathbb{E}[\,\|h_\ell - \bar h_\ell\|^2\,] / d$. Apply a
+    3-tap moving average to suppress single-layer noise, denote
+    $\tilde\sigma^2_\ell$ the smoothed variance, and define
+  </p>
+  <div class="math-block">
+    $$\sigma^2_{\min} = \min_\ell \tilde\sigma^2_\ell, \quad
+      \mathrm{phase}(\ell) = \begin{cases}
+        \mathrm{Compress} & \tilde\sigma^2_\ell \le c_\mathrm{thr}\,\sigma^2_{\min} \\
+        \mathrm{Mix}      & \ell < \ell_\mathrm{compress\_start} \\
+        \mathrm{Refine}   & \ell > \ell_\mathrm{compress\_end}
+      \end{cases}$$
+  </div>
+  <p>
+    with default threshold $c_\mathrm{thr} = 1.5$ ("within 50% of the global
+    variance minimum"). The implementation lives in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/mcr_compress.h"><code>runtime/nn/mcr_compress.h</code></a>;
+    if the variance profile is flat (no clear minimum), the result sets
+    <code>phases_valid = 0</code> and the runtime falls back to uniform rank.
+  </p>
+  <h3 id="mcr-budget">2.2 ,  Rank allocation</h3>
+  <p>
+    Given the phase labels and a global rank budget $R = r_\mathrm{base} \cdot L$,
+    allocate per-layer rank
+  </p>
+  <div class="math-block">
+    $$r_\ell = \mathrm{clip}\!\left(s_{\mathrm{phase}(\ell)} \cdot r_\mathrm{base}, \; r_{\min}, \; r_{\max}\right)$$
+  </div>
+  <p>
+    with default scales $s_\mathrm{Mix} = 1.5$, $s_\mathrm{Compress} = 0.35$,
+    $s_\mathrm{Refine} = 1.2$ (CLI-tunable via
+    <code>--axex-mcr-{mix,compress,refine}-scale</code>). The result is then
+    re-normalised so the total rank budget matches the user-requested $R$.
+  </p>
+  <h3 id="mcr-sink">2.3 ,  Attention-sink bypass</h3>
+  <p>
+    Sink tokens (BOS in particular) carry residual-stream L2 norms several
+    standard deviations above the mean. Their large activations may project
+    badly onto the calibration PCA basis, and the resulting reconstruction
+    error grows non-linearly past some compression ratio.
+    <code>StreamingLLM</code> preserves sink tokens in the KV cache; nobody (to
+    our knowledge) preserves the sink direction in the weight/activation PCA
+    basis. We do.
+  </p>
+  <p>
+    The procedure is simple: detect items with $\|h\|_2 > \mu + 3\sigma$ in the
+    calibration set; check whether the dominant sink direction $\hat s$ is
+    well-covered by the existing basis $V_r$ via $\max_k |\langle \hat s,
+    v_k\rangle|$; if not, append $\hat s$ as an extra basis vector before
+    layer initialisation. The cost is one rank slot per affected layer; the
+    benefit is bounded reconstruction error on sink-dominated steps.
+  </p>
+  <h3 id="mcr-prediction">2.4 ,  Closed-form prediction</h3>
+  <p>
+    If the variance profile is real, MCR redistributes rank from
+    Compress-phase layers (where the marginal value of rank is smallest) to
+    Mix and Refine layers. At a fixed total budget the predicted PPL
+    improvement scales with the ratio
+    $\sigma^2_\mathrm{Mix} / \sigma^2_\mathrm{Compress}$, which is typically
+    $\sim 5\!\times$ in published profiles ,  an order-of-magnitude lever.
+    Whether the prediction holds in practice is the v0.2 measurement.
+  </p>
+</section>
+
+<section id="gauge">
+  <span class="section-num">§3 ,  Axiom Gauge: GL($d$) gauge-optimal compression</span>
+  <h2>Exploiting the residual-stream symmetry</h2>
+  <p>
+    The transformer residual stream carries an exact gauge symmetry. For any
+    invertible $G \in \mathrm{GL}(d)$, the substitution
+  </p>
+  <div class="math-block">
+    $$x \mapsto G\,x, \quad W^\mathrm{read} \mapsto W^\mathrm{read} G^{-1}, \quad
+      W^\mathrm{write} \mapsto G\,W^\mathrm{write}$$
+  </div>
+  <p>
+    leaves model outputs unchanged. "Read" matrices project the residual
+    stream into a subspace (Q, K, V, FFN gate, FFN up); "write" matrices
+    project back (attention output O, FFN down). The SVD spectrum of
+    $W^\mathrm{read} G^{-1}$ depends on $G$ unless $G$ is orthogonal , 
+    so the $r$-rank truncation error is gauge-dependent, even though the model
+    is not.
+  </p>
+  <p>
+    No static rank-$r$ scheme exploits this freedom. Axiom Gauge does. We
+    parameterise $G = \mathrm{diag}(g)$, $g \in \mathbb{R}^d_{>0}$, and
+    minimise the joint tail energy
+  </p>
+  <div class="math-block">
+    $$\mathcal{L}(g) = \sum_{\ell,\; W \in \mathrm{reads}_\ell} \mathrm{tail}_r\!\big(W \mathrm{diag}(g^{-1})\big)
+                     + \sum_{\ell,\; W \in \mathrm{writes}_\ell} \mathrm{tail}_r\!\big(\mathrm{diag}(g)\, W\big)$$
+  </div>
+  <p>
+    where $\mathrm{tail}_r(M) = \|M\|_F^2 - \|\mathrm{trunc}_r(M)\|_F^2$ is
+    the energy not captured by the top-$r$ SVD.
+  </p>
+  <h3 id="gauge-grad">3.1 ,  Gradient in log space</h3>
+  <p>
+    Optimisation is done in $\lambda = \log g$ to keep $g > 0$ automatic. For
+    a read matrix $W \in \mathbb{R}^{m \times d}$ with
+    $X = W\,\mathrm{diag}(e^{-\lambda})$:
+  </p>
+  <div class="math-block">
+    $$\frac{\partial\,\mathrm{tail}_r(X)}{\partial \lambda_i}
+        = -2\bigl(\|X[:,i]\|^2 - \sum_{k \le r} S_k^2\,V^\top_{k,i}{}^2\bigr)
+        = -2\,\|X_\mathrm{tail}[:,i]\|^2$$
+  </div>
+  <p>
+    For a write matrix $W \in \mathbb{R}^{d \times n}$ with
+    $X = \mathrm{diag}(e^{\lambda})\,W$, the sign flips:
+  </p>
+  <div class="math-block">
+    $$\frac{\partial\,\mathrm{tail}_r(X)}{\partial \lambda_i}
+        = +2\,\|X_\mathrm{tail}[i,:]\|^2.$$
+  </div>
+  <p>
+    These are derived directly from $\|M\|_F^2 = \mathrm{tr}(M^\top M)$ and
+    $\partial_{\lambda_i} \mathrm{diag}(e^\lambda) = e^{\lambda_i} E_{ii}$. The
+    gradient is sparse per coordinate, the SVDs are computed once per outer
+    iteration, and 10&ndash;30 outer iterations is typically sufficient. After
+    the final $g$ is found we normalise so $\prod_i g_i^{1/d} = 1$ to remove
+    the global scale ambiguity (the residual stream itself is unchanged on
+    average).
+  </p>
+  <h3 id="gauge-bake">3.2 ,  Zero-overhead inference</h3>
+  <p>
+    Once $g^\star$ is found it is baked into the compressed factors before
+    upload to GPU. For a read matrix factored as $W \approx U_r S_r V_r^\top$,
+    the gauge-aware factor stored as <code>d_Vt[k][i]</code> is
+    $S_k V_{k,i}\,g_i$; for a write matrix, <code>d_U[i][k]</code> becomes
+    $U_{i,k}/g_i$. The inference path ,  the two-GEMV
+    $\mathrm{tmp} = V_r^\top x$, $\mathrm{out} = U_r\,\mathrm{tmp}$ ,  is
+    completely unchanged. This is the cleanest possible deployment: a free
+    pre-compute step at calibration time, no runtime branch, no extra memory
+    traffic.
+  </p>
+  <p>
+    Implementation is in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_gauge.h"><code>runtime/nn/axiom_gauge.h</code></a>;
+    the entry point is <code>axex_gauge_optimize</code>, which dequantises any
+    GGUF-quantised model on the fly and only processes the matrices involved
+    in SVD compression. Embedding and norm matrices are skipped because they
+    are not compressed by GP. The reported quantity
+    <code>tail_after / tail_before</code> bounds the achievable PPL gain.
+  </p>
+  <h3 id="gauge-prediction">3.3 ,  Closed-form prediction</h3>
+  <p>
+    The diagonal-gauge optimum reaches a stationary point on the
+    $d$-dimensional manifold; the achievable tail reduction depends on the
+    spread of feature scales across the read/write matrices. For models with
+    LayerNorm-induced uniform feature scales the gain will be modest
+    ($\lesssim 5\%$ tail energy); for models with strong per-feature scale
+    asymmetry (Llama-3 with no per-token RMSNorm-pre-attention scaling, for
+    instance) the gain may exceed $20\%$. The measurement is straightforward
+    and is the §<a href="#status">9</a> v0.2 milestone.
+  </p>
+</section>
+
+<section id="thermal">
+  <span class="section-num">§4 ,  Thermal Rank and tokens-per-joule</span>
+  <h2>Coupling rank to thermal headroom</h2>
+  <p>
+    Consumer GPUs throttle. On the reference RTX&nbsp;4070 Laptop, sustained
+    Llama-3.1-8B inference reaches steady-state $\sim 85\,^\circ\mathrm{C}$
+    within $\sim 30$ seconds and the driver clamps the boost clock; tok/s falls
+    to 50&ndash;60% of the cold-start measurement. Earlier work (throttLL'eM,
+    HPCA&nbsp;2025) responds by clamping the clock proactively. We respond by
+    clamping the compression rank instead.
+  </p>
+  <h3 id="thermal-rank">4.1 ,  NVML-driven rank scaling</h3>
+  <p>
+    The mechanism is a linear interpolation. With temperature thresholds
+    $T_\mathrm{low}$ and $T_\mathrm{high}$ and rank bounds $r_{\min}, r_{\max}$:
+  </p>
+  <div class="math-block">
+    $$r(T) = \mathrm{clip}\!\left(r_{\max}
+      - (r_{\max} - r_{\min}) \cdot \frac{T - T_\mathrm{low}}{T_\mathrm{high} - T_\mathrm{low}},
+      \; r_{\min}, r_{\max}\right).$$
+  </div>
+  <p>
+    Defaults are $T_\mathrm{low} = 65\,^\circ\mathrm{C}$,
+    $T_\mathrm{high} = 85\,^\circ\mathrm{C}$, $r_{\min}, r_{\max}$ user-supplied.
+    NVML is loaded dynamically (<code>nvml.dll</code> / <code>libnvidia-ml.so</code>);
+    if NVML is unavailable, <code>nvml_ok = 0</code> and
+    <code>thermal_get_rank</code> returns the base rank unchanged. Polling is
+    rate-limited to once per <code>poll_interval_ms = 500</code>&nbsp;ms by
+    default to avoid syscall overhead. An optional
+    $P_\mathrm{budget}\,$&nbsp;W cap further reduces rank when current draw
+    exceeds the cap.
+  </p>
+  <p>
+    The contract is monotone: higher temperature implies fewer FLOPs per token
+    implies less heat generated per token. The system is closed-loop stable as
+    long as the heat-generation rate at $r_{\min}$ is below the cooling
+    capacity at $T_\mathrm{high}$, which is the engineering definition of "the
+    laptop does not melt". On hardware where this is not true,
+    $r_{\min}$ should be set lower; this is a configuration question, not a
+    correctness question.
+  </p>
+  <h3 id="tpj">4.2 ,  Tokens-per-joule as a diffplan objective</h3>
+  <p>
+    The differentiable rank plan of <a
+    href="04-organic-training-theory.html">Paper&nbsp;4</a>'s
+    <code>geo_research</code> module minimises reconstruction error with an L1
+    rank penalty. That optimises accuracy at fixed rank, not accuracy at fixed
+    energy cost. The TPJ module adds an explicit energy term to the
+    plan-level gradient. With observation
+    $J = P_\mathrm{NVML} / (\mathrm{tok/s})$ in joules per token and a slowly
+    estimated coefficient $\hat c_\mathrm{rank}$ (joules per unit-rank per
+    token), the policy-gradient contribution to the diffplan softmax is
+  </p>
+  <div class="math-block">
+    $$\Delta_\mathrm{TPJ}\,\mathrm{grad}_\ell^{(r)}
+        = \lambda \cdot \hat c_\mathrm{rank} \cdot p_\ell^{(r)} \cdot
+          \bigl(R^{(r)} - r^\mathrm{soft}_\ell\bigr),$$
+  </div>
+  <p>
+    where $p_\ell^{(r)}$ is the softmax probability the plan currently places
+    on rank level $r$ at layer $\ell$, $R^{(r)}$ is the rank of that level, and
+    $r^\mathrm{soft}_\ell = \sum_r p_\ell^{(r)} R^{(r)}$ is the expected rank.
+    This is precisely the score-function gradient of the energy penalty with
+    respect to the softmax parameters. The regularisation weight $\lambda$
+    defaults to $0.005$; bootstrap from a quick power+throughput measurement
+    sets a non-zero $\hat c_\mathrm{rank}$ before any observed data so the
+    first diffplan step already feels the energy gradient.
+  </p>
+  <p>
+    The objective the runtime optimises after this term lands is therefore
+    not just $\mathcal{L}_\mathrm{recon} + \alpha \|r\|_1$ but
+    $\mathcal{L}_\mathrm{recon} + \alpha \|r\|_1 + \lambda\,\hat c_\mathrm{rank}\,r^\mathrm{soft}$
+    ,  a weighted blend of accuracy, headroom, and energy. Implementation
+    in <a class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/thermal_rank.h"><code>runtime/nn/thermal_rank.h</code></a>.
+  </p>
+  <h3 id="thermal-prediction">4.3 ,  Closed-form prediction</h3>
+  <p>
+    On a 30&nbsp;s sustained run with no thermal control, baseline tok/s drops
+    by $\sim 40\%$ once throttling engages (<a
+    href="01-attention-compression.html">Paper&nbsp;1</a> §6). Thermal-Rank
+    avoids the throttle altogether at the cost of a controlled rank reduction;
+    if the rank&ndash;PPL elasticity is $\partial\mathrm{PPL}/\partial r < 1\%$
+    per rank-step in the operating regime (typical for $r \in [768, 1280]$
+    on Llama-3.1-8B), the trade is favourable. The measurement is a sustained
+    60-second decode comparing static $r=1024$ against thermal-controlled
+    $r \in [768, 1024]$ on the locked protocol.
+  </p>
+</section>
+
+<section id="online">
+  <span class="section-num">§5 ,  Online Basis: rejection-driven Oja</span>
+  <h2>Coupling basis updates to model divergence</h2>
+  <p>
+    A static PCA basis fitted on calibration data drifts out of validity as
+    inference moves into distributions the calibration did not cover. The drift
+    is invisible to the runtime ,  until the basis becomes stale enough to
+    cause output errors. Speculative decoding offers a free measurement of
+    drift: every rejection is a position where the draft and verifier
+    disagreed, which means the draft basis projected the prefix into a place
+    the verifier disagreed with. The residual $h^\mathrm{tgt} - h^\mathrm{drft}$
+    is exactly the direction of basis-induced error.
+  </p>
+  <h3 id="online-oja">5.1 ,  Oja's rule, decayed</h3>
+  <p>
+    Online Basis hooks the rejection path. For a layer&nbsp;$\ell$ with current
+    basis $W \in \mathbb{R}^{k \times d}$ and a new sample $x = h^\mathrm{tgt} -
+    h^\mathrm{drft}$, the Oja rank-1 update is
+  </p>
+  <div class="math-block">
+    $$w_i \leftarrow w_i + \eta_t\,x\,(x^\top w_i), \quad
+      w_i \leftarrow w_i / \|w_i\|, \qquad i = 1, \dots, k$$
+  </div>
+  <p>
+    with deflation across the $k$ rows so the result remains orthonormal. The
+    learning rate decays as $\eta_t = \eta_0 / \sqrt{t}$ to satisfy the
+    Robbins&ndash;Monro conditions; default $\eta_0 = 0.01$. Convergence to
+    the leading eigenvectors of the running covariance is classical (Oja
+    1982). What is new here is the trigger: the only samples we feed in are
+    the residuals from rejection events, which by construction are the
+    directions the current basis fails to capture.
+  </p>
+  <h3 id="online-version">5.2 ,  Per-layer staleness versioning</h3>
+  <p>
+    A bump-counter <code>onb_layer_state_t::version</code> is incremented on
+    every applied update. The GP path tracks the version it last consumed; if
+    the layer's version moves ahead, the cached projection of $W^\mathrm{read}$
+    by $V_r^\top$ is invalidated and recomputed lazily on the next forward.
+    Because rejections are rare (a few per generated token in a typical run)
+    the recomputation cost is amortised to nothing on the hot path.
+  </p>
+  <p>
+    Updates are applied between decode steps, not inside them, via
+    <code>onb_apply_pending</code>. The pending queue is bounded
+    (<code>ONB_QUEUE_CAP = 256</code>); if it fills, the oldest entry is
+    dropped. A minimum-rejection gate
+    (<code>min_rejections_before_update = 4</code>) avoids reacting to single
+    spurious rejections.
+  </p>
+  <h3 id="online-prediction">5.3 ,  Closed-form prediction</h3>
+  <p>
+    If the calibration distribution covers the inference distribution, online
+    updates are a no-op. If the inference distribution is drifting linearly,
+    the Oja-decayed estimator converges to the running covariance with
+    bias $\propto \eta_t$; for $\eta_0 = 0.01$ and $t = 10^4$ samples the
+    bias floor is $\sim 10^{-4}$ ,  well below typical PCA truncation
+    error. Concretely we expect online basis to be invisible on
+    Paper&nbsp;1's matched calibration/test split and to show measurable PPL
+    or acceptance-rate improvement on out-of-distribution prompts. Both are
+    measurable on the §<a href="#repro">8</a> recipe.
+  </p>
+  <p>
+    Reference: Oja (1982); recent runtime applications include OjaKV (2025)
+    for online adaptive PCA on the KV cache. Implementation in <a
+    class="repo-link"
+    href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/online_basis.h"><code>runtime/nn/online_basis.h</code></a>.
+  </p>
+</section>
+
+<section id="composition">
+  <span class="section-num">§6 ,  How the four mechanisms compose</span>
+  <h2>Orthogonal axes, near-zero overhead</h2>
+  <p>
+    The four mechanisms target distinct invariance failures and are
+    architecturally orthogonal. MCR allocates rank across layers at
+    calibration time. Axiom Gauge changes the basis the SVD is taken in
+    at calibration time. Thermal Rank scales the chosen rank at run
+    time as a function of hardware state. Online Basis modifies the <em>basis
+    matrix entries</em> at run time as a function of model divergence.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead>
+        <tr>
+          <th>Mechanism</th>
+          <th>Where it acts</th>
+          <th>When it acts</th>
+          <th>Inference overhead</th>
+          <th>Composition with GP/OTT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MCR</td>
+          <td>per-layer $r_\ell$ allocation</td>
+          <td>calibration</td>
+          <td>zero</td>
+          <td>changes only the rank schedule</td>
+        </tr>
+        <tr>
+          <td>Axiom Gauge</td>
+          <td>basis entries (factor pre-multiply)</td>
+          <td>calibration</td>
+          <td>zero</td>
+          <td>commutes with MCR; baked into factors</td>
+        </tr>
+        <tr>
+          <td>Thermal Rank</td>
+          <td>active $r$</td>
+          <td>run time, $\sim 0.5\,\mathrm{s}$ poll</td>
+          <td>$\mathcal{O}(1)$ NVML call</td>
+          <td>caps $r$ at $r(T)$ on top of MCR-allocated $r_\ell$</td>
+        </tr>
+        <tr>
+          <td>Online Basis</td>
+          <td>basis matrix $W$ entries</td>
+          <td>run time, between steps</td>
+          <td>amortised zero (queue drain)</td>
+          <td>updates the same $W$ MCR + Gauge produced at calibration</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    All four can be enabled simultaneously without contention. The runtime
+    composition is: MCR sets $r_\ell$ &rarr; Gauge optimises $g$ at that
+    schedule and bakes &rarr; Thermal Rank reads $r_\ell$ as ceiling and
+    scales by $T$ &rarr; Online Basis incrementally adjusts the resulting $W$
+    matrix on rejection events. None of the four interferes with the others,
+    by construction.
+  </p>
+</section>
+
+<section id="related">
+  <span class="section-num">§7 ,  Related work</span>
+  <h2>Lineage and where this paper differs</h2>
+  <ul>
+    <li>Queipo-de-Llano et al., <a href="https://arxiv.org/abs/2510.10822" target="_blank" rel="noopener">Three Phases of Transformers</a>
+      (Oct&nbsp;2025) ,  phase taxonomy used directly by §<a href="#mcr">2</a>.
+      Their work characterises the phases; ours allocates compression rank
+      against them.</li>
+    <li><a href="https://arxiv.org/abs/2309.17453" target="_blank" rel="noopener">StreamingLLM</a> (Xiao et al., 2024) preserves attention sinks in the KV
+      cache for stream stability. §<a href="#mcr-sink">2.3</a> applies the
+      same observation to the compression basis, which they do not.</li>
+    <li>throttLL'eM (HPCA&nbsp;2025) controls GPU clock for energy. §<a
+      href="#thermal">4</a> controls compression rank instead, which trades
+      accuracy gracefully where clock-clamping trades only throughput.</li>
+    <li>Oja (1982) is the canonical reference for the streaming PCA primitive.
+      OjaKV (Sep&nbsp;2025) and RAP (2024) apply Oja-style or RL-based
+      streaming updates to the KV cache; §<a href="#online">5</a> applies it
+      to the weight-PCA basis and triggers updates from speculative
+      rejections rather than from a fixed schedule.</li>
+    <li>Gauge symmetry of transformer residual streams is folklore; the
+      observation that diagonal-gauge optimisation reduces SVD tail energy is,
+      to our knowledge, not exploited in any deployed inference runtime. §<a
+      href="#gauge">3</a> is the contribution.</li>
+  </ul>
+</section>
+
+<section id="repro">
+  <span class="section-num">§8 ,  Reproducing &amp; flag reference</span>
+  <h2>How to enable each mechanism</h2>
+  <p>
+    All four mechanisms are gated by CLI flags on the host binary:
+  </p>
+<pre><code># MCR (phase-aware rank allocation + sink bypass)
+.\build_host\geodessical.exe --model models\smollm2-135m-instruct-q8_0.gguf \
+    --axex-compress --axex-compress-rank 1024 \
+    --axex-mcr-mix-scale 1.5 \
+    --axex-mcr-compress-scale 0.35 \
+    --axex-mcr-refine-scale 1.2 \
+    [...]
+
+# Axiom Gauge (auto-iter chooses 10 small / 1 large)
+.\build_host\geodessical.exe --model ... \
+    --axex-compress --axex-compress-rank 1024 \
+    --axex-gauge \
+    --axex-gauge-iter 0 \
+    [...]
+
+# Thermal Rank (NVML required; falls back gracefully if unavailable)
+.\build_host\geodessical.exe --model ... \
+    --axex-compress --axex-compress-rank 1024 \
+    --axex-thermal-low 65 \
+    --axex-thermal-high 85 \
+    --axex-thermal-power 0 \
+    [...]
+
+# Online Basis (only meaningful with speculative decode)
+.\build_host\geodessical.exe --model ... \
+    --ott-full --ott-speculative \
+    --axex-online-basis \
+    [...]
+</code></pre>
+  <p>
+    All four can be combined; ordering does not matter. The default values are
+    deliberately conservative; the v0.2 sweep will tune each independently
+    against PPL and tok/s on the locked protocol.
+  </p>
+</section>
+
+<section id="status">
+  <span class="section-num">§9 ,  Status</span>
+  <h2>What v0.1 has and what v0.2 will measure</h2>
+  <p>Now landed (v0.1):</p>
+  <ol>
+    <li>Implementation of all four mechanisms in
+      <code>runtime/nn/{mcr_compress,axiom_gauge,thermal_rank,online_basis}.{h,c}</code>.</li>
+    <li>CLI surface in <a class="repo-link"
+      href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c"><code>host/main.c</code></a>.</li>
+    <li>Closed-form prediction stated for each mechanism in §§<a
+      href="#mcr-prediction">2.4</a>, <a href="#gauge-prediction">3.3</a>, <a
+      href="#thermal-prediction">4.3</a>, <a href="#online-prediction">5.3</a>.</li>
+    <li>Composition argument in §<a href="#composition">6</a>.</li>
+  </ol>
+  <p>Still missing for v0.2:</p>
+  <ol>
+    <li>MCR phase profile measurement on Llama-3.1-8B and SmolLM2-135M, with
+      the resulting rank allocation table.</li>
+    <li>Axiom Gauge tail-energy reduction percentage on each model and a PPL
+      sweep at fixed rank.</li>
+    <li>Thermal Rank sustained-decode measurement (60&nbsp;s, locked protocol)
+      against static rank baseline.</li>
+    <li>Online Basis acceptance-rate delta on out-of-distribution prompts in
+      OTT speculative mode.</li>
+    <li>Combined-stack measurement: MCR + Gauge + Thermal + Online vs static
+      GP, both PPL and tok/s.</li>
+    <li>Citation pass and full bibliography.</li>
+  </ol>
+  <p>
+    The publication threshold for v0.1 is implementation reality and a stated
+    closed-form prediction for each mechanism. The threshold for v0.2 is one
+    measurement per mechanism plus the combined stack.
+  </p>
+</section>
+
+<section id="limitations">
+  <span class="section-num">§9.5 ,  Limitations</span>
+  <h2>What v0.1 does not establish</h2>
+  <p>
+    Paper&nbsp;6 is, by construction, a design paper with a stated
+    closed-form prediction per mechanism rather than a measurement paper.
+    The boundaries below are what the next version is expected to close.
+  </p>
+  <ol>
+    <li>
+      No measurement headline. All four mechanisms are
+      implementation-real and CLI-reachable, but none has a measured
+      end-to-end PPL or tok/s number in this version. The §§2.4 / 3.3 /
+      4.3 / 5.3 predictions are derivations from the static GP baseline
+      under explicit assumptions, not benchmarks.
+    </li>
+    <li>
+      Composition is asserted, not measured. §<a
+      href="#composition">6</a> argues that the four mechanisms are
+      orthogonal, MCR allocates rank, Gauge rotates the basis, Thermal
+      scales rank with NVML signal, Online Basis updates the basis from
+      rejection events, and therefore stack additively. The assertion is
+      load-bearing and is the v0.2 combined-stack measurement listed in
+      §<a href="#status">9</a>.
+    </li>
+    <li>
+      Thermal Rank depends on NVML. The tokens-per-joule
+      policy gradient assumes a working NVML telemetry path. On hardware
+      where NVML is absent, throttled, or coarse (some laptop SKUs, some
+      cloud instances), the controller falls back to a static-rank
+      schedule; the fallback is implemented but its quality is not
+      measured.
+    </li>
+    <li>
+      Online Basis assumes rejection events. The
+      Oja's-rule update is fired by speculative-decoding rejections
+      (Paper&nbsp;3 §<a href="03-speculative-decoding.html#measured">5.5</a>).
+      In a non-speculative deployment the trigger does not exist and the
+      basis is static; this is by design but means Paper&nbsp;6's online
+      claim is gated on the spec path being live.
+    </li>
+    <li>
+      Gauge optimisation is offline. The Axiom Gauge
+      diagonal-$g$ search runs at build time, not during decode. "Zero
+      inference overhead" refers specifically to the runtime forward pass;
+      it is not a claim about the build-time cost of finding $g$, which
+      scales with the Phase-1 cloud size.
+    </li>
+    <li>
+      No comparison against AWQ / GPTQ / SmoothQuant.
+      The baseline in this paper is static Geodesic Projection
+      (Paper&nbsp;2). A head-to-head against quantisation-side adaptive
+      schemes is open work.
+    </li>
+  </ol>
+  <p>
+    None of these block the runtime from being usable today; they block
+    the publication-grade adaptive-compression claim. v0.2 is scoped to
+    close items 1, 2, and 3.
+  </p>
+</section>
+
+<section id="terms">
+  <span class="section-num">§9.6 ,  Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    Paper&nbsp;6 reuses the glossaries in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, decode vs prefill, residual stream) and
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink, MCR/Ricci
+    rank allocation). Speculative-path terms (acceptance rate $\alpha$,
+    draft/verifier, OneDecode, OTT) are in
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>.
+    Mechanism-specific terms, phase profile, tail energy, gauge group
+    GL($d$), tokens-per-joule, Oja's rule, are introduced inline at
+    first use.
+  </p>
+</section>
+
+<section id="references">
+  <span class="section-num">§10 ,  References</span>
+  <h2>Selected refs</h2>
+  <ol>
+    <li>Oja, E., A simplified neuron model as a principal component analyzer, J. Math. Biol., 1982.</li>
+    <li>Queipo-de-Llano, P., et al., Three Phases of Transformers, Oct.&nbsp;2025 (LeCun, Bronstein, co-authors).</li>
+    <li>Xiao, G. et al., Efficient Streaming Language Models with Attention Sinks (StreamingLLM), ICLR 2024.</li>
+    <li>OjaKV authors, Online Adaptive PCA for KV Cache via Oja's Rule, Sep.&nbsp;2025.</li>
+    <li>throttLL'eM authors, Adaptive Frequency Scaling for LLM Inference, HPCA 2025.</li>
+    <li>RAP authors, Reinforcement-Learning Adaptive Pruning per Request, 2024.</li>
+    <li>Stewart, W. K. O., Compressing Llama-3.1-8B Attention via Per-Slot SVD, this site, Paper 1, 2026.</li>
+    <li>Stewart, W. K. O., Geodesic Projection: GP-Compressed Llama Runtime, this site, Paper 2, 2026.</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Paper&nbsp;6 v0.1 &middot; HyperTensor Research &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">source on GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "model": "SmolLM2-135M",
+  "blob": "C:\\Users\\legom\\.ollama\\models\\blobs\\sha256-f535f83ec568d040f88ddc04a199fa6da90923bbb41d4dcaed02caa924d6ef57",
+  "n_layers": 30,
+  "d": 576,
+  "threshold": 0.95,
+  "requested_layers": [
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "used_layers": [
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "skipped_layers": [],
+  "per_layer_kint": [
+    122,
+    364,
+    378,
+    315,
+    318
+  ],
+  "mean_kint": 299.4,
+  "mean_kint_over_d": 0.5197916666666667,
+  "min_kint": 122,
+  "max_kint": 378
+}

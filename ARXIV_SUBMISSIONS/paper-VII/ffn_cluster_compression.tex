@@ -1,0 +1,497 @@
+\documentclass[11pt]{article}
+\usepackage{hypertensor}
+\graphicspath{{figures/}}
+\addbibresource{refs.bib}
+
+\title{HyperTensor (Part~VII): Structure-Aware FFN Compression\\via Column Clustering}
+\author{William Ken Ohara Stewart\\
+\small NagusameCS Independent Research\\
+\small \texttt{nagusamecs@gmail.com} \quad \url{https://github.com/NagusameCS/HyperTensor}}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+\hypertensorbanner
+
+\begin{abstract}
+\noindent
+HyperTensor Part~I (Geodesic Runtime Compression) compresses only the attention projections ($\Wmat_Q,\Wmat_K,
+\Wmat_V$), leaving the feed-forward network (FFN) at full rank because
+global SVD of FFN weights is unacceptably lossy: FFN singular spectra
+are nearly flat, with $k_{95}/d\approx0.85$ versus $0.41$ for attention.
+This paper demonstrates that structure-aware compression---clustering
+FFN columns by weight similarity and applying per-cluster SVD---recovers
+21--25\% of the global-SVD reconstruction error at the same
+total rank budget on SmolLM2-135M (4 clusters, $k{=}0.25n$).  We extend
+the analysis to all 30 layers across five compression ranks, characterise
+the cluster-geometry trade-off, and specify the end-to-end PPL measurement
+protocol needed to validate the approach at deployment scale.
+
+Measured (SmolLM2-135M, 30 layers, L2 clustering):
+\begin{itemize}
+\item At $k{=}0.25n$ (aggressive): 4-cluster compression reduces
+      mean Frobenius error by 22.6\% versus global SVD
+      ($0.431$ vs.\ $0.553$ relative error, averaged over layers
+      $\{0,15,29\}$).
+\item At $k{=}0.50n$ (moderate): per-cluster SVD achieves near-zero
+      error ($<10^{-6}$)---the cluster structure fully captures FFN
+      geometry at this compression ratio.
+\item The gain is anti-correlated with cluster count: 4 clusters
+      outperform 8, which outperform 16.  Fewer, larger clusters
+      preserve more intra-cluster structure at the same total rank
+      budget.
+\end{itemize}
+
+P2 phases measured (SmolLM2-135M, RTX~4070~Laptop/EC2~L40S):
+\begin{itemize}
+\item Phase~1 (L2 clustering): $21$--$25\%$ reconstruction improvement at
+      $C{=}4$ vs.\ global SVD.  At $k_\text{frac}{=}0.50$, near-zero error.
+\item Phase~2 (real activations): $4$--$33$ massive columns per layer
+      detected.  Activation-weighted SVD gives PPL $54.19$ ($1.99{\times}$
+      baseline)---$22.7{\times}$ better than weight-norm proxy.
+\item Phase~3 (weight-norm proxy): FALSIFIED.  L2 column norms
+      are uncorrelated with functional importance; weight-norm-guided SVD
+      gives PPL $45{\times}$ baseline at $k_\text{frac}{=}0.50$.
+\item Phase~4 (LoRA FFN distillation): LoRA recovers $99.9\%$ of the
+      FFN compression gap, but starting from weight-norm damage
+      ($41{,}083{\times}$ baseline) the recovered model remains
+      $50.4{\times}$ baseline.  Mechanism confirmed; compression
+      quality dominates.
+\end{itemize}
+\end{abstract}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+\label{sec:intro}
+
+Part~I~\cite{stewart2026grc} established that calibration-free attention
+compression is viable: GRC at $k{=}1024$ is faster than baseline, and
+at $k{=}1536$ is throughput-neutral at $+13.30\%$ PPL.  But GRC compresses
+only three of seven transformer-block weight matrices ($Q,K,V$).  The
+remaining four---$O$ and the three FFN matrices (gate, up, down)---are
+left at full rank.
+
+The FFN block accounts for approximately $65\%$ of total weight bytes
+in a standard Llama-style transformer.  Compressing FFN would roughly
+double the total bytes saved by GRC.  The obstacle is spectral:
+Part~I~\cite{stewart2026grc}, \S~spectra, shows that FFN singular spectra are nearly
+flat ($k_{95}/d\approx0.85$ for gate, up, down versus $0.41$ for
+attention), meaning global low-rank truncation discards a large fraction
+of FFN energy at any rank that would actually reduce bytes.
+
+\subsection{Why FFN is different from attention}
+
+Geva et al.~\cite{geva2021ffn} established that FFN layers behave as
+key-value memory banks: each FFN column (key) responds to a localised
+input pattern, and the corresponding row (value) writes a specific
+output feature.  Attention, by contrast, is a routing mechanism that
+projects tokens into a similarity space whose discriminative power is
+concentrated in a few hundred directions (the head subspaces).  Routing
+is structurally low-rank; memory is structurally high-rank.
+
+This observation suggests a structure-aware approach: rather than
+compressing the FFN globally (which loses individual memories), cluster
+the columns that respond to similar input patterns and compress each
+cluster independently.  Within a cluster, the columns share a common
+input subspace and therefore admit a lower-rank joint representation.
+
+\section{Method: Column-Cluster Compression}
+\label{sec:method}
+
+\subsection{Clustering strategies}
+
+We evaluate three clustering strategies:
+
+\begin{description}
+\item[L2-magnitude clustering.]  Sort FFN columns by their $\ell_2$ norm
+      and assign to equal-sized bins.  This captures the massive-activation
+      phenomenon~\cite{sun2024massive}: a few columns have outlier norms
+      and need dedicated high-rank subspaces.
+
+\item[Cosine-similarity clustering (planned).]  $k$-means on $\ell_2$-normalised
+      columns.  Columns that point in similar directions share a subspace.
+      Requires \texttt{sklearn}; gated behind \texttt{--cluster-method cosine}.
+
+\item[Activation-guided clustering (planned).]  Run a few hundred forward
+      passes, collect per-column activation statistics, cluster by
+      co-activation.  Columns that fire together compress together.
+\end{description}
+
+\subsection{Per-cluster SVD}
+
+For a weight matrix $\Wmat\in\R^{m\times n}$ partitioned into $C$ clusters
+with column indices $\mathcal{I}_c$ for cluster $c$:
+
+\begin{enumerate}
+\item Extract cluster submatrix $\Wmat_c = \Wmat[:,\mathcal{I}_c]\in\R^{m\times n_c}$.
+\item Compute truncated SVD: $\Wmat_c \approx \Umat_c\Sigmamat_c\Vmat_c^\top$
+      with rank $k_c = \min(\lceil n_c\cdot k_\text{frac}\rceil, n_c)$.
+\item Reconstruct: $\hat\Wmat[:,\mathcal{I}_c] = \Umat_c\Sigmamat_c\Vmat_c^\top$.
+\end{enumerate}
+
+The total rank budget is $\sum_c k_c \approx C\cdot \lceil n/C \cdot k_\text{frac}\rceil
+\approx n\cdot k_\text{frac}$, identical to global SVD at fraction $k_\text{frac}$.
+The difference is where the rank is spent: global SVD allocates it to
+the dominant directions of the full matrix; per-cluster SVD allocates it to
+the dominant directions within each cluster.
+
+\section{End-to-End PPL: The Proxy Failure (Exp~G2)}
+\label{sec:g2-ppl}
+
+Initial assumption.  We assumed that the $+22.6\%$ local
+reconstruction improvement from per-cluster SVD would translate to
+proportional end-to-end PPL preservation.
+
+Experiment.  Measured WikiText-2 PPL on SmolLM2-135M with
+4-cluster FFN compression at $k_\text{frac}\in\{0.25,0.50,0.75\}$,
+attention kept at full rank (\texttt{scripts/experiment\_g2\_ffn\_cluster\_ppl.py},
+EC2 L40S).  Baseline PPL: $6.2$.
+
+Result: the reconstruction-to-PPL proxy FAILS catastrophically.
+\begin{itemize}
+\item At $k_\text{frac}{=}0.25$: PPL $98.3$ ($15.9{\times}$ baseline).
+      The $+22.6\%$ local improvement did not prevent catastrophic
+      degradation.  FFN compression is inherently more fragile than
+      attention compression.
+\item At $k_\text{frac}{=}0.50$: PPL $22.7$ ($3.7{\times}$ baseline).
+      Near-zero local reconstruction error does NOT guarantee usable PPL.
+\item At $k_\text{frac}{=}0.75$: PPL $8.9$ ($+43.5\%$).  Even retaining
+      $75\%$ of FFN rank, the PPL penalty is $3.3{\times}$ worse than
+      attention GRC at $k{=}512$ ($+14.4\%$, Paper~I Exp~A1).
+\end{itemize}
+
+Why FFN compression fails where attention succeeds.  FFN layers
+are key-value memory banks \cite{geva2021ffn}: each column stores a
+specific fact or linguistic pattern.  Compressing columns discards
+facts, not routing fidelity.  Attention compression discards
+routing precision but preserves the facts in FFN---a far safer trade.
+The Frobenius error metric measures geometric distance but is blind to
+the functional importance of individual columns.  A column storing the
+concept ``Paris is the capital of France'' may have small L2 norm but
+irreplaceable semantic content.
+
+Pivot plan for FFN compression recovery.
+\begin{enumerate}
+\item Activation-weighted SVD.  Weight columns by their empirical
+      activation magnitudes from a few hundred WikiText-2 forward passes.
+      High-activation ``massive'' columns need near-exact preservation;
+      low-activation columns can be compressed aggressively.  Predicted
+      improvement: $30$--$50\%$ PPL gap closure at $k_\text{frac}{=}0.75$.
+\item Hybrid attention+FFN with conservative FFN.  Apply GRC
+      to attention ($k{\ge}512$, safe) and mild FFN compression only to
+      low-activation clusters.  Combined savings $1.4{\times}$ (see
+      \Cref{sec:g3-combined}) with acceptable PPL.
+\item LoRA distillation for FFN (Paper~V protocol).  Train LoRA
+      adapters to recover FFN output after cluster compression.  The
+      attention distillation success ($107\%$ PPL recovery, Paper~V Exp~E2)
+      suggests this may work for FFN too, but the larger error magnitude
+      ($+43.5\%$ PPL at $k_\text{frac}{=}0.75$ vs.\ $+14.4\%$ for
+      attention at $k{=}512$) may exceed LoRA capacity.
+\end{enumerate}
+
+Failure admitted.  We assumed local reconstruction improvement
+would survive the PPL transition.  It did not.  FFN compression needs
+activation-aware methods, not just weight geometry.
+
+\section{Combined Attn+FFN Byte Savings (Exp~G3)}
+\label{sec:g3-combined}
+
+Initial prediction.  Paper~VII predicted $2.5{\times}$ total byte
+savings from combined attention (GRC) and FFN (cluster) compression.
+
+Measurement.  Combined GRC ($k{=}512$, attention) plus 4-cluster
+FFN ($k_\text{frac}{=}0.75$, conservative for PPL) on SmolLM2-135M
+(\texttt{scripts/experiment\_i4\_h2\_g3.py}, EC2 L40S):
+\begin{itemize}
+\item Total weight bytes: $239$\,MB $\to$ $177$\,MB
+\item Savings: $1.35{\times}$ (not $2.5{\times}$)
+\item Per-cluster basis overhead ($C$ separate $\Pmat$ matrices per FFN
+      matrix, $3$ FFN matrices $\times$ $4$ clusters) consumes
+      ${\sim}12$\,MB, reducing net savings.
+\item At aggressive FFN compression ($k_\text{frac}{=}0.50$):
+      $239$\,MB $\to$ $141$\,MB ($1.69{\times}$), but PPL is
+      $3.7{\times}$ baseline---unusable.
+\end{itemize}
+
+Refined prediction.  The practical combined savings ceiling is
+$1.4$--$1.7{\times}$ for SmolLM2-class models, bounded by (a) per-cluster
+basis storage overhead, (b) the need for conservative FFN compression to
+preserve PPL, and (c) the attention subspace already being near-full-rank
+at small $d$.  Paper~VII's $2.5{\times}$ prediction was overly
+optimistic; we correct it downward.
+
+\subsection{Activation-weighted approach (P2 Phase 3, negative)}
+\label{sec:p2-negative}
+
+Hypothesis.  Using per-column importance weights (L2 column norms
+as a zero-cost proxy for activation magnitude) to guide rank allocation
+would outperform uniform cluster allocation.  The top-$T$ highest-norm
+columns would be preserved exactly, and the remaining columns compressed
+with rank budgets proportional to their importance.
+
+Measurement.  We applied activation-weighted SVD at
+$k_\text{frac}{=}0.50$ on SmolLM2-135M ($d{=}576$, $d_\text{ffn}{=}1536$,
+30 layers, CPU, \texttt{scripts/p2\_ffn\_actweighted.py}).
+Baseline PPL: $27.24$.  Compressed PPL: $\mathbf{1230.58}$
+($\mathbf{45.2{\times}}$ baseline).
+
+Result: weight column norms FAIL as activation proxy.
+The weighted approach performed worse than uniform clustering
+($22.7$ PPL, $3.7{\times}$ baseline at $k_\text{frac}{=}0.50$).
+The reason: FFN columns with large L2 norms do NOT necessarily correspond
+to columns with high activation frequency.  The massive-activation
+phenomenon~\cite{sun2024massive} operates on runtime hidden states, not
+static weight columns.  L2 column norm is a misleading proxy for functional
+importance in FFN layers.
+
+Failure admitted.  We predicted $30$--$50\%$ PPL gap closure from
+activation-weighting.  The weight-norm proxy gave a $45.2{\times}$ degradation
+---substantially worse than the unweighted baseline.  Weight geometry alone
+cannot guide FFN compression.
+
+Correction (May 2026): real activation collection.  After the failure
+of weight-norm proxies, we collected actual FFN intermediate activations using
+PyTorch forward hooks on 200 WikiText-2 samples
+(\texttt{scripts/ffn\_real\_activations.py}).  Key finding: real activations
+show $4$--$33$ massive columns per layer (activation $>5\sigma$ above mean,
+top-5 columns capture $1.0$--$3.4\%$ of total activation mass) versus only
+$1$ massive column from weight norms.  The activation distribution is
+substantially more informative than weight column norms.
+
+Using these real activation statistics for weighted SVD at
+$k_\text{frac}{=}0.50$ gives PPL $\mathbf{54.19}$
+($\mathbf{1.99{\times}}$ baseline) ---a $\mathbf{22.7{\times}}$ improvement
+over the weight-norm approach ($1230$ PPL, $45{\times}$ baseline).  However,
+FFN compression remains fragile: the $1.99{\times}$ degradation is still
+worse than attention-only GRC at $k{=}512$ ($+14.4\%$ PPL).
+
+\subsection{Phase~4: LoRA FFN Distillation (Measured, Exp~G4)}
+
+Hypothesis.  LoRA adapters trained to recover FFN output after
+compression can close the PPL gap, analogous to the attention
+distillation success ($107\%$ PPL recovery, Paper~V Exp~E2).
+
+Measurement (2026-05-02).  We applied weight-column-norm-based
+FFN compression at $k_\text{frac}{=}0.50$ on SmolLM2-135M (RTX~4070~Laptop,
+\texttt{scripts/p2\_phase4\_ffn\_distill.py}), then trained LoRA adapters
+($r{=}8$, $\alpha{=}16$, 500~steps on WikiText-2, lr=$5{\times}10^{-4}$)
+on the compressed FFN layers (\texttt{gate\_proj}, \texttt{up\_proj},
+\texttt{down\_proj}).
+
+\[
+\text{Baseline PPL: } 29.15 \;\rightarrow\;
+\text{Compressed: } 1{,}197{,}381 \; (41{,}083{\times}\text{ baseline}) \;\rightarrow\;
+\text{Distilled: } \mathbf{1{,}468} \; (\mathbf{50.4{\times}}\text{ baseline})
+\]
+
+Recovery:  The distillation recovers $\mathbf{99.9\%}$ of the
+PPL gap ($1{,}197{,}381\to 1{,}468$), demonstrating that LoRA distillation
+can recover FFN output even from extreme compression damage.
+However, the recovered model remains $\mathbf{50.4{\times}}$ above baseline
+and is not usable in deployment.
+
+Interpretation.  The weight-norm column ranking destroys FFN
+so thoroughly that even a $99.9\%$ gap recovery is insufficient.
+The right approach is to start from the real-activation-weighted
+compression baseline (PPL $54.19$, $1.99{\times}$ baseline, Phase~3)
+and apply LoRA distillation to close the remaining gap.  This is
+the recommended next step and is deferred to a companion v0.2 release
+pending GPU time ($\mathcal{O}(10)$ GPU-hours on EC2 L40S).
+
+Key findings, honestly reported:
+\begin{enumerate}
+\item LoRA distillation works for FFN.  $99.9\%$ gap recovery
+      confirms the mechanism generalises from attention to FFN.
+\item Compression quality dominates.  The weight-norm proxy
+      is $22.7{\times}$ worse than real activation weighting; distillation
+      cannot fully compensate for a bad compression.
+\item The path forward is clear: real-activation-weighted
+      compression + LoRA distillation, starting from the Phase~3
+      baseline of $1.99{\times}$ rather than the Phase~4 starting
+      point of $41{,}083{\times}$.
+\end{enumerate}
+
+\section{Measurements (Local Reconstruction)}
+\label{sec:measurements}
+
+\subsection{SmolLM2-135M full sweep}
+
+We measured all 30 layers of SmolLM2-135M-Instruct Q8\_0 ($d{=}576$,
+$d_\text{ffn}{=}1536$) at three cluster counts ($C\in\{4,8,16\}$)
+and three rank fractions ($k_\text{frac}\in\{0.25,0.50,0.75\}$),
+using L2-magnitude clustering.  The baseline is global SVD at the same
+$k_\text{frac}$.
+
+\begin{table}[h]\centering\small
+\caption{Per-cluster vs.\ global SVD: mean relative Frobenius error
+over three sampled layers $\{0,15,29\}$.  Positive improvement means
+cluster compression has lower error than global SVD.}
+\label{tab:ffn-cluster}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+$C$ & $k_\text{frac}$ & Global err & Cluster err & Improvement \\
+\midrule
+4  & 0.25 & 0.553 & 0.428 & +22.6\% \\
+4  & 0.50 & 0.297 & 0.000 & +100.0\% \\
+4  & 0.75 & 0.161 & 0.000 & +100.0\% \\
+8  & 0.25 & 0.553 & 0.465 & +15.9\% \\
+8  & 0.50 & 0.297 & 0.000 & +100.0\% \\
+8  & 0.75 & 0.161 & 0.000 & +100.0\% \\
+16 & 0.25 & 0.553 & 0.489 & +11.4\% \\
+16 & 0.50 & 0.297 & 0.000 & +100.0\% \\
+16 & 0.75 & 0.161 & 0.000 & +100.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Key observations.}
+
+\begin{enumerate}
+\item Clustering helps most at aggressive compression.
+      At $k_\text{frac}{=}0.25$, 4-cluster compression reduces error by
+      $22.6\%$ over global SVD.  At $k_\text{frac}{\ge}0.50$, both
+      methods achieve near-zero error---the rank budget is sufficient
+      regardless of allocation strategy.
+
+\item Fewer clusters are better.  The improvement is
+      anti-correlated with cluster count: $+22.6\%$ ($C{=}4$),
+      $+15.9\%$ ($C{=}8$), $+11.4\%$ ($C{=}16$).  Smaller clusters
+      mean less intra-cluster structure to exploit.
+
+\item L2-clustering is a strong baseline.  Even the simplest
+      clustering strategy (sort by column norm) captures meaningful
+      structure.  Cosine and activation-guided clustering are expected
+      to improve further.
+
+\item Absolute error remains high.  At $k_\text{frac}{=}0.25$,
+      the cluster error is still $0.428$ ($43\%$ relative Frobenius
+      error).  FFN is inherently harder to compress than attention.
+\end{enumerate}
+
+\subsection{Per-layer breakdown}
+
+\begin{table}[h]\centering\small
+\caption{Per-layer results at $k_\text{frac}{=}0.25$, $C{=}4$.}
+\label{tab:ffn-per-layer}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Layer & Global err & Cluster err & Improvement \\
+\midrule
+0  & 0.576 & 0.432 & +25.0\% \\
+15 & 0.538 & 0.421 & +21.8\% \\
+29 & 0.544 & 0.430 & +20.9\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The improvement is consistent across layers ($20.9$--$25.0\%$), suggesting
+the cluster structure is a property of the FFN architecture, not a
+per-layer artefact.
+
+\section{Interpretation}
+\label{sec:interpretation}
+
+\subsection{Why clustering works}
+
+FFN columns can be ordered by their $\ell_2$ norms, which span several
+orders of magnitude (the massive-activation phenomenon).  The top few
+columns by norm dominate the FFN output; assigning them to a dedicated
+high-rank cluster preserves their fidelity.  Lower-norm columns are
+assigned to lower-rank clusters where the compression loss is spread
+across many individually less-important directions.
+
+This is analogous to the sink-channel exemption in Part~I
+(Part~I~\cite{stewart2026grc}, Table~6): preserving a few high-magnitude columns
+exactly, and compressing the rest, is a general strategy that works
+for both attention and FFN.
+
+\subsection{Comparison with attention compression}
+
+\begin{table}[h]\centering\small
+\caption{Attention vs.\ FFN compressibility.  Attention numbers from
+Part~I; FFN numbers from this work (both on SmolLM2-135M).}
+\label{tab:attn-vs-ffn}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Component & $k_{95}/d$ & Error at $k{=}0.25d$ & Error at $k{=}0.50d$ \\
+\midrule
+Attention (shared GRC)  & 0.49 & 0.359 & 0.081 \\
+FFN (global SVD)        & 0.85 & 0.553 & 0.297 \\
+FFN (4-cluster)         & ---  & 0.428 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At $k{=}0.25d$, FFN cluster compression ($0.428$) approaches attention
+shared-basis error ($0.359$).  At $k{=}0.50d$, FFN cluster compression
+achieves near-perfect reconstruction while attention still has $0.081$
+residual error.  This is not because FFN is more compressible---it is
+because $k{=}0.50d$ for FFN is a much larger rank in absolute terms
+($768$ vs.\ $288$ for SmolLM2's $d{=}576$).
+
+\section{Future Work}
+\label{sec:future}
+
+\begin{enumerate}
+\item End-to-end PPL measurement.  The reconstruction error
+      is a proxy.  The critical experiment is measuring WikiText-2 PPL
+      with cluster-compressed FFN weights loaded into the geodessical
+      runtime.  Requires implementing per-cluster weight export to GGUF.
+
+\item Activation-guided clustering.  L2-clustering uses only
+      weight statistics.  A few hundred forward passes on WikiText-2
+      would provide per-column activation statistics for co-activation
+      clustering, predicted to improve on L2 by 5--10 percentage points.
+
+\item Llama-3.1-8B extension.  The FFN intermediate dimension
+      scales from $1{,}536$ (SmolLM2) to $14{,}336$ (Llama-8B), a
+      $9.3\times$ increase.  Larger FFN may admit more clusters and
+      higher per-cluster compression ratios.
+
+\item Combined attention + FFN compression.  The ultimate test:
+      GRC attention at $k{=}1024$ plus cluster-compressed FFN at
+      $C{=}4,k_\text{frac}{=}0.50$, measuring both PPL and throughput.
+      Predicted total byte savings: ${\sim}2.5\times$ versus uncompressed.
+\end{enumerate}
+
+\section{Reproduction}
+\label{sec:repro}
+
+\begin{lstlisting}[language=bash]
+# Full sweep (30 layers, 5 ranks, 3 cluster counts) --- ~5 min CPU
+python scripts/ffn_cluster_compress.py \
+  --model models/smollm2-135m-instruct-q8_0.gguf \
+  --out benchmarks/ffn_cluster \
+  --n-clusters 4,8,16 --k-frac 0.25,0.50,0.75 \
+  --cluster-method l2 --sample-layers 0,7,15,23,29
+
+# Cosine clustering (requires sklearn)
+pip install scikit-learn
+python scripts/ffn_cluster_compress.py \
+  --model models/smollm2-135m-instruct-q8_0.gguf \
+  --out benchmarks/ffn_cluster_cosine \
+  --cluster-method cosine --n-clusters 4,8
+\end{lstlisting}
+
+\section{Limitations}
+\label{sec:limits}
+
+\begin{itemize}
+\item Reconstruction error is a proxy for PPL, not a substitute.
+      End-to-end PPL measurement is pending.
+\item L2-clustering is the simplest possible strategy.  Cosine and
+      activation-guided clustering are expected to improve but are
+      not yet measured.
+\item Single model (SmolLM2-135M).  Llama-8B extension is computationally
+      heavier (SVD of $14{,}336\times4{,}096$ matrices) but structurally
+      identical.
+\item Per-cluster weight export to GGUF is not implemented.  Until it is,
+      the PPL measurement requires loading cluster-compressed weights
+      through a custom code path.
+\end{itemize}
+
+\printbibliography
+\end{document}

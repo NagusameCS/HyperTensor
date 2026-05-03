@@ -1,0 +1,15 @@
+{
+  "baseline": {
+    "n_launches": 100,
+    "mean_hit_rate_pct": 7.838651398645239,
+    "median_hit_rate_pct": 6.147722435619874,
+    "stdev_hit_rate_pct": 6.650889013336502
+  },
+  "grc_k1024": {
+    "n_launches": 100,
+    "mean_hit_rate_pct": 5.744074122754009,
+    "median_hit_rate_pct": 2.231201647725709,
+    "stdev_hit_rate_pct": 5.763569127630791
+  },
+  "delta_pp": -2.09457727589123
+}

@@ -1,0 +1,382 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{ilharco2022editing}{article}{}{}
+      \name{author}{7}{}{%
+        {{hash=fcee556785f43a2caed6de7b87c02322}{%
+           family={Ilharco},
+           familyi={I\bibinitperiod},
+           given={Gabriel},
+           giveni={G\bibinitperiod}}}%
+        {{hash=9203dc724f298030e81ba470feb309af}{%
+           family={Ribeiro},
+           familyi={R\bibinitperiod},
+           given={Marco\bibnamedelima Tulio},
+           giveni={M\bibinitperiod\bibinitdelim T\bibinitperiod}}}%
+        {{hash=19463711d20e6ca18c22c22f4c861e6a}{%
+           family={Wortsman},
+           familyi={W\bibinitperiod},
+           given={Mitchell},
+           giveni={M\bibinitperiod}}}%
+        {{hash=d1d3c4c5376249f5a5ed8c43c6585e47}{%
+           family={Gururangan},
+           familyi={G\bibinitperiod},
+           given={Suchin},
+           giveni={S\bibinitperiod}}}%
+        {{hash=bca2cf46e9eed1a3bcc54f4286b4e013}{%
+           family={Schmidt},
+           familyi={S\bibinitperiod},
+           given={Ludwig},
+           giveni={L\bibinitperiod}}}%
+        {{hash=e9dafefb58a6a6e1e496fdf8928b3eeb}{%
+           family={Hajishirzi},
+           familyi={H\bibinitperiod},
+           given={Hannaneh},
+           giveni={H\bibinitperiod}}}%
+        {{hash=396c6ddedb6f986906fc3e4994d19974}{%
+           family={Farhadi},
+           familyi={F\bibinitperiod},
+           given={Ali},
+           giveni={A\bibinitperiod}}}%
+      }
+      \strng{namehash}{1550f940eb9744097429c820b0606d14}
+      \strng{fullhash}{1f9dc050d46b60c2ac1e6385c749843f}
+      \strng{fullhashraw}{1f9dc050d46b60c2ac1e6385c749843f}
+      \strng{bibnamehash}{1f9dc050d46b60c2ac1e6385c749843f}
+      \strng{authorbibnamehash}{1f9dc050d46b60c2ac1e6385c749843f}
+      \strng{authornamehash}{1550f940eb9744097429c820b0606d14}
+      \strng{authorfullhash}{1f9dc050d46b60c2ac1e6385c749843f}
+      \strng{authorfullhashraw}{1f9dc050d46b60c2ac1e6385c749843f}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{ICLR}
+      \field{title}{Editing Models with Task Arithmetic}
+      \field{year}{2023}
+    \endentry
+    \entry{wortsman2022task}{article}{}{}
+      \name{author}{11}{}{%
+        {{hash=19463711d20e6ca18c22c22f4c861e6a}{%
+           family={Wortsman},
+           familyi={W\bibinitperiod},
+           given={Mitchell},
+           giveni={M\bibinitperiod}}}%
+        {{hash=fcee556785f43a2caed6de7b87c02322}{%
+           family={Ilharco},
+           familyi={I\bibinitperiod},
+           given={Gabriel},
+           giveni={G\bibinitperiod}}}%
+        {{hash=ac24d1570318fd099b87428f7e89c1b6}{%
+           family={Gadre},
+           familyi={G\bibinitperiod},
+           given={Samir\bibnamedelima Ya},
+           giveni={S\bibinitperiod\bibinitdelim Y\bibinitperiod}}}%
+        {{hash=a38e53f2691eb44e52e78c8e72de65a7}{%
+           family={Roelofs},
+           familyi={R\bibinitperiod},
+           given={Rebecca},
+           giveni={R\bibinitperiod}}}%
+        {{hash=5e565bbbe9e5a2184d31058b0dc24c14}{%
+           family={Gontijo-Lopes},
+           familyi={G\bibinithyphendelim L\bibinitperiod},
+           given={Raphael},
+           giveni={R\bibinitperiod}}}%
+        {{hash=432e0479d5af4ced25472a03c06f381e}{%
+           family={Morcos},
+           familyi={M\bibinitperiod},
+           given={Ari\bibnamedelima S},
+           giveni={A\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=131a250b717dd7f9c99161429a1b2534}{%
+           family={Namkoong},
+           familyi={N\bibinitperiod},
+           given={Hongseok},
+           giveni={H\bibinitperiod}}}%
+        {{hash=396c6ddedb6f986906fc3e4994d19974}{%
+           family={Farhadi},
+           familyi={F\bibinitperiod},
+           given={Ali},
+           giveni={A\bibinitperiod}}}%
+        {{hash=c3a96990f646f64a86d9ab03ad479056}{%
+           family={Carmon},
+           familyi={C\bibinitperiod},
+           given={Yair},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=7fc0edf04cce351dda404579ede3d0d1}{%
+           family={Kornblith},
+           familyi={K\bibinitperiod},
+           given={Simon},
+           giveni={S\bibinitperiod}}}%
+        {{hash=bca2cf46e9eed1a3bcc54f4286b4e013}{%
+           family={Schmidt},
+           familyi={S\bibinitperiod},
+           given={Ludwig},
+           giveni={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{8893e3add7fe6ee2894f3331a8e56590}
+      \strng{fullhash}{60c95f8cb8dc195c742b415d85788a1e}
+      \strng{fullhashraw}{60c95f8cb8dc195c742b415d85788a1e}
+      \strng{bibnamehash}{4ec67c10037b69ce43ab9c57a22b8e5f}
+      \strng{authorbibnamehash}{4ec67c10037b69ce43ab9c57a22b8e5f}
+      \strng{authornamehash}{8893e3add7fe6ee2894f3331a8e56590}
+      \strng{authorfullhash}{60c95f8cb8dc195c742b415d85788a1e}
+      \strng{authorfullhashraw}{60c95f8cb8dc195c742b415d85788a1e}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{ICML}
+      \field{title}{Model soups: averaging weights of multiple fine-tuned models improves accuracy without increasing inference time}
+      \field{year}{2022}
+    \endentry
+    \entry{stewart2026gp}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=3772eea54cec785492732d3592423f37}{%
+           family={Stewart},
+           familyi={S\bibinitperiod},
+           given={William\bibnamedelimb Ken\bibnamedelima Ohara},
+           giveni={W\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim O\bibinitperiod}}}%
+      }
+      \strng{namehash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhashraw}{3772eea54cec785492732d3592423f37}
+      \strng{bibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorbibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authornamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhashraw}{3772eea54cec785492732d3592423f37}
+      \field{extraname}{1}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{HyperTensor companion paper, to appear}
+      \field{title}{Geodesic Projection: a multi-slot compression pipeline with adaptive phase, gauge, thermal, and drift extensions}
+      \field{year}{2026}
+    \endentry
+    \entry{stewart2026ott}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=b6c8d4849b57881531fe4c3b717b554e}{%
+           family={Project},
+           familyi={P\bibinitperiod},
+           given={HyperTensor},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{fullhash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{fullhashraw}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{bibnamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorbibnamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authornamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorfullhash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorfullhashraw}{b6c8d4849b57881531fe4c3b717b554e}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{HyperTensor Part IV, to appear}
+      \field{title}{Organic Training Theory and the Manifold Hypothesis}
+      \field{year}{2026}
+    \endentry
+    \entry{sun2024massive}{misc}{}{}
+      \name{author}{4}{}{%
+        {{hash=9279d295e99390a720420d4c23368f5c}{%
+           family={Sun},
+           familyi={S\bibinitperiod},
+           given={Mingjie},
+           giveni={M\bibinitperiod}}}%
+        {{hash=ce10870c303bf2f78994acd2df305b39}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Xinlei},
+           giveni={X\bibinitperiod}}}%
+        {{hash=0288715a83a3349e44f9292c5c2149f7}{%
+           family={Kolter},
+           familyi={K\bibinitperiod},
+           given={J.\bibnamedelimi Zico},
+           giveni={J\bibinitperiod\bibinitdelim Z\bibinitperiod}}}%
+        {{hash=f7eda249dc15ce9f452344ec95bbcc67}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Zhuang},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{fullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{fullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \strng{bibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorbibnamehash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authornamehash}{af26a3c553c01970d1a3d8c5240a9209}
+      \strng{authorfullhash}{470a17c69767dffe65351ca00b5d6052}
+      \strng{authorfullhashraw}{470a17c69767dffe65351ca00b5d6052}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{Massive Activations in Large Language Models}
+      \field{year}{2024}
+      \verb{eprint}
+      \verb 2402.17762
+      \endverb
+    \endentry
+    \entry{xiao2023streamingllm}{misc}{}{}
+      \name{author}{5}{}{%
+        {{hash=7a3f6a85b02eee6009c886a606c4e6f2}{%
+           family={Xiao},
+           familyi={X\bibinitperiod},
+           given={Guangxuan},
+           giveni={G\bibinitperiod}}}%
+        {{hash=074caf23cc82a3b80220324f240e9327}{%
+           family={Tian},
+           familyi={T\bibinitperiod},
+           given={Yuandong},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=66db6054d8a6a56f06869a9ce69a9086}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Beidi},
+           giveni={B\bibinitperiod}}}%
+        {{hash=873e4e07ff73d563d2651d20ffaf99e0}{%
+           family={Han},
+           familyi={H\bibinitperiod},
+           given={Song},
+           giveni={S\bibinitperiod}}}%
+        {{hash=c97f53fdeeb04c28de19e3324cb4bc0a}{%
+           family={Lewis},
+           familyi={L\bibinitperiod},
+           given={Mike},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{744bbbf486f11f7b1465fa1d31514a89}
+      \strng{fullhash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{fullhashraw}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{bibnamehash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authorbibnamehash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authornamehash}{744bbbf486f11f7b1465fa1d31514a89}
+      \strng{authorfullhash}{4203a1082563db9917ee3596ca36b9d2}
+      \strng{authorfullhashraw}{4203a1082563db9917ee3596ca36b9d2}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.CL}
+      \field{eprinttype}{arXiv}
+      \field{title}{Efficient Streaming Language Models with Attention Sinks}
+      \field{year}{2023}
+      \verb{eprint}
+      \verb 2309.17453
+      \endverb
+    \endentry
+    \entry{stewart2026distill}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=3772eea54cec785492732d3592423f37}{%
+           family={Stewart},
+           familyi={S\bibinitperiod},
+           given={William\bibnamedelimb Ken\bibnamedelima Ohara},
+           giveni={W\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim O\bibinitperiod}}}%
+      }
+      \strng{namehash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhashraw}{3772eea54cec785492732d3592423f37}
+      \strng{bibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorbibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authornamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhashraw}{3772eea54cec785492732d3592423f37}
+      \field{extraname}{2}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{HyperTensor Part V, to appear}
+      \field{title}{GRC Light Distillation for Perplexity Recovery}
+      \field{year}{2026}
+    \endentry
+    \entry{stewart2026ffn}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=3772eea54cec785492732d3592423f37}{%
+           family={Stewart},
+           familyi={S\bibinitperiod},
+           given={William\bibnamedelimb Ken\bibnamedelima Ohara},
+           giveni={W\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim O\bibinitperiod}}}%
+      }
+      \strng{namehash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhash}{3772eea54cec785492732d3592423f37}
+      \strng{fullhashraw}{3772eea54cec785492732d3592423f37}
+      \strng{bibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorbibnamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authornamehash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhash}{3772eea54cec785492732d3592423f37}
+      \strng{authorfullhashraw}{3772eea54cec785492732d3592423f37}
+      \field{extraname}{3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{HyperTensor Part VII, to appear}
+      \field{title}{Structure-Aware FFN Compression via Column Clustering}
+      \field{year}{2026}
+    \endentry
+    \entry{geva2021ffn}{inproceedings}{}{}
+      \name{author}{4}{}{%
+        {{hash=6ddfda347d05ca4293f624d7d476c882}{%
+           family={Geva},
+           familyi={G\bibinitperiod},
+           given={Mor},
+           giveni={M\bibinitperiod}}}%
+        {{hash=2a5fad898e95087e1179b1abd0227e94}{%
+           family={Schuster},
+           familyi={S\bibinitperiod},
+           given={Roei},
+           giveni={R\bibinitperiod}}}%
+        {{hash=59365fb6f8cc1328f2453e8fb33dfba4}{%
+           family={Berant},
+           familyi={B\bibinitperiod},
+           given={Jonathan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=038965e189161e03f6255a4278c280a1}{%
+           family={Levy},
+           familyi={L\bibinitperiod},
+           given={Omer},
+           giveni={O\bibinitperiod}}}%
+      }
+      \strng{namehash}{4aaee4fc48500f559528e5aee27c7620}
+      \strng{fullhash}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \strng{fullhashraw}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \strng{bibnamehash}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \strng{authorbibnamehash}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \strng{authornamehash}{4aaee4fc48500f559528e5aee27c7620}
+      \strng{authorfullhash}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \strng{authorfullhashraw}{84dedabb7bd6ff5b093c7aa11c42980a}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{EMNLP}
+      \field{title}{Transformer Feed-Forward Layers Are Key--Value Memories}
+      \field{year}{2021}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

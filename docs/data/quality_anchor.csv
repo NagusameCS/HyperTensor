@@ -1,0 +1,7 @@
+metric,condition,mean,std_or_ci95,n,pct_vs_baseline
+wikitext_ppl,baseline,6.7902,0.0,5,100.0
+wikitext_ppl,grc_k2048,7.6936,0.0,5,113.304
+decode_tps_coding_256,baseline,35.68,0.347312884874721,5,100.0
+decode_tps_coding_256,grc_k2048,34.86,2.02041682828074,5,97.7017937219731
+decode_tps_reasoning_256,baseline,35.58,0.312372598029983,5,100.0
+decode_tps_reasoning_256,grc_k2048,35.22,2.42311812341041,5,98.9881956155144

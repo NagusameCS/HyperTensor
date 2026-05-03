@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>An Introduction to the HyperTensor Papers (For Readers With No Background) ,  HyperTensor</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/00-introduction.html">
+<meta name="description" content="A long-form, no-prerequisite article that teaches every concept needed to read the four HyperTensor research papers: tensors, neural networks, transformers, attention, KV cache, quantization, low-rank decomposition, PCA and SVD, manifolds, intrinsic dimension, speculative decoding, and AttnRes.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<script src="../assets/reader.js"></script>
+<style>
+:root {
+  --bg:#fff; --bg-soft:#f9f9f8; --bg-code:#f4f4f4;
+  --border:#e5e5e5; --text:#1a1a1a; --text-soft:#5c5c5c;
+  --accent:#c0392b; --blue:#2d6be4; --green:#1a7a4a;
+  --yellow-bg:#fffbeb; --blue-bg:#eef4ff;
+  --green-bg:#edfbf3; --red-bg:#fff5f5;
+  --max-w:780px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+.nav-brand span { color: inherit; }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+#hero { max-width: var(--max-w); margin: 0 auto; padding: 5rem 1.5rem 2.5rem; text-align: center; }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-soft); background: var(--bg-soft); border: 1px solid var(--border); border-radius: 2rem; padding: 0.3em 0.9em; margin-bottom: 1.4rem; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; margin-bottom: 0.9rem; }
+.meta { color: var(--text-soft); font-size: 0.92rem; }
+.meta a { color: var(--blue); text-decoration: none; }
+main { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+section { padding: 2.5rem 0; border-top: 1px solid var(--border); }
+section:first-child { border-top: 0; padding-top: 0; }
+.section-num { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--text-soft); letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; margin-bottom: 1rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+h4 { font-size: 1rem; font-weight: 600; margin: 1.4rem 0 0.4rem; color: var(--text-soft); }
+p, li { margin-bottom: 0.85rem; }
+ul, ol { padding-left: 1.4rem; margin-bottom: 1rem; }
+code { font-family: 'IBM Plex Mono', monospace; font-size: 0.86em; background: var(--bg-code); padding: 0.1em 0.4em; border-radius: 3px; }
+pre { background: var(--bg-code); padding: 0.9rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.84rem; line-height: 1.55; margin: 1rem 0; }
+pre code { background: none; padding: 0; }
+.callout { background: var(--bg-soft); border-left: 3px solid var(--blue); padding: 0.9rem 1.1rem; margin: 1.4rem 0; border-radius: 0 6px 6px 0; }
+.callout.info    { border-left-color: var(--blue);   background: var(--blue-bg); }
+.callout.finding { border-left-color: var(--green);  background: var(--green-bg); }
+.callout.warning { border-left-color: var(--accent); background: var(--red-bg); }
+.callout-title { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 0.4rem; }
+.table-wrap { overflow-x: auto; margin: 1rem 0; }
+table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+thead th { text-align: left; font-weight: 600; color: var(--text-soft); border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; }
+td { border-bottom: 1px solid var(--border); padding: 0.55rem 0.7rem; vertical-align: top; }
+td.num { font-family: 'IBM Plex Mono', monospace; }
+.toc { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.2rem; margin: 1.5rem 0; }
+.toc ol { margin: 0; padding-left: 1.2rem; }
+.toc li { margin-bottom: 0.3rem; }
+.toc a { color: var(--text); text-decoration: none; }
+.toc a:hover { color: var(--blue); }
+.math-block { margin: 1rem 0 1.2rem; overflow-x: auto; }
+footer { max-width: var(--max-w); margin: 3rem auto 0; padding: 2rem 1.5rem; border-top: 1px solid var(--border); text-align: center; color: var(--text-soft); font-size: 0.85rem; }
+footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="tag">Article &middot; Background reading</div>
+  <h1>An Introduction to the HyperTensor Papers</h1>
+  <p class="meta">A long-form explanation of every concept needed to read the four papers, written for someone with no prior background.<br>
+  By William Ken Ohara Stewart (NagusameCS) &middot; 2026</p>
+</header>
+
+<main>
+
+<section id="orientation">
+  <div class="callout">
+    <div class="callout-title">What this article is, and what it isn't</div>
+    <p>
+      This is not a research paper. It is a teaching article. It assumes you have
+      finished some high-school math (algebra, a little geometry, the idea of a
+      function) and that you have heard of "AI" but not necessarily of the math
+      behind it. By the time you reach the end you should be able to read the four
+      HyperTensor papers and understand what every sentence is claiming, what every
+      symbol means, and which claims have been measured and which are predictions.
+    </p>
+    <p>
+      The article is long. It is meant to be read in chunks. The table of contents
+      below works as a map; each section can be skipped if you already know the
+      material. Where I introduce a term that has its own Wikipedia page, I link
+      to it the first time it appears.
+    </p>
+  </div>
+
+  <div class="toc">
+    Contents
+    <ol>
+      <li><a href="#numbers">From numbers to tensors</a></li>
+      <li><a href="#nets">What a neural network actually is</a></li>
+      <li><a href="#transformers">Transformers in one long sitting</a></li>
+      <li><a href="#attention">Attention, very slowly</a></li>
+      <li><a href="#decoding">How a language model produces text</a></li>
+      <li><a href="#kvcache">The KV cache and why it dominates inference</a></li>
+      <li><a href="#hardware">Hardware: why we care about bandwidth and cache</a></li>
+      <li><a href="#quant">Quantisation: shrinking weights without retraining</a></li>
+      <li><a href="#linalg">Linear algebra interlude: PCA, SVD, low rank</a></li>
+      <li><a href="#manifold">Manifolds and intrinsic dimension</a></li>
+      <li><a href="#paper1">Paper 1, the short version</a></li>
+      <li><a href="#paper2">Paper 2, the short version</a></li>
+      <li><a href="#paper3">Paper 3, the short version</a></li>
+      <li><a href="#paper4">Paper 4, the short version</a></li>
+      <li><a href="#vocab">Vocabulary cheat-sheet</a></li>
+    </ol>
+  </div>
+</section>
+
+<section id="numbers">
+  <span class="section-num">&sect;1</span>
+  <h2>From numbers to tensors</h2>
+  <p>
+    Everything inside a modern AI model is, in the end, multiplication and addition of
+    numbers. The art is in keeping track of how the numbers are arranged.
+  </p>
+  <p>
+    A single number, like $3.14$ or $-7$, is called a scalar. A list
+    of numbers in a row, like $(1, 2, 3, 4)$, is called a vector. A
+    grid of numbers with rows and columns is a matrix. If you stack
+    many matrices, like the pages of a book, you get a three-dimensional grid; that is
+    a tensor. The word "tensor" is just a generalisation of "number,
+    list, table" to any number of dimensions, and the word "HyperTensor" in the project
+    name is a nod to this: the whole field is the study of how to keep large
+    arrangements of numbers from getting in their own way.
+  </p>
+  <p>
+    A typical large language model holds a few thousand tensors at the same time. The
+    biggest of them are matrices of about $4{,}096 \times 4{,}096$ ,  roughly 17
+    million numbers each ,  and there are about a hundred such matrices per model.
+    That gives somewhere in the range of one to ten billion numbers in total.
+    Storing them takes a few gigabytes of disk and memory. Doing arithmetic with all of
+    them, every time the model writes one word, is the central engineering problem of
+    inference.
+  </p>
+  <h3>1.1 Why arrangement matters</h3>
+  <p>
+    Two matrices can hold exactly the same numbers but be different objects, because
+    their shape tells the model how to use them. The matrix
+    $\begin{pmatrix}1 & 2 \\ 3 & 4\end{pmatrix}$ is a $2 \times 2$ object that you
+    apply to a 2-element vector. The same numbers laid out as $(1, 2, 3, 4)$ are a
+    4-element vector and behave completely differently. Throughout these papers, we
+    write shapes in square brackets: $[d, d]$ means a square matrix of side $d$,
+    $[d, k]$ means a tall-and-thin matrix with $d$ rows and $k$ columns, and so on.
+  </p>
+</section>
+
+<section id="nets">
+  <span class="section-num">&sect;2</span>
+  <h2>What a neural network actually is</h2>
+  <p>
+    A <a href="https://en.wikipedia.org/wiki/Artificial_neural_network" target="_blank" rel="noopener">neural network</a>
+    is, mechanically, a chain of two operations: matrix multiplications and small
+    "bend" functions called nonlinearities. There is no learning yet; that is
+    just the architecture.
+  </p>
+  <p>
+    The input to a neural net is a vector. The first thing that happens is the input
+    is multiplied by a matrix. The result is bent through a nonlinear function (a
+    common one is just "if the number is negative, replace it with zero"; that is
+    called ReLU). The output of that bend is multiplied by another
+    matrix. The output of that is bent again. Repeat. After enough layers, the final
+    vector is interpreted as the answer.
+  </p>
+  <p>
+    The matrices used at each step are called weights. A model is
+    "trained" by adjusting those weights so that, when you put a known input in, the
+    output matches a known answer. Training is slow and uses a lot of GPUs. Once the
+    weights are fixed, the model can be used for inference: you put a new input in,
+    multiply through, and get an answer. <em>This series of papers is about inference,
+    not about training.</em> The weights have already been chosen by someone else
+    (Meta, in our reference model). The question is how to compute with them
+    efficiently.
+  </p>
+  <div class="callout finding">
+    <div class="callout-title">The mental model</div>
+    <p>
+      A neural network at inference time is a fixed pipeline of matrix multiplications
+      with simple bends in between. The "intelligence" lives in the specific numbers
+      inside those matrices. Inference is a memory-and-arithmetic exercise: read the
+      weights, multiply, repeat.
+    </p>
+  </div>
+</section>
+
+<section id="transformers">
+  <span class="section-num">&sect;3</span>
+  <h2>Transformers in one long sitting</h2>
+  <p>
+    Modern language models are not just any neural network ,  they are a specific
+    family called <a href="https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)" target="_blank" rel="noopener">transformers</a>,
+    introduced in 2017. To follow the papers you need to know roughly what one
+    transformer block contains, in what order, and what each part is for.
+  </p>
+  <p>
+    A transformer takes in a sequence of tokens. A token is a small
+    piece of text ,  usually a word, sometimes a part of a word, sometimes a
+    single character. The text "the quick brown fox" might tokenise as
+    <code>["the", " quick", " brown", " fox"]</code>. Each token is mapped to a
+    vector by a fixed lookup table called the embedding; this turns
+    text into numbers.
+  </p>
+  <p>
+    The embeddings are then passed through a stack of identical blocks.
+    A block contains two halves:
+  </p>
+  <ol>
+    <li>Self-attention: every token looks at every other token in the
+        sequence and decides how much of each one it cares about. This is where the
+        model decides "the word fox refers back to the word brown, not to the word
+        quick." We will return to attention in detail in section 4.</li>
+    <li>Feed-forward network (FFN): each token's vector is, on its
+        own, sent through a two-layer matrix-and-bend network. This is the part of
+        the model that does most of the "memorising of facts."</li>
+  </ol>
+  <p>
+    Both halves are wrapped in two extra pieces:
+  </p>
+  <ul>
+    <li>A residual connection: the input to the half is added to its
+        output. This means each block can leave the vector mostly alone if it wants
+        to, and only nudge it. This is what lets you stack 32 or 80 blocks without
+        the signal exploding or vanishing.</li>
+    <li>A layer normalisation: the vector is rescaled to have a
+        bounded magnitude before entering each half. There are several variants; the
+        $\sqrt{L}$ residual-stream growth that <a href="03-speculative-decoding.html">Paper&nbsp;3</a>
+        discusses is a property of one of these variants ("PreNorm").</li>
+  </ul>
+  <p>
+    Llama-3.1-8B has 32 such blocks. Each token's vector has $d = 4{,}096$ entries.
+    Each block's FFN expands this internally to $d_\text{ffn} = 14{,}336$ before
+    contracting it back. Most of the model's parameters live in the FFN matrices,
+    not the attention matrices ,  about 70% of them, in fact. We will come back
+    to this when we talk about why <a href="01-attention-compression.html">Paper&nbsp;1</a>
+    deliberately ignores the FFN even though it is the bigger target.
+  </p>
+</section>
+
+<section id="attention">
+  <span class="section-num">&sect;4</span>
+  <h2>Attention, very slowly</h2>
+  <p>
+    Attention is the heart of the transformer. It is also where Paper&nbsp;1 lives, so
+    it is worth being patient with this section.
+  </p>
+  <p>
+    Imagine you are writing the next word of a sentence and you are trying to use
+    information from earlier words. The vanilla way would be to pick one previous word
+    and copy its meaning. But which one? It depends on what you are saying. Attention
+    is the trick that lets the model decide which earlier words to weight, and how
+    much, before averaging them together. The decision is made afresh for every new
+    word.
+  </p>
+  <h3>4.1 Q, K, V</h3>
+  <p>
+    For each token, the model computes three vectors by multiplying the token's
+    embedding by three different matrices. The matrices are called
+    $W_Q$, $W_K$, $W_V$, and the resulting vectors are called the
+    query $q$, the key $k$, and the
+    value $v$. The names come from a database analogy: the query is
+    "what am I looking for", the key is "what do I have to offer", and the value is
+    "what to give back if I match."
+  </p>
+  <p>
+    Concretely, for a token with embedding $x \in \mathbb{R}^d$:
+  </p>
+  <div class="math-block">
+    $$q = W_Q x,\qquad k = W_K x,\qquad v = W_V x.$$
+  </div>
+  <p>
+    Each of $W_Q, W_K, W_V$ is a matrix of shape $[d, d]$. In Llama-3.1-8B, $d=4{,}096$.
+  </p>
+  <h3>4.2 The softmax over inner products</h3>
+  <p>
+    Now suppose we are at token number $t$ and we want to decide how much each previous
+    token (at position $i \le t$) should contribute. The model computes the inner
+    product $\langle q_t, k_i \rangle$ ,  a single scalar that is large when the
+    two vectors point in similar directions and small or negative otherwise. It does
+    this for every $i$, divides by $\sqrt{d_h}$ (a normalising constant), and applies a
+    softmax:
+  </p>
+  <div class="math-block">
+    $$\alpha_{t,i} = \frac{\exp(\langle q_t, k_i \rangle / \sqrt{d_h})}{\sum_{j \le t} \exp(\langle q_t, k_j \rangle / \sqrt{d_h})}.$$
+  </div>
+  <p>
+    The softmax just makes the numbers $\alpha_{t,i}$ sum to one and emphasises the
+    largest. The result of attention at token $t$ is the weighted sum
+    $\sum_i \alpha_{t,i} v_i$. After this sum is computed, it is multiplied by a
+    fourth matrix $W_O$ (the "output projection") to get the final attention output
+    that flows back into the residual stream.
+  </p>
+  <p>
+    That is the entire attention mechanism. There is one more wrinkle: the model
+    actually does this with several "heads" in parallel ,  usually around 32 of
+    them ,  each with its own slice of $W_Q, W_K, W_V$. The slices are called
+    "head-wise". This is called multi-head attention; you can think of
+    it as the model running 32 small attention computations in parallel, each looking
+    at a different aspect of the previous tokens, and then concatenating their results.
+  </p>
+  <h3>4.3 Why we keep coming back to those four matrices</h3>
+  <p>
+    For each block, the four matrices $W_Q, W_K, W_V, W_O$ together hold $4 \times d
+    \times d = 4 \times 4096 \times 4096 \approx 67$ million numbers in Llama-3.1-8B.
+    Across 32 blocks, that is about 2.1 billion numbers just for attention. Reading
+    all of them from GPU memory every time the model produces a single token is
+    bandwidth-expensive. <a href="01-attention-compression.html">Paper&nbsp;1</a> is
+    about a way to reduce this read cost.
+  </p>
+</section>
+
+<section id="decoding">
+  <span class="section-num">&sect;5</span>
+  <h2>How a language model produces text</h2>
+  <p>
+    A language model writes one token at a time. The procedure is:
+  </p>
+  <ol>
+    <li>Take all tokens written so far (the prompt plus everything generated).</li>
+    <li>Run them through every block of the transformer. The output is a
+        $d$-dimensional vector for the last position only (the others were already
+        computed; see the next section).</li>
+    <li>Multiply that final vector by a big matrix called the unembedding
+        to get a score for every word in the vocabulary (about 128,000 words for
+        Llama-3.1).</li>
+    <li>Apply softmax to those scores to get a probability distribution over the
+        vocabulary.</li>
+    <li>Pick a token from that distribution ,  either greedily (highest
+        probability) or by sampling.</li>
+    <li>Append the picked token to the sequence and repeat from step 1.</li>
+  </ol>
+  <p>
+    The whole loop is called autoregressive decoding. The first time
+    you run it on a new prompt, you have to do the full pass on the entire prompt at
+    once; that one-shot pass is called prefill. Every subsequent step
+    only adds one new token at the end; that is the decode phase.
+    Prefill and decode have different performance shapes ,  prefill is
+    compute-bound (lots of arithmetic on lots of tokens at once), decode is
+    bandwidth-bound (one token's worth of arithmetic, but you still have to read the
+    whole model from memory). Most of the latency a user feels comes from decode.
+  </p>
+</section>
+
+<section id="kvcache">
+  <span class="section-num">&sect;6</span>
+  <h2>The KV cache and why it dominates inference</h2>
+  <p>
+    Re-running attention from scratch every step would be wasteful. The keys and
+    values of all previous tokens never change once they have been computed; their
+    queries are not needed anymore (only the latest token's query is). So the runtime
+    keeps a growing list of the $k$ and $v$ vectors per layer. That list is called the
+    <a href="https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)" target="_blank" rel="noopener">KV cache</a>.
+  </p>
+  <p>
+    The KV cache grows linearly with the length of the conversation. At, say, an 8,000
+    token context on Llama-3.1-8B, the KV cache is around 1&nbsp;GB by itself.
+    That is a lot of memory for what looks like "just a list of numbers." It is also
+    the dominant VRAM consumer at long contexts, which is why Paper&nbsp;3 mentions
+    KV-cache compression as a footprint trick rather than a throughput one.
+  </p>
+</section>
+
+<section id="hardware">
+  <span class="section-num">&sect;7</span>
+  <h2>Hardware: why we care about bandwidth and cache</h2>
+  <p>
+    Modern GPUs have two performance numbers a programmer cares about: how fast they
+    can do arithmetic (measured in TFLOPS, trillions of floating-point operations per
+    second), and how fast they can read data from memory (measured in GB/s,
+    gigabytes per second). The reference RTX&nbsp;4070 Laptop has roughly 30&nbsp;TFLOPS
+    of fp16 compute and roughly 256&nbsp;GB/s of memory bandwidth.
+  </p>
+  <p>
+    For decode on an 8B model that occupies about 4.5&nbsp;GB, the question is how
+    many tokens per second you can read the model. At 256&nbsp;GB/s and 4.5&nbsp;GB per
+    token, that is about $256 / 4.5 \approx 57$&nbsp;tok/s as a rough upper
+    bound on decode if every read is from main memory and every byte is touched once.
+    Real measurements come in lower (around 35&nbsp;tok/s on this GPU) because not
+    every byte is touched optimally and there is overhead from kernel launches and so
+    on. This kind of back-of-envelope calculation is called the
+    <a href="https://en.wikipedia.org/wiki/Roofline_model" target="_blank" rel="noopener">roofline model</a>;
+    Paper&nbsp;1 uses it to set expectations.
+  </p>
+  <h3>7.1 The cache hierarchy</h3>
+  <p>
+    GPUs (and CPUs) do not read from main memory every time. They have a stack of
+    smaller, faster memories called caches. On an Ada-class NVIDIA
+    GPU, the relevant levels are:
+  </p>
+  <ul>
+    <li>L1 / shared memory: tiny (≈ 128&nbsp;KB per streaming
+        multiprocessor), extremely fast.</li>
+    <li>L2 cache: medium (32&nbsp;MB on the RTX&nbsp;4070 Laptop),
+        roughly 10× faster than main memory.</li>
+    <li>HBM / GDDR main memory: large (8&nbsp;GB on this GPU),
+        slowest of the three.</li>
+  </ul>
+  <p>
+    Whenever a piece of data is small enough to fit in a higher level, accessing it
+    is much cheaper. This is the entire physical reason behind Paper&nbsp;1's
+    surprising result: a compressed attention working set fits into L2 in a way the
+    full one doesn't, and the savings from cache locality outweigh the cost of doing
+    the extra projection.
+  </p>
+</section>
+
+<section id="quant">
+  <span class="section-num">&sect;8</span>
+  <h2>Quantisation: shrinking weights without retraining</h2>
+  <p>
+    Before talking about Paper&nbsp;1's compression scheme it helps to know what
+    compression existed before. The dominant technique is
+    <a href="https://en.wikipedia.org/wiki/Quantization_(signal_processing)" target="_blank" rel="noopener">quantisation</a>:
+    storing each weight in fewer bits.
+  </p>
+  <p>
+    Originally model weights are stored in 32-bit floating point (fp32; about 4 bytes
+    per number). Quantisation rounds each number to a smaller representation. Common
+    forms include:
+  </p>
+  <ul>
+    <li>fp16 / bf16: 16 bits each. Halves the model size from fp32,
+        almost no quality loss.</li>
+    <li>int8: 8 bits per number stored as a small integer plus a
+        scale factor per group of numbers. Quarters the size, small quality loss.</li>
+    <li>Q4_K_M: a particularly aggressive 4-bit-per-number scheme
+        from the <a href="https://github.com/ggerganov/llama.cpp" target="_blank" rel="noopener">llama.cpp</a>
+        ecosystem. Uses about 4.5 bits per number on average (it spends a few extra
+        bits to keep certain "important" weights at higher precision). About one
+        eighth the size of fp32. There is a small but measurable quality loss
+        (perplexity goes up a few percent).</li>
+  </ul>
+  <p>
+    The reference model in all four papers is Llama-3.1-8B at Q4_K_M; that takes
+    about 4.5&nbsp;GB on disk. Quantisation does not change the
+    structure of the model: there are still the same number of weights, in
+    the same matrices, used in the same way. It just stores each of them more
+    cheaply.
+  </p>
+  <p>
+    The compression schemes in the HyperTensor papers are complementary to
+    quantisation. They reduce the number of weights you need to read at all, and they
+    do that on top of whatever quantisation level the underlying weights are stored
+    in. (The runtime dequantises Q4_K_M to fp32 before doing the PCA; this is one of
+    the limitations Paper&nbsp;1 discusses.)
+  </p>
+  <p>
+    The on-disk format for the quantised weights is called
+    <a href="https://github.com/ggerganov/ggml/blob/master/docs/gguf.md" target="_blank" rel="noopener">GGUF</a>.
+    All Paper&nbsp;1 numbers are reproduced from a GGUF file you can download from
+    Hugging Face.
+  </p>
+</section>
+
+<section id="linalg">
+  <span class="section-num">&sect;9</span>
+  <h2>Linear algebra interlude: PCA, SVD, low rank</h2>
+  <p>
+    The papers' compression schemes rest on a few results from linear algebra. Each
+    of them has its own Wikipedia page; I will give you the working intuition.
+  </p>
+  <h3>9.1 What "rank" means</h3>
+  <p>
+    The rank of a matrix is, intuitively, the number of "independent
+    directions" inside it. A rank-1 matrix can be written as a single column vector
+    multiplied by a single row vector; you only need $d + d = 2d$ numbers to describe
+    it instead of $d^2$. A rank-$k$ matrix needs $2dk$ numbers. If $k \ll d$, this is
+    a huge saving.
+  </p>
+  <p>
+    Most matrices are full-rank: their rank equals their smaller side. But many
+    matrices are approximately low-rank: you can throw away the smallest
+    "directions" and still keep the matrix essentially intact.
+  </p>
+  <h3>9.2 Singular Value Decomposition (SVD)</h3>
+  <p>
+    The
+    <a href="https://en.wikipedia.org/wiki/Singular_value_decomposition" target="_blank" rel="noopener">singular value decomposition</a>
+    is a way to take any matrix $W$ and write it as a product of three pieces:
+  </p>
+  <div class="math-block">
+    $$W = U \Sigma V^\top$$
+  </div>
+  <p>
+    where $U$ and $V$ are matrices of orthonormal directions and $\Sigma$ is a
+    diagonal matrix whose entries (called singular values) are
+    non-negative numbers in decreasing order. The singular values say how much energy
+    sits along each direction. If the first $k$ are large and the rest are tiny, then
+    you can replace $W$ with the truncated product
+    $W_k = U_k \Sigma_k V_k^\top$ that uses only the top $k$ singular values, and get
+    something nearly identical to $W$.
+  </p>
+  <p>
+    A theorem from 1936 by
+    <a href="https://en.wikipedia.org/wiki/Low-rank_approximation" target="_blank" rel="noopener">Eckart and Young</a>
+    says: the truncated SVD is the best rank-$k$ approximation of $W$ in the
+    sense of minimising the squared error. There is no smarter rank-$k$ approximation
+    than what SVD gives you.
+  </p>
+  <h3>9.3 Principal Component Analysis (PCA)</h3>
+  <p>
+    <a href="https://en.wikipedia.org/wiki/Principal_component_analysis" target="_blank" rel="noopener">PCA</a>
+    is a particular use of SVD. Given a cloud of vectors, PCA finds the directions
+    along which the cloud spreads the most. The first principal component is the
+    direction of largest variance; the second is the direction of largest variance
+    perpendicular to the first; and so on.
+  </p>
+  <p>
+    The HyperTensor papers run PCA on the rows (or columns) of weight matrices to
+    find the directions in which the weights themselves spread the most. The trick is
+    that this PCA is done on the weights, not on activations ,  that is
+    what makes the scheme "calibration-free." There is no need to feed example text
+    through the model to discover the basis.
+  </p>
+  <h3>9.4 Eigenvectors and eigenvalues</h3>
+  <p>
+    For a square matrix $A$, an
+    <a href="https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors" target="_blank" rel="noopener">eigenvector</a>
+    is a vector $v$ such that $A v = \lambda v$ for some scalar $\lambda$ called the
+    eigenvalue. In words: $v$ is a direction along which $A$ acts only by stretching,
+    not by rotating. For symmetric matrices like the Gram matrix $W W^\top$, the top
+    eigenvectors are exactly the principal components of $W$, so the runtime
+    sometimes computes eigenvectors of $W W^\top$ instead of doing a full SVD on
+    $W$. They give the same answer for the columns we care about, and the Gram path
+    is cheaper when $d$ is much smaller than the number of columns of $W$.
+  </p>
+</section>
+
+<section id="manifold">
+  <span class="section-num">&sect;10</span>
+  <h2>Manifolds and intrinsic dimension</h2>
+  <p>
+    A <a href="https://en.wikipedia.org/wiki/Manifold" target="_blank" rel="noopener">manifold</a>
+    is a curved surface that looks flat if you zoom in. The surface of the Earth is a
+    classic example: globally it is a sphere, but a small patch around you looks like
+    a plane and you can use ordinary two-dimensional maps for it. The number of
+    coordinates needed to describe a small patch is the manifold's
+    dimension ,  in the Earth's case, two.
+  </p>
+  <p>
+    Why this matters: when a transformer processes a token, the resulting vector lives
+    in a $d$-dimensional space, where $d$ is, say, $4{,}096$. But empirically the
+    actual cloud of activation vectors that the model produces does not fill that
+    $4{,}096$-dimensional space. It lies on (or near) a much lower-dimensional curved
+    surface inside it. The dimension of that surface is the
+    intrinsic dimension of the model's activations.
+  </p>
+  <p>
+    Several papers across the field have measured this dimension on different
+    transformer models and reported numbers in the range of about 10 to 50, almost
+    always far below $d$. Paper&nbsp;2 reproduces this measurement on three open
+    models (SmolLM2-135M, Gemma-4-E2B, Phi-3.5-mini) and finds intrinsic dimensions
+    of 17, 25, and 11 respectively, while $d$ ranges from 576 to 3,072. The
+    intrinsic dimension does not grow with $d$.
+  </p>
+  <div class="callout finding">
+    <div class="callout-title">Why this is the load-bearing observation</div>
+    <p>
+      If the activations of a trained transformer lived uniformly all over the
+      $d$-dimensional space, low-rank compression would be hopeless: you can't
+      describe a uniform cloud with fewer numbers than its dimension. The fact that
+      activations live on a low-dimensional manifold is what makes any of these
+      compression schemes possible at all. It is the load-bearing empirical
+      observation underneath all four HyperTensor papers.
+    </p>
+  </div>
+  <p>
+    Important caveat: activation-space intrinsic dimension is not the same as
+    weight-space rank. The papers argue (and partly measure) that one tends to imply
+    the other for this architecture, but the implication is not a theorem. Paper&nbsp;2
+    is explicit about which spectra it has measured directly and which it has not.
+  </p>
+</section>
+
+<section id="paper1">
+  <span class="section-num">&sect;11</span>
+  <h2>Paper 1, the short version</h2>
+  <p>
+    With the background in place, the headline result of
+    <a href="01-attention-compression.html">Paper&nbsp;1</a> is short to state.
+    On Llama-3.1-8B at Q4_K_M, you can take the four attention matrices
+    $W_Q, W_K, W_V$ in every block, run weight-only PCA on each, keep the top
+    $k = 1{,}024$ directions out of $d = 4{,}096$, and use the resulting projected
+    matrices at inference time. The result is:
+  </p>
+  <ul>
+    <li>Decode runs at 106.27% of baseline throughput ,  that is,
+        the model is faster compressed than uncompressed. (Statistically significant
+        at $p \approx 10^{-10}$ under a paired bootstrap.)</li>
+    <li>Quality is preserved at this $k$; perplexity rises only by about 13% at the
+        more aggressive $k = 1{,}536$ (the per-paper PPL row).</li>
+    <li>No example text is required to compute the basis.</li>
+  </ul>
+  <p>
+    The mechanism the paper argues for is the L2 cache effect: at $k = 1{,}024$ the
+    attention weights for a block fit in L2 in a way that the full $d = 4{,}096$
+    versions don't. The arithmetic of the projection adds a small amount of work, but
+    the bandwidth savings dominate. The paper is careful to label this a
+    hypothesis ,  a direct measurement of L2 hit rates with a profiler
+    like Nsight Compute is listed as future work, and would either confirm or
+    falsify the cache argument.
+  </p>
+  <p>
+    Things Paper&nbsp;1 deliberately does not do: it does not compress the FFN
+    (because the FFN's spectra are flat ,  see Paper&nbsp;2), it does not
+    compress the output projection $W_O$ (because including it gave worse results
+    under the calibration-free scheme), it does not run on multiple GPUs or models in
+    that paper's headline (the cross-architecture evidence is in Paper&nbsp;2), and it
+    does not run for hours of generation. All of these are explicitly listed as
+    scope.
+  </p>
+</section>
+
+<section id="paper2">
+  <span class="section-num">&sect;12</span>
+  <h2>Paper 2, the short version</h2>
+  <p>
+    <a href="02-geodesic-projection.html">Paper&nbsp;2</a> describes the full
+    compression pipeline that the runtime ships with, of which Paper&nbsp;1 is one
+    setting. It generalises in three directions:
+  </p>
+  <ol>
+    <li>From three slots ($Q, K, V$) to seven (also $O$, FFN&nbsp;up, FFN&nbsp;gate,
+        FFN&nbsp;down).</li>
+    <li>From a shared rank across layers to per-layer ranks driven by a curvature
+        heuristic, with a hard floor.</li>
+    <li>From "pay the build cost every run" to a persistent geometry cache
+        that turns startup from minutes into seconds.</li>
+  </ol>
+  <p>
+    Paper&nbsp;2 also presents the cross-architecture intrinsic-dim evidence I
+    described in section 10. That evidence is the reason the paper's premise , 
+    "trained transformer activations sit on a low-dimensional manifold" ,  is
+    not just an artefact of one model.
+  </p>
+  <p>
+    The honest part of the paper is its scope statement: only Llama-3.1-8B has
+    end-to-end PPL-and-throughput numbers under the locked benchmark protocol. The
+    other three models have manifold measurements only, and the 70B target is
+    queued, not measured. The paper says so up front.
+  </p>
+</section>
+
+<section id="paper3">
+  <span class="section-num">&sect;13</span>
+  <h2>Paper 3, the short version</h2>
+  <p>
+    <a href="03-speculative-decoding.html">Paper&nbsp;3</a> asks: if compression
+    works (Paper&nbsp;1), and if the compression generalises across slots
+    (Paper&nbsp;2), can we compose it with two other inference tricks?
+  </p>
+  <p>
+    Trick&nbsp;1 is
+    <a href="https://en.wikipedia.org/wiki/Speculative_execution" target="_blank" rel="noopener">speculative decoding</a>.
+    A small fast model (the drafter) proposes several tokens at a time; a
+    larger slow model (the verifier) accepts or rejects them in one batched
+    pass. This wins when the verifier's per-step cost is much higher than the
+    drafter's. In Paper&nbsp;3 the drafter is the GP-compressed Llama-3.1-8B and the
+    verifier is the uncompressed Llama-3.1-8B; on the reference 8&nbsp;GB GPU you
+    cannot fit both, so the design is documented but the cross-hardware benchmark is
+    listed as planned, not run.
+  </p>
+  <p>
+    Trick&nbsp;2 is Block Attention Residuals (AttnRes), a 2026
+    technique from the Kimi Team. It is a different way of accumulating the
+    residual-stream signal across blocks that mitigates the $\sqrt{L}$ magnitude
+    growth I mentioned in section 3. The runtime reimplements it; the question is
+    whether it interacts well or badly with low-rank attention. The paper gives a
+    reasoned prior (probably a wash at moderate compression, probably a small loss
+    at aggressive compression) and labels every cell of the composition table as
+    "implemented, not measured." This is the most honest part of the series: the
+    benchmark numbers do not exist yet, and the paper says so loudly enough that
+    nobody can mistake the design discussion for results.
+  </p>
+</section>
+
+<section id="paper4">
+  <span class="section-num">&sect;14</span>
+  <h2>Paper 4, the short version</h2>
+  <p>
+    <a href="04-organic-training-theory.html">Paper&nbsp;4</a> is the theoretical
+    companion. It tries to formalise what the empirical papers were doing, by
+    treating the trained model's latent space as a Riemannian manifold and asking
+    whether one could in principle do an inference forward-pass by walking along
+    geodesics on that manifold instead of doing the full block-by-block
+    multiplications.
+  </p>
+  <p>
+    The mathematics is well-defined; the practical implementation is only partly in
+    hand. The construction depends on building a smooth invertible map (a
+    <a href="https://en.wikipedia.org/wiki/Diffeomorphism" target="_blank" rel="noopener">diffeomorphism</a>)
+    between the data manifold and the trained latent manifold. As a universal LLM
+    construction, that is still open. For the concrete OTT manifolds currently in
+    this repository, though, the project now treats that requirement as resolved via
+    a narrower inherited-structure argument with certificates. So the honest current
+    position is: Paper&nbsp;4 is still conditional at full deployment scale, but it is
+    no longer accurate to describe every part of it as simulation-only.
+  </p>
+  <p>
+    Paper&nbsp;4 is best read as a research agenda with some pieces now materially
+    advanced: real-manifold GTC measurements exist, AttnRes-style correction has a
+    prototype, and the repo's OTT-scoped diffeomorphism story is much stronger than
+    the original draft. The remaining gap is the runtime/deployment path rather than
+    the entire manifold program.
+  </p>
+</section>
+
+<section id="vocab">
+  <span class="section-num">&sect;15</span>
+  <h2>Vocabulary cheat-sheet</h2>
+  <p>
+    For quick reference while reading the papers, here is a one-line definition of
+    every term that recurs.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Term</th><th>One-line definition</th></tr></thead>
+      <tbody>
+        <tr><td>Token</td><td>A small piece of text the model handles as one unit (word or sub-word).</td></tr>
+        <tr><td>Embedding</td><td>The vector a token is mapped to before the transformer blocks.</td></tr>
+        <tr><td>$d$</td><td>The dimension of the per-token vector. 4,096 in Llama-3.1-8B.</td></tr>
+        <tr><td>Block</td><td>One layer of the transformer: attention + FFN + residual + layernorm.</td></tr>
+        <tr><td>$Q, K, V$</td><td>Query, key, value vectors, derived from the input by matrices $W_Q, W_K, W_V$.</td></tr>
+        <tr><td>Softmax</td><td>Function that turns scores into a probability distribution.</td></tr>
+        <tr><td>FFN</td><td>Feed-forward network; the second half of each block.</td></tr>
+        <tr><td>$d_\text{ffn}$</td><td>FFN intermediate dimension. 14,336 in Llama-3.1-8B.</td></tr>
+        <tr><td>Residual stream</td><td>The running vector that gets added to (not replaced by) each block's output.</td></tr>
+        <tr><td>Prefill / Decode</td><td>One-shot pass over the whole prompt vs one-token-at-a-time generation.</td></tr>
+        <tr><td>KV cache</td><td>Stored keys and values from previous tokens, reused at decode time.</td></tr>
+        <tr><td>Roofline</td><td>Back-of-envelope model: throughput is min(compute limit, bandwidth limit).</td></tr>
+        <tr><td>L2 cache</td><td>Mid-level GPU cache. 32 MB on the RTX 4070 Laptop. Faster than main VRAM.</td></tr>
+        <tr><td>Quantisation</td><td>Storing each weight in fewer bits. Q4_K_M is a 4.5-bit-average format.</td></tr>
+        <tr><td>GGUF</td><td>The on-disk format used by llama.cpp for quantised weights.</td></tr>
+        <tr><td>Perplexity (PPL)</td><td>Standard language-modelling quality metric. Lower is better.</td></tr>
+        <tr><td>Rank</td><td>Number of independent directions in a matrix.</td></tr>
+        <tr><td>SVD</td><td>Decomposition of any matrix into orthonormal directions and singular values.</td></tr>
+        <tr><td>Eckart-Young</td><td>1936 theorem: truncated SVD is the optimal low-rank approximation.</td></tr>
+        <tr><td>PCA</td><td>Principal Component Analysis; SVD applied to find the main directions of a cloud.</td></tr>
+        <tr><td>Frobenius norm</td><td>Generalisation of vector length to matrices: square root of sum of squared entries.</td></tr>
+        <tr><td>Manifold</td><td>Curved surface that looks flat up close. Has its own intrinsic dimension.</td></tr>
+        <tr><td>Intrinsic dimension</td><td>Number of coordinates needed to locally describe an activation manifold.</td></tr>
+        <tr><td>GP</td><td>Geodesic Projection. The full compression pipeline of Paper 2.</td></tr>
+        <tr><td>GRC</td><td>Geodesic Runtime Compression. The attention-only setting of Paper 1.</td></tr>
+        <tr><td>GTC</td><td>Geodesic Trajectory Caching. The future-work proposal of Paper 4.</td></tr>
+        <tr><td>AXEX</td><td>Runtime flag prefix for the GP machinery (--axex-compress, --axex-attn-only, etc.).</td></tr>
+        <tr><td>AttnRes</td><td>Block Attention Residuals (Kimi Team 2026, arXiv:2603.15031).</td></tr>
+        <tr><td>Speculative decoding</td><td>Draft tokens with a small model; verify with a big model in one pass.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="next">
+  <span class="section-num">&sect;16</span>
+  <h2>Where to read next</h2>
+  <p>
+    With the above in hand, you should be able to read any of the four papers
+    front-to-back. A reasonable order:
+  </p>
+  <ol>
+    <li><a href="01-attention-compression.html">Paper&nbsp;1</a> ,  the empirical
+        anchor. Most concrete, most benchmark numbers, smallest set of new ideas.</li>
+    <li><a href="02-geodesic-projection.html">Paper&nbsp;2</a> ,  the
+        production pipeline; reuses everything from Paper&nbsp;1 and adds the
+        cross-architecture manifold evidence.</li>
+    <li><a href="03-speculative-decoding.html">Paper&nbsp;3</a> ,  the
+        compositions; design and implementation, no end-to-end benchmarks yet.</li>
+    <li><a href="04-organic-training-theory.html">Paper&nbsp;4</a> ,  the
+        theory. Read last and read sceptically; the paper itself recommends this
+        order.</li>
+  </ol>
+  <p>
+    The repository's source code is at
+    <a href="https://github.com/NagusameCS/HyperTensor" target="_blank" rel="noopener">github.com/NagusameCS/HyperTensor</a>.
+    The reproduction recipe for Paper&nbsp;1 is under
+    <code>repro/REPRODUCE.md</code> and runs end-to-end on a single consumer GPU.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Background article &middot; HyperTensor Research<br>
+    by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
+    <a href="../index.html">All papers</a> &middot;
+    <a href="01-attention-compression.html">Paper 1 &rarr;</a>
+  </p>
+</footer>
+
+</body>
+</html>

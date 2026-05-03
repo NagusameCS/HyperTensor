@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperTensor / GRC, Technical Whitepaper, NagusameCS</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/whitepaper.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams'
+  },
+  svg: { fontCache: 'global' },
+  startup: { typeset: false }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="assets/reader.css">
+<script src="assets/reader.js"></script>
+<style>
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f9f9f8;
+  --bg-code:   #f4f4f4;
+  --border:    #e5e5e5;
+  --text:      #1a1a1a;
+  --text-soft: #5c5c5c;
+  --accent:    #c0392b;
+  --green:     #1a7a4a;
+  --max-w:     820px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  line-height: 1.75; -webkit-font-smoothing: antialiased;
+}
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; display: flex;
+  align-items: center; justify-content: space-between;
+  height: 58px;
+}
+.nav-brand {
+  font-weight: 600; font-size: 0.95rem;
+  letter-spacing: -0.02em; color: var(--text);
+  text-decoration: none;
+}
+.nav-brand span { color: inherit; }
+.nav-links { display: flex; gap: 2rem; list-style: none; }
+.nav-links a {
+  font-size: 0.85rem; font-weight: 500;
+  color: var(--text-soft); text-decoration: none;
+  transition: color .15s;
+}
+.nav-links a:hover { color: var(--text); }
+
+#whitepaper-hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 4rem 1.5rem 2rem;
+  text-align: center;
+}
+#whitepaper-hero .tag {
+  display: inline-block;
+  font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 1rem;
+}
+#whitepaper-hero h1 {
+  font-size: 2.4rem; font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1; margin-bottom: 1rem;
+}
+#whitepaper-hero .meta {
+  font-size: 0.9rem; color: var(--text-soft);
+  margin-top: 0.5rem;
+}
+#whitepaper-hero .meta a { color: var(--accent); text-decoration: none; }
+#whitepaper-hero .meta a:hover { text-decoration: underline; }
+
+#content {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
+#content h1 {
+  font-size: 1.9rem; font-weight: 700;
+  margin: 3.5rem 0 1.2rem;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+#content h1:first-child { margin-top: 0; }
+#content h2 {
+  font-size: 1.5rem; font-weight: 700;
+  margin: 3rem 0 1rem;
+  letter-spacing: -0.015em;
+}
+#content h3 {
+  font-size: 1.15rem; font-weight: 600;
+  margin: 2rem 0 0.7rem;
+  color: var(--text);
+}
+#content h4 {
+  font-size: 1rem; font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+}
+#content p, #content li {
+  margin-bottom: 0.9rem;
+  color: var(--text);
+}
+#content ul, #content ol {
+  padding-left: 1.6rem;
+  margin-bottom: 1rem;
+}
+#content code {
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--bg-code);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  font-size: 0.86em;
+}
+#content pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  margin: 1.2rem 0;
+  font-size: 0.84rem;
+}
+#content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+#content blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-soft);
+  padding: 0.8rem 1.2rem;
+  margin: 1.5rem 0;
+  color: var(--text-soft);
+  font-style: italic;
+}
+#content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+}
+#content th, #content td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.8rem;
+  text-align: left;
+}
+#content th {
+  background: var(--bg-soft);
+  font-weight: 600;
+}
+#content tr:nth-child(even) { background: var(--bg-soft); }
+#content hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2.5rem 0;
+}
+#content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+#content a:hover { text-decoration: underline; }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 1.5rem 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  max-width: var(--max-w);
+  margin: 4rem auto 0;
+}
+
+#loading {
+  text-align: center;
+  padding: 4rem 1.5rem;
+  color: var(--text-soft);
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="index.html">All papers</a></li>
+    <li><a href="papers/01-attention-compression.html">Paper 1</a></li>
+    <li><a href="papers/02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="WHITEPAPER.md">Markdown source</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<div id="whitepaper-hero">
+  <div class="tag">Technical Whitepaper</div>
+  <h1>HyperTensor / Geodesic Runtime Compression</h1>
+  <p style="font-size:1.05rem; color:var(--text-soft); max-width:640px; margin:0.6rem auto 1rem;">
+    The full technical companion to the
+    <a href="index.html" style="color:var(--accent); text-decoration:none;">research site</a>.
+    Numbers, protocols, and reproduction instructions, in one document.
+  </p>
+  <p class="meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot; April 2026 &middot;
+    <a href="WHITEPAPER.md">View raw Markdown</a>
+  </p>
+</div>
+
+<main id="content">
+  <div id="loading">Loading whitepaper…</div>
+</main>
+
+<footer>
+  <p>
+    HyperTensor / GRC ,  by William Ken Ohara Stewart (NagusameCS), April 2026.
+  </p>
+</footer>
+
+<script>
+fetch('WHITEPAPER.md')
+  .then(r => {
+    if (!r.ok) throw new Error('Failed to load WHITEPAPER.md (' + r.status + ')');
+    return r.text();
+  })
+  .then(md => {
+    // Replace stray "Geodessical" -> "Geodesic" in the rendered view
+    // (the source .md retains the build artefact name unchanged).
+    const cleaned = md.replace(/Geodessical Runtime Compression/g, 'Geodesic Runtime Compression');
+    marked.setOptions({ gfm: true, breaks: false, headerIds: true });
+    document.getElementById('content').innerHTML = marked.parse(cleaned);
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([document.getElementById('content')]);
+    }
+  })
+  .catch(err => {
+    document.getElementById('content').innerHTML =
+      '<p style="color:var(--accent);">Could not load WHITEPAPER.md: ' + err.message +
+      '. <a href="WHITEPAPER.md">Open the raw Markdown</a>.</p>';
+  });
+</script>
+
+</body>
+</html>

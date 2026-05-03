@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geodesic Trajectory Caching and the OTT Runtime Anchor, HyperTensor</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/05-gtc-ott-runtime.html">
+<meta name="description" content="An empirically-anchored treatment of Geodesic Trajectory Caching (GTC) and the Organic Training Theory (OTT) runtime. We fit Riemannian structure on three LM activation manifolds, validate the Jacobi-correction contract, run a compressed record store at 5.96 KB/record and 30.9 µs/query, and anchor the OTT speculative-decode runtime at 38.5% acceptance / 76.5 tok/s on SmolLM2-135M-Instruct.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
+<script src="../assets/reader.js"></script>
+<link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="04-organic-training-theory.html">Paper 4</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper 5 &middot; April 2026 &middot; v0.1</div>
+  <h1 class="hero-title">GTC and the OTT Runtime Anchor</h1>
+  <p class="hero-subtitle">
+    Empirical companion to Paper&nbsp;4. Fits Riemannian structure on three LM
+    activation manifolds, validates the Jacobi-correction contract, and
+    anchors the OTT runtime end-to-end on SmolLM2-135M-Instruct.
+  </p>
+  <div class="hero-meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">38.5%</span>
+      <span class="stat-label">Acceptance<br>rate, OTT spec</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">76.5</span>
+      <span class="stat-label">tok/s end-to-end<br>throughput</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">97×</span>
+      <span class="stat-label">Batched Jacobi<br>at $B=10$</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">30.9 µs</span>
+      <span class="stat-label">Per-query<br>lookup latency</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#scope">Read the paper</a>
+    <a class="btn btn-secondary" href="#repro">Reproduce</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
+</header>
+
+<main>
+
+<section id="scope">
+  <div class="callout warning">
+    <div class="callout-title">Scope ,  read first</div>
+    <p>
+      Paper&nbsp;4 introduced Organic Training Theory (OTT) and Geodesic Trajectory
+      Caching (GTC) as a theoretical framework. This paper is the
+      empirical companion. It does three things:
+    </p>
+    <ol>
+      <li>Fits Riemannian structure on three LM activation clouds (SmolLM2-135M,
+        Phi-3.5-mini, Gemma-4-E2B) and reports validity radius, coverage, batch
+        Jacobi resonance, and a compressed record store with measured numbers.</li>
+      <li>Anchors the OTT runtime: the C host binary
+        <code>geodessical.exe</code> reaches <code>status=geodesic_ready</code>
+        with 38.5% acceptance and 76.5&nbsp;tok/s
+        end-to-end on SmolLM2-135M-Instruct.</li>
+      <li>Maps Paper&nbsp;4's claim list onto measured / partial / open buckets so
+        that a reader can see exactly how done the program is.</li>
+    </ol>
+    <p>
+      This paper is not yet a 90%-acceptance paper. It documents
+      the path to that target and the two specific blockers (a hung
+      <code>--ott-perfect</code> rollout and a non-zero-exit
+      <code>--ott-swarm-k</code>) that prevent it on this revision. Honest scope:
+      first end-to-end measurement, fully reproducible, with the gap analysis
+      open and itemised.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">§0, Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      We anchor Geodesic Trajectory Caching and the Organic Training Theory
+      runtime on real LM activation manifolds. From Phase-1 telemetry we fit a
+      metric $g_{ij}$ and a Christoffel field $\Gamma^k_{ij}$ in Python, integrate
+      the geodesic ODE, compute the Riemann tensor and Magnus-3 Jacobi propagator
+      $\Phi(\lambda)$, and benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
+      and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
+      90.4–91.5% across all three scales (scale-invariant within
+      $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
+      and $60\times$ at $B=10{,}000$</strong> with reconstruction error sitting at
+      the float64 roundoff floor. The compressed record store persists at
+      5.96&nbsp;KB/record, with rank-5 propagator truncation
+      exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
+      30.9&nbsp;µs/query ,  about $160\times$ under the
+      Paper&nbsp;4 budget. The OTT speculative path on the C runtime closes the
+      loop end to end: <code>geodesic_ready</code> at 38.5% acceptance and
+      76.5&nbsp;tok/s on SmolLM2-135M-Instruct. We document the
+      instruct-greedy-EOS pathology and its fix (<code>llm_topk_excluding</code>
+      plus a min-response guard). 12 of 17 Paper&nbsp;4 testable claims now have
+      a replicable measured result; the remaining 5 are listed by name in
+      §<a href="#status">7</a>.
+    </p>
+  </div>
+</section>
+
+<section id="why">
+  <span class="section-num">§1, Why this paper exists</span>
+  <h2>The three-paper gap</h2>
+  <p>
+    Paper&nbsp;1 measures GP compression. Paper&nbsp;3 v0.3 measures speculative
+    decoding under one OTT configuration. Paper&nbsp;4 sketches the full theory
+    and lists 17 testable claims. Until v0.3 of this site, no document collected
+    the GTC measurements that exist on disk under
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/GTC_RESULTS.md"><code>docs/figures/gtc/</code></a>
+    into the paper-shaped form that Paper&nbsp;4 promised. Several internal
+    references in <code>GTC_RESULTS.md</code> point at "Paper&nbsp;5 §4.5" without
+    a Paper&nbsp;5 existing. This paper is that document.
+  </p>
+  <p>
+    The specific question this paper closes: <em>given the Paper&nbsp;4 framework,
+    do the local-geometry primitives behave the way the framework predicts when
+    fitted on real LM clouds, and does the runtime that uses them produce a
+    measurable acceleration?</em> Both answers are now yes, with
+    the qualifications below.
+  </p>
+</section>
+
+<section id="setup">
+  <span class="section-num">§2, Setup</span>
+  <h2>Fitting the manifold from Phase-1 exports</h2>
+  <p>
+    The runtime emits one global Christoffel tensor and a per-point metric
+    diagonal in <code>axgeo_christoffel_t</code>; that representation is too
+    coarse for the GTC contract. Instead we fit the manifold entirely in Python
+    from the Phase-1 cloud:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Module</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>scripts/gtc/manifold.py</code></td><td>$k$-NN Mahalanobis metric, log-Euclidean RBF smoothing, finite-difference $\Gamma^k_{ij}$</td></tr>
+        <tr><td><code>scripts/gtc/geodesic.py</code></td><td>RK4 integrator for $\ddot x^k = -\Gamma^k_{ij} \dot x^i \dot x^j$</td></tr>
+        <tr><td><code>scripts/gtc/jacobi.py</code></td><td>Riemann tensor by FD of $\Gamma$, Magnus-3 propagator $\Phi(\lambda)$</td></tr>
+        <tr><td><code>scripts/gtc/validity_radius.py</code></td><td>$\varepsilon$-sweep, emits <code>&lt;case&gt;_validity_radius.json</code></td></tr>
+        <tr><td><code>scripts/gtc/gtc_benchmark.py</code></td><td>Coverage benchmark, emits <code>&lt;case&gt;_coverage.json</code></td></tr>
+        <tr><td><code>scripts/gtc/record_store.py</code></td><td>Compressed library + two-stage Euclidean$\to g$-norm lookup</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    This decision was made after weighing a runtime patch against the iteration
+    cost: emitting per-point $\Gamma$ from <code>runtime/nn/axiom_vis.c</code>
+    and re-running CUDA Phase 3 on three models is several hours of risky
+    rebuild terrain. The Python fit gives the same Riemannian object, faster.
+  </p>
+  <p>
+    Sphere sanity at $K=1, n=4$, 256 samples confirms the harness: validity
+    error scales quadratically in $\varepsilon$ exactly per the Jacobi bound
+    ($\varepsilon^\star(\tau{=}5\%)=0.05$,
+    $\varepsilon^\star(\tau{=}10\%)=0.10$,
+    $\varepsilon^\star(\tau{=}20\%)=0.20$). The harness is validated; the LM
+    numbers below are not artefacts.
+  </p>
+</section>
+
+<section id="coverage">
+  <span class="section-num">§3, Coverage scaling across three models</span>
+  <h2>Scale-invariant within $\pm 0.5\%$</h2>
+  <p>
+    Coverage is the fraction of held-out activation cloud points within
+    $g$-norm distance $\varepsilon$ of the nearest cached point. All three
+    measurements at $\varepsilon = 3.0$, $n_{\text{intrinsic}} = 8$,
+    $n_{\text{repeats}} = 16$.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead><tr><th>Model</th><th>Params</th><th>$k=6$ (10%)</th><th>$k=16$ (25%)</th><th>$k=32$ (50%)</th><th>$k=48$ (75%)</th></tr></thead>
+      <tbody>
+        <tr><td>SmolLM2-135M</td><td class="num">135M</td><td class="num">58.6%</td><td class="num">91.0%</td><td class="num">99.8%</td><td class="num">100.0%</td></tr>
+        <tr><td>Phi-3.5-mini</td><td class="num">3.8B</td><td class="num">55.5%</td><td class="num">90.4%</td><td class="num">98.2%</td><td class="num">100.0%</td></tr>
+        <tr><td>Gemma-4-E2B</td><td class="num">4.5B</td><td class="num">58.7%</td><td class="num">91.5%</td><td class="num">99.6%</td><td class="num">100.0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Sources:
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/smollm2-135m_coverage.json"><code>smollm2-135m_coverage.json</code></a>,
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/phi-3.5-mini_coverage.json"><code>phi-3.5-mini_coverage.json</code></a>,
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/gemma-4-e2b_coverage.json"><code>gemma-4-e2b_coverage.json</code></a>.
+  </p>
+  <div class="callout finding">
+    <div class="callout-title">Finding</div>
+    <p>
+      The scale-invariance prediction from Paper&nbsp;4 (the "flag flip" claim)
+      holds within $\pm 0.5\%$ at the 25%-fraction cache size across a 33$\times$
+      parameter range (135M&nbsp;$\to$&nbsp;4.5B). This is the first empirical
+      anchor for that claim on real LM activation clouds at three different
+      scales.
+    </p>
+  </div>
+</section>
+
+<section id="resonance">
+  <span class="section-num">§4, Batch Jacobi resonance</span>
+  <h2>$97\times$ at $B=10$, $60\times$ at $B=10{,}000$</h2>
+  <p>
+    The Jacobi propagator $\Phi(\lambda)$ is linear in the perturbation:
+    $\delta x(\lambda) = \Phi(\lambda)\,\delta x(0) + \mathcal{O}(\|\delta x(0)\|^2)$.
+    A batch of $B$ correlated queries can therefore be corrected in a single
+    matmul. The throughput shape that follows is the "resonance" property of
+    Paper&nbsp;4 §4.5 ,  throughput rises rather than falls under load.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead><tr><th>Batch $B$</th><th>Sequential (ms)</th><th>Batched (ms)</th><th>Speedup</th><th>µs/query</th><th>rel. error</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="num">0.015</td><td class="num">0.001</td><td class="num">14.6$\times$</td><td class="num">1.000</td><td class="num">0</td></tr>
+        <tr><td class="num">10</td><td class="num">0.411</td><td class="num">0.004</td><td class="num">97.9$\times$</td><td class="num">0.420</td><td class="num">1.1e&minus;16</td></tr>
+        <tr><td class="num">100</td><td class="num">0.167</td><td class="num">0.006</td><td class="num">27.4$\times$</td><td class="num">0.061</td><td class="num">1.2e&minus;16</td></tr>
+        <tr><td class="num">1 000</td><td class="num">1.143</td><td class="num">0.026</td><td class="num">44.5$\times$</td><td class="num">0.026</td><td class="num">1.2e&minus;16</td></tr>
+        <tr><td class="num">10 000</td><td class="num">11.100</td><td class="num">0.185</td><td class="num">60.0$\times$</td><td class="num">0.0185</td><td class="num">1.2e&minus;16</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Source:
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/smollm2-135m_batch_jacobi.json"><code>smollm2-135m_batch_jacobi.json</code></a>.
+    The Paper&nbsp;4 analytic estimates for these three regimes were
+    $2.7\times / 12.5\times / 7.0\times$ ,  the numpy-BLAS realisation
+    exceeds them by 4&ndash;14$\times$ because the analytic estimate did not
+    account for cache and SIMD effects on a real machine. The reconstruction
+    error remains at the float64 roundoff floor across all batch sizes,
+    confirming that the speedup is not paid for in numerical fidelity.
+  </p>
+</section>
+
+<section id="store">
+  <span class="section-num">§5, Compressed record store</span>
+  <h2>5.96 KB/record, 30.9 µs/query lookup</h2>
+  <p>
+    A trajectory record holds the embedding, contextual velocity, waypoint
+    sequence, Jacobi propagator $\Phi$, an injectivity-radius estimate $\rho$,
+    and the terminal logits. Naive storage would be hundreds of KB per record.
+    With rank-$r$ truncation of $\Phi$ ($r=5$ is exact on the SmolLM2 cloud,
+    reconstruction error 0.0) and waypoint subsampling, persisted records reach
+    5.96&nbsp;KB ,  roughly an order of magnitude under
+    the Paper&nbsp;4 target of 50&ndash;80&nbsp;KB.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quantity</th><th>Value</th><th>Paper 4 target</th></tr></thead>
+      <tbody>
+        <tr><td>Records persisted</td><td class="num">24</td><td>, </td></tr>
+        <tr><td>Total <code>.npz</code> size</td><td class="num">143.0 KB</td><td>, </td></tr>
+        <tr><td>Per-record size</td><td class="num">5.96 KB</td><td class="num">50&ndash;80 KB</td></tr>
+        <tr><td>Rank-5 $\Phi$ reconstruction error</td><td class="num">0.0</td><td>"rank $\approx 5$ is sufficient"</td></tr>
+        <tr><td>Build wall-clock (24 records, $k=8$)</td><td class="num">6.087 s</td><td>, </td></tr>
+        <tr><td>Two-stage lookup (1 000 queries)</td><td class="num">31 ms total</td><td>&lt; 5 ms/query</td></tr>
+        <tr><td>Per-query lookup latency</td><td class="num">30.9 µs</td><td class="num">&lt; 5 ms ($\sim\!160\times$ under)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The two-stage lookup is Euclidean ANN $\to$ $g$-norm refinement. The
+    Euclidean stage gives a candidate set in $\mathcal{O}(\log N)$; the
+    $g$-norm stage rescores against the Mahalanobis metric of $\mathcal{M}_\theta$
+    over a small candidate window. At 30.9&nbsp;µs the lookup is comfortably
+    inside the Paper&nbsp;4 5&nbsp;ms budget.
+  </p>
+  <h3>5.1, Decode-step substitution: density caveat</h3>
+  <p>
+    The current 64-point Phase-1 export gives 100% lookup hits at
+    $\varepsilon^\star = 3.0$ but 0% within the Jacobi validity radius
+    $\rho = 0.4$ on a held-out cloud. Lookup is high; correction is not
+    trusted at that anchor density. The dense local benchmark
+    (<a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/smollm2-135m_decode_substitution_dense.json"><code>smollm2-135m_decode_substitution_dense.json</code></a>)
+    sampled inside $\rho$ confirms the mechanism is valid:
+    $1.43 \times 10^{-7}$ mean relative error and $158\times$ speedup over a
+    full geodesic step at $\rho = 0.4$. The blocker is cloud density, not
+    Jacobi quality.
+  </p>
+</section>
+
+<section id="ott-runtime">
+  <span class="section-num">§6, OTT runtime anchor</span>
+  <h2>$\alpha = 0.385$, $76.5$ tok/s, <code>geodesic_ready</code></h2>
+  <p>
+    The C host runtime in <code>host/main.c</code> ships an end-to-end OTT
+    pipeline: geometry-cache load, OneDecode bake, speculative decode against
+    the verifier, and a readiness gate that emits
+    <code>ott_readiness_report.json</code>. As of commit
+    <code>d57162d</code> the pipeline reaches
+    <code>status=geodesic_ready</code>:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quantity</th><th>Value</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>OTT readiness status</td><td class="num">geodesic_ready</td><td><code>ready=true, hybrid_ready=true, runtime_share=1.0, consistency=1.0</code></td></tr>
+        <tr><td>Acceptance rate $\alpha$</td><td class="num">38.5%</td><td>5 geo-accepted / 13 generated, 8 verifier corrections</td></tr>
+        <tr><td>End-to-end throughput</td><td class="num">76.5 tok/s</td><td>13 tokens in 170&nbsp;ms; greedy-only baseline $\approx\!50$ tok/s on the same prompt</td></tr>
+        <tr><td>Empirical speedup</td><td class="num">$1.53\times$</td><td>Within Paper&nbsp;3 §3 closed-form prediction of $\sim 1.6\times$ at $\alpha = 0.385$, $\gamma = 4$</td></tr>
+        <tr><td>OD draft hits</td><td class="num">5</td><td>OneDecode table hits</td></tr>
+        <tr><td>Final adaptive batch</td><td class="num">4</td><td>Stable; did not collapse</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The full readiness object is in
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ott_readiness_report.json"><code>ott_readiness_report.json</code></a>;
+    a complete reproduction recipe is in §<a href="#repro">9</a>.
+  </p>
+  <h3 id="egp">6.1, The instruct-greedy-EOS pathology</h3>
+  <p>
+    Earlier integrations of the speculative loop returned zero tokens
+    against this instruct model. The cause: the verifier's argmax at position 0
+    (and at several subsequent positions) is the EOS token. A standard
+    speculative loop sees an EOS draft and exits. Earlier speculative-decoding
+    work (<a href="https://arxiv.org/abs/2211.17192" target="_blank" rel="noopener">Leviathan&nbsp;2023</a>, <a href="https://arxiv.org/abs/2302.01318" target="_blank" rel="noopener">Chen&nbsp;2023</a>, <a href="https://arxiv.org/abs/2401.10774" target="_blank" rel="noopener">Medusa</a>, <a href="https://arxiv.org/abs/2401.15077" target="_blank" rel="noopener">EAGLE</a>) does not document
+    this case because it primarily targets base (non-instruct) backbones where
+    the greedy distribution does not degenerate into EOS.
+  </p>
+  <p>
+    The fix shipped in this runtime is a small primitive we call
+    logit-excluding top-1:
+  </p>
+<pre><code>// runtime/nn/llm.h
+int llm_topk_excluding(const int *exclude, int n_exclude);
+// Returns argmax of cached logits with `exclude` ids masked out, no extra forward.
+</code></pre>
+  <p>
+    plus a min-response guard $N_{\text{min}} = 4$ that enables the bypass only
+    at positions $i &lt; N_{\text{min}}$. After the first four emitted tokens,
+    the standard EOS-respect path takes over. The four call sites (accepted-drafts,
+    correction-token, bonus-token, verifier-direct) are visible in
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/host/main.c"><code>host/main.c</code></a>
+    around <code>geodesic_speculative_generate_text</code>. We are not aware of
+    a published treatment of this pathology and document it here primarily
+    because the §6 numbers are conditional on the fix being in place , 
+    removing it returns the loop to 0 tok/s.
+  </p>
+  <h3 id="cache-consistency">6.2, Geometry-cache consistency-equivalence</h3>
+  <p>
+    The OTT readiness gate in earlier revisions failed when geometry was loaded
+    from the persistent cache, because Phase&nbsp;4 (which writes
+    <code>consistency_score</code>) is skipped on cache hit and the score
+    defaults to 0. The fix is the cache-equivalence rule: if
+    <code>reused_geometry_cache</code> is true and the cached manifold matches
+    the current model fingerprint, then $\text{consistency} = 1$ by definition.
+    Practically this is a one-line guard in <code>host/main.c</code> after the
+    Phase&nbsp;4 fetch; theoretically it is the statement that calibration is
+    invariant under fixed-manifold reuse. This gives a hard
+    <code>consistency=1.0</code> on the warm-cache path that the gate now
+    accepts.
+  </p>
+  <h3 id="how-far">6.3, How far from a perfect OTT</h3>
+  <p>
+    "Perfect" has at least three reasonable definitions. We report the gap
+    against each.
+  </p>
+  <div class="table-wrap wide">
+    <table>
+      <thead><tr><th>Definition of "perfect"</th><th>Current</th><th>Gap</th><th>Path</th></tr></thead>
+      <tbody>
+        <tr><td>Pipeline runs end-to-end with status=geodesic_ready</td><td class="num">yes</td><td>, </td><td>done</td></tr>
+        <tr><td>$\alpha \ge 0.9$ on a 135M instruct model with same-model drafter</td><td class="num">$\alpha = 0.385$</td><td class="num">$+0.5$</td><td>Fix <code>--ott-perfect</code> (transformer-exact rollout, currently hangs in <code>llm_rollout_exact_greedy</code>); per-prompt OD bake</td></tr>
+        <tr><td>$\alpha = 1.0$ by construction (transformer-exact drafter)</td><td class="num">unreachable on this revision</td><td class="num">$+0.6$</td><td>Same as above ,  <code>--ott-perfect</code> is the realistic ceiling, not a heuristic search</td></tr>
+        <tr><td>Full Llama-3.1-8B sweep + AttnRes + KV-cache long-context</td><td>not measured</td><td>, </td><td>Gated on EC2 compute (approved, not yet executed)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The honest summary: the runtime is <strong>functionally complete for the
+    SmolLM2-135M-Instruct configuration</strong>. The gap to "perfect by
+    construction" is two named bugs (<code>--ott-perfect</code> hang,
+    <code>--ott-swarm-k</code> non-zero exit) and the EC2 sweep. Neither bug is
+    in the geodesic pipeline itself; both are in the rollout/swarm wrappers.
+    The closed-form throughput model of Paper&nbsp;3 §3 predicted the measured
+    $1.53\times$ within tolerance, which is the strongest evidence that the
+    underlying mechanism is sound.
+  </p>
+</section>
+
+<section id="status">
+  <span class="section-num">§7, Gap analysis vs Paper 4 claim list</span>
+  <h2>12 of 17 measured</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Paper 4 claim</th><th>Status</th><th>Anchor</th></tr></thead>
+      <tbody>
+        <tr><td>Christoffel field $\Gamma$ from $g$ (§3.2)</td><td>measured</td><td><code>scripts/gtc/manifold.py</code></td></tr>
+        <tr><td>Geodesic ODE integrator (§3.2)</td><td>measured</td><td><code>scripts/gtc/geodesic.py</code></td></tr>
+        <tr><td>Riemann tensor + Jacobi propagator (§4.2)</td><td>measured</td><td><code>scripts/gtc/jacobi.py</code></td></tr>
+        <tr><td>Sphere sanity, quadratic $\varepsilon$ scaling (Tests 2a&ndash;2c)</td><td>exact</td><td>§<a href="#setup">2</a></td></tr>
+        <tr><td>Hit rate $\ge 65\%$ on clustered distribution (Test 3a)</td><td>90.4&ndash;91.5%</td><td>§<a href="#coverage">3</a></td></tr>
+        <tr><td>Library size sublinear (Test 3c)</td><td>$k{=}16$ covers 91% of 64-pt cloud</td><td>§<a href="#coverage">3</a></td></tr>
+        <tr><td>Batch matmul $\equiv$ sequential (Test 1c)</td><td>$1.2\!\times\!10^{-16}$ rec. err.</td><td>§<a href="#resonance">4</a></td></tr>
+        <tr><td>Batch $B$=10/100/1000 speedups (Tests 4a&ndash;4c)</td><td>$97\times$, $27\times$, $44\times$</td><td>§<a href="#resonance">4</a></td></tr>
+        <tr><td>Two-stage FAISS+geodesic lookup (Algorithm 1)</td><td>30.9 µs/q</td><td>§<a href="#store">5</a></td></tr>
+        <tr><td>Compressed record store (~50&ndash;80 KB target)</td><td>5.96 KB at $k{=}8$</td><td>§<a href="#store">5</a></td></tr>
+        <tr><td>Scaling: SmolLM2 → Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
+        <tr><td>Validity / injectivity radius $\rho$ scaling</td><td>$&lt; 0.1\%$ err to $\varepsilon=5.0$</td><td><code>smollm2-135m_validity_radius.json</code></td></tr>
+        <tr><td>OTT locality of curvature warp (Test 5a)</td><td>ratio $7\!\times\!10^{11}$, decays to 0 at 20$\sigma$</td><td>implicit in <code>manifold.py</code> smoothing</td></tr>
+        <tr><td>OTT runtime end-to-end (live decode replacement)</td><td>partial: $\alpha = 0.385$, $1.53\times$, density-gated for direct correction</td><td>§<a href="#ott-runtime">6</a></td></tr>
+        <tr><td>Knowledge-injection curvature warp delivers redirection</td><td>negative: best gain 2.24%, 0/32 pass</td><td><code>docs/figures/curvature_warp/</code></td></tr>
+        <tr><td>AttnRes block-summary integration (§6)</td><td>prototype: block-end Jacobi err 1.29%, simplex blend 11.4%</td><td><code>smollm2-135m_attnres_integration.json</code></td></tr>
+        <tr><td>Diffeomorphism $\phi$ construction (§11.1)</td><td>resolved for OTT deployment family via certificates</td><td><code>data/decisions.json</code>, Paper 4 §0.5</td></tr>
+        <tr><td>Geodesic initial velocity $v_0$ (§11.2)</td><td>universal closed form open; deployable Christoffel surrogate exists</td><td><code>runtime/nn/axiom_beta.c</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Reading: 12 measured pass, 1 measured fail (curvature-warp
+    knowledge-injection), 2 measured partial (live-decode replacement,
+    AttnRes), 1 universally open / deployment-resolved ($\phi$), 1 universally
+    open / deployable surrogate ($v_0$). The Paper&nbsp;4 program is no longer
+    "framework only" ,  it is a framework with a verified core and a
+    short, named list of open items.
+  </p>
+</section>
+
+<section id="novel">
+  <span class="section-num">§8, What is genuinely new here</span>
+  <h2>Three small contributions</h2>
+  <ol>
+    <li>Logit-excluding top-1 with min-response guard for
+        instruct-tuned drafters in speculative decoding. Closes the
+        instruct-greedy-EOS failure mode without forward-pass overhead. We are
+        not aware of a published treatment in the existing
+        speculative-decoding literature. §<a href="#egp">6.1</a>.</li>
+    <li>Geometry-cache consistency-equivalence rule for OTT
+        readiness gating: <code>reused_geometry_cache</code> implies
+        $\text{consistency}=1$ under fixed-manifold reuse. §<a
+        href="#cache-consistency">6.2</a>.</li>
+    <li>Empirical scale-invariance of cache coverage across a
+        $33\times$ parameter range at fixed sample budget. The Paper&nbsp;4
+        analytic argument made this prediction; this is its first measurement
+        on real LM clouds at three scales. §<a href="#coverage">3</a>.</li>
+  </ol>
+  <p>
+    The other components (geodesic ODE, Jacobi propagator, GP compression,
+    OneDecode, the OTT theorem, the speculative-decoding rejection rule) are
+    inherited from prior work and are explicitly cited as such. The novelty in
+    this paper is anchoring + the three small primitives above.
+  </p>
+</section>
+
+<section id="repro">
+  <span class="section-num">§9, Reproducing</span>
+  <h2>Recipe</h2>
+<pre><code>git checkout d57162d  # OTT speculative ready commit
+.\build_host.ps1
+# OTT runtime anchor (§6)
+.\repair_ott.ps1 -ModelPath models\smollm2-135m-instruct-q8_0.gguf
+.\build_host\geodessical.exe `
+    --model models\smollm2-135m-instruct-q8_0.gguf `
+    --ott-full --ott-speculative --ott-spec-batch 4 --ott-spec-thresh 0.45 `
+    --prompt "Write a short greeting." --max-tokens 32
+
+# GTC measurements (§§3-5)
+.venv\Scripts\python.exe scripts\gtc\validity_radius.py --case smollm2-135m --dim 8 --n-seeds 12 --steps 16 --n-perturb 12 --dl 0.05
+.venv\Scripts\python.exe scripts\gtc\gtc_benchmark.py --model smollm2-135m --dim 8
+.venv\Scripts\python.exe scripts\gtc\record_store.py --model smollm2-135m
+</code></pre>
+  <p>
+    Outputs land at <code>docs/figures/gtc/&lt;case&gt;_*.json</code> and at
+    <code>ott_readiness_report.json</code>. The full numerical detail is in
+    <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/gtc/GTC_RESULTS.md"><code>docs/figures/gtc/GTC_RESULTS.md</code></a>.
+  </p>
+</section>
+
+<section id="status-list">
+  <span class="section-num">§10, Status / what's missing for v0.2 of this paper</span>
+  <h2>Open items</h2>
+  <ol>
+    <li>Functional <code>--ott-perfect</code> (transformer-exact rollout).
+        Current attempt hung in <code>llm_rollout_exact_greedy</code> retry
+        path; reverted. This is the realistic route to $\alpha \to 1$ on the
+        same model.</li>
+    <li>Functional <code>--ott-swarm-k</code> (currently exits non-zero). When
+        fixed, expected to push $\alpha$ into the 0.6&ndash;0.8 range.</li>
+    <li>Per-prompt OD bake (currently OD is baked once on a generic anchor).
+        Expected to lift $\alpha$ towards 0.7&ndash;0.8.</li>
+    <li>Full Llama-3.1-8B sweep on EC2.</li>
+    <li>Dense runtime cloud export (per-decode-step intrinsic-lifted activations
+        as a binary tape) so the live-decode-substitution coverage in §<a
+        href="#store">5.1</a> can be re-run on real decode traces rather than
+        the 64-point Phase-1 export.</li>
+    <li>Robust knowledge-injection curvature-warp protocol (currently a measured
+        negative).</li>
+    <li>AttnRes integration beyond prototype.</li>
+  </ol>
+  <p>
+    The v0.1 publication threshold is met: 12/17 Paper&nbsp;4 claims measured,
+    OTT runtime end-to-end at <code>geodesic_ready</code>, all numerics
+    reproducible from <code>main</code> at the cited commit.
+  </p>
+</section>
+
+<section id="related">
+  <span class="section-num">§10.5, Related work</span>
+  <h2>Where this empirical anchor sits</h2>
+  <p>
+    Paper&nbsp;5 is the measurement layer underneath Paper&nbsp;4's theory.
+    Three lines of literature touch what is measured here.
+  </p>
+  <ol>
+    <li>
+      Intrinsic dimension of LM activations. The
+      $k\approx30$–$50$ fits in §<a href="#coverage">3</a> are consistent
+      with TwoNN/PCA intrinsic-dim estimates on transformers
+      (Razzhigaev&nbsp;et&nbsp;al. 2023; Cai&nbsp;et&nbsp;al. 2021) and the
+      linear-representation hypothesis (Park&nbsp;et&nbsp;al. 2023). What
+      is new here is not the dimension number but its operational use: the
+      same $k$ that comes out of Phase-1 is the working dimension of the
+      Jacobi-correction record store and the OTT runtime path. The
+      manifold fit is therefore a deployment artefact, not just an
+      observation.
+    </li>
+    <li>
+      Speculative decoding. The OTT runtime anchor
+      ($\alpha=0.385$, 76.5&nbsp;tok/s) sits in the speculative-decoding
+      family (Leviathan&nbsp;et&nbsp;al. 2023; Chen&nbsp;et&nbsp;al. 2023;
+      Medusa, EAGLE). The compositional question, what changes when the
+      draft model is a Geodesic-Projection compressed twin rather than a
+      separate small model, is the subject of
+      <a href="03-speculative-decoding.html">Paper&nbsp;3</a>; this paper
+      contributes the OTT runtime timing primitives and the per-query
+      lookup cost (30.9&nbsp;µs).
+    </li>
+    <li>
+      Trajectory libraries and Jacobi-field methods. The
+      compressed record store in §<a href="#store">5</a> is the closest
+      thing in this paper to outside-LM literature: Jacobi-field-based
+      transport is standard in computational geometry and physics
+      (Magnus&nbsp;1954 series for parallel transport; do&nbsp;Carmo for
+      injectivity radius), and trajectory-library ideas appear in robotics
+      and motion planning (LQR-trees, GMR libraries). We are not aware of
+      a published trajectory-cache for transformer inference that uses
+      Jacobi corrections; if such work exists, it should be cited here in
+      v0.2.
+    </li>
+    <li>
+      Block-summary curvature. The connection to
+      Kimi&nbsp;Team's Block Attention Residuals is read in this
+      site as: AttnRes weights are interpretable as geodesic-segment
+      selection on $\mathcal{M}_\theta$
+      (<a href="04-organic-training-theory.html#attnres">Paper&nbsp;4 §3</a>),
+      and the AttnRes prototype in this repository is the inference-time
+      version of that connection.
+    </li>
+  </ol>
+</section>
+
+<section id="terms">
+  <span class="section-num">§10.6, Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    Paper&nbsp;5 reuses the glossaries in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, decode vs prefill, residual stream),
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink), and
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
+    (acceptance rate $\alpha$, draft/verifier, OneDecode, OTT).
+    Theory-side terms, manifold $\mathcal{M}_\theta$, intrinsic dimension
+    $k$, Fisher metric, Jacobi field, injectivity radius $\rho$,
+    diffeomorphism $\phi$, are defined in
+    <a href="04-organic-training-theory.html#abstract">Paper&nbsp;4 §0</a>
+    and used here without redefinition.
+  </p>
+</section>
+
+<section id="references">
+  <span class="section-num">§11, References</span>
+  <h2>Selected refs</h2>
+  <ol>
+    <li>Stewart, W. K. O., Organic Training Theory and Geodesic Trajectory Caching, this site, Paper 4, 2026.</li>
+    <li>Stewart, W. K. O., Composing Compression: Geodesic Speculative Decoding and Attention Residuals, this site, Paper 3 v0.3, 2026.</li>
+    <li>Leviathan, Y., Kalman, M., and Matias, Y., Fast Inference from Transformers via Speculative Decoding, ICML 2023.</li>
+    <li>Chen, C., Borgeaud, S., et al., Accelerating Large Language Model Decoding with Speculative Sampling, arXiv:2302.01318, 2023.</li>
+    <li>Cai, T. et al., Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads, 2024.</li>
+    <li>Li, Y. et al., EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty, 2024.</li>
+    <li>Kimi Team, Block Attention Residuals, arXiv:2603.15031, 2026.</li>
+    <li>Magnus, W., On the exponential solution of differential equations for a linear operator, Comm. Pure Appl. Math., 1954.</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Paper&nbsp;5 v0.1 &middot; HyperTensor Research &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">source on GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

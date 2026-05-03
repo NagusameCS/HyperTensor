@@ -1,0 +1,165 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+{\large HyperTensor Papers I--X}
+
+\vspace{8pt}
+
+William Ken Ohara Stewart
+
+NagusameCS Independent Research
+
+\texttt{nagusamecs@gmail.com}
+
+\url{https://github.com/NagusameCS/HyperTensor}
+
+\vspace{8pt}
+
+May 2026
+\end{center}
+
+\vspace{12pt}
+
+Dear Reader,
+
+Thank you for taking the time to look through this work. My name is William
+Ken Ohara Stewart. I am eighteen years old and a high school student in the
+United States. I am not a professional researcher, I do not have a lab or an
+advisor, and I am certain there are mistakes in these pages that a trained eye
+would catch immediately. I ask for your patience with those. Everything here
+was done on a laptop with an RTX 4070, a rented cloud GPU when a bigger one was
+needed, and a lot of late nights.
+
+What follows is a set of ten papers that try to answer one question: can you
+compress a language model using only the geometry of its own weights, with no
+training data and no calibration, and still have it work? The answer, as of
+Paper~X, is a qualified yes---but the qualification matters more than the yes
+itself. Below is a short summary of each part so you know what you are getting
+into.
+
+\vspace{8pt}
+
+\noindentPaper~I --- Geodesic Runtime Compression.}
+The core measurement. We compress only the attention weights (Q, K, V) of
+Llama-3.1-8B by projecting them onto their own principal components, with no
+calibration data. At one compression rank, the compressed model runs about six
+percent faster than the uncompressed model on a laptop GPU. At a slightly larger
+rank, throughput matches baseline and perplexity goes up by about thirteen
+percent. We spent a long time trying to figure out why it gets faster and the
+answer turned out to be kernel fusion, not cache effects, though the cache story
+is partially consistent with the data. The paper is honest about what is measured
+and what is not.
+
+\vspace{6pt}
+
+\noindentPaper~II --- Geodesic Projection Pipeline.}
+Extends the compression from three attention slots to all seven compressible
+matrices in a transformer block, adds per-layer rank allocation, and describes
+four adaptive mechanisms (MCR, GL(d) gauge, thermal control, online Oja updates).
+Only the MCR mechanism has been tested, and it was a null result at the tested
+rank. The remaining mechanisms are design specifications, not measurements. The
+paper distinguishes clearly between what has been built and measured versus what
+has been designed on paper.
+
+\vspace{6pt}
+
+\noindentPaper~III --- Speculative Decoding with Compression.}
+Combines the compressed drafter from Paper~I with standard speculative decoding.
+On SmolLM2-135M we measure a $1.53{\times}$ speedup at about thirty-nine percent
+acceptance rate. The paper also documents a failure mode where greedy speculative
+decoding breaks against instruct-tuned models and the two-line fix that resolves
+it. One finding is negative: aggressive compression and speculative decoding do
+not compose well, which contradicts the initial hypothesis.
+
+\vspace{6pt}
+
+\noindentPaper~IV --- Organic Training Theory.}
+The theoretical backbone. Proposes modeling transformer latent space as a
+Riemannian manifold with the Fisher information metric where inference becomes
+approximate geodesic flow. Also introduces Geodesic Trajectory Caching (GTC),
+which stores completed geodesics and serves new queries by a single linear
+correction. Twelve of seventeen testable claims now have measured anchors across
+three model scales. Five remain open.
+
+\vspace{6pt}
+
+\noindentPaper~V --- GRC Light Distillation.}
+An optional distillation step that recovers some of the perplexity lost to
+compression. On SmolLM2-135M, a small LoRA adapter ($r{=}8$) recovers over one
+hundred percent of the PPL gap at $k{=}512$, meaning the distilled compressed
+model beats the uncompressed baseline on perplexity. At aggressive compression
+($k{=}256$) recovery is partial, and at conservative compression ($k{=}1024$) it
+is near-complete. The protocol is designed so that disabling distillation
+produces bit-identical output to Paper~I.
+
+\vspace{6pt}
+
+\noindentPaper~VI --- Task-Level Impact.}
+Measures what actually happens to benchmark scores when you compress attention.
+On SmolLM2-135M, knowledge recall tasks like MMLU hold up reasonably well down
+to $k{=}512$, but reasoning tasks degrade sharply. An earlier measurement
+claiming twenty-eight percent MMLU at $k{=}256$ was retracted after discovering
+the binary lacked proper ChatML template support. The corrected measurement is
+zero percent at that rank.
+
+\vspace{6pt}
+
+\noindentPaper~VII --- FFN Cluster Compression.}
+Attempts structure-aware compression of the feed-forward network using column
+clustering plus per-cluster SVD. Four-cluster compression reduces reconstruction
+error by about twenty-three percent versus global SVD. The approach recovers some
+of the information that global methods lose, but the overall gain is modest. The
+paper includes a correction from an earlier overoptimistic prediction.
+
+\vspace{6pt}
+
+\noindentPaper~VIII --- GTC as RAG Alternative.}
+Explores whether the geodesic trajectory cache from Paper~IV can serve as a
+retrieval mechanism, comparing it conceptually against retrieval-augmented
+generation. The computed speedup is large on paper (hundreds of times) but
+cross-model generalization has not been measured. This is marked as pending
+hardware availability.
+
+\vspace{6pt}
+
+\noindentPaper~IX --- The 106\% Anomaly as a General Phenomenon.}
+Argues that the super-baseline speedup observed in Paper~I is not a quirk of
+one GPU or one model. Derives the condition under which compressed kernels run
+faster than uncompressed ones, predicts optimal compression ranks for ten GPU
+types, and identifies six kernel classes beyond attention where the effect should
+appear. Three kernel classes are confirmed by measurement; nine GPU predictions
+remain open.
+
+\vspace{6pt}
+
+\noindentPaper~X --- Cross-Embedding Compatibility Index.}
+Tests whether you can splice parts of different models together by aligning their
+embedding spaces. Within the same model, splicing fails at low compression ranks
+(zero compatible layers at $k{=}256$). Between different models trained on
+similar data, splicing works at full rank when architecture matches. A working
+chimera called MINSKAT (attention from one model, FFN from another) was built and
+published. The CECI acronym was renamed mid-project from CMVB; some early drafts
+may still use the old name.
+
+\vspace{14pt}
+
+\noindent Thank you again for reading. If you find errors, they are mine. If you
+find something useful, the credit belongs to the open-weight model community that
+made the weights available, the authors of the libraries I built on, and the
+friends who read early drafts and told me which parts made no sense.
+
+\vspace{8pt}
+
+\begin{flushright}
+William Ken Ohara Stewart
+
+May 2026
+\end{flushright}
+
+\end{document}

@@ -1,0 +1,132 @@
+% hypertensor.sty -- shared preamble for the HyperTensor arXiv papers.
+% Targets a recent TeX Live (2022+) and arXiv-acceptable packages only.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{hypertensor}[2026/04/27 HyperTensor shared preamble]
+
+% ---- Geometry & typography -------------------------------------------------
+\RequirePackage[a4paper,margin=1.05in]{geometry}
+\RequirePackage{placeins}
+\RequirePackage{microtype}
+\RequirePackage[T1]{fontenc}
+\RequirePackage{lmodern}
+\RequirePackage{textcomp}
+\RequirePackage{newtxtext}            % Times-like text; arXiv-friendly
+\linespread{1.18}
+\RequirePackage{setspace}
+
+% ---- Math ------------------------------------------------------------------
+% Load amsmath/amssymb/amsthm BEFORE newtxmath to avoid \Bbbk / \openbox
+% redefinition errors that occur with amsfonts+newtxmath ordering.
+\RequirePackage{amsmath,amssymb,mathtools}
+\let\openbox\relax
+\RequirePackage{amsthm}
+\let\Bbbk\relax
+\RequirePackage{newtxmath}            % math companion to newtxtext
+\RequirePackage{bm}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% Convenient operators / shortcuts.
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\trace}{tr}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\softmax}{softmax}
+\DeclareMathOperator{\Span}{span}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Wmat}{\mathbf{W}}
+\newcommand{\Pmat}{\mathbf{P}}
+\newcommand{\Kmat}{\mathbf{K}}
+\newcommand{\Qmat}{\mathbf{Q}}
+\newcommand{\Vmat}{\mathbf{V}}
+\newcommand{\Xmat}{\mathbf{X}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+
+% ---- Tables, figures, code -------------------------------------------------
+\RequirePackage{booktabs}
+\RequirePackage{array}
+\RequirePackage{multirow}
+\RequirePackage{tabularx}
+\RequirePackage{makecell}
+\RequirePackage{graphicx}
+\RequirePackage{caption}
+\captionsetup{font=small,labelfont=bf,format=plain,justification=justified,singlelinecheck=false}
+\RequirePackage{subcaption}
+\RequirePackage{xcolor}
+\definecolor{HTred}{RGB}{192,57,43}
+\definecolor{HTblue}{RGB}{45,107,228}
+\definecolor{HTgreen}{RGB}{26,122,74}
+\definecolor{HTgrey}{RGB}{92,92,92}
+\definecolor{HTbgsoft}{RGB}{249,249,248}
+
+\RequirePackage{listings}
+\lstdefinestyle{ht}{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{HTblue}\bfseries,
+  commentstyle=\color{HTgreen}\itshape,
+  stringstyle=\color{HTred},
+  numbers=left, numberstyle=\tiny\color{HTgrey},
+  numbersep=6pt, frame=single, framerule=0.4pt,
+  backgroundcolor=\color{HTbgsoft},
+  breaklines=true, breakatwhitespace=true,
+  showstringspaces=false, columns=fullflexible,
+  keepspaces=true, tabsize=2,
+}
+\lstset{style=ht}
+
+\RequirePackage{siunitx}
+\sisetup{detect-weight=true,detect-family=true}
+
+% ---- Boxes / callouts (arXiv-safe; no shadows) -----------------------------
+\RequirePackage[most]{tcolorbox}
+\tcbset{
+  htbase/.style={
+    enhanced, breakable, boxrule=0.4pt,
+    colback=HTbgsoft, colframe=HTgrey,
+    arc=2pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+    fonttitle=\bfseries\small,
+  },
+}
+\newtcolorbox{htnote}[1][]{htbase, title={Note}, #1}
+\newtcolorbox{htwarn}[1][]{htbase, colframe=HTred, title={Caution}, #1}
+\newtcolorbox{htgood}[1][]{htbase, colframe=HTgreen, title={Result}, #1}
+
+% ---- Bibliography ----------------------------------------------------------
+\RequirePackage[
+  backend=biber,
+  style=numeric-comp,
+  sorting=none,
+  giveninits=true,
+  url=true, doi=false, isbn=false,
+  maxbibnames=8, minbibnames=3,
+]{biblatex}
+
+% ---- Hyperref last; cleveref after -----------------------------------------
+\RequirePackage[hidelinks,breaklinks=true,colorlinks=true,
+  linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\RequirePackage[capitalise,noabbrev]{cleveref}
+\crefname{section}{\S}{\S\S}
+\Crefname{section}{\S}{\S\S}
+
+% ---- Title block helpers ---------------------------------------------------
+\newcommand{\hypertensorbanner}{}
+
+% ---- Misc ------------------------------------------------------------------
+\RequirePackage{enumitem}
+\setlist{itemsep=2pt,topsep=3pt}
+\RequirePackage{etoolbox}
+\AtBeginEnvironment{quote}{\small}
+
+\endinput

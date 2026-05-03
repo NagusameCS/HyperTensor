@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Paper C: Geodesic speculative decoding, HyperTensor Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Reproduce C &middot; OTT-Decode</span>
+  <h1>Reproduce Paper C: Geodesic speculative decoding</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">HyperTensor Project &middot; April 2026
+     &middot; <a href="../paper-c-geodesic-speculative-decoding.html">Paper C (HTML)</a>
+     &middot; <a href="/pdfs/geodesic-speculative-decoding.pdf">Paper C (PDF)</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/tree/main/repro">repro tree</a>
+  </p>
+</header>
+<article class="paper-body">
+<h2>Scope</h2>
+<p>Reproduces the OTT-aware verifier, the EOS-aware acceptance protocol
+and the partial T_V(k) sweep. The full T_V(k) sweep is EC2-bound
+because the cold weight-PCA cache for k below 256 exceeds the
+RTX 4070 Laptop wall-time budget on Llama-3.1-8B.</p>
+
+<h2>Hardware target</h2>
+<ul>
+  <li>Local headline acceptance rate: any 8 GB CUDA GPU.</li>
+  <li>Full T_V(k) sweep: g6e.xlarge L40S, about 90 minutes wall.</li>
+</ul>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>Same toolchain as Paper A.</li>
+  <li>Pre-warmed weight-PCA cache for the rank set you intend to sweep.
+      The cache is regenerated per (model, k) pair and re-used. Cold-PCA
+      at k=256 takes about 15 minutes on the reference GPU.</li>
+</ul>
+
+<h2>1. Headline acceptance rate</h2>
+<pre><code class="language-powershell">.\build_host\geodessical.exe $model `
+    --axex-spec --axex-spec-tree-k 4 --axex-spec-target-acc 0.4 `
+    -p "Write a sorting algorithm in Python" -n 256 --temp 0
+</code></pre>
+<p>Expected: about 38.5 percent acceptance under the EOS-aware schedule.</p>
+
+<h2>2. T_V(k) partial sweep</h2>
+<pre><code class="language-powershell">python scripts\bench_tv_of_k.py
+</code></pre>
+<p>The script writes <code>docs/figures/paper-c/tv_of_k.csv</code>. The
+local run produces a partial curve; alpha collapses to 0 percent at k
+at or below 256 because of cold-cache PCA. This is reported as a
+hardware-specific artefact in section 6 of the paper, not as a
+mechanism finding.</p>
+
+<h2>3. EC2: full T_V(k) sweep</h2>
+<pre><code class="language-bash">python scripts/bench_tv_of_k.py
+</code></pre>
+<p>On the L40S the cold-PCA cost drops below the timeout, so the
+k=128 and k=256 points populate. Expected total wall time is about
+90 minutes.</p>
+
+<h2>Outputs</h2>
+<ul>
+  <li><code>docs/figures/paper-c/tv_of_k.csv</code></li>
+  <li><code>docs/figures/paper-c/spec_acceptance_pack/</code></li>
+</ul>
+
+<h2>Tolerances</h2>
+<ul>
+  <li>Acceptance rate: plus or minus 1.5 percentage points run-over-run
+      on identical seeds.</li>
+  <li>T_V(k) shape: monotone decreasing in k for k at or above 512 on
+      Llama-3.1-8B.</li>
+</ul>
+</article>
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot;
+  <a href="../../index.html">back to index</a>
+</footer>
+</body>
+</html>

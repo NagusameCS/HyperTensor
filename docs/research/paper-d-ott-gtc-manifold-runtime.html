@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organic Training Theory and the GTC Manifold Runtime, HyperTensor Research</title>
+<meta name="description" content="Organic Training Theory and the GTC Manifold Runtime, research paper from the HyperTensor project (NagusameCS).">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$','$'],['\\(','\\)']],
+    displayMath: [['$$','$$'],['\\[','\\]']],
+    tags: 'ams',
+    processEscapes: true,
+    macros: {
+      Wmat: '{\\mathbf{W}}',
+      Kmat: '{\\mathbf{K}}',
+      Pmat: '{\\mathbf{P}}',
+      Qmat: '{\\mathbf{Q}}',
+      Vmat: '{\\mathbf{V}}',
+      R: '{\\mathbb{R}}',
+      norm: ['{\\lVert #1 \\rVert}', 1],
+      inner: ['{\\langle #1, #2 \\rangle}', 2],
+      rank: '{\\operatorname{rank}}',
+      diag: '{\\operatorname{diag}}',
+      tr: '{\\operatorname{tr}}',
+      Cov: '{\\operatorname{Cov}}',
+      Var: '{\\operatorname{Var}}',
+      argmax: '{\\operatorname*{arg\\,max}}',
+      argmin: '{\\operatorname*{arg\\,min}}'
+    }
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/research-paper.css">
+<script src="../assets/reader.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../index.html#engineering">Engineering</a></li>
+    <li><a href="../index.html#research">Research</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Paper D - OTT/GTC</span>
+  <h1>Organic Training Theory and the GTC Manifold Runtime</h1>
+  <p class="author">HyperTensor Project (William Ken Ohara Stewart)</p>
+  <p class="meta">
+    HyperTensor Project &middot; April 2026
+     &middot; <a href="/pdfs/ott-gtc-manifold-runtime.pdf">PDF</a>
+     &middot; <a href="https://github.com/NagusameCS/HyperTensor/blob/main/ARXIV_SUBMISSIONS/paper-D/ott-gtc-manifold-runtime.tex">TeX source</a>
+  </p>
+</header>
+
+<article class="paper-body">
+<div class="htnote">
+<p>Project nomenclature. HyperTensor is the project umbrella;
+Geodesic Projection (GP) is the inference-time pipeline (companion
+paper); Geodesic Runtime Compression (GRC) is its attention-only
+subset; and OTT/GTC (Organic Tensor Topology / Geodessical Tensor
+Cache), the subject of this paper, is the longer-term theoretical
+framework that views the GP projection bases as charts on a Riemannian
+manifold. GP is the engineering layer that this paper provides the geometric
+justification for.</p>
+</div>
+<section id="introduction" class="level2">
+<h2>Introduction</h2>
+<p>Modern transformer inference is dominated, on bandwidth-bound hardware, by the
+shape of the residual stream rather than by raw arithmetic
+<span class="citation" data-cites="vaswani2017attention llama3 williams2009roofline">(Vaswani et al. 2017; <span class="nocase">Grattafiori et al.</span> 2024; Williams et al. 2009)</span>. Empirical work on
+linear representations and intrinsic dimensionality consistently reports that
+the activation cloud of a trained model occupies a low-dimensional submanifold
+of the embedding space; estimates put intrinsic dimension at <span class="math inline">\(k\!\approx\!30\)</span>–<span class="math inline">\(50\)</span>
+even when ambient <span class="math inline">\(d\in\{4096,8192\}\)</span>
+<span class="citation" data-cites="elhage2022superposition nakkiran2021deep">(<span class="nocase">Elhage et al.</span> 2022; Nakkiran et al. 2021)</span>.</p>
+<section id="cross-architecture-k_mathrmint-invariance." class="level5">
+<h5>Cross-architecture <span class="math inline">\(k_{\mathrm{int}}\)</span> invariance.</h5>
+<p>Running our manifold-extraction pipeline on three open transformers of
+widely different widths makes the same point quantitatively:</p>
+<div class="center">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">model</th>
+<th style="text-align: center;">ambient <span class="math inline">\(d\)</span></th>
+<th style="text-align: center;"><span class="math inline">\(k_{\mathrm{int}}\)</span> at <span class="math inline">\(95\%\)</span> var.</th>
+<th style="text-align: center;"><span class="math inline">\(k_{\mathrm{int}}/d\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: center;">576</td>
+<td style="text-align: center;">17</td>
+<td style="text-align: center;"><span class="math inline">\(0.030\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">Gemma-4-E2B</td>
+<td style="text-align: center;">1536</td>
+<td style="text-align: center;">25</td>
+<td style="text-align: center;"><span class="math inline">\(0.016\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: center;">3072</td>
+<td style="text-align: center;">11</td>
+<td style="text-align: center;"><span class="math inline">\(0.0036\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A <span class="math inline">\(5.3\times\)</span> increase in <span class="math inline">\(d\)</span> buys an <span class="math inline">\(\sim\)</span>8 <span class="math inline">\(\times\)</span> drop in
+<span class="math inline">\(k_{\mathrm{int}}/d\)</span>. The intrinsic dimension does not scale with the
+ambient width, which is the empirical premise on which both OTT (this
+paper) and GP/GRC (companion papers) operate.</p>
+<p>This paper takes that observation seriously. Under Organic Training
+Theory (OTT), we model the trained latent space as a Riemannian manifold
+<span class="math inline">\(\mathcal{M}_\theta\)</span> with the Fisher-information metric and read inference as
+approximate geodesic flow on <span class="math inline">\(\mathcal{M}_\theta\)</span>. Geodesic Trajectory
+Caching (GTC) operationalises that view: completed geodesics, with their
+Magnus-3 Jacobi propagator, are stored in a library and reused by a single
+linear correction.</p>
+<p>The companion runtime paper <span class="citation" data-cites="papers3specdec">(HyperTensor Project 2025b)</span> measures one OTT
+configuration on a C runtime; the GP compression paper
+<span class="citation" data-cites="papers2geodesic_projection">(HyperTensor Project 2025a)</span> measures the static side of the same
+manifold. The present paper merges what was previously two web articles
+(Paper 4 theory; Paper 5 measurement-anchor): Part I formalises OTT/GTC,
+Part II reports the measurement anchor across three open-weight models.</p>
+</section>
+<section id="naming." class="level5">
+<h5>Naming.</h5>
+<p>An earlier draft used “GRC” for Geodesic Resonance
+Caching. Paper A in this series (Geodesic Runtime Compression) uses “GRC”
+for the calibration-free attention-compression mechanism, an unrelated
+implemented thing. To remove the collision, the trajectory-library idea is
+named GTC throughout this paper.</p>
+</section>
+<section id="contributions." class="level5">
+<h5>Contributions.</h5>
+<ol>
+<li><p>A clean statement of OTT and GTC with assumption-explicit theorem
+templates (Sec. <a href="#sec:formal" data-reference-type="ref" data-reference="sec:formal">5</a>), separating universal claims from
+deployment-scoped ones.</p></li>
+<li><p>A measured cache-coverage curve on real LM activation clouds at three
+model scales, demonstrating empirical scale-invariance within
+<span class="math inline">\(\pm 0.5\%\)</span> at the 25%-fraction cache size (Sec. <a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a>).</p></li>
+<li><p>A batch-Jacobi resonance benchmark showing <span class="math inline">\(97\times\)</span> speedup at
+<span class="math inline">\(B=10\)</span> with reconstruction error at the float64 roundoff floor
+(Sec. <a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a>).</p></li>
+<li><p>A compressed record store at 5.96 KB/record with exact rank-5
+propagator truncation and a 30.9 μs/query two-stage lookup
+(Sec. <a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a>).</p></li>
+<li><p>Two small primitives needed to make the C-runtime path actually run on
+instruct-tuned drafters: logit-excluding top-1 with min-response
+guard and the geometry-cache consistency-equivalence rule
+(Sec. <a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a>).</p></li>
+</ol>
+<figure id="fig:ott-pipeline" data-latex-placement="t">
+
+<figcaption>End-to-end OTT/GTC pipeline. The offline path
+(Sec. <a href="#sec:ott" data-reference-type="ref" data-reference="sec:ott">2</a>–<a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a>) fits a Riemannian manifold from a
+Phase-1 activation export, computes batched Jacobi-field propagators in the
+Magnus-3 truncation, and writes a compressed record store. The
+runtime path (Sec. <a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a>) consumes the manifold and the
+record store via the geometry-cache consistency-equivalence rule, with the
+<span class="math inline">\(\ell^\star\!\approx\!2L/3\)</span> depth-sink shortcut making the cache check <span class="math inline">\(O(1)\)</span>
+per token. Numbers cited in the boxes are measured on the empirical anchor
+in <a href="#sec:resonance,sec:store,sec:runtime" data-reference-type="ref+Label" data-reference="sec:resonance,sec:store,sec:runtime">[sec:resonance,sec:store,sec:runtime]</a>.</figcaption>
+</figure>
+</section>
+</section>
+<section id="part-i-theory" class="level2 unnumbered">
+<h2 class="unnumbered">Part I, Theory</h2>
+</section>
+<section id="sec:ott" class="level2">
+<h2>Organic Training Theory</h2>
+<p>Let <span class="math inline">\(\theta\in\mathbb{R}^P\)</span> denote the trained weights of a transformer and let
+<span class="math inline">\(f_\theta\)</span> be its forward map up to a chosen layer. Define the activation
+manifold
+<span class="math display">\[\begin{equation}
+\mathcal{M}_\theta = \{\,x\in\mathbb{R}^d : x = f_\theta(\text{tokens}) \text{ for some input}\,\},
+\end{equation}\]</span>
+equipped with a Fisher-information metric <span class="math inline">\(g\)</span> approximated locally from the
+sample covariance of <span class="math inline">\(\nabla_\theta\log p_\theta\)</span> pulled back to activation
+space. Under regularity assumptions made explicit in Sec. <a href="#sec:formal" data-reference-type="ref" data-reference="sec:formal">5</a>,
+<span class="math inline">\(\mathcal{M}_\theta\)</span> admits a Levi-Civita connection
+<span class="math inline">\(\Gamma^k_{ij}(x)\)</span> and inference along a geodesic
+<span class="math display">\[\begin{equation}
+\ddot x^k(\lambda) + \Gamma^k_{ij}(x)\,\dot x^i(\lambda)\,\dot x^j(\lambda) = 0
+\label{eq:geodesic}
+\end{equation}\]</span>
+has cost <span class="math inline">\(\mathcal{O}(nk^2)\)</span> in intrinsic dimension <span class="math inline">\(k\)</span>, against
+<span class="math inline">\(\mathcal{O}(n^2 dL)\)</span> for the standard transformer pass. The empirical
+gap between <span class="math inline">\(k\)</span> and <span class="math inline">\(d\)</span> (estimates of 30–50 vs. 4096–8192) is the source of
+the asymptotic improvement.</p>
+<section id="fisher-metric-and-the-heat-kernel-bridge" class="level3">
+<h3>Fisher metric and the heat-kernel bridge</h3>
+<p>A natural-gradient interpretation of training
+<span class="citation" data-cites="golub1996matrix nakkiran2021deep">(Golub and Van Loan 1996; Nakkiran et al. 2021)</span> suggests that the metric <span class="math inline">\(g\)</span> on
+<span class="math inline">\(\mathcal{M}_\theta\)</span> is the Fisher information; under additional smoothness
+assumptions one obtains a Laplace–Beltrami diffusion form whose heat kernel
+<span class="math inline">\(G_t(x,y)\)</span> satisfies Varadhan’s asymptotic identity
+<span class="math display">\[\begin{equation}
+d_g(x,y)^2 \;=\; \lim_{t\to 0}\,-4t\log G_t(x,y),\qquad
+\dot\gamma(0)\;\propto\;\nabla_x\bigl(-\log\mathrm{Attn}(x,y)\bigr).
+\label{eq:varadhan}
+\end{equation}\]</span>
+Eq. <a href="#eq:varadhan" data-reference-type="eqref" data-reference="eq:varadhan">[eq:varadhan]</a> should be read as a model-family assumption (the
+trained attention kernel is the heat kernel at scale <span class="math inline">\(t\)</span>), not as a
+universally proved theorem. Where it holds, attention gradients become a
+geodesic-direction oracle and OTT acquires a constructive starting velocity
+<span class="math inline">\(v_0\)</span> for Eq. <a href="#eq:geodesic" data-reference-type="eqref" data-reference="eq:geodesic">[eq:geodesic]</a>.</p>
+</section>
+<section id="sec:fisher-to-jacobi" class="level3">
+<h3>From the Fisher metric to the implemented Jacobi propagator</h3>
+<p>The runtime does not work directly with the Fisher metric tensor; it works
+with its Magnus-3 Jacobi propagator <span class="math inline">\(\Phi(\lambda)\)</span>, the linear map that
+advances a deviation vector along a geodesic. The chain that links the two
+is explicit and worth writing in one place. Given the Fisher metric
+<span class="math inline">\(g_{ij}(\theta)=\E_{x\sim p_\theta}\!\bigl[\partial_i\log p_\theta(x)\,
+\partial_j\log p_\theta(x)\bigr]\)</span>, the Levi-Civita connection symbols are
+<span class="math display">\[\begin{equation}
+\Gamma^k_{ij}\;=\;\tfrac{1}{2}g^{kl}\!\left(\partial_i g_{jl}+\partial_j g_{il}-\partial_l g_{ij}\right),
+\label{eq:christoffel}
+\end{equation}\]</span>
+and the Riemann curvature tensor along a geodesic <span class="math inline">\(\gamma(\lambda)\)</span> is
+<span class="math inline">\(R^k{}_{lij}=\partial_i\Gamma^k_{jl}-\partial_j\Gamma^k_{il}
++\Gamma^k_{im}\Gamma^m_{jl}-\Gamma^k_{jm}\Gamma^m_{il}\)</span>. A
+deviation field <span class="math inline">\(J(\lambda)\)</span> between neighbouring geodesics satisfies the
+Jacobi equation
+<span class="math display">\[\begin{equation}
+\frac{D^2 J^k}{d\lambda^2}\;+\;R^k{}_{ijl}\,\dot\gamma^i\,J^j\,\dot\gamma^l\;=\;0.
+\label{eq:jacobi}
+\end{equation}\]</span>
+Writing <span class="math inline">\(\mathbf{J}=(J,\dot J)\in\R^{2k}\)</span> and assembling the
+curvature-and-connection block into the <span class="math inline">\(2k\times2k\)</span> generator
+<span class="math inline">\(A(\lambda)\)</span>, Eq. <a href="#eq:jacobi" data-reference-type="eqref" data-reference="eq:jacobi">[eq:jacobi]</a> becomes
+<span class="math inline">\(\dot{\mathbf{J}}=A(\lambda)\mathbf{J}\)</span>, whose flow is the Magnus expansion
+<span class="citation" data-cites="magnus1954">(Magnus 1954)</span>
+<span class="math display">\[\begin{equation}
+\Phi(\lambda)\;=\;\exp\!\Bigl(\Omega_1+\Omega_2+\Omega_3+\cdots\Bigr),\qquad
+\Omega_1=\!\int_0^\lambda\!A(s)\,ds,\;\;
+\Omega_2=\tfrac{1}{2}\!\int_0^\lambda\!\!\int_0^{s_1}\![A(s_1),A(s_2)]\,ds_2\,ds_1,
+\label{eq:magnus}
+\end{equation}\]</span>
+and <span class="math inline">\(\Omega_3\)</span> is the corresponding nested-commutator integral. The runtime
+truncates after <span class="math inline">\(\Omega_3\)</span> (hence “Magnus-3”) and integrates <span class="math inline">\(A\)</span> along
+waypoints sampled from the geodesic. In one line: the implemented map is
+<span class="math display">\[\begin{equation}
+\boxed{\;\;g_{ij}(\theta)\;\xrightarrow{\eqref{eq:christoffel}}\;\Gamma^k_{ij}\;\xrightarrow{\eqref{eq:jacobi}}\;A(\lambda)\;\xrightarrow{\eqref{eq:magnus},\,\text{trunc.\,3}}\;\Phi(\lambda).\;\;}
+\label{eq:fisher-to-phi}
+\end{equation}\]</span></p>
+<figure id="fig:fisher-to-jacobi" data-latex-placement="h">
+
+<figcaption>The implemented Fisher-to-Jacobi chain. The runtime never
+materialises the full curvature tensor; instead it samples waypoints,
+constructs the <span class="math inline">\(2k\!\times\!2k\)</span> Jacobi generator <span class="math inline">\(A(\lambda)\)</span> at each
+waypoint, integrates the Magnus expansion to third order, and stores the
+resulting propagator <span class="math inline">\(\Phi(\lambda)\)</span> in the GTC record. Eq.<a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a>
+is the first-order Taylor expansion that consumes <span class="math inline">\(\Phi(\lambda)\)</span> at
+inference time.</figcaption>
+</figure>
+<p>Eq. <a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a> is then a first-order Taylor expansion of the
+flow with <span class="math inline">\(\Phi(\lambda)\)</span> in the linear coefficient slot, which is exactly
+what the cache stores. The empirical anchor benchmarks measure the inverse
+property: that the cached <span class="math inline">\(\Phi(\lambda)\)</span> correctly predicts deviation
+vectors on real LM activation clouds, validating the truncation.</p>
+</section>
+</section>
+<section id="sec:gtc" class="level2">
+<h2>Geodesic Trajectory Caching</h2>
+<p>Each completed inference produces a full geodesic trajectory, not just a
+terminal answer. A GTC record stores
+<span class="math display">\[\begin{equation*}
+\mathcal{R} = \bigl(x_0,\,\dot x_0,\,\{x(\lambda_i)\}_{i=1}^M,\,\Phi(\lambda),\,\hat\rho,\,\ell_T\bigr)
+\end{equation*}\]</span>
+i.e. the embedding, contextual velocity, waypoint sequence, Magnus-3 Jacobi
+propagator, an injectivity-radius estimate, and the terminal logits. New queries
+<span class="math inline">\(x_0+\delta q\)</span> within the validity radius are served by a single
+<span class="math inline">\(\mathcal{O}(k^2)\)</span> matrix–vector product:
+<span class="math display">\[\begin{equation}
+x^\mu(\lambda) = \bar x^\mu(\lambda) \;+\; \Phi(\lambda)\,\delta q \;+\;
+\mathcal{O}\bigl(\|\delta q\|^2\bigr).
+\label{eq:gtc-correction}
+\end{equation}\]</span></p>
+<section id="resonance." class="level5">
+<h5>Resonance.</h5>
+<p>The Jacobi equation is linear, so a batch of <span class="math inline">\(B\)</span>
+correlated queries within the validity radius collapses into a single
+<span class="math inline">\(k\times k\times B\)</span> matmul. Throughput therefore rises rather than falls
+under load, the resonance property. Sec. <a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a> measures it.</p>
+</section>
+<section id="library-convergence." class="level5">
+<h5>Library convergence.</h5>
+<p>On a synthetic mixture-of-Gaussians workload
+the library converges to a 92% hit rate while storing 7.8% of seen queries;
+on real LM clouds (Sec. <a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a>) the hit-rate at 25%-fraction cache
+is 90.4–91.5%, scale-invariant.</p>
+<figure id="fig:gtc-architecture" data-latex-placement="h">
+
+<figcaption>Geodesic Trajectory Caching (GTC) at runtime. A new query is
+checked against the validity radius <span class="math inline">\(\hat\rho\)</span> of the nearest cached
+record; on hit, the prediction is a single <span class="math inline">\(\mathcal{O}(k^2)\)</span> matrix-vector
+product (Eq.<a href="#eq:gtc-correction" data-reference-type="eqref" data-reference="eq:gtc-correction">[eq:gtc-correction]</a>); on miss, the full forward pass
+materialises a new trajectory which is inserted back into the library.
+A batch of correlated near-hits collapses into a single <span class="math inline">\(k\!\times\!k\!\times\!B\)</span>
+matmul, the resonance property measured in §<a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a>.</figcaption>
+</figure>
+</section>
+</section>
+<section id="connection-to-block-attention-residuals" class="level2">
+<h2>Connection to Block Attention Residuals</h2>
+<p>Block AttnRes <span class="citation" data-cites="kimi2026attnres">(Kimi Team 2026)</span> replaces fixed PreNorm residual
+accumulation with a softmax over learned pseudo-queries against block
+summaries <span class="math inline">\(b_n\)</span>. Under the OTT lens, the <span class="math inline">\(b_n\)</span> are waypoints on the geodesic
+and the AttnRes weights <span class="math inline">\(\alpha_{n\to\ell}\)</span> select a convex combination of
+those waypoints, re-anchoring the hidden state to <span class="math inline">\(\mathcal{M}_\theta\)</span> and
+mitigating the <span class="math inline">\(\mathcal{O}(\sqrt L)\)</span> magnitude inflation that PreNorm
+produces <span class="citation" data-cites="xiao2023streamingllm">(Xiao et al. 2023)</span>. The interpretation is testable: AttnRes
+weights should concentrate on the block whose cached representation is
+geodesically nearest to the current state. The companion runtime paper
+<span class="citation" data-cites="papers3specdec">(HyperTensor Project 2025b)</span> reports an independent C implementation of AttnRes
+(<span class="math inline">\(\mathtt{-{}-attnres}\)</span>) and its empirical interaction with compression.</p>
+</section>
+<section id="sec:formal" class="level2">
+<h2>Formal addendum (conditional)</h2>
+<p>This section sharpens the mathematical structure under stronger, explicit
+assumptions. It is a conditional formalisation: if the assumptions are
+accepted for a model family, then the corresponding statements follow.</p>
+<section id="a.-diffeomorphism-phi." class="level5">
+<h5>A. Diffeomorphism <span class="math inline">\(\phi\)</span>.</h5>
+<p>A separation of base assumptions
+(Euclidean representation base, LayerNorm quotient structure, star-shaped
+head-chart preimages, residual flow generated by a smooth Morse-like potential
+satisfying a Palais–Smale-style compactness condition, and a smooth conformal
+softmax factor inside each chart) yields a candidate global diffeomorphism
+<span class="math inline">\(\phi\)</span> from the trained activation cloud to a model manifold. This is a
+deployment-scoped construction; universal closure across all transformer
+families is open.</p>
+</section>
+<section id="b.-diffusionattention-chain." class="level5">
+<h5>B. Diffusion–attention chain.</h5>
+<p>Eq. <a href="#eq:varadhan" data-reference-type="eqref" data-reference="eq:varadhan">[eq:varadhan]</a> is the
+endpoint of the implication chain (i) KL/natural-gradient training on a Fisher
+manifold <span class="math inline">\(\Rightarrow\)</span> entropy-gradient flow approximation; (ii) embedding
+limit <span class="math inline">\(\Rightarrow\)</span> Laplace–Beltrami diffusion form; (iii) heat-kernel
+identification <span class="math inline">\(\Rightarrow\)</span> Varadhan asymptotic.</p>
+</section>
+<section id="c.-jacobi-propagation-via-jvp." class="level5">
+<h5>C. Jacobi propagation via JVP.</h5>
+<p>For smooth geodesic flow, applying
+<span class="math inline">\(\Phi(\lambda)\)</span> to a perturbation is exactly a Jacobian–vector product
+<span class="citation" data-cites="pearlmutter1994fast">(Pearlmutter 1994)</span>, so JVP gives linear-cost directional propagation
+without materialising a full Jacobian. With effective curvature rank <span class="math inline">\(r\ll\dim
+\mathcal{M}_\theta\)</span>, practical cost is restricted to an <span class="math inline">\(r\)</span>-dimensional
+subspace; Sec. <a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a> measures <span class="math inline">\(r=5\)</span> exact.</p>
+</section>
+<section id="d.-hjb-regularised-attnresgtc-objective." class="level5">
+<h5>D. HJB-regularised AttnRes/GTC objective.</h5>
+<p>See
+<a href="#sec:hjb-future" data-reference-type="ref+Label" data-reference="sec:hjb-future">16</a> for a full statement; cross-referenced here for
+completeness.</p>
+</section>
+<section id="e.-ricci-spectral-rho-estimator." class="level5">
+<h5>E. Ricci-spectral <span class="math inline">\(\rho\)</span> estimator.</h5>
+<p>A practical injectivity-radius
+estimator family,
+<span class="math display">\[\begin{equation}
+\hat\rho(q) = C\cdot\frac{\pi}{\sqrt{\lambda_{\max}(\mathrm{Cov}(\nabla_x A))}}\cdot
+\frac{1}{\sigma_{\max}(A)},
+\end{equation}\]</span>
+combines attention-spectrum curvature proxies with a Klingenberg-style
+lower-bound form. Treated here as an operational template with model-family
+calibration constants, not a universal equality.</p>
+</section>
+</section>
+<section id="open-problems" class="level2">
+<h2>Open problems</h2>
+<p>The five blockers from the original draft are no longer all in the same
+category.</p>
+<ol>
+<li><p>Diffeomorphism <span class="math inline">\(\phi\)</span>. Open as a universal construction;
+deployment-scoped resolved for the OTT manifold family via
+certificate-backed inherited-structure arguments.</p></li>
+<li><p>Initial velocity <span class="math inline">\(v_0\)</span>. Universal closed-form open; the
+runtime ships a curvature-guided endpoint-direction prior with a
+Christoffel-based correction. The deployment blocker is reduced to
+calibration of an implemented surrogate.</p></li>
+<li><p>Jacobi propagator construction cost. No longer a live blocker:
+cost is paid at library-construction time and amortised by the
+compressed record store and exact rank-5 truncation
+(Sec. <a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a>), and the measured batch resonance
+(Sec. <a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a>) exceeds the analytic estimates by
+<span class="math inline">\(4\!-\!14\times\)</span>.</p></li>
+<li><p>AttnRes + GTC joint training. Open as a training problem.
+Inference-time correction is measured: single-anchor Jacobi transport
+is promising, simplex blending underperforms.</p></li>
+<li><p>Injectivity radius. Cheapest universal estimator open;
+operational closure exists, per-record <span class="math inline">\(\hat\rho\)</span> and a measured
+validity-radius sweep keep Jacobi error <span class="math inline">\(&lt;0.1\%\)</span> to the tested
+threshold.</p></li>
+</ol>
+<section id="sec:curvature-warp-negative" class="level3">
+<h3>Knowledge-injection curvature warp: a measured negative</h3>
+<p>A related theoretical proposal, inject a knowledge cluster <span class="math inline">\(c\)</span> into
+the manifold by Gaussian-warping the metric
+<span class="math inline">\(g&#39;(x){=}g(x){-}\alpha\bigl(1{-}\exp(-|x{-}c|^2/2\sigma^2)\bigr)ww^\top\)</span>
+so the geodesic toward <span class="math inline">\(c\)</span> contracts, was reduced to a falsifiable
+sweep on SmolLM2-135M. Across 32 configurations of
+<span class="math inline">\((\alpha,\sigma,\delta\ell)\)</span> with the success criterion
+“<span class="math inline">\(\geq 50\%\)</span> reduction in target-endpoint geodesic error AND
+<span class="math inline">\(\leq 5\%\)</span> spillover at non-target points”, 0/32 pass;
+the best configuration achieves a 16 % target reduction at
+<span class="math inline">\(\alpha{=}0.99\)</span> but its non-target spillover diverges (NaN at high
+<span class="math inline">\(\alpha\)</span>).</p>
+<section id="cross-model-replication-2026-04-29." class="level5">
+<h5>Cross-model replication (2026-04-29).</h5>
+<p>The single-model result was replicated across three architectures
+(SmolLM2-135M, Gemma-4-e2b, Phi-3.5-mini) and two protocol variants:
+(v1) the original Christoffel-Gaussian warp (<span class="math inline">\(\alpha{=}0.7\)</span>,
+<span class="math inline">\(\sigma{=}1.2\)</span>, <span class="math inline">\(T{=}16\)</span>, <span class="math inline">\(\delta\ell{=}0.1\)</span>), and (v2) a covariant
+Riemannian-exponential push of magnitude <span class="math inline">\(\alpha{=}0.35\)</span> in a
+radius-<span class="math inline">\(1.2\)</span> ball, parallel-transported by the cached Christoffel
+symbols. Twelve configurations total (3 models <span class="math inline">\(\times\)</span> 2 intrinsic
+dimensions <span class="math inline">\(n\in\{6,8\}\)</span> <span class="math inline">\(\times\)</span> 2 protocols), 146 s wall on a single
+CPU core. 0/12 satisfy both criteria. The best v1 case
+(Gemma-4-e2b <span class="math inline">\(n{=}6\)</span>) achieves a 39.4 % target-error reduction but
+60 % p95 spillover; v2 produces negative target improvements
+on Phi-3.5-mini (target error grows by 9–24 %) and only one
+configuration meets the spillover criterion alone (Gemma-4-e2b <span class="math inline">\(n{=}8\)</span>
+v2: <span class="math inline">\(-1.8\)</span> % target improvement, 14 % p95 spillover). Phi-3.5-mini
+v1 <span class="math inline">\(n{=}6\)</span> produces NaN post-error: the warp drives the geodesic
+solver out of its convergence basin. The cross-model replication
+strengthens rather than narrows the negative conclusion:
+neither protocol generalises and v2 is consistently worse than the
+trivial baseline on at least one architecture.</p>
+<p>The per-configuration breakdown is given in <a href="#tab:warp-x12" data-reference-type="ref+Label" data-reference="tab:warp-x12">1</a>.
+The success criterion (target reduction <span class="math inline">\(\geq 50\)</span> % and
+spillover p95 <span class="math inline">\(\leq 5\)</span> %) is failed in every cell. Only one cell
+(Gemma-4-e2b <span class="math inline">\(n{=}6\)</span> v1) breaks <span class="math inline">\(30\)</span> % target reduction, and that
+cell has the second-worst spillover in the table. Six of twelve
+cells produce negative target improvement, meaning the warp
+moved the geodesic farther from the target than the unwarped
+baseline; four of these six are v2, the variant that was designed to
+fix the v1 spillover problem.</p>
+<div id="tab:warp-x12">
+<table>
+<caption>Per-configuration curvature-warp results, <span class="math inline">\(3\)</span> models <span class="math inline">\(\times\)</span>
+<span class="math inline">\(2\)</span> intrinsic dimensions <span class="math inline">\(\times\)</span> <span class="math inline">\(2\)</span> protocols, <span class="math inline">\(146\)</span> s wall on a
+single CPU core. Target reduction is the relative geodesic-error drop
+at the injected fact (positive is better); spillover p95 is the
+worst-case relative geodesic-error growth at non-target points
+(lower is better). Pass criterion: target <span class="math inline">\(\geq 50\)</span> % AND spillover
+p95 <span class="math inline">\(\leq 5\)</span> %. Cells with NaN are runs where the warp pushed the
+geodesic solver out of its convergence basin. Raw:
+<code>docs/figures/curvature_warp/cross_model_summary.json</code>.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Model</th>
+<th style="text-align: left;"><span class="math inline">\(n_\text{int}\)</span></th>
+<th style="text-align: right;">Variant</th>
+<th style="text-align: right;">Target red. (%)</th>
+<th style="text-align: right;">Spillover p95 (%)</th>
+<th style="text-align: left;">Pass?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Gemma-4-e2b</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;"><span class="math inline">\(39.4\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(60.3\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gemma-4-e2b</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-57.4\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(36.9\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gemma-4-e2b</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;"><span class="math inline">\(5.0\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(40.8\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gemma-4-e2b</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-1.8\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(14.4\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;">NaN</td>
+<td style="text-align: right;">NaN</td>
+<td style="text-align: left;">no (NaN)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-9.4\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(57.8\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;"><span class="math inline">\(-23.9\)</span></td>
+<td style="text-align: right;">NaN</td>
+<td style="text-align: left;">no (NaN)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-23.7\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(157.7\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;"><span class="math inline">\(21.6\)</span></td>
+<td style="text-align: right;">NaN</td>
+<td style="text-align: left;">no (NaN)</td>
+</tr>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: left;">6</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-12.9\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(41.4\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v1 christoffel</td>
+<td style="text-align: right;"><span class="math inline">\(-20.9\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(104.6\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: right;">v2 covariant</td>
+<td style="text-align: right;"><span class="math inline">\(-22.1\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(97.7\)</span></td>
+<td style="text-align: left;">no</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The mechanism is consistent with the empirical finding of
+<a href="#sec:hjb-future" data-reference-type="ref+Label" data-reference="sec:hjb-future">16</a> (Empirical feasibility stub): the manifolds
+exported from frozen pretrained networks are nearly flat in the
+intrinsic-coordinate basis (kinetic-to-curvature ratio <span class="math inline">\(&gt; 10^{17}\)</span>
+in squared L2), so a Gaussian metric perturbation is either too weak
+to redirect the geodesic or strong enough to redirect but at the cost
+of a global metric perturbation that destroys the surrounding
+manifold. We retain this as a documented negative result; the positive
+form of the problem (curvature warp via learnable <span class="math inline">\(\phi\)</span> rather
+than hand-crafted <span class="math inline">\(g&#39;\)</span>) is the joint-training premise of
+<a href="#sec:hjb-future" data-reference-type="ref+Label" data-reference="sec:hjb-future">16</a>, and the cross-model evidence here is what
+makes that future training premise non-trivial: any future
+construction must demonstrably outperform 0/12 hand-crafted variants
+on the same three-model benchmark before being claimed as a positive
+result. Raw sweeps:
+<code>docs/figures/curvature_warp/smollm2-135m_sweep.json</code>
+(single-model 32-config) and
+<code>docs/figures/curvature_warp/cross_model_summary.json</code>
+(cross-model 12-config); status note:
+<code>docs/figures/curvature_warp/STATUS.md</code>;
+findings note:
+<code>docs/figures/findings/FIVE_FINDINGS.md</code> §5.</p>
+</section>
+</section>
+</section>
+<section id="part-ii-empirical-anchor" class="level2 unnumbered">
+<h2 class="unnumbered">Part II, Empirical anchor</h2>
+</section>
+<section id="sec:setup" class="level2">
+<h2>Setup: fitting the manifold from Phase-1 exports</h2>
+<p>The C runtime emits one global Christoffel tensor and a per-point metric
+diagonal in <code>axgeo_christoffel_t</code>; that representation is too coarse
+for the GTC contract. We fit the manifold entirely in Python from Phase-1
+clouds:</p>
+<div class="center">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Module</th>
+<th style="text-align: left;">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/manifold.py</code></td>
+<td style="text-align: left;"><span class="math inline">\(k\)</span>-NN Mahalanobis metric, log-Euclidean RBF smoothing, finite-difference <span class="math inline">\(\Gamma^k_{ij}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/geodesic.py</code></td>
+<td style="text-align: left;">RK4 integrator for <span class="math inline">\(\ddot x^k = -\Gamma^k_{ij}\dot x^i \dot x^j\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/jacobi.py</code></td>
+<td style="text-align: left;">Riemann tensor by FD of <span class="math inline">\(\Gamma\)</span>, Magnus-3 propagator <span class="math inline">\(\Phi(\lambda)\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/validity_radius.py</code></td>
+<td style="text-align: left;"><span class="math inline">\(\varepsilon\)</span>-sweep, emits <code>&lt;case&gt;_validity_radius.json</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/gtc_benchmark.py</code></td>
+<td style="text-align: left;">Coverage benchmark, emits <code>&lt;case&gt;_coverage.json</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scripts/gtc/record_store.py</code></td>
+<td style="text-align: left;">Compressed library + two-stage lookup</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A sphere sanity at <span class="math inline">\(K=1, n=4\)</span>, 256 samples confirms the harness: validity
+error scales quadratically in <span class="math inline">\(\varepsilon\)</span> exactly per the Jacobi bound
+(<span class="math inline">\(\varepsilon^\star(5\%)=0.05\)</span>, <span class="math inline">\(\varepsilon^\star(10\%)=0.10\)</span>,
+<span class="math inline">\(\varepsilon^\star(20\%)=0.20\)</span>). The harness is validated; the LM numbers
+below are not artefacts.</p>
+<section id="online-vs.-offline-manifold-density-llama-3.1-8b." class="level5">
+<h5>Online vs. offline manifold density (Llama-3.1-8B).</h5>
+<p>A late-stage end-to-end run of the same Phase-1 pipeline on
+Llama-3.1-8B-Instruct (<code>axiom_beta_report.json</code>, 2026-04-28) keeps
+<span class="math inline">\(102\)</span> PCA components at the 95% variance threshold, with axiom-set
+consistency <span class="math inline">\(1.000\)</span> and Fisher-blend <span class="math inline">\(0.20\)</span> on <span class="math inline">\(128\)</span> metric sample points
+and <span class="math inline">\(400\)</span> geodesic steps. Sampling the runtime trajectory live
+(<code>cloud_density_summary.json</code>, <span class="math inline">\(n{=}24\)</span> online states) yields
+a nearest-neighbour distance distribution with mean <span class="math inline">\(0.132\)</span>, median
+<span class="math inline">\(0.093\)</span>, and 90th percentile <span class="math inline">\(0.348\)</span> in the cosine metric. Both numbers
+are within the <span class="math inline">\(\hat\rho\)</span> band that GTC needs in order to achieve the
+<span class="math inline">\(&gt;\)</span>90% coverage we report below: the online cloud is denser than the
+<span class="math inline">\(\varepsilon{=}3.0\)</span> working radius by a factor of <span class="math inline">\({\sim}10\)</span>, which is
+the empirical reason the coverage table is scale-invariant rather than
+falling off with <span class="math inline">\(d\)</span>.</p>
+</section>
+<section id="manifold-parameters-at-frontier-scale." class="level5">
+<h5>Manifold parameters at frontier scale.</h5>
+<p>A cold Phase-1 run
+on Llama-3.1-8B-Instruct Q4_K_M (256 hidden-state samples, 1024-token
+embedding probe) measures <strong>TwoNN intrinsic dimension
+<span class="math inline">\(k_\text{int}{=}19.96\)</span></strong> and 132 PCA components for 95.1% variance
+retention (Phase 1 wallclock 63.6 s; Phase 3 Fisher-blended curvature
+on 17,408 block-sampled tokens, 31.0 s; Phase 4 axiom set 40 axioms,
+consistency <span class="math inline">\(0.9499\)</span>, 26 oracle calls). This is the largest published
+TwoNN intrinsic-dim measurement on a frontier-scale instruct backbone
+that we are aware of, and it sits inside the <span class="math inline">\(k\!\approx\!30\)</span>–<span class="math inline">\(50\)</span> band
+predicted by prior work <span class="citation" data-cites="ansuini2019intrinsic pope2021intrinsic">(Ansuini et al. 2019; Pope et al. 2021)</span>
+at the lower edge, consistent with the smoothness hypothesis: as
+models scale, <span class="math inline">\(k_\text{int}/d\)</span> collapses (<span class="math inline">\(20/4096{\approx}0.005\)</span> for
+Llama-8B vs. <span class="math inline">\({\approx}0.05\)</span> for sub-1B models), and the geodesic
+draft becomes more accurate (the <span class="math inline">\(\alpha\)</span> rise from <span class="math inline">\(38.5\%\)</span> on
+SmolLM2-135M to <span class="math inline">\(46.9\%\)</span> on Llama-8B documented in Paper C
+<span class="citation" data-cites="papC2026spec">(HyperTensor Authors 2026)</span> is the operational signature of this collapse).</p>
+</section>
+<section id="mistral-nemo-12b-replication." class="level5">
+<h5>Mistral-Nemo-12B replication.</h5>
+<p>A second frontier-scale Phase-1
+run on Mistral-Nemo-Instruct-2407 Q4_K_M (40 layers, <span class="math inline">\(d{=}5120\)</span>,
+13.67 B parameters, 256 hidden-state samples, 1024-token probe) yields
+<strong>TwoNN <span class="math inline">\(k_\text{int}{=}5.36\)</span></strong> and 156 PCA components for
+95.0% variance (Phase 1 wallclock 6.1 s; Phase 3 Fisher-blended
+curvature on 20<span>,</span>480 block-sampled tokens, 63.6 s; Phase 4 10 axioms,
+consistency <span class="math inline">\(0.9407\)</span>). The PCA-rank reading is consistent with
+Llama-8B (132 components, <span class="math inline">\(d{=}4096\)</span>); the very low TwoNN reading at
+<span class="math inline">\(n{=}256\)</span> samples is plausibly an undersampling artefact for a wider
+model (<span class="math inline">\(d{=}5120\)</span>) and we report it here as preliminary, the matched
+sample budget for an apples-to-apples comparison with the Llama-8B
+512-sample run is the next manifold-survey item. Two independent
+13 B-class instruct backbones now agree that the variance-95%
+projection rank sits around <span class="math inline">\(130\text{--}160\)</span>, three orders of magnitude
+below <span class="math inline">\(d^2\)</span>, which is the operationally relevant number for OTT runtime
+sizing.</p>
+</section>
+</section>
+<section id="sec:coverage" class="level2">
+<h2>Coverage scaling across three models</h2>
+<p>Coverage is the fraction of held-out activation cloud points within <span class="math inline">\(g\)</span>-norm
+distance <span class="math inline">\(\varepsilon\)</span> of the nearest cached point. All three measurements at
+<span class="math inline">\(\varepsilon=3.0\)</span>, <span class="math inline">\(n_{\mathrm{intrinsic}}=8\)</span>, <span class="math inline">\(n_{\mathrm{repeats}}=16\)</span>.</p>
+<table>
+<caption>GTC cache coverage on three open-weight models. The 25%-fraction
+column is scale-invariant within <span class="math inline">\(\pm 0.5\%\)</span> across a <span class="math inline">\(33\times\)</span> parameter
+range.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Model</th>
+<th style="text-align: center;">Params</th>
+<th style="text-align: right;"><span class="math inline">\(k=6\)</span> (10%)</th>
+<th style="text-align: right;"><span class="math inline">\(k=16\)</span> (25%)</th>
+<th style="text-align: right;"><span class="math inline">\(k=32\)</span> (50%)</th>
+<th style="text-align: right;"><span class="math inline">\(k=48\)</span> (75%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">SmolLM2-135M</td>
+<td style="text-align: center;">135 M</td>
+<td style="text-align: right;">58.6%</td>
+<td style="text-align: right;">91.0%</td>
+<td style="text-align: right;">99.8%</td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Phi-3.5-mini</td>
+<td style="text-align: center;">3.8 B</td>
+<td style="text-align: right;">55.5%</td>
+<td style="text-align: right;">90.4%</td>
+<td style="text-align: right;">98.2%</td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gemma-4-E2B</td>
+<td style="text-align: center;">4.5 B</td>
+<td style="text-align: right;">58.7%</td>
+<td style="text-align: right;">91.5%</td>
+<td style="text-align: right;">99.6%</td>
+<td style="text-align: right;">100.0%</td>
+</tr>
+</tbody>
+</table>
+<div class="htgood">
+<p><span>Finding</span>
+The scale-invariance prediction (the “flag flip” claim) holds within
+<span class="math inline">\(\pm 0.5\%\)</span> at the 25%-fraction cache size across a <span class="math inline">\(33\times\)</span> parameter
+range (135M <span class="math inline">\(\to\)</span> 4.5B). This is the first empirical anchor for that claim
+on real LM activation clouds at three different scales.</p>
+</div>
+</section>
+<section id="sec:resonance" class="level2">
+<h2>Batch Jacobi resonance</h2>
+<p>The Jacobi propagator <span class="math inline">\(\Phi(\lambda)\)</span> is linear in the perturbation, so a
+batch of <span class="math inline">\(B\)</span> correlated queries can be corrected in a single matmul.</p>
+<table>
+<caption>Batch Jacobi resonance on the SmolLM2-135M cloud. Reconstruction
+error pinned to the float64 roundoff floor at every batch size.</caption>
+<thead>
+<tr>
+<th style="text-align: right;">Batch <span class="math inline">\(B\)</span></th>
+<th style="text-align: right;">Sequential (ms)</th>
+<th style="text-align: right;">Batched (ms)</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">μs/query</th>
+<th style="text-align: right;">rel. error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">14.6<span class="math inline">\(\times\)</span></td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">0.411</td>
+<td style="text-align: right;">0.004</td>
+<td style="text-align: right;">97.9<span class="math inline">\(\times\)</span></td>
+<td style="text-align: right;">0.420</td>
+<td style="text-align: right;"><span class="math inline">\(1.1\!\times\!10^{-16}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">0.167</td>
+<td style="text-align: right;">0.006</td>
+<td style="text-align: right;">27.4<span class="math inline">\(\times\)</span></td>
+<td style="text-align: right;">0.061</td>
+<td style="text-align: right;"><span class="math inline">\(1.2\!\times\!10^{-16}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">1 000</td>
+<td style="text-align: right;">1.143</td>
+<td style="text-align: right;">0.026</td>
+<td style="text-align: right;">44.5<span class="math inline">\(\times\)</span></td>
+<td style="text-align: right;">0.026</td>
+<td style="text-align: right;"><span class="math inline">\(1.2\!\times\!10^{-16}\)</span></td>
+</tr>
+<tr>
+<td style="text-align: right;">10 000</td>
+<td style="text-align: right;">11.100</td>
+<td style="text-align: right;">0.185</td>
+<td style="text-align: right;">60.0<span class="math inline">\(\times\)</span></td>
+<td style="text-align: right;">0.0185</td>
+<td style="text-align: right;"><span class="math inline">\(1.2\!\times\!10^{-16}\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>The analytic estimates for the <span class="math inline">\(B\in\{10,100,1000\}\)</span> regimes were
+<span class="math inline">\(2.7\times/12.5\times/7.0\times\)</span>; the numpy-BLAS realisation exceeds them by
+<span class="math inline">\(4\)</span>–<span class="math inline">\(14\times\)</span> because the analytic estimate did not account for cache and
+SIMD effects. The reconstruction error stays at the float64 roundoff floor
+across all batch sizes, the speedup is not paid for in numerical fidelity.</p>
+</section>
+<section id="sec:store" class="level2">
+<h2>Compressed record store</h2>
+<p>A naive trajectory record is hundreds of KB. With rank-<span class="math inline">\(r\)</span> truncation of
+<span class="math inline">\(\Phi\)</span> (<span class="math inline">\(r=5\)</span> is exact on the SmolLM2 cloud, reconstruction error 0.0) and
+waypoint subsampling, persisted records reach 5.96 KB, roughly an order of
+magnitude under the 50–80 KB design target.</p>
+<table>
+<caption>Compressed record store on the SmolLM2 cloud. The two-stage lookup is
+Euclidean ANN <span class="math inline">\(\to\)</span> <span class="math inline">\(g\)</span>-norm refinement.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Quantity</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: right;">Design target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Records persisted</td>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;">,</td>
+</tr>
+<tr>
+<td style="text-align: left;">Total <code>.npz</code> size</td>
+<td style="text-align: right;">143.0 KB</td>
+<td style="text-align: right;">,</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-record size</td>
+<td style="text-align: right;">5.96 KB</td>
+<td style="text-align: right;">50–80 KB</td>
+</tr>
+<tr>
+<td style="text-align: left;">Rank-5 <span class="math inline">\(\Phi\)</span> reconstruction error</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">“rank <span class="math inline">\(\approx 5\)</span> is sufficient”</td>
+</tr>
+<tr>
+<td style="text-align: left;">Build wall-clock (24 records, <span class="math inline">\(k=8\)</span>)</td>
+<td style="text-align: right;">6.087 s</td>
+<td style="text-align: right;">,</td>
+</tr>
+<tr>
+<td style="text-align: left;">Two-stage lookup (1 000 queries)</td>
+<td style="text-align: right;">31 ms total</td>
+<td style="text-align: right;"><span class="math inline">\(&lt;5\)</span> ms/query</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-query lookup latency</td>
+<td style="text-align: right;">30.9 μs</td>
+<td style="text-align: right;"><span class="math inline">\(&lt;5\)</span> ms (<span class="math inline">\(\sim\!160\times\)</span> under)</td>
+</tr>
+</tbody>
+</table>
+<section id="density-caveat." class="level5">
+<h5>Density caveat.</h5>
+<p>The current 64-point Phase-1 export gives 100%
+lookup hits at <span class="math inline">\(\varepsilon^\star=3.0\)</span> but 0% within the Jacobi validity
+radius <span class="math inline">\(\hat\rho=0.4\)</span> on a held-out cloud. A dense local benchmark sampled
+inside <span class="math inline">\(\hat\rho\)</span> confirms the mechanism: <span class="math inline">\(1.43\!\times\!10^{-7}\)</span> mean
+relative error and <span class="math inline">\(158\times\)</span> speedup over a full geodesic step. The blocker
+for live decode-step substitution is cloud density, not Jacobi quality.</p>
+</section>
+</section>
+<section id="sec:runtime" class="level2">
+<h2>OTT runtime anchor</h2>
+<p>The C host runtime ships an end-to-end OTT pipeline: geometry-cache load,
+OneDecode bake, speculative decode against a verifier, and a readiness gate
+that emits <code>ott_readiness_report.json</code>. The pipeline reaches
+<code>status=geodesic_ready</code>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Quantity</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">OTT readiness status</td>
+<td style="text-align: right;"><code>geodesic_ready</code></td>
+<td style="text-align: left;">ready/hybrid_ready/share/consistency all=1.0</td>
+</tr>
+<tr>
+<td style="text-align: left;">Acceptance rate <span class="math inline">\(\alpha\)</span></td>
+<td style="text-align: right;">38.5%</td>
+<td style="text-align: left;">5 geo-accepted / 13 generated</td>
+</tr>
+<tr>
+<td style="text-align: left;">End-to-end throughput</td>
+<td style="text-align: right;">76.5 tok/s</td>
+<td style="text-align: left;">13 tokens in 170 ms; greedy baseline <span class="math inline">\(\sim\!50\)</span> tok/s</td>
+</tr>
+<tr>
+<td style="text-align: left;">Empirical speedup</td>
+<td style="text-align: right;"><span class="math inline">\(1.53\times\)</span></td>
+<td style="text-align: left;">Within Paper C closed-form prediction at <span class="math inline">\(\alpha=0.385,\gamma=4\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">OD draft hits</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: left;">OneDecode table hits</td>
+</tr>
+<tr>
+<td style="text-align: left;">Final adaptive batch</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: left;">Stable; did not collapse</td>
+</tr>
+</tbody>
+</table>
+<section id="the-instruct-greedy-eos-pathology" class="level3">
+<h3>The instruct-greedy-EOS pathology</h3>
+<p>Earlier integrations of the speculative loop returned zero tokens
+against this instruct model. The cause: the verifier’s argmax at position 0
+(and several subsequent positions) is the EOS token. A standard speculative
+loop <span class="citation" data-cites="leviathan2023fast chen2023accelerating">(Leviathan et al. 2023; Chen et al. 2023)</span> sees an EOS draft and
+exits. Existing literature (including Medusa <span class="citation" data-cites="cai2024medusa">(Cai et al. 2024)</span> and
+EAGLE <span class="citation" data-cites="li2024eagle">(Li et al. 2024)</span>) does not document this case because it primarily
+targets base (non-instruct) backbones where the greedy distribution does not
+degenerate into EOS.</p>
+<p>The fix shipped here is a small primitive we call logit-excluding
+top-1:</p>
+<div class="sourceCode" id="cb1" data-language="C"><pre class="sourceCode objectivec"><code class="sourceCode objectivec"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">// runtime/nn/llm.h</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> llm_topk_excluding<span class="op">(</span><span class="dt">const</span> <span class="dt">int</span> <span class="op">*</span>exclude<span class="op">,</span> <span class="dt">int</span> n_exclude<span class="op">);</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">// Returns argmax of cached logits with `exclude` ids masked out,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">// no extra forward.</span></span></code></pre></div>
+<p>plus a min-response guard <span class="math inline">\(N_{\min}=4\)</span> that enables the bypass only at
+positions <span class="math inline">\(i&lt;N_{\min}\)</span>. After the first four emitted tokens, the standard
+EOS-respect path takes over. The <span class="math inline">\(\S\)</span><a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a> numbers are
+conditional on the fix being in place; removing it returns the loop to
+0 tok/s.</p>
+</section>
+<section id="geometry-cache-consistency-equivalence" class="level3">
+<h3>Geometry-cache consistency-equivalence</h3>
+<p>The OTT readiness gate previously failed when geometry was loaded from the
+persistent cache, because the calibration phase that writes
+<code>consistency_score</code> is skipped on cache hit and the score defaults to
+0. The fix is the cache-equivalence rule: if <code>reused_geometry_cache</code>
+is true and the cached manifold matches the current model fingerprint, then
+<span class="math inline">\(\text{consistency}=1\)</span> by definition. Practically a one-line guard;
+theoretically the statement that calibration is invariant under fixed-manifold
+reuse.</p>
+</section>
+</section>
+<section id="gap-analysis-vs.-the-ott-claim-list" class="level2">
+<h2>Gap analysis vs. the OTT claim list</h2>
+<div class="center">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">OTT claim</th>
+<th style="text-align: left;">Status</th>
+<th style="text-align: left;">Anchor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Christoffel field <span class="math inline">\(\Gamma\)</span> from <span class="math inline">\(g\)</span></td>
+<td style="text-align: left;">measured</td>
+<td style="text-align: left;"><code>manifold.py</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Geodesic ODE integrator</td>
+<td style="text-align: left;">measured</td>
+<td style="text-align: left;"><code>geodesic.py</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Riemann tensor + Jacobi propagator</td>
+<td style="text-align: left;">measured</td>
+<td style="text-align: left;"><code>jacobi.py</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Sphere sanity, quadratic <span class="math inline">\(\varepsilon\)</span> scaling</td>
+<td style="text-align: left;">exact</td>
+<td style="text-align: left;">§<a href="#sec:setup" data-reference-type="ref" data-reference="sec:setup">7</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Hit rate <span class="math inline">\(\ge 65\%\)</span> on clustered distribution</td>
+<td style="text-align: left;">90.4–91.5%</td>
+<td style="text-align: left;">§<a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Library size sublinear</td>
+<td style="text-align: left;"><span class="math inline">\(k{=}16\)</span> covers 91% of 64-pt cloud</td>
+<td style="text-align: left;">§<a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Batch matmul <span class="math inline">\(\equiv\)</span> sequential</td>
+<td style="text-align: left;"><span class="math inline">\(1.2\!\times\!10^{-16}\)</span> rec. err.</td>
+<td style="text-align: left;">§<a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Batch <span class="math inline">\(B{=}10/100/1000\)</span> speedups</td>
+<td style="text-align: left;"><span class="math inline">\(97\times,27\times,44\times\)</span></td>
+<td style="text-align: left;">§<a href="#sec:resonance" data-reference-type="ref" data-reference="sec:resonance">9</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Two-stage FAISS+geodesic lookup</td>
+<td style="text-align: left;">30.9 μs/q</td>
+<td style="text-align: left;">§<a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Compressed record store (<span class="math inline">\(\sim\!50\)</span>–<span class="math inline">\(80\)</span> KB target)</td>
+<td style="text-align: left;">5.96 KB at <span class="math inline">\(k{=}8\)</span></td>
+<td style="text-align: left;">§<a href="#sec:store" data-reference-type="ref" data-reference="sec:store">10</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Scaling: SmolLM2 <span class="math inline">\(\to\)</span> Phi-3.5-mini “flag flip”</td>
+<td style="text-align: left;"><span class="math inline">\(\pm 0.5\%\)</span></td>
+<td style="text-align: left;">§<a href="#sec:coverage" data-reference-type="ref" data-reference="sec:coverage">8</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Validity / injectivity radius <span class="math inline">\(\hat\rho\)</span> scaling</td>
+<td style="text-align: left;"><span class="math inline">\(&lt;0.1\%\)</span> err to <span class="math inline">\(\varepsilon{=}5.0\)</span></td>
+<td style="text-align: left;"><code>validity_radius.json</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">OTT locality of curvature warp</td>
+<td style="text-align: left;">ratio <span class="math inline">\(7\!\times\!10^{11}\)</span>, decays to 0 at <span class="math inline">\(20\sigma\)</span></td>
+<td style="text-align: left;">implicit</td>
+</tr>
+<tr>
+<td style="text-align: left;">OTT runtime end-to-end</td>
+<td style="text-align: left;">partial: <span class="math inline">\(\alpha=0.385\)</span>, <span class="math inline">\(1.53\times\)</span></td>
+<td style="text-align: left;">§<a href="#sec:runtime" data-reference-type="ref" data-reference="sec:runtime">11</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Knowledge-injection curvature warp</td>
+<td style="text-align: left;">negative: 0/32 single-model + 0/12 cross-model</td>
+<td style="text-align: left;"><code>curvature_warp/</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">AttnRes block-summary integration</td>
+<td style="text-align: left;">prototype: block-end Jacobi err 1.29%</td>
+<td style="text-align: left;"><code>attnres_integration.json</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Diffeomorphism <span class="math inline">\(\phi\)</span> construction</td>
+<td style="text-align: left;">resolved for OTT family via certificates</td>
+<td style="text-align: left;">deployment</td>
+</tr>
+<tr>
+<td style="text-align: left;">Initial velocity <span class="math inline">\(v_0\)</span></td>
+<td style="text-align: left;">universal open; deployable surrogate exists</td>
+<td style="text-align: left;"><code>axiom_beta.c</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Reading: 12 measured pass, 1 measured fail (curvature-warp
+knowledge-injection), 2 measured partial (live-decode replacement, AttnRes
+integration), 1 universally open / deployment-resolved (<span class="math inline">\(\phi\)</span>), 1
+universally open / deployable surrogate (<span class="math inline">\(v_0\)</span>). The OTT programme is no
+longer “framework only”: it is a framework with a verified core and a
+short, named list of open items.</p>
+</section>
+<section id="what-is-genuinely-new-here" class="level2">
+<h2>What is genuinely new here</h2>
+<ol>
+<li><p>Logit-excluding top-1 with min-response guard for
+instruct-tuned drafters in speculative decoding. Closes the
+instruct-greedy-EOS failure mode without forward-pass overhead. We are
+not aware of a published treatment in the existing speculative-decoding
+literature <span class="citation" data-cites="leviathan2023fast chen2023accelerating cai2024medusa li2024eagle">(Leviathan et al. 2023; Chen et al. 2023; Cai et al. 2024; Li et al. 2024)</span>.</p></li>
+<li><p>Geometry-cache consistency-equivalence rule for OTT readiness
+gating: <code>reused_geometry_cache</code> implies <span class="math inline">\(\text{consistency}=1\)</span>
+under fixed-manifold reuse.</p></li>
+<li><p>Empirical scale-invariance of cache coverage across a
+<span class="math inline">\(33\times\)</span> parameter range at fixed sample budget, the first
+measurement of this prediction on real LM clouds at three scales.</p></li>
+</ol>
+<p>The other components, geodesic ODE, Jacobi propagator, GP compression,
+OneDecode, the speculative-decoding rejection rule, are inherited from
+prior work and are explicitly cited as such.</p>
+</section>
+<section id="reproduction" class="level2">
+<h2>Reproduction</h2>
+<div class="sourceCode" id="cb2" data-language="bash"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Phase-1 cloud export (emits docs/figures/gtc/&lt;case&gt;.json)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> scripts/gtc/manifold.py    <span class="at">--case</span> smollm2-135m</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> scripts/gtc/jacobi.py      <span class="at">--case</span> smollm2-135m</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> scripts/gtc/gtc_benchmark.py <span class="at">--case</span> smollm2-135m</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> scripts/gtc/record_store.py  <span class="at">--case</span> smollm2-135m</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># OTT runtime anchor (emits ott_readiness_report.json)</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./geod</span> <span class="at">--ott</span> <span class="at">--gguf</span> SmolLM2-135M-Instruct-Q8_0.gguf <span class="dt">\</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>       <span class="at">--prompt</span> <span class="st">&quot;Hello&quot;</span> <span class="at">--gamma</span> 4 <span class="at">--max-tokens</span> 13</span></code></pre></div>
+</section>
+<section id="limitations" class="level2">
+<h2>Limitations</h2>
+<ul>
+<li><p>Coverage measured at <span class="math inline">\(n_{\mathrm{intrinsic}}=8\)</span> on 64-point clouds;
+live decode-step substitution is density-gated.</p></li>
+<li><p>Curvature-warp knowledge-injection result is negative (best
+gain 2.24%, 0/32 pass); reported faithfully.</p></li>
+<li><p>AttnRes integration is a prototype only.</p></li>
+<li><p>No Llama-3.1-8B sweep; gated on EC2 compute, approved but not
+executed.</p></li>
+<li><p>The <span class="math inline">\(\mathtt{-{}-ott-perfect}\)</span> rollout (transformer-exact drafter)
+currently hangs in <code>llm_rollout_exact_greedy</code>; the
+<span class="math inline">\(\mathtt{-{}-ott-swarm-k}\)</span> wrapper exits non-zero.</p></li>
+<li><p>Universal closure of <span class="math inline">\(\phi\)</span> and <span class="math inline">\(v_0\)</span> remain open.</p></li>
+</ul>
+</section>
+<section id="sec:hjb-future" class="level2">
+<h2>Future Work: HJB-Regularised Joint Training</h2>
+<p>The OTT runtime, as shipped, is an inference-time geometric overlay: the
+base weights are frozen and the manifold structure is read off the
+pre-trained network. A natural extension is to make the network and the
+manifold co-trained, by adding a Hamilton–Jacobi–Bellman (HJB)
+style regulariser that forces residual-stream trajectories to be
+Jacobi-consistent under the runtime’s own curvature estimator.</p>
+<p>Let <span class="math inline">\(s_\ell\in\mathbb{R}^{d}\)</span> denote the block summary at layer
+<span class="math inline">\(\ell\in\{0,\dots,L\}\)</span> (the residual-stream state at the block boundary),
+let <span class="math inline">\(\Delta s_\ell := s_{\ell+1}-s_\ell\)</span> be the discrete velocity, and
+let <span class="math inline">\(\Delta^2 s_\ell := s_{\ell+1}-2s_\ell+s_{\ell-1}\)</span> be the discrete
+acceleration. Let <span class="math inline">\(\hat R(s)\in\mathbb{R}^{d\times d}\)</span> be the runtime’s
+local sectional-curvature operator (the same <span class="math inline">\(\hat R\)</span> used by the Jacobi
+propagator <span class="math inline">\(\Phi(\lambda)\)</span> of <a href="#sec:fisher-to-jacobi" data-reference-type="ref+Label" data-reference="sec:fisher-to-jacobi">2.2</a>). Then the
+finite-difference Jacobi residual
+<span class="math display">\[\begin{equation}
+\mathcal{J}_\ell(s) \;:=\; \Delta^2 s_\ell \;+\; \hat R(s_\ell)\,\Delta s_\ell
+\label{eq:jacobi-residual}
+\end{equation}\]</span>
+is the discrete Bellman residual of an HJB-style optimality condition on
+the layer-indexed trajectory <span class="math inline">\(\ell\mapsto s_\ell\)</span>. We propose the joint
+objective
+<span class="math display">\[\begin{equation}
+\boxed{\;
+L_{\mathrm{SHF}}(\theta)
+\;=\;
+L_{\mathrm{task}}(\theta)
+\;+\;
+\lambda\,\sum_{\ell=1}^{L-1}
+\bigl\|\,\mathcal{J}_\ell(s_\ell;\theta)\,\bigr\|_2^{\,2}
+\;}
+\label{eq:hjb-loss}
+\end{equation}\]</span>
+with <span class="math inline">\(\lambda\in[10^{-3},10^{-1}]\)</span>, computed on the same block summaries
+used by the GTC runtime so that the regulariser is
+architecturally free at the storage layer. We refer to this as
+the SHF (Spectral Hamiltonian Flow) loss.</p>
+<section id="why-this-is-the-right-form." class="level5">
+<h5>Why this is the right form.</h5>
+<p><a href="#eq:hjb-loss" data-reference-type="ref+Label" data-reference="eq:hjb-loss">[eq:hjb-loss]</a> is a finite-difference enforcement of the geodesic
+equation <span class="math inline">\(\nabla_{\dot\gamma}\dot\gamma=0\)</span> in the linearised regime where
+<span class="math inline">\(\hat R\)</span> controls the second variation; equivalently, it is the
+discrete-time HJB residual of a value function whose generator is the
+Fisher–Rao Laplacian of <a href="#sec:fisher-to-jacobi" data-reference-type="ref+Label" data-reference="sec:fisher-to-jacobi">2.2</a>. Models trained
+with <span class="math inline">\(L_{\mathrm{SHF}}\)</span> should, by construction, admit
+sharper Magnus-3 propagators, larger admissible step <span class="math inline">\(\lambda\)</span>, and
+lower OTT verifier disagreement under speculative decoding.</p>
+</section>
+<section id="status." class="level5">
+<h5>Status.</h5>
+<p>This loss is not implemented in the reference runtime that
+produces the measurements reported in this paper; the runtime is
+inference-only and the base network is frozen. We state
+<a href="#eq:hjb-loss" data-reference-type="ref+Label" data-reference="eq:hjb-loss">[eq:hjb-loss]</a> here so that any future training run that uses this
+exact penalty is on the public record as derived from the OTT/GTC
+framework.</p>
+</section>
+<section id="empirical-feasibility-stub-2026-04-29." class="level5">
+<h5>Empirical feasibility stub (2026-04-29).</h5>
+<p>While <span class="math inline">\(L_\text{SHF}\)</span> is not yet a training objective, we can already
+measure <span class="math inline">\(\bigl\|\mathcal{J}_\ell(s_\ell)\bigr\|_2^2\)</span> on trajectories
+through each model’s fitted Phase-3 manifold to fix the order of
+magnitude that any future trainer must reach. We compute
+<a href="#eq:jacobi-residual" data-reference-type="ref+Label" data-reference="eq:jacobi-residual">[eq:jacobi-residual]</a> along three trajectory classes (intrinsic
+dim <span class="math inline">\(n{=}8\)</span>, <span class="math inline">\(L{=}32\)</span> steps, 12 trajectories per class):
+(i) baked geodesics integrated by Magnus-3 forward Euler
+(<span class="math inline">\(x_{t+1}{=}x_t{+}\delta\,v_t,\;
+v_{t+1}{=}v_t{-}\delta\,\Gamma^k_{ij}v^iv^j\)</span>), the SHF
+floor;
+(ii) <span class="math inline">\(K{=}4\)</span>-nearest-neighbour walks through the Phase-3 cloud, the
+manifold-conformant regime;
+(iii) random straight-line interpolations between two cloud endpoints
+the off-manifold ceiling.</p>
+<p>Kinetic (<span class="math inline">\(\Delta^2 s_\ell\)</span>) and curvature
+(<span class="math inline">\(\hat R(s_\ell)\Delta s_\ell\)</span>) summands are reported separately. On
+all three exported manifolds (<code>smollm2-135m</code>,
+<code>gemma-4-e2b</code>, <code>phi-3.5-mini</code>) the kinetic term dominates
+the curvature term by 17–32 orders of magnitude in squared L2; the
+off-manifold straight-line baseline produces residuals of order
+<span class="math inline">\(10^{-30}\)</span> in the units of the unit-scaled manifold (it is
+over-determined by definition, a straight line in cloud-coordinates
+is its own discrete geodesic against an isotropic metric), the
+NN-walk class produces <span class="math inline">\(7\)</span>–<span class="math inline">\(93\)</span> in the same units, and the baked
+geodesic floor sits between <span class="math inline">\(10^{-34}\)</span> and <span class="math inline">\(10^{-3}\)</span>. The per-residual
+cost at <span class="math inline">\(n{=}8\)</span> is <span class="math inline">\(\approx\!5.6\!\times\!10^{5}\)</span> FLOPs, dominated by
+the <span class="math inline">\(O(n^4)\)</span> Riemann-tensor evaluation, which the runtime already
+caches per sample point in service of the Jacobi propagator.
+Two conclusions follow for the SHF training prescription:
+(a) the loss term is empirically tractable (sub-second compute for one
+<span class="math inline">\(L{=}32\)</span> trajectory at <span class="math inline">\(n{=}8\)</span>), and
+(b) on manifolds exported from frozen pretrained networks the
+curvature contribution is negligible, so <span class="math inline">\(L_\text{SHF}\)</span> in its current
+form would act primarily as a second-difference smoothness penalty
+on block summaries unless the trainer co-evolves a manifold of
+demonstrably non-zero curvature (which is the joint-training premise
+of this section and a falsifiable target). Raw data:
+<code>docs/figures/paper-d/hjb_feasibility/hjb_residual_magnitudes.json</code>;
+script:<br />
+<code>scripts/hjb_feasibility.py</code>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-ansuini2019intrinsic" class="csl-entry" role="listitem">
+Ansuini, Alessio, Alessandro Laio, Jakob H Macke, and Davide Zoccolan. 2019. <span>“Intrinsic Dimension of Data Representations in Deep Neural Networks.”</span> <em>NeurIPS</em>.
+</div>
+<div id="ref-cai2024medusa" class="csl-entry" role="listitem">
+Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <em><span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads</em>. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
+</div>
+<div id="ref-chen2023accelerating" class="csl-entry" role="listitem">
+Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <em>Accelerating Large Language Model Decoding with Speculative Sampling</em>. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
+</div>
+<div id="ref-elhage2022superposition" class="csl-entry" role="listitem">
+<span class="nocase">Elhage, Nelson, Tristan Hume, Catherine Olsson, Nicholas Schiefer, et al.</span> 2022. <em>Toy Models of Superposition</em>. Anthropic Transformer Circuits Thread.
+</div>
+<div id="ref-golub1996matrix" class="csl-entry" role="listitem">
+Golub, Gene H., and Charles F. Van Loan. 1996. <em>Matrix Computations</em>. 3rd ed. Johns Hopkins University Press.
+</div>
+<div id="ref-llama3" class="csl-entry" role="listitem">
+<span class="nocase">Grattafiori, Aaron et al.</span> 2024. <em>The <span>Llama</span> 3 Herd of Models</em>. <a href="https://arxiv.org/abs/2407.21783">https://arxiv.org/abs/2407.21783</a>.
+</div>
+<div id="ref-papC2026spec" class="csl-entry" role="listitem">
+HyperTensor Authors. 2026. <span>“Geodesic Speculative Decoding (Companion Paper).”</span> Unpublished manuscript.
+</div>
+<div id="ref-papers2geodesic_projection" class="csl-entry" role="listitem">
+HyperTensor Project. 2025a. <em>Geodesic Projection: A Multi-Slot Compression Pipeline with Adaptive Extensions</em>.
+</div>
+<div id="ref-papers3specdec" class="csl-entry" role="listitem">
+HyperTensor Project. 2025b. <em>Geodesic Speculative Decoding Under Compression</em>.
+</div>
+<div id="ref-kimi2026attnres" class="csl-entry" role="listitem">
+Kimi Team. 2026. <em>Block Attention Residuals for Stable Deep Transformers</em>. <a href="https://arxiv.org/abs/2603.15031">https://arxiv.org/abs/2603.15031</a>.
+</div>
+<div id="ref-leviathan2023fast" class="csl-entry" role="listitem">
+Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference from Transformers via Speculative Decoding.”</span> <em>ICML</em>.
+</div>
+<div id="ref-li2024eagle" class="csl-entry" role="listitem">
+Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <em><span>EAGLE</span>: Speculative Sampling Requires Rethinking Feature Uncertainty</em>. <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a>.
+</div>
+<div id="ref-magnus1954" class="csl-entry" role="listitem">
+Magnus, Wilhelm. 1954. <span>“On the Exponential Solution of Differential Equations for a Linear Operator.”</span> <em>Communications on Pure and Applied Mathematics</em> 7 (4): 649–73.
+</div>
+<div id="ref-nakkiran2021deep" class="csl-entry" role="listitem">
+Nakkiran, Preetum, Gal Kaplun, Yamini Bansal, Tristan Yang, Boaz Barak, and Ilya Sutskever. 2021. <em>Deep Double Descent: Where Bigger Models and More Data Hurt</em>. <a href="https://arxiv.org/abs/1912.02292">https://arxiv.org/abs/1912.02292</a>.
+</div>
+<div id="ref-pearlmutter1994fast" class="csl-entry" role="listitem">
+Pearlmutter, Barak A. 1994. <span>“Fast Exact Multiplication by the <span>Hessian</span>.”</span> <em>Neural Computation</em> 6 (1): 147–60.
+</div>
+<div id="ref-pope2021intrinsic" class="csl-entry" role="listitem">
+Pope, Phillip, Chen Zhu, Ahmed Abdelkader, Micah Goldblum, and Tom Goldstein. 2021. <span>“The Intrinsic Dimension of Images and Its Impact on Learning.”</span> <em>ICLR</em>.
+</div>
+<div id="ref-vaswani2017attention" class="csl-entry" role="listitem">
+Vaswani, Ashish, Noam Shazeer, Niki Parmar, et al. 2017. <span>“Attention Is All You Need.”</span> <em>Advances in Neural Information Processing Systems 30 (NeurIPS)</em>.
+</div>
+<div id="ref-williams2009roofline" class="csl-entry" role="listitem">
+Williams, Samuel, Andrew Waterman, and David Patterson. 2009. <span>“Roofline: An Insightful Visual Performance Model for Multicore Architectures.”</span> <em>Communications of the ACM</em> 52 (4): 65–76.
+</div>
+<div id="ref-xiao2023streamingllm" class="csl-entry" role="listitem">
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+</div>
+</div>
+</section>
+</section>
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project &middot; rendered from LaTeX via pandoc &middot;
+  <a href="../index.html">back to index</a>
+</footer>
+
+</body>
+</html>

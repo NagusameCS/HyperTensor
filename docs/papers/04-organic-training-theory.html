@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organic Training Theory and Geodesic Trajectory Caching, HyperTensor</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/04-organic-training-theory.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], tags: 'ams' }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/paper.css">
+<script src="../assets/reader.js"></script>
+<link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="00-introduction.html">Intro</a></li>
+    <li><a href="01-attention-compression.html">Paper 1</a></li>
+    <li><a href="02-geodesic-projection.html">Paper 2</a></li>
+    <li><a href="03-speculative-decoding.html">Paper 3</a></li>
+    <li><a href="05-gtc-ott-runtime.html">Paper 5</a></li>
+    <li><a href="06-adaptive-compression.html">Paper 6</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper 4 &middot; April 2026</div>
+  <h1 class="hero-title">Organic Training Theory</h1>
+  <p class="hero-subtitle">
+    Riemannian latent-space inference, Geodesic Trajectory Caching (GTC), and
+    the OTT program. The universal diffeomorphism construction remains open;
+    the OTT deployment manifolds in the current repository have a narrower,
+    certificate-backed closure.
+  </p>
+  <div class="hero-meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">github.com/NagusameCS/HyperTensor</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <span class="stat-num good">12 / 17</span>
+      <span class="stat-label">Testable claims with<br>measured anchor</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num good">97×</span>
+      <span class="stat-label">Batch-Jacobi speedup<br>at $B=10$ (Paper 5)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num info">2</span>
+      <span class="stat-label">Universally-open<br>theorems remaining</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">3</span>
+      <span class="stat-label">LM activation<br>manifolds fitted</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#framing">Read the paper</a>
+    <a class="btn btn-secondary" href="05-gtc-ott-runtime.html">Empirical companion</a>
+    <a class="btn btn-secondary" href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </div>
+</header>
+
+<main>
+
+<section id="framing">
+  <div class="callout warning">
+    <div class="callout-title">Read this first, framing of this paper</div>
+    <p>
+      Papers&nbsp;1, 2, and 3 are empirical. They report measurements on real
+      hardware running real LLMs. This paper is still primarily a
+      theoretical framework, but it is no longer fair to describe it as
+      simulation-only in every respect. The GTC components now have real-manifold
+      anchors on exported LM activation clouds, and the diffeomorphism question is
+      resolved for the current OTT deployment manifolds in this repository via
+      inherited-structure certificates. What remains open is the universal
+      construction and the full runtime deployment path. Where this paper claims a
+      speedup figure (e.g. 4800× at $n{=}32{,}768$), that figure should still be read
+      as conditional on solving the remaining deployment problems, not as a production
+      benchmark claim.
+    </p>
+  </div>
+</section>
+
+<section id="delta-note">
+  <div class="callout info">
+    <div class="callout-title">2026-04-27 status update</div>
+    <p>
+      Current status is narrower and stronger than the original Paper&nbsp;4 wording:
+      the map $\phi$ is still open as a universal transformer-scale
+      construction, but for the measured OTT manifolds in this repository
+      (SmolLM2, Phi-3.5-mini, Gemma-4-E2B) the deployment-scoped diffeomorphism
+      requirement is treated as resolved by certificate-backed inherited structure.
+      That is a practical closure for this repo's OTT regime, not a claim that the
+      general mathematical problem is solved.
+    </p>
+  </div>
+</section>
+
+<section id="abstract">
+  <span class="section-num">§0, Abstract</span>
+  <h2>Abstract</h2>
+  <div class="abstract-box">
+    <p>
+      We treat the trained latent space of a transformer as a Riemannian
+      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$,
+      equipped with a Fisher-information metric. Under that view, inference is
+      approximately the solution of the geodesic equation, with cost
+      $\mathcal{O}(nk^2)$ rather than the standard $\mathcal{O}(n^2 d L)$. We then
+      propose Geodesic Trajectory Caching (GTC): a self-improving
+      library of stored geodesics, where new queries are served by a Jacobi-field
+      linear correction against the nearest stored trajectory at cost
+      $\mathcal{O}(k^2)$ per query. We connect this picture to Block Attention
+      Residuals (AttnRes, Kimi&nbsp;Team 2026) by reading AttnRes weights as
+      depth-wise geodesic-segment selection on $\mathcal{M}_\theta$. Since the
+      original draft, parts of the proposal have acquired real-manifold anchors:
+      cache coverage, batch Jacobi correction, compressed record storage, and an
+      AttnRes-style block-summary correction prototype have all been measured on
+      fitted LM manifolds. What is left open is not the local geometry itself
+      but the full runtime deployment path and a universal construction of $\phi$.
+    </p>
+  </div>
+</section>
+
+<section id="renaming">
+  <span class="section-num">§0.5, Naming</span>
+  <h2>"GRC" disambiguation</h2>
+  <p>
+    The earlier draft of this paper used "GRC" for Geodesic Resonance Caching. Paper&nbsp;1
+    on this site uses "GRC" for Geodesic Runtime Compression, a different,
+    implemented thing. To remove the collision, the trajectory-library idea is renamed
+    in this paper to Geodesic Trajectory Caching (GTC). The
+    "resonance" terminology was always slightly metaphorical; the substantive content
+    is the trajectory library plus the Jacobi correction, which the new name reflects
+    more accurately.
+  </p>
+</section>
+
+<section id="ott">
+  <span class="section-num">§1, Organic Training Theory</span>
+  <h2>The manifold view</h2>
+  <p>
+    Let $\theta \in \mathbb{R}^P$ be the trained weights. Define
+  </p>
+  <div class="math-block">
+    $$\mathcal{M}_\theta = \{x \in \mathbb{R}^d : x = f_\theta(\text{tokens}) \text{ for some input}\}$$
+  </div>
+  <p>
+    with metric approximated by the Fisher Information matrix. Empirical intrinsic
+    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30–50$
+    for current LLMs despite $d \in \{4096, 8192\}$. Inference under this view solves
+    the geodesic equation with cost $\mathcal{O}(nk^2)$.
+  </p>
+  <p>
+    <em>This section will reproduce the OTT material from the original PDF, with
+    citations to the linear-representation-probing literature that supports the
+    low-dimensional structure claim.</em>
+  </p>
+</section>
+
+<section id="gtc">
+  <span class="section-num">§2, Geodesic Trajectory Caching</span>
+  <h2>Storing geodesics, correcting cheaply</h2>
+  <p>
+    Each completed inference produces a full geodesic trajectory, not just an answer.
+    We propose storing these trajectories, the embedding, contextual velocity,
+    waypoint sequence, Jacobi propagator $J(\lambda) \in \mathbb{R}^{k \times k}$, an
+    injectivity radius estimate, and the terminal logits, in a library indexed by
+    nearest-neighbour search. New queries within the validity radius are served by a
+    single $\mathcal{O}(k^2)$ matrix-vector product:
+  </p>
+  <div class="math-block">
+    $$x^\mu(\lambda) = \bar{x}^\mu(\lambda) + J(\lambda) \cdot \delta q + \mathcal{O}(\|\delta q\|^2)$$
+  </div>
+  <p>
+    The Jacobi equation is linear, so a batch of similar queries can be corrected in a
+    single matmul, a "resonance" effect where throughput rises rather than falls
+    under load. The simulation suite verifies linearity (err $7.3 \times 10^{-13}$),
+    superposition ($1.6 \times 10^{-17}$), and exactness in flat regions ($5.6 \times
+    10^{-17}$). On a synthetic mixture-of-Gaussians query distribution, the library
+    converges to a 92% hit rate while storing only 7.8% of seen queries.
+  </p>
+</section>
+
+<section id="attnres">
+  <span class="section-num">§3, Connection to Attention Residuals</span>
+  <h2>AttnRes as depth-wise geodesic segment selection</h2>
+  <p>
+    Block AttnRes (Kimi&nbsp;Team, arXiv:2603.15031) replaces fixed PreNorm residual
+    accumulation with a softmax over learned pseudo-queries against block summaries.
+    Under the manifold interpretation, block summaries $b_n$ are waypoints on the
+    geodesic, and the AttnRes attention weights $\alpha_{n \to l}$ select a convex
+    combination of those waypoints. This re-anchors the hidden state to
+    $\mathcal{M}_\theta$, mitigating the $\mathcal{O}(\sqrt{L})$ magnitude inflation
+    that PreNorm produces. Importantly, this connection is testable: AttnRes weights
+    should concentrate on the block whose cached representation is geodesically nearest
+    to the current state. We verify this in the simulation suite (8/8 trials).
+  </p>
+  <p>
+    The HyperTensor runtime ships an independent implementation of AttnRes
+    (<code>--attnres</code>); Paper&nbsp;3 reports its empirical interaction with
+    compression. Theory and practice meet there.
+  </p>
+</section>
+
+<section id="formal-addendum">
+  <span class="section-num">§3.5, Formal Addendum (Conditional)</span>
+  <h2>Assumption-explicit theorem templates</h2>
+  <div class="callout info">
+    <div class="callout-title">Scope of this addendum</div>
+    <p>
+      This section sharpens the mathematical structure of Paper&nbsp;4 using stronger,
+      explicit assumptions. It should be read as a conditional formalization
+      roadmap: if these assumptions are accepted for a model family, then the
+      corresponding theorem statements follow. It is not a claim that all assumptions
+      are already verified for all transformers.
+    </p>
+  </div>
+
+  <h3>A. Diffeomorphism $\phi$ with explicit assumptions</h3>
+  <p>
+    A stronger statement can be made by separating base assumptions from conclusion:
+    Euclidean representation base space, LayerNorm quotient structure, star-shaped
+    head-chart preimages, residual-flow dynamics generated by a smooth Morse-like
+    potential satisfying a compactness condition (Palais&ndash;Smale style), and a
+    smooth conformal Softmax factor inside each chart. Under this package, the
+    time-$T$ flow map is formulated as a global diffeomorphism candidate and the
+    chart transitions are smooth by composition.
+  </p>
+  <p>
+    This aligns with the deployment-scoped certificate story already used in the
+    repository while making the logical dependence explicit: universal closure still
+    requires these assumptions to hold beyond the measured OTT manifold family.
+  </p>
+
+  <h3>B. Diffusion&ndash;attention lemma chain and log map</h3>
+  <p>
+    The paper can be structured as a three-step implication chain:
+    (1) KL/natural-gradient training on a Fisher manifold gives an entropy-gradient
+    flow approximation, (2) in a suitable embedding limit this induces a
+    Laplace&ndash;Beltrami diffusion form, and (3) if the trained attention kernel is
+    identified with the corresponding heat kernel at scale $t$, then Varadhan's
+    asymptotic relation yields
+  </p>
+  <div class="math-block">
+    $$d(x,y)^2 = \lim_{t \to 0} -4t\log G_t(x,y),\qquad
+    \dot{\gamma}(0) \propto \nabla_x\!\left(-\log \mathrm{Attn}(x,y)\right).$$
+  </div>
+  <p>
+    The key quality improvement is epistemic hygiene: the heat-kernel identification
+    is treated as a model-family assumption, not silently as a theorem.
+  </p>
+
+  <h3>C. Jacobi propagation via JVP</h3>
+  <p>
+    The Jacobi-action claim is naturally theorem-shaped: for smooth geodesic flow,
+    applying $J(\lambda)$ to a perturbation is exactly a Jacobian&ndash;vector product,
+    so Pearlmutter-style JVP gives linear-cost directional propagation without
+    materializing full Jacobians. With effective curvature rank $r \ll \dim M$, the
+    practical cost can be restricted to an $r$-dimensional subspace. This is fully
+    consistent with the repository's batched-Jacobi implementation direction.
+  </p>
+
+  <h3>D. HJB-regularised AttnRes/GTC training objective</h3>
+  <p>
+    For future joint training (not yet in this repo), an SHF-style regularizer can be
+    written as a finite-difference Jacobi penalty over block summaries,
+  </p>
+  <div class="math-block">
+    $$L_{\mathrm{SHF}} = L_{\mathrm{task}} + \lambda \sum_\ell
+    \left\|\Delta^2 s_\ell + \hat{R}(s_\ell)\,\Delta s_\ell\right\|^2,$$
+  </div>
+  <p>
+    with the interpretation that minimising this term encourages trajectories that are
+    closer to discrete HJB/Jacobi-consistent paths in summary space.
+  </p>
+
+  <h3>E. Ricci-spectral safety bound and operational $\rho$ estimator</h3>
+  <p>
+    A practical path for cheap injectivity-radius estimation is to treat curvature
+    proxies from attention spectra/gradient covariance as bounded surrogates for local
+    sectional curvature and combine them with a Klingenberg-style lower-bound form,
+    giving an estimator family
+  </p>
+  <div class="math-block">
+    $$\hat{\rho}(q) = C\,\frac{\pi}{\sqrt{\lambda_{\max}(\mathrm{Cov}(\nabla_x A))}}\,
+    \frac{1}{\sigma_{\max}(A)}.$$
+  </div>
+  <p>
+    In this paper this should be treated as an operational estimator template with
+    model-family calibration constants, not as a universal exact equality.
+  </p>
+</section>
+
+<section id="open">
+  <span class="section-num">§4, Open problems</span>
+  <h2>What remains open</h2>
+  <p>
+    The original draft's five blockers are no longer all in the same category.
+    In the current repository, three are deployment-scoped engineering closures,
+    one is a deployment-scoped mathematical closure, and one remains a genuine
+    research problem if the goal is end-to-end AttnRes+GTC training rather than
+    inference-time correction.
+  </p>
+  <ol>
+    <li>
+      The diffeomorphism $\phi$. As a universal transformer-scale
+      construction, this remains open. For the concrete OTT deployment manifolds in
+      this repository, however, the requirement is treated as resolved via
+      certificate-backed inherited-structure arguments on star-shaped manifolds.
+      This is a deployment-scoped closure, not a universal one, and it does not come
+      from a Hodge-theoretic derivation.
+    </li>
+    <li>
+      Geodesic initial velocity $v_0$. A universal closed-form
+      derivation remains open, but the runtime no longer lacks a deployable
+      substitute: the OTT path already uses a curvature-guided initial-velocity prior
+      that starts from the endpoint direction and applies a Christoffel-based local
+      acceleration correction. So the mathematical derivation is still open, while
+      the deployment blocker has been reduced to validation and calibration of an
+      implemented surrogate.
+    </li>
+    <li>
+      Jacobi propagator construction cost. This is no longer a live
+      blocker in the repository. The cost is paid at library-construction time and is
+      amortized by the compressed record store, exact low-rank $\Phi$ truncation on
+      the measured small-cloud regime, and batched Jacobi resonance results that
+      already exceed the paper's analytic speedup estimates. The remaining issue is
+      offline build throughput, not missing theory or missing runtime machinery.
+    </li>
+    <li>
+      AttnRes + GTC joint training. If GTC is to correct AttnRes
+      block summaries via Jacobi fields, the training objective must encourage
+      Jacobi-smooth trajectories in block-summary space. This is still open as a
+      training problem. What is already complete is the weaker inference-time claim:
+      the repo has a measured AttnRes correction prototype, and its current result is
+      that single-anchor Jacobi transport is promising while simplex blending
+      underperforms.
+    </li>
+    <li>
+      Injectivity radius estimation. Exact per-record estimation from
+      scratch remains expensive in the abstract, but for the current GTC pipeline the
+      requirement is already handled operationally: the record store carries a per-
+      record $\rho$ estimate, and the measured validity-radius sweep on the fitted
+      LM manifold shows the Jacobi regime stays below 0.1 % error out to the tested
+      threshold. So this item is deployment-scoped closed even though the cheapest
+      possible universal estimator is still open.
+    </li>
+  </ol>
+</section>
+
+<section id="status">
+  <span class="section-num">Status</span>
+  <h2>Where this paper sits</h2>
+  <p>
+    Framing: still primarily a theory paper, but now partially anchored by real LM
+    manifold measurements. The remaining distance from full OTT deployment is much
+    smaller than the original draft implied: the repo now has deployment-scoped
+    diffeomorphism closure for its current manifold family, real-manifold GTC
+    measurements, a deployable $v_0$ surrogate, operational $\rho$ estimates, and an
+    AttnRes correction prototype. The main unsolved pieces are a runtime-integrated
+    decode path at useful cloud density, denser live activation telemetry, a
+    universal $\phi$ construction, and any future attempt to make AttnRes+GTC a
+    jointly trained objective rather than an inference-time correction scheme. Treat
+    the large speedup figures as conditional on those remaining steps, not as current
+    benchmark claims.
+  </p>
+</section>
+
+<section id="limitations">
+  <span class="section-num">§5, Limitations</span>
+  <h2>What this paper is not</h2>
+  <p>
+    Paper&nbsp;4 is the theory layer of the OTT/GTC programme. The boundaries
+    below are deliberate, and they should be read together with the
+    measurement-side limitations in Paper&nbsp;5 (which is the empirical
+    companion to this paper) and Paper&nbsp;3 (which carries the speculative-
+    decoding anchor).
+  </p>
+  <ol>
+    <li>
+      Universal vs. deployment-scoped. The diffeomorphism
+      $\phi:\mathcal{M}_\theta\to\mathbb{R}^k$ is closed for the specific OTT
+      deployment manifolds in this repository via inherited-structure
+      certificates on star-shaped manifolds; it is not closed as a
+      universal transformer-scale construction. Treat $\phi$-existence as a
+      per-build property of the fitted manifold, not as a theorem.
+    </li>
+    <li>
+      Speedup figures are conditional. Numerical speedups in
+      §§1–3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
+      $4800\times$ figure at $n{=}32{,}768$) are derived from the geodesic
+      cost model assuming GTC fully replaces standard attention in the
+      decode path. The repository does not yet ship that runtime; the
+      measured OTT runtime anchor (Paper&nbsp;5 §6, Paper&nbsp;3 §5.5) is a
+      compression-draft + verifier pipeline at $\sim76.5$&nbsp;tok/s, not a
+      pure-geodesic decode loop.
+    </li>
+    <li>
+      Manifold dimension claim is empirical. The intrinsic
+      dimension $k\approx30$–$50$ is supported by the Phase-1 fits on
+      SmolLM2-135M, Phi-3.5-mini, and Gemma-4-E2B in Paper&nbsp;5 §3. It is
+      not a theorem about transformers in general; cross-architecture
+      generalisation past these three fits is open.
+    </li>
+    <li>
+      Fisher-information metric is an approximation. The
+      Riemannian metric is approximated from the Phase-1 covariance estimate,
+      not from full Fisher information. This is consistent with how the
+      runtime treats the manifold operationally, but a derivation that links
+      the covariance approximation to the true Fisher metric in the
+      transformer setting is not given here.
+    </li>
+    <li>
+      AttnRes + GTC joint training is unsolved. The
+      connection in §3 is read in one direction only: AttnRes weights are
+      interpretable as geodesic-segment selection. The reverse, training
+      AttnRes to be Jacobi-smooth against a GTC library so that the
+      correction objective and the training objective agree, is open as a
+      training problem.
+    </li>
+    <li>
+      Injectivity radius and $v_0$ derivations. The
+      runtime has a deployable surrogate for both (per-record $\rho$
+      estimate, curvature-guided $v_0$ prior with Christoffel correction),
+      and the Jacobi validity radius is measured in Paper&nbsp;5; closed-form
+      universal derivations are not given.
+    </li>
+  </ol>
+  <p>
+    In short: this paper sets the geometry, Paper&nbsp;5 measures it on three
+    fitted manifolds, and Paper&nbsp;3 anchors the end-to-end decode path.
+    Where the three disagree, the measurement wins.
+  </p>
+</section>
+
+<section id="terms">
+  <span class="section-num">§6, Terms</span>
+  <h2>Where to find definitions</h2>
+  <p>
+    For brevity Paper&nbsp;4 reuses the glossary tables in
+    <a href="01-attention-compression.html#glossary">Paper&nbsp;1 §0.5</a>
+    (rank $r$/$k$, residual stream, decode vs prefill),
+    <a href="02-geodesic-projection.html#glossary">Paper&nbsp;2 §0.5</a>
+    (PCA basis, projection slot, geometry cache, depth-sink), and
+    <a href="03-speculative-decoding.html#glossary">Paper&nbsp;3 §0.5</a>
+    (acceptance rate $\alpha$, draft/verifier, OneDecode). Terms specific to
+    this paper, manifold $\mathcal{M}_\theta$, intrinsic dimension $k$,
+    Fisher-information metric, geodesic, Jacobi field, injectivity radius
+    $\rho$, exponential map $\exp_p$, parallel transport, diffeomorphism
+    $\phi$, are introduced inline at first use.
+  </p>
+</section>
+
+<section id="references">
+  <span class="section-num">§7, References</span>
+  <h2>Selected refs</h2>
+  <ol>
+    <li>Stewart, W. K. O., Geodesic Trajectory Caching and the OTT Runtime Anchor, this site, Paper&nbsp;5 v0.1, 2026.</li>
+    <li>Stewart, W. K. O., Composing Compression: Geodesic Speculative Decoding and Attention Residuals, this site, Paper&nbsp;3 v0.3, 2026.</li>
+    <li>Stewart, W. K. O., Geodesic Projection: A Production Compression Pipeline for LLM Inference, this site, Paper&nbsp;2 v0.2, 2026.</li>
+    <li>Stewart, W. K. O., Attention Compression at Constant Quality: A Geometry-Only PCA Basis for Q/K/V, this site, Paper&nbsp;1 v0.4, 2026.</li>
+    <li>Kimi Team, Block Attention Residuals, arXiv:2603.15031, 2026.</li>
+    <li>Amari, S., Information Geometry and Its Applications, Springer, 2016. (Fisher-information metric, natural gradient.)</li>
+    <li>do Carmo, M. P., Riemannian Geometry, Birkhäuser, 1992. (Geodesic equation, Jacobi fields, injectivity radius, exponential map.)</li>
+    <li>Lee, J. M., Introduction to Smooth Manifolds, 2nd ed., Springer, 2013. (Diffeomorphisms, smooth structure on $\mathcal{M}_\theta$.)</li>
+    <li>Magnus, W., On the exponential solution of differential equations for a linear operator, Comm. Pure Appl. Math., 1954. (Series used for parallel-transport approximations.)</li>
+    <li>Tenenbaum, J. B., de Silva, V., and Langford, J. C., A global geometric framework for nonlinear dimensionality reduction, Science, 2000. (Manifold-hypothesis precedent for low-dimensional structure in high-dimensional representations.)</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    <a href="../index.html">← Back to all papers</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>

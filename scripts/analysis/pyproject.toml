@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypertensor-analysis"
+version = "0.1.0"
+description = "Reproducibility scripts for the HyperTensor / Geodesic Runtime Compression report (NagusameCS)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "William Ken Ohara Stewart", email = "noreply@nagusamecs.dev" },
+]
+keywords = ["llm", "compression", "low-rank", "svd", "inference", "transformer"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.11",
+  "matplotlib>=3.7",
+  "gguf>=0.10",
+]
+
+[project.urls]
+Homepage = "https://nagusamecs.github.io/HyperTensor"
+Source = "https://github.com/NagusameCS/HyperTensor"
+Issues = "https://github.com/NagusameCS/HyperTensor/issues"
+
+[project.scripts]
+hypertensor-spectra = "compute_spectra:main"
+hypertensor-stats   = "statistical_tests:main"
+hypertensor-eckart  = "eckart_young_bound:main"
+
+[tool.setuptools]
+py-modules = ["compute_spectra", "statistical_tests", "eckart_young_bound"]

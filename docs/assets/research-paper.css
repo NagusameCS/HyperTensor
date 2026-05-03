@@ -1,0 +1,273 @@
+/*
+ * research-paper.css, styling for the rendered LaTeX research papers.
+ * Designed to mirror docs/papers/*.html (engineering papers) so the two
+ * tabs of the home page feel like a single publication.
+ *
+ * Pandoc emits semantic HTML; this file styles it.  Loaded AFTER reader.css
+ * and (a stripped subset of) paper.css' design tokens which we duplicate
+ * here so the file is self-contained.
+ */
+
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f9f9f8;
+  --bg-code:   #f4f4f4;
+  --border:    #e5e5e5;
+  --text:      #1a1a1a;
+  --text-soft: #5c5c5c;
+  --accent:    #c0392b;
+  --accent-l:  #e74c3c;
+  --blue:      #2d6be4;
+  --green:     #1a7a4a;
+  --yellow-bg: #fffbeb;
+  --blue-bg:   #eef4ff;
+  --green-bg:  #edfbf3;
+  --red-bg:    #fff5f5;
+  --max-w:     780px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  line-height: 1.75; -webkit-font-smoothing: antialiased;
+}
+
+/* ── Nav (matches docs/papers/*.html) ─────────────────── */
+nav.site-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-brand {
+  font-weight: 600; font-size: 0.95rem;
+  letter-spacing: -0.02em; color: var(--text); text-decoration: none;
+}
+.nav-links { display: flex; gap: 2rem; list-style: none; }
+.nav-links a {
+  font-size: 0.85rem; font-weight: 500;
+  color: var(--text-soft); text-decoration: none; transition: color .15s;
+}
+.nav-links a:hover { color: var(--text); }
+
+/* ── Header card (mimics .hero) ───────────────────────── */
+.paper-header {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 5rem 1.5rem 2.5rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.paper-header .tag {
+  display: inline-block;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); background: var(--red-bg);
+  border: 1px solid #fac5c5; border-radius: 2rem;
+  padding: 0.32em 0.95em; margin-bottom: 1.4rem;
+}
+.paper-header h1 {
+  font-size: clamp(1.75rem, 4vw, 2.6rem);
+  font-weight: 700; line-height: 1.2;
+  letter-spacing: -0.02em; margin-bottom: 0.7rem;
+}
+.paper-header .author {
+  font-size: 0.95rem; color: var(--text-soft);
+  margin-bottom: 0.4rem;
+}
+.paper-header .meta {
+  font-size: 0.83rem; color: var(--text-soft);
+}
+.paper-header .meta a { color: var(--blue); text-decoration: none; }
+.paper-header .meta a:hover { text-decoration: underline; }
+
+/* ── Article body ─────────────────────────────────────── */
+article.paper-body {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+}
+article.paper-body h1 { display: none; }            /* pandoc duplicates title */
+article.paper-body .author,
+article.paper-body .date { display: none; }
+
+article.paper-body h2 {
+  font-size: 1.45rem; font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 3rem 0 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+article.paper-body h3 {
+  font-size: 1.15rem; font-weight: 700;
+  margin: 2.2rem 0 0.8rem; color: var(--text);
+}
+article.paper-body h4 {
+  font-size: 0.98rem; font-weight: 700;
+  margin: 1.6rem 0 0.5rem;
+  text-transform: none; color: var(--accent);
+}
+article.paper-body p { margin: 0 0 1.05rem; }
+article.paper-body a { color: var(--blue); text-decoration: none; }
+article.paper-body a:hover { text-decoration: underline; }
+article.paper-body strong { font-weight: 600; color: var(--text); }
+article.paper-body em { font-style: italic; }
+article.paper-body code {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.88em;
+  background: var(--bg-code);
+  padding: 0.12em 0.36em;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+article.paper-body pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  margin: 1.2rem 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+article.paper-body pre code {
+  background: transparent; border: 0; padding: 0; font-size: inherit;
+}
+article.paper-body ul, article.paper-body ol {
+  margin: 0 0 1.1rem 1.4rem;
+}
+article.paper-body li { margin-bottom: 0.35rem; }
+article.paper-body blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-soft);
+  margin: 1.2rem 0;
+  padding: 0.8rem 1.1rem;
+  color: var(--text-soft);
+  border-radius: 0 6px 6px 0;
+}
+article.paper-body blockquote p:last-child { margin-bottom: 0; }
+
+/* ── Tables ───────────────────────────────────────────── */
+article.paper-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4rem 0;
+  font-size: 0.92rem;
+}
+article.paper-body table th,
+article.paper-body table td {
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+article.paper-body table th {
+  background: var(--bg-soft);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-bottom: 2px solid var(--text);
+}
+article.paper-body table tr:hover td { background: var(--bg-soft); }
+
+/* ── Math display ─────────────────────────────────────── */
+article.paper-body mjx-container[display="true"] {
+  margin: 1.2rem 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* ── Figure captions ──────────────────────────────────── */
+article.paper-body figure {
+  margin: 1.6rem 0;
+  text-align: center;
+}
+article.paper-body figure img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+article.paper-body figure.paper-diagram {
+  background: linear-gradient(180deg, var(--bg-soft), var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+}
+article.paper-body figure.paper-diagram svg {
+  width: 100%;
+  height: auto;
+}
+article.paper-body figure.paper-diagram .box {
+  fill: var(--bg);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+article.paper-body figure.paper-diagram .accent {
+  fill: var(--red-bg);
+  stroke: var(--accent);
+}
+article.paper-body figure.paper-diagram .support {
+  fill: var(--blue-bg);
+  stroke: var(--blue);
+}
+article.paper-body figure.paper-diagram .good {
+  fill: var(--green-bg);
+  stroke: var(--green);
+}
+article.paper-body figure.paper-diagram .arrow {
+  stroke: var(--text-soft);
+  stroke-width: 2.5;
+  fill: none;
+  marker-end: url(#arrowhead);
+}
+article.paper-body figure.paper-diagram text {
+  fill: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+article.paper-body figure.paper-diagram .small {
+  font-size: 18px;
+  fill: var(--text-soft);
+}
+article.paper-body figure.paper-diagram .label {
+  font-size: 22px;
+  font-weight: 700;
+}
+article.paper-body figcaption {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin-top: 0.6rem;
+}
+
+/* ── Pandoc-emitted environments ──────────────────────── */
+article.paper-body .htnote,
+article.paper-body div.htnote,
+article.paper-body div[role="note"] {
+  background: var(--blue-bg);
+  border: 1px solid #c3d4f4;
+  border-left: 3px solid var(--blue);
+  border-radius: 0 6px 6px 0;
+  padding: 0.85rem 1.1rem;
+  margin: 1.2rem 0;
+  font-size: 0.94rem;
+}
+article.paper-body .htwarn { background: var(--yellow-bg); border-left-color: #d4a017; }
+article.paper-body .htgood { background: var(--green-bg); border-left-color: var(--green); }
+
+/* ── Footer ───────────────────────────────────────────── */
+footer.paper-footer {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  font-size: 0.83rem; color: var(--text-soft);
+  border-top: 1px solid var(--border);
+}
+footer.paper-footer a { color: var(--blue); text-decoration: none; }
+
+/* ── References list ──────────────────────────────────── */
+article.paper-body #refs,
+article.paper-body div.csl-entry {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+article.paper-body div.csl-entry { margin-bottom: 0.5rem; }

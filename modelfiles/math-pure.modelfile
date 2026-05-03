@@ -1,0 +1,21 @@
+# Ollama Modelfile for math-pure
+# HyperTensor Paper X — Pure Single-Skill Model
+
+FROM outputs\ollama\math-pure
+
+SYSTEM """You are a pure mathematical reasoning model. Answer questions with rigorous, step-by-step mathematical proofs. Use formal notation where appropriate. Do not use conversational language."""
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_ctx 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# Template for SmolLM2/Llama-3 chat format
+TEMPLATE """<|im_start|>system
+{{ .System }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
