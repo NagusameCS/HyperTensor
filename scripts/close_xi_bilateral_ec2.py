@@ -62,10 +62,11 @@ def train_ugt_basis(model, tok, n_steps=500, k=128, seed=42):
     hs = torch.stack(hidden_states)
     hs_centered = hs - hs.mean(dim=0)
     U, S, Vh = torch.linalg.svd(hs_centered.T, full_matrices=False)
-    basis = U[:, :k].float().to(model.device)
+    k_actual = min(k, len(hidden_states))  # Can't exceed number of samples
+    basis = U[:, :k_actual].float().to(model.device)
+    print(f"    Basis: {basis.shape} (k={k_actual})")
     
     # Phase B: fine-tune basis via RiemannianAdamW on Gr(k,d)
-    # Simplified: project hidden states onto basis, maximize zone separation
     basis_param = nn.Parameter(basis.clone())
     opt = torch.optim.AdamW([basis_param], lr=0.001)
     
@@ -124,7 +125,7 @@ def train_ugt_basis(model, tok, n_steps=500, k=128, seed=42):
             
             # Orthogonality regularization: basis should be orthonormal
             gram = basis_param.T @ basis_param
-            ortho_loss = torch.norm(gram - torch.eye(k, device=model.device))
+            ortho_loss = torch.norm(gram - torch.eye(k_actual, device=model.device))
             loss = loss + 0.1 * ortho_loss
             
             loss.backward()
@@ -143,7 +144,7 @@ def train_ugt_basis(model, tok, n_steps=500, k=128, seed=42):
         Q, _ = torch.linalg.qr(basis_param.data)
         final_basis = Q
     
-    return final_basis
+    return final_basis, k_actual
 
 # ============================================================
 # Bilateral hot-swap test
@@ -242,9 +243,11 @@ def main():
     # Train UGT bases
     print(f"\n[3/4] Training UGT bases (500 steps each)...")
     print("  Model A:")
-    basis_a = train_ugt_basis(model_a, tok, n_steps=500, k=128, seed=42)
+    basis_a, ka = train_ugt_basis(model_a, tok, n_steps=500, k=128, seed=42)
+    print(f"  Model A basis: {basis_a.shape}")
     print("  Model B:")
-    basis_b = train_ugt_basis(model_b, tok, n_steps=500, k=128, seed=123)
+    basis_b, kb = train_ugt_basis(model_b, tok, n_steps=500, k=128, seed=123)
+    print(f"  Model B basis: {basis_b.shape}")
     
     # Test bilateral swap
     print(f"\n[4/4] Testing bilateral FFN swap...")
@@ -269,7 +272,7 @@ def main():
         "scale": "1.5B",
         "gpu": "L40S 46GB",
         "vram_used": round(vram_final, 1),
-        "basis_k": 128,
+        "basis_k": ka,
         "n_layers_tested": n_total,
         "n_layers_passed": n_passed,
         "pass_rate": round(n_passed / max(n_total, 1) * 100, 1),

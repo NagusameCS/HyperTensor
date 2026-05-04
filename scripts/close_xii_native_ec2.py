@@ -21,42 +21,42 @@ os.makedirs(OUT, exist_ok=True)
 # NativeLinear: k*k core + d*k basis
 # ============================================================
 class NativeLinear(nn.Module):
-    """Geodesic linear layer: weight = P_core @ P_basis^T.
+    """Geodesic linear layer for rectangular weights: W [out_dim, in_dim].
     
-    Parameters: k*k (core) + d*k (basis) vs standard d*d.
-    Ratio: (k^2 + dk) / d^2.
-    At k=128, d=1536: (16384 + 196608) / 2359296 = 9.0%.
+    weight = basis_out @ core @ basis_in^T.
+    Parameters: out_dim*k + k*k + in_dim*k.
+    Standard params: out_dim * in_dim.
     """
-    def __init__(self, d, k):
+    def __init__(self, out_dim, in_dim, k):
         super().__init__()
-        self.d = d
+        self.out_dim = out_dim
+        self.in_dim = in_dim
         self.k = k
         self.core = nn.Parameter(torch.randn(k, k) * 0.01)
-        self.basis = nn.Parameter(torch.randn(d, k) * 0.01)
-        # Initialize basis as orthonormal
+        self.basis_in = nn.Parameter(torch.randn(in_dim, k) * 0.01)
+        self.basis_out = nn.Parameter(torch.randn(out_dim, k) * 0.01)
         with torch.no_grad():
-            Q, _ = torch.linalg.qr(self.basis.data)
-            self.basis.data = Q
+            Qi, _ = torch.linalg.qr(self.basis_in.data)
+            self.basis_in.data = Qi
+            Qo, _ = torch.linalg.qr(self.basis_out.data)
+            self.basis_out.data = Qo
     
     def forward(self, x):
-        # x: [batch, d]
-        # weight = basis @ core @ basis^T  (implicit)
-        # y = x @ basis @ core @ basis^T
-        x_proj = x @ self.basis   # [batch, k]
-        x_core = x_proj @ self.core  # [batch, k]
-        y = x_core @ self.basis.T   # [batch, d]
+        # x: [batch, in_dim]
+        x_proj = x @ self.basis_in         # [batch, k]
+        x_core = x_proj @ self.core        # [batch, k]
+        y = x_core @ self.basis_out.T      # [batch, out_dim]
         return y
     
     def effective_weight(self):
-        return self.basis @ self.core @ self.basis.T
+        return self.basis_out @ self.core @ self.basis_in.T  # [out_dim, in_dim]
     
     def retract(self):
-        """QR retraction: keep basis on Stiefel manifold."""
         with torch.no_grad():
-            Q, R = torch.linalg.qr(self.basis.data)
-            self.basis.data = Q
-            # Adjust core to preserve the effective weight
-            self.core.data = Q.T @ self.basis @ self.core @ self.basis.T @ Q
+            Qi, _ = torch.linalg.qr(self.basis_in.data)
+            self.basis_in.data = Qi
+            Qo, _ = torch.linalg.qr(self.basis_out.data)
+            self.basis_out.data = Qo
 
 # ============================================================
 # KExpansionScheduler
@@ -185,24 +185,29 @@ def main():
     d = model.config.hidden_size
     print(f"  d={d}")
     
-    # Get a target FFN layer weight
-    # model.model.layers[0].mlp.down_proj.weight for demonstration
+    # Get a target FFN layer weight (rectangular: [out_dim, in_dim])
     target_layer = model.model.layers[0].mlp.down_proj
     target_weight = target_layer.weight.data.float()
+    out_dim, in_dim = target_weight.shape
+    d = model.config.hidden_size
     print(f"  Target: layer 0 FFN down, shape={target_weight.shape}")
+    print(f"  d_model={d}, out_dim={out_dim}, in_dim={in_dim}")
     
     print(f"\n[2/3] Training NativeLinear with KExpansion...")
-    print(f"  Standard params: {d*d:,}")
+    standard_params = out_dim * in_dim
+    print(f"  Standard params: {standard_params:,}")
     
     # Train at each k level
     k_levels = [32, 64, 96, 128]
     results = []
     
     for k in k_levels:
-        print(f"\n  --- k={k} ({k*k + d*k:,} params, "
-              f"{(k*k + d*k) / (d*d) * 100:.1f}% of standard) ---")
+        n_params = out_dim * k + k * k + in_dim * k
+        param_ratio = n_params / standard_params * 100
         
-        native = NativeLinear(d, k).to(DEVICE)
+        print(f"\n  --- k={k} ({n_params:,} params, {param_ratio:.1f}% of standard) ---")
+        
+        native = NativeLinear(out_dim, in_dim, k).to(DEVICE)
         opt = torch.optim.AdamW(native.parameters(), lr=0.005)
         
         n_steps = 1500
@@ -233,13 +238,12 @@ def main():
             recon_error = torch.norm(W_eff - target_weight.to(DEVICE)).item() / torch.norm(target_weight).item()
             variance_preserved = (1.0 - recon_error) * 100
         
-        n_params = k * k + d * k
-        compression_ratio = (d * d) / n_params
+        compression_ratio = standard_params / n_params
         
         results.append({
             "k": k,
             "n_params": n_params,
-            "param_ratio_pct": round(n_params / (d * d) * 100, 1),
+            "param_ratio_pct": round(param_ratio, 1),
             "compression_ratio": round(compression_ratio, 1),
             "variance_preserved_pct": round(variance_preserved, 1),
             "best_loss": round(best_loss, 4),
@@ -251,6 +255,10 @@ def main():
     # Summary
     print(f"\n[3/3] KExpansion Summary:")
     print(f"  {'k':>4s} {'Params':>10s} {'Ratio':>7s} {'Compress':>9s} {'Variance':>9s}")
+    print(f"  {'-'*45}")
+    for r in results:
+        print(f"  {r['k']:4d} {r['n_params']:10,d} {r['param_ratio_pct']:6.1f}% "
+              f"{r['compression_ratio']:8.1f}x {r['variance_preserved_pct']:8.1f}%")
     print(f"  {'-'*45}")
     for r in results:
         print(f"  {r['k']:4d} {r['n_params']:10,d} {r['param_ratio_pct']:6.1f}% "
@@ -275,10 +283,10 @@ def main():
         "paper": "XII",
         "experiment": "native_kexpansion_1.5B",
         "d_model": d,
+        "weight_shape": [out_dim, in_dim],
+        "standard_params": standard_params,
         "k_levels": k_levels,
         "results": results,
-        "target_param_ratio_pct": target_ratio,
-        "best_k_for_target": best_k,
         "remaining": "PPL parity at k>=256 needs H100 (mechanism proven at k<=128)",
     }
     with open(f"{OUT}/results.json", "w") as f:
