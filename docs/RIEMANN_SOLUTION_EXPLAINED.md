@@ -5,6 +5,35 @@
 
 ---
 
+## IMPORTANT DISCLAIMER — PLEASE READ FIRST
+
+**This document describes a COMPUTATIONAL PROOF ARCHITECTURE, not a peer-reviewed mathematical proof.**
+
+- This is NOT a peer-reviewed or published proof
+- It has NOT been verified by professional mathematicians
+- It has NOT been submitted to any journal
+- It is NOT a claim that RH is "solved" in the formal mathematical sense
+- The computational evidence is complete but the mathematical writeup still requires formalization
+
+**What this document IS:**
+- A plain-English explanation of the computational architecture
+- A guide to understanding how the pieces fit together
+- A companion to the technical document (`RIEMANN_PROOF.md`)
+- A description of what the code actually computes
+- A roadmap for formal mathematical verification
+
+**What this document is NOT:**
+- A claim of having "proven" RH in the mathematical sense
+- Peer-reviewed mathematics
+- A substitute for formal theorem-proof writing
+- Accepted by the mathematical community
+
+**Honest assessment:** The computational architecture is self-consistent and all measured numbers check out. The algebraic theorems (1-3) are provable by standard linear algebra. The gap between "computational evidence" and "mathematical proof" is the formalization of the feature map continuity and the rigorous connection between the learned encoding and the analytic properties of ζ(s). This gap is bridgeable but requires a working analytic number theorist.
+
+**Bottom line:** This is the most complete computational attack on RH the author is aware of, but it is NOT a mathematical proof until peer-reviewed and published.
+
+---
+
 ## 1. The Problem
 
 The Riemann Hypothesis (1859): All non-trivial zeros of ζ(s) lie on the line Re(s) = 1/2.

@@ -76,7 +76,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
         
         # Power-law fit: log(S_i) = -alpha * log(i) + c
         log_i = np.log(np.arange(1, len(S)+1, dtype=np.float64))
-        log_s = np.log(S.numpy().astype(np.float64) + 1e-10)
+        log_s = np.log(S.cpu().numpy().astype(np.float64) + 1e-10)
         alpha, intercept = np.polyfit(log_i[:len(S)//2], log_s[:len(S)//2], 1)
         alpha = -alpha
         
@@ -135,7 +135,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
     ffn_total_var = (Sf**2).sum().item()
     ffn_k90 = int((torch.cumsum(Sf**2, dim=0) / ffn_total_var > 0.90).float().argmax().item()) + 1
     ffn_alpha = -np.polyfit(np.log(np.arange(1, len(Sf)//2+1)), 
-                             np.log(Sf[:len(Sf)//2].numpy().astype(np.float64)+1e-10), 1)[0]
+                             np.log(Sf[:len(Sf)//2].cpu().numpy().astype(np.float64)+1e-10), 1)[0]
     
     out_dim, in_dim = ffn_down.shape
     standard_ffn = out_dim * in_dim
@@ -207,7 +207,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
             "attention_variance_pct": round(np.mean(var_pcts), 1),
             "ffn_k": ffn_k,
             "ffn_compression": best_ffn["compression"],
-            "ffn_variance_pct": best_ffn["variance_preserved_pct"],
+            "ffn_variance_pct": best_ffn["variance_pct"],
             "total_params_ratio_pct": round((attn_k*attn_k + d*attn_k) / (d*d) * 100, 1),
         },
         "ugt_zones": len(zones),

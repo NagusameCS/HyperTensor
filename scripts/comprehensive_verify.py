@@ -3,15 +3,23 @@
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║  COMPREHENSIVE VERIFICATION FRAMEWORK — Papers I-XV                      ║
 ║                                                                          ║
-║  For each paper:                                                         ║
-║  - Statistical rigor (n>=30 trials, confidence intervals)                ║
-║  - Cross-model validation (at least 2 models)                            ║
-║  - Ablation study (remove component, measure impact)                     ║
-║  - Edge case testing (boundary conditions)                               ║
-║  - Reproduction script (single command to reproduce)                     ║
-║  - Data export (CSV/JSON with raw measurements)                          ║
+║  ⚠️  IMPORTANT: The statistical analysis in this script is MODEL-BASED.   ║
+║  ⚠️  CSV/JSON outputs are SIMULATED from analytic models fitted to a      ║
+║  ⚠️  small number of real measurement points. These are NOT direct        ║
+║  ⚠️  hardware measurements. For real measured data, see the individual    ║
+║  ⚠️  benchmark directories under benchmarks/.                             ║
 ║                                                                          ║
-║  Runs locally. No model loading needed for most tests.                   ║
+║  REAL measurements used to anchor models:                                ║
+║  - GRC 106.27% at k=1024 (EC2 L40S, paperA_cachefit)                     ║
+║  - AttnRes phase transition (EC2 L40S, attnres_sweep_final)              ║
+║  - Per-slot SVD spectra (EC2, per_matrix)                                ║
+║  - OTT rank→0 at noise=1e-4 (RTX 4070, ott_empirical3)                   ║
+║                                                                          ║
+║  This script demonstrates the VERIFICATION FRAMEWORK — the statistical   ║
+║  methodology is sound but the numbers are synthetic. To get real         ║
+║  verification numbers, run each paper's measurement script on hardware.  ║
+║                                                                          ║
+║  See docs/VERIFICATION_STATUS.md for per-claim verification status.      ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 """
 import torch, json, time, os, sys, math, csv, argparse, random
@@ -503,6 +511,12 @@ def main():
     print("="*70)
     print("  COMPREHENSIVE VERIFICATION FRAMEWORK — Papers I-XV")
     print(f"  n_trials=30 | Statistical rigor | Cross-model | Ablation | Edge cases")
+    print("="*70)
+    print()
+    print("  ⚠️  DISCLAIMER: Numbers are MODEL-BASED (simulated from analytic")
+    print("  models fitted to a few real measurement points). CSV/JSON outputs")
+    print("  are SYNTHETIC — not direct hardware measurements. For real data,")
+    print("  see individual benchmark directories and docs/VERIFICATION_STATUS.md")
     print("="*70)
     
     # Run all verifications
