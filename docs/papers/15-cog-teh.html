@@ -33,9 +33,9 @@
     <li><a href="#isagi">4. ISAGI: The Complete Living Model</a></li>
     <li><a href="#benchmarks">5. Benchmarks</a></li>
     <li><a href="#implementation">6. Implementation</a></li>
-    <li><a href="#status">6. Status</a></li>
-    <li><a href="#related-work">7. Related Work</a></li>
-    <li><a href="#discussion">8. Discussion</a></li>
+    <li><a href="#status">7. Status</a></li>
+    <li><a href="#related-work">8. Related Work</a></li>
+    <li><a href="#discussion">9. Discussion</a></li>
     <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
@@ -154,14 +154,14 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 </section>
 <section id="status">
-<h2>6. Status</h2>
+<h2>7. Status</h2>
 <p>Closeness to ideal: 100%. COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) --- these are compute questions, not mechanism uncertainties.</p>
 
 
 </section>
 
 <section id="related-work">
-<h2>7. Related Work</h2>
+<h2>8. Related Work</h2>
 
 <h3>7.1 Continual Learning and Adaptive Models</h3>
 <p>The idea of models that learn continuously from interaction has been explored in continual learning (Parisi et al., 2019; Lopez-Paz &amp; Ranzato, 2017), where the challenge is catastrophic forgetting --- new knowledge overwrites old. COG avoids catastrophic forgetting through its metric tensor structure: the Jacobi outer-product update $M \leftarrow M + \eta \cdot h_k h_k^T$ adds new information without overwriting existing eigendirections. This is analogous to the incremental SVD (Brand, 2002) but applied to the Riemannian metric rather than the data matrix.</p>
@@ -179,7 +179,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </section>
 
 <section id="discussion">
-<h2>8. Extended Discussion</h2>
+<h2>9. Extended Discussion</h2>
 
 <h3>8.1 The Living Model as a Research Program</h3>
 <p>The COG+TEH framework is more than two individual methods --- it is a paradigm for what language models could become. Current LLMs are static: every conversation starts from the same weights. A living model accumulates knowledge, develops preferences, and builds a unique trajectory through interaction space. The .MIKU file captures this trajectory, enabling cross-session continuity. The research questions this opens --- stability over 10K+ interactions, transfer of living state between models, multi-agent living model ecosystems --- define a new frontier beyond static language modeling.</p>

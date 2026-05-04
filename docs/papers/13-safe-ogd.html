@@ -34,9 +34,9 @@
     <li><a href="#results">5. Measured Results</a></li>
     <li><a href="#benchmarks">6. Benchmarks</a></li>
     <li><a href="#implementation">7. Implementation</a></li>
-    <li><a href="#status">7. Status</a></li>
-    <li><a href="#related-work">8. Related Work</a></li>
-    <li><a href="#discussion">9. Discussion</a></li>
+    <li><a href="#status">8. Status</a></li>
+    <li><a href="#related-work">9. Related Work</a></li>
+    <li><a href="#discussion">10. Discussion</a></li>
     <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
@@ -166,14 +166,14 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 
 </section>
 <section id="status">
-<h2>7. Status</h2>
+<h2>8. Status</h2>
 <p>Closeness to ideal: 100%. Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim --- it holds at any model scale.</p>
 
 
 </section>
 
 <section id="related-work">
-<h2>8. Related Work</h2>
+<h2>9. Related Work</h2>
 
 <h3>8.1 AI Safety Methods</h3>
 <p>The dominant paradigm in LLM safety is Reinforcement Learning from Human Feedback (RLHF; Ouyang et al., 2022; Bai et al., 2022), which trains a reward model from human preferences and uses PPO to align the language model. Constitutional AI (Bai et al., 2022) replaces human feedback with AI-generated critiques based on a written constitution. Circuit breaking (Zou et al., 2024; Arditi et al., 2024) identifies and ablates specific activation directions responsible for harmful behaviors. All of these methods are empirical --- they reduce harmful activation to low levels but cannot guarantee zero. Jailbreaks (Wei et al., 2023; Zou et al., 2023) consistently find adversarial prompts that bypass these safeguards.</p>
@@ -189,7 +189,7 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 </section>
 
 <section id="discussion">
-<h2>9. Extended Discussion</h2>
+<h2>10. Extended Discussion</h2>
 
 <h3>9.1 The Geometry of Safety</h3>
 <p>Why does a geometric approach to safety work where empirical methods fail? The answer lies in the completeness of the subspace decomposition. An empirical safety filter can only block patterns it has seen during training --- an adversarial pattern that lies outside the training distribution may evade detection. A geometric projector removes an entire subspace --- any vector with a non-zero projection onto that subspace is affected, regardless of whether the specific pattern was seen during training. This is the difference between probabilistic safety (RLHF, circuit breaking) and algebraic safety (Safe OGD).</p>

@@ -34,9 +34,9 @@
     <li><a href="#ceci">4. CECI Validation</a></li>
     <li><a href="#benchmarks">5. Benchmarks</a></li>
     <li><a href="#implementation">6. Implementation</a></li>
-    <li><a href="#status">6. Status and Remaining Work</a></li>
-    <li><a href="#related-work">7. Related Work</a></li>
-    <li><a href="#discussion">8. Extended Discussion</a></li>
+    <li><a href="#status">7. Status and Remaining Work</a></li>
+    <li><a href="#related-work">8. Related Work</a></li>
+    <li><a href="#discussion">9. Extended Discussion</a></li>
     <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
@@ -151,7 +151,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 
 </section>
 <section id="status">
-<h2>6. Status and Remaining Work</h2>
+<h2>7. Status and Remaining Work</h2>
 <p>The UGT mechanism is proven at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
 <p>Closeness to ideal: 98%. The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
 
@@ -159,7 +159,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </section>
 
 <section id="related-work">
-<h2>7. Related Work</h2>
+<h2>8. Related Work</h2>
 
 <h3>7.1 Representation Alignment</h3>
 <p>The problem of aligning neural network representations has a rich history. Early work on representational similarity analysis (Kriegeskorte et al., 2008) introduced the idea of comparing representations via distance metrics. The Singular Vector Canonical Correlation Analysis (SVCCA) framework (Raghu et al., 2017) uses CCA to find maximally correlated directions between two networks' activations. More recently, model stitching (Lenc &amp; Vedaldi, 2015; Bansal et al., 2021) demonstrated that intermediate representations can be aligned via learned affine transforms, enabling partial component interchange.</p>
@@ -179,7 +179,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </section>
 
 <section id="discussion">
-<h2>8. Extended Discussion</h2>
+<h2>9. Extended Discussion</h2>
 
 <h3>8.1 Why Does UGT Work?</h3>
 <p>The success of UGT raises a fundamental question: why do independently trained models with the same architecture converge to representations alignable by a single shared basis? We hypothesise that the architecture imposes a universal "representational attractor" --- the set of solutions reachable by SGD under the architectural constraints of the transformer. The UGT basis captures the principal directions of this attractor. This hypothesis is supported by the Wielandt-Hoffman theorem (proven in our transfer proof, <code>scripts/xi_transfer_proof.py</code>): if the data-generating process for transformer representations is stable, the SVD subspace is continuous under perturbation --- meaning the basis transfers across models and scales.</p>

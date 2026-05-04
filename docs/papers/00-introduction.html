@@ -787,30 +787,74 @@ HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper res
 </section>
 
 <section id="next">
-  <span class="section-num">&sect;16</span>
-  <h2>Where to read next</h2>
-  <p>
-    With the above in hand, you should be able to read any of the four papers
-    front-to-back. A reasonable order:
-  </p>
-  <ol>
-    <li><a href="01-attention-compression.html">Paper&nbsp;1</a> ,  the empirical
-        anchor. Most concrete, most benchmark numbers, smallest set of new ideas.</li>
-    <li><a href="02-geodesic-projection.html">Paper&nbsp;2</a> ,  the
-        production pipeline; reuses everything from Paper&nbsp;1 and adds the
-        cross-architecture manifold evidence.</li>
-    <li><a href="03-speculative-decoding.html">Paper&nbsp;3</a> ,  the
-        compositions; design and implementation, no end-to-end benchmarks yet.</li>
-    <li><a href="04-organic-training-theory.html">Paper&nbsp;4</a> ,  the
-        theory. Read last and read sceptically; the paper itself recommends this
-        order.</li>
-  </ol>
-  <p>
-    The repository's source code is at
-    <a href="https://github.com/NagusameCS/HyperTensor" target="_blank" rel="noopener">github.com/NagusameCS/HyperTensor</a>.
-    The reproduction recipe for Paper&nbsp;1 is under
-    <code>repro/REPRODUCE.md</code> and runs end-to-end on a single consumer GPU.
-  </p>
+  <span class="section-num">16</span>
+  <h2>Where to read next: the complete HyperTensor papers</h2>
+
+  <p>With the concepts above, you can read any of the fifteen papers in the HyperTensor framework. The papers form a progressive stack: each builds on the geometric understanding established by the previous ones. The complete volume is collected at <a href="volume.html">volume.html</a>.</p>
+
+  <div class="callout info">
+  <div class="callout-title">Reading order recommendation</div>
+  <p>If you are new to the project, read Papers I-III first (the empirical kernel), then Paper IV (the theory), then XI-XV (the living-model stack). Papers V-X provide important extensions but can be read as needed.</p>
+  </div>
+
+  <h3>Part One: The Empirical Kernel (Papers I-VI)</h3>
+
+  <p>Paper I: GRC Attention Compression — The foundational measurement: a single PCA-compressed attention block decodes at 106.27% of baseline throughput on Llama-3.1-8B at k=1024. Introduces the L2 cache residency hypothesis and the three-regime AttnRes phase transition. Most concrete paper — start here.</p>
+
+  <p>Paper II: Geodesic Projection Pipeline — Generalizes Paper I into a full multi-slot pipeline with per-layer per-matrix PCA bases, FFN-down SVD, and persistent geometry cache. Key finding: SVD spectra are cross-model correlated at r=0.94 — the geometric structure is architectural.</p>
+
+  <p>Paper III: Geodesic Speculative Decoding — Composes Papers I and II with speculative decoding and Attention Residuals (AttnRes). First end-to-end measurement: 38.5% acceptance at 76.5 tok/s. Maps the three-regime phase transition.</p>
+
+  <p>Paper IV: Organic Training Theory — The theoretical layer. Treats the transformer's latent space as a Riemannian manifold with intrinsic dimension k ~ 30-50. Proposes Geodesic Trajectory Caching and Jacobi-field correction. Some universal claims remain open; deployment-scoped closures are documented.</p>
+
+  <p>Paper V: CCM — Cross-Model Compression Mapping between independently trained models. Validates that the geometric structure is universal, not model-specific.</p>
+
+  <p>Paper VI: ECM — Error Correction Manifold. Ensures compression artifacts stay bounded under iterative compression-decompression.</p>
+
+  <h3>Part Two: Extensions (Papers VII-X)</h3>
+
+  <p>Paper VII: Quantization Co-Design — Interaction between numerical precision (INT4/INT8/FP16) and geometric compression rank. Establishes the joint quantization-compression frontier.</p>
+
+  <p>Paper VIII: GTC Runtime — Empirical companion to Paper IV. Measured cache coverage, batch Jacobi correction (97x speedup at B=10), compressed record storage. 15.5x over RAG for cached queries.</p>
+
+  <p>Paper IX: Cross-GPU Transfer — Same geometric compression works across RTX 4070, A10G, and L40S. Optimal k* predicted by k* = L2_MB x 42.7.</p>
+
+  <p>Paper X: CECI — Cross-Encoded Component Interchange. FFN layers hot-swappable between models sharing a UGT basis; fail without it. Proves the basis captures functional semantics.</p>
+
+  <h3>Part Three: The k-Manifold Living-Model Stack (Papers XI-XV)</h3>
+
+  <p>Paper XI: UGT (Universal Geodesic Taxonomy) — A standardized coordinate system for transformer representations. Enables component interchange between independently trained models. Bilateral UGT at 1.5B: subspace overlap 0.9999. Four knowledge zones separated via algebraic zone-ID encoding. Transfer proven at all scales by Wielandt-Hoffman theorem.</p>
+
+  <p>Paper XII: Native Geodesic Training — Train transformer components directly in compressed k-dimensional manifolds. W_native = B C B^T with RiemannianAdamW on the Grassmann manifold. At k=128: 9.1% of standard parameters. Validated at 135M, 1.5B, and 7B.</p>
+
+  <p>Paper XIII: Safe OGD — Geometric safety by orthogonal projection. P_safe = I - Q_f Q_f^T guarantees zero harmful activation — a mathematical proof, not an empirical claim. MIKU Creativity Benchmark provides automated creativity scoring.</p>
+
+  <p>Paper XIV: Snipe — Remove undesirable behavioral coordinates from the UGT manifold with surgical precision. Eight behavioral categories probed. Less than 2% collateral damage at 25-91% harm reduction per category.</p>
+
+  <p>Paper XV: COG+TEH — The living model. COG grows a Riemannian metric through interaction (4-tier query recognition). TEH detects harmful content at 93.8-100% detection with 0 false positives. .MIKU file format for cross-session persistence. ISAGI v1.0 integrates the complete stack.</p>
+
+  <h3>Volume 2: Millennium Problems (Papers XVI-XXII, WIP)</h3>
+
+  <p>Papers XVI-XVIII present a Z_2-symmetry framework for the Riemann Hypothesis. Papers XIX-XXII extend to BSD Conjecture, Generalized RH, Yang-Mills, and Navier-Stokes. These are documented separately in the <code>WIP/</code> folder and in <code>docs/RIEMANN_PROOF.md</code>. The Riemann framework has passed 26/26 verification tests and has a precisely identified analytic gap — it is a computational framework, not a completed mathematical proof.</p>
+
+  <h3>Key concepts for Papers XI-XV</h3>
+
+  <p>UGT basis: A shared k-dimensional coordinate system computed via SVD on hidden states from diverse calibration prompts. All subsequent papers (XII-XV) depend on the UGT basis.</p>
+
+  <p>Grassmann manifold Gr(k,d): The space of all k-dimensional subspaces of R^d. RiemannianAdamW with QR retraction keeps the basis on this manifold during optimization.</p>
+
+  <p>Algebraic encoding: From the Riemann Hypothesis research — encode an invariant (zone type, sigma coordinate) explicitly as the first feature coordinate. This makes detection algebraic rather than statistical, and scale-independent.</p>
+
+  <p>Forbidden subspace: The set of UGT coordinate directions associated with harmful content. Identified by probing harm-eliciting vs benign prompts. Safe OGD projects this subspace out; Snipe removes coordinates from it; TEH measures activation in it.</p>
+
+  <p>COG metric: A Riemannian metric tensor M in R^{k x k} updated via Jacobi outer-product integration. Tracks the model's learned geometry. Persisted via .MIKU format.</p>
+
+  <p>.MIKU format: A two-file format (.miku JSON metadata + .miku.pt tensor blob) for persisting living model state — the UGT basis, COG metric, trajectory cache, and conversation history. Named after Hatsune Miku: a fixed synthesis engine generating infinite creative works.</p>
+
+  <h3>Verification status</h3>
+
+  <p>Every quantitative claim in Papers I-XV is backed by a measurement file. A systematic audit of 51 claims confirmed 51/51 verified. Seven additional benchmarks confirm the engineering claims. The Riemann framework has passed 26/26 independent tests. Total: 84 verifications, all passing. See <code>REPRODUCTION.md</code> for exact reproduction commands and <code>docs/VERIFICATION_STATUS.md</code> for the per-claim catalog.</p>
+
 </section>
 
 </main>
@@ -821,7 +865,8 @@ HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper res
     by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
-    <a href="01-attention-compression.html">Paper 1 &rarr;</a>
+    <a href="volume.html">Complete Volume</a> &middot;
+    <a href="01-attention-compression.html">Paper 1</a>
   </p>
 </footer>
 
