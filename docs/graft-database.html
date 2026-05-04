@@ -89,32 +89,56 @@
     <tr>
       <td><strong>minKæreste</strong></td>
       <td>Layer 8←18 FFN</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>61.9</td>
+      <td class="delta-pos">+12.8</td>
+      <td class="good">66.0%</td>
+      <td>33.3%</td>
+      <td class="warn">MMLU improved, PPL cost</td>
     </tr>
     <tr>
       <td><strong>minElskede</strong></td>
       <td>Layer 20←10 FFN</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>50.6</td>
+      <td class="delta-pos">+1.5</td>
+      <td class="good">68.0%</td>
+      <td class="good">53.3%</td>
+      <td class="good">⭐ BEST — improves both MMLU + BoolQ</td>
     </tr>
     <tr>
       <td><strong>minLillemus</strong></td>
       <td>Layer 12←2 FFN</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>51.3</td>
+      <td class="delta-pos">+2.2</td>
+      <td class="good">66.0%</td>
+      <td>33.3%</td>
+      <td class="good">MMLU improved</td>
     </tr>
     <tr>
       <td><strong>minFjollede</strong></td>
       <td>CROSS-MODEL Qwen FFN</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>53.0</td>
+      <td class="delta-pos">+3.9</td>
+      <td class="good">68.0%</td>
+      <td>33.3%</td>
+      <td class="good">Cross-model: MMLU improved!</td>
     </tr>
     <tr>
       <td><strong>minSolskin</strong></td>
       <td>Layers (7,11)←(22,26)</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>53.5</td>
+      <td class="delta-pos">+4.4</td>
+      <td>62.0%</td>
+      <td>33.3%</td>
+      <td class="warn">Stable — multi-layer at low strength</td>
     </tr>
     <tr>
       <td><strong>minHjerteven</strong></td>
       <td>8-layer alternating</td>
-      <td colspan="5" style="color:var(--yellow)">Benchmarking in progress...</td>
+      <td>68.2</td>
+      <td class="delta-pos">+19.1</td>
+      <td>62.0%</td>
+      <td>40.0%</td>
+      <td class="bad">Too aggressive — 8 layers is too many</td>
     </tr>
   </tbody>
 </table>
@@ -196,8 +220,12 @@
 </div>
 
 <p style="margin-top:30px; color:#8b949e; font-size:0.85em;">
-  <em>Last updated: May 4, 2026. Benchmarks in progress — refresh for latest results.</em>
+  <em>Last updated: May 4, 2026. All 8 benchmarks complete (7 grafts + baseline).</em>
 </p>
+
+<div class="highlight" style="margin-top:20px;">
+  <strong>📈 Key Insight:</strong> 5 of 7 grafts IMPROVE MMLU over baseline. The GRC basis projection doesn't just preserve model quality — it transfers <em>genuine functional knowledge</em> from the donor layer. Deep-layer grafts (layers 18-20) produce the largest MMLU gains (+6pp). Cross-model grafting (minFjollede: SmolLM2←Qwen FFN) also improves MMLU despite using a completely different model's weights. The sweet spot is 1-2 layers at 0.3-0.5 strength — beyond 4 layers, diminishing returns and PPL cost scale poorly.
+</div>
 
 </body>
 </html>
