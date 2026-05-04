@@ -1,3 +1,0 @@
-[kint] model=Qwen3.5-MoE-30B-A3.5B  n_layers=40  d=2048
-[kint] sampling layers: [0, 8, 16, 24, 32, 39]
-  layer   0  loading Q/K/V ...

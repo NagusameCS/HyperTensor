@@ -1,9 +1,0 @@
-tag,rep,tps,duration_s,returncode
-baseline,1,37.9,5.67,0
-baseline,2,38.0,5.71,0
-baseline,3,37.9,5.64,0
-baseline,4,37.9,5.67,0
-mcr,1,37.9,5.70,0
-mcr,2,38.0,5.37,0
-mcr,3,36.7,5.59,0
-mcr,4,35.8,5.76,0

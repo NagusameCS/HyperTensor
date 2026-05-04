@@ -912,7 +912,7 @@ shared basis are lower-importance for next-token prediction than their
 singular values alone would suggest. Per-matrix bases are an obvious next
 step (<a href="#sec:future" data-reference-type="ref+Label" data-reference="sec:future">10</a>).</p>
 <figure id="fig:ey-per-layer" data-latex-placement="h">
-<img src="ey_per_layer_k1024.png" style="width:92.0%" />
+
 <figcaption>Per-layer EY oracle vs. GRC at <span class="math inline">\(k=1024\)</span> on
 Llama-3.1-8B Q4_K_M (layers <span class="math inline">\(\{0,15,31\}\)</span>, slots <span class="math inline">\(\{Q,K,V\}\)</span>).
 The shared-basis penalty is concentrated in <span class="math inline">\(V\)</span>, with <span class="math inline">\(Q\)</span> and <span class="math inline">\(K\)</span> paying
@@ -1408,7 +1408,7 @@ right axis to optimise.</p>
 (<span class="math inline">\(L\in\{0,7,15,23,31\}\)</span>) of Llama-3.1-8B-Instruct after Q4_K_M
 dequantisation. The rank required to capture <span class="math inline">\(95\%\)</span> of <span class="math inline">\(\norm{\Wmat}_F^2\)</span>:</p>
 <figure id="fig:spectra-app" data-latex-placement="h">
-<img src="spectra_attn_vs_ffn.png" style="width:95.0%" />
+
 <figcaption>Singular-value spectra of attention (<span class="math inline">\(\Wmat_Q,\Wmat_K,\Wmat_V\)</span>
 concatenated, blue) versus FFN (gate, up, down concatenated, orange) for
 five layers of Llama-3.1-8B. Attention curves drop <span class="math inline">\({\sim}3\)</span> orders of
@@ -1418,7 +1418,7 @@ premise that justifies compressing attention exclusively (Fig. <a href="#fig:sp
 shows the same effect averaged across all 32 layers).</figcaption>
 </figure>
 <figure id="fig:energy-capture" data-latex-placement="h">
-<img src="energy_capture.png" style="width:85.0%" />
+
 <figcaption>Cumulative Frobenius-energy capture vs. rank. The 95%
 threshold (dashed line) is reached at <span class="math inline">\(k_{95}{\approx}1682\)</span> for attention
 and <span class="math inline">\(k_{95}{\approx}3345\)</span> for FFN; the GRC operating point <span class="math inline">\(k{=}1024\)</span>
@@ -1519,7 +1519,7 @@ baseline, well above the 67% gate.</caption>
 </tbody>
 </table>
 <figure id="fig:paired-throughput" data-latex-placement="h">
-<img src="throughput_paired.png" style="width:85.0%" />
+
 <figcaption>Paired throughput visualisation behind the CI table above.
 Each pair of points is one prompt class <span class="math inline">\(\times\)</span> generated-token-budget
 condition; lines connect baseline and GRC (<span class="math inline">\(k{=}1024\)</span>) measurements
@@ -1530,7 +1530,7 @@ spread, which periodically displaces the projected <span class="math inline">\(\
 out of L2.</figcaption>
 </figure>
 <figure id="fig:layerwise-rank" data-latex-placement="h">
-<img src="layerwise_rank_needed.png" style="width:85.0%" />
+
 <figcaption>Per-layer rank required for 90%, 95% and 99% Frobenius-energy
 retention across the 32 transformer blocks of Llama-3.1-8B. The flat
 plateau between <span class="math inline">\(L{=}5\)</span> and <span class="math inline">\(L{=}28\)</span> shows that a single compression
@@ -1542,7 +1542,7 @@ Edge layers <span class="math inline">\(L{\le}4\)</span> and <span class="math i
 most of the +13.30% PPL penalty.</figcaption>
 </figure>
 <figure id="fig:l2-trace" data-latex-placement="h">
-<img src="l2_hit_rate_comparison.png" style="width:85.0%" />
+
 <figcaption>Direct Nsight Compute trace of L2 read hit-rate on the residual
 <code>kernel_gemv_q4_k</code> (FFN matmul, identical in both runs) for 100
 representative decode-phase launches each on Llama-3.1-8B Q4_K_M, RTX 4070
