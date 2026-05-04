@@ -160,7 +160,7 @@ for i,concept in enumerate(novel_concepts):
         if is_novel:
             manifold.expand(h)
             result["expanded"]=True
-            print(f"  [{i+1:>2}] ✨ EXPANDED (dist={min_dist:.3f}): {concept[:50]}...")
+            print(f"  [{i+1:>2}] * EXPANDED (dist={min_dist:.3f}): {concept[:50]}...")
         else:
             manifold.store(h,concept)
             result["stored"]=True

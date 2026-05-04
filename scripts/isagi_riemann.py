@@ -367,7 +367,7 @@ def main():
                     re = float(parts[2]) if len(parts) > 2 else 0.5
                     result = rps.query_agt(t, re)
                     print(f"  AGT({re}+{t}i): act={result['activation']:.4f} | "
-                          f"z={result['z_score']:.1f} | critical={'✅' if result['is_critical'] else '❌'}")
+                          f"z={result['z_score']:.1f} | critical={'[OK]' if result['is_critical'] else '[XX]'}")
                 except (ValueError, IndexError):
                     print(f"  Usage: /agt <imag_part> [real_part]")
                 continue
@@ -378,8 +378,8 @@ def main():
                     t = float(parts[2])
                     result = rps.verify_acm(re, t)
                     print(f"  ACM({re}+{t}i): deviation={result['deviation']:.6f} | "
-                          f"fixed_point={'✅' if result['is_fixed_point'] else '❌'} | "
-                          f"on_critical={'✅' if result['on_critical_line'] else '❌'}")
+                          f"fixed_point={'[OK]' if result['is_fixed_point'] else '[XX]'} | "
+                          f"on_critical={'[OK]' if result['on_critical_line'] else '[XX]'}")
                 except (ValueError, IndexError):
                     print(f"  Usage: /acm <real_part> <imag_part>")
                 continue

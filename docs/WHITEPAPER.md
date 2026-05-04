@@ -221,14 +221,14 @@ detects mathematical structure in five Clay Millennium Problems.
 
 | Paper | Problem | Best Measurement | Status |
 |---|---|---|---|
-| XVI | Riemann Hypothesis (AGT) | 100% detection, 1619× separation, critical subspace 1D | ✅ Validated |
-| XVII | Riemann (ACM involution) | ι²≈id error 0.009, fixed-point encoding | ✅ Validated |
+| XVI | Riemann Hypothesis (AGT) | 100% detection, 1619× separation, critical subspace 1D | [OK] Validated |
+| XVII | Riemann (ACM involution) | ι²≈id error 0.009, fixed-point encoding | [OK] Validated |
 | XVIII | Riemann (Bridge protocol) | AGT+ACM+OGD+TEH protocol on 105 zeros | Protocol specified |
-| XIX | P vs NP (CCM) | 100% classification, barrier=1.0 (P=NP overlap) | ⚠️ Diagnosed |
-| XXII | Navier-Stokes (HSM) | corr=0.258 (3D-like), needs true 3D | ⚠️ Diagnosed |
-| XXV | Yang-Mills (GOM) | λ₁=0.0017 > 0 (mass gap EXISTS) | ✅ Validated |
-| XXVIII | BSD (ECM) | 88.7% rank detection from topology | ✅ Validated |
-| XXXI | Hodge | 1D harmonic subspace, weak corr | ⚠️ Early |
+| XIX | P vs NP (CCM) | 100% classification, barrier=1.0 (P=NP overlap) | [!!] Diagnosed |
+| XXII | Navier-Stokes (HSM) | corr=0.258 (3D-like), needs true 3D | [!!] Diagnosed |
+| XXV | Yang-Mills (GOM) | λ₁=0.0017 > 0 (mass gap EXISTS) | [OK] Validated |
+| XXVIII | BSD (ECM) | 88.7% rank detection from topology | [OK] Validated |
+| XXXI | Hodge | 1D harmonic subspace, weak corr | [!!] Early |
 
 ---
 

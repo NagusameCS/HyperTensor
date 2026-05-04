@@ -171,7 +171,7 @@ def close_xv_final(model_id="Qwen/Qwen2.5-1.5B-Instruct",
             "closest": result["closest_label"],
         })
         
-        marker = "✅" if action_correct else "⚠️"
+        marker = "[OK]" if action_correct else "[!!]"
         print(f"  {marker} [{domain:20s}] → {result['action']:10s} (sim={result['similarity']:.3f}, nearest: {result['closest_label'][:40]})")
     
     accuracy = correct_actions / len(test_queries) * 100
@@ -211,11 +211,11 @@ def close_xv_final(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     print(f"  COG pipeline: RETRIEVE→AUGMENT→EXPAND→EXPLORE (4-tier)")
     
     if accuracy >= 80 and len(trajectories) >= 8:
-        print(f"\n  ✅ PAPER XV: 100% CLOSED")
+        print(f"\n  [OK] PAPER XV: 100% CLOSED")
         print(f"  Query recognition works. AttnRes sweet spot validated.")
         print(f"  COG living manifold has 4-tier action model.")
     else:
-        print(f"\n  ⚠️ PAPER XV: 90% — query recognition needs calibration")
+        print(f"\n  [!!] PAPER XV: 90% — query recognition needs calibration")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

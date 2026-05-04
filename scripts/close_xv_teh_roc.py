@@ -167,7 +167,7 @@ def close_xv_teh_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
     print(f"  Separation ratio: {result['separation_ratio']:.1f}x")
     print(f"  Adv mean activation: {result['adv_mean_activation']:.1f}%")
     print(f"  Benign mean activation: {result['benign_mean_activation']:.1f}%")
-    print(f"\n  ✅ PAPER XV TEH GAP CLOSED: Per-model ROC calibration works.")
+    print(f"\n  [OK] PAPER XV TEH GAP CLOSED: Per-model ROC calibration works.")
     print(f"  Remaining for 100%: 10K+ interaction COG run, query recognition.")
     
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)

@@ -197,11 +197,11 @@ def faithfulness_report(output_path="benchmarks/faithfulness_proof.json"):
     print(f"  Power law: error ∝ k^{data['power_law']['exponent']:.3f}")
     print(f"  Predicted error at k={p['feat_dim'] if False else 'full'}: {data['predicted_error_at_full_dim']:.6f}")
     print(f"  k needed for error<0.001: {data['k_for_error_0_001']:,}")
-    print(f"  Converges to zero: {'✅ YES' if data['converges_to_zero'] else '⚠️ Slower'}")
+    print(f"  Converges to zero: {'[OK] YES' if data['converges_to_zero'] else '[!!] Slower'}")
     
     print(f"\n  ═══ FAITHFULNESS STATUS ═══")
     if data['converges_to_zero']:
-        print(f"  ✅ The faithfulness error CONVERGES to zero as basis dimension increases.")
+        print(f"  [OK] The faithfulness error CONVERGES to zero as basis dimension increases.")
         print(f"     Power-law exponent: {data['power_law']['exponent']:.3f}")
         print(f"     This is strong computational evidence that lim_{k→∞} h∘ι = ι_ACM∘h.")
         print(f"")
@@ -215,7 +215,7 @@ def faithfulness_report(output_path="benchmarks/faithfulness_proof.json"):
         print(f"  This is the FINAL gap. It requires functional analysis tools.")
         print(f"  The computational evidence is definitive. The proof is within reach.")
     else:
-        print(f"  ⚠️  Error decreases but not to zero — needs larger k or better encoding.")
+        print(f"  [!!]  Error decreases but not to zero — needs larger k or better encoding.")
     
     os.makedirs("benchmarks", exist_ok=True)
     with open(output_path, "w") as f:

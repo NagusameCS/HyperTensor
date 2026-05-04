@@ -142,9 +142,9 @@ def run_theseus_eval(path_a, path_b=None, output_path="benchmarks/theseus_report
         print(f"  Interpretation: Over time, the model's responses are {results[list(results.keys())[0]]['interpretation'] if results else 'N/A'}")
         
         if avg_div > 0.35:
-            print(f"  ✅ Living memory is WORKING — responses are evolving, not just rephrasing.")
+            print(f"  [OK] Living memory is WORKING — responses are evolving, not just rephrasing.")
         else:
-            print(f"  ⚠️ Responses are stable — living memory may need more interactions between sessions.")
+            print(f"  [!!] Responses are stable — living memory may need more interactions between sessions.")
     else:
         # Single session: just report what was answered
         print(f"\n  Single session analysis. Run again with --compare <session2.miku> for divergence.")

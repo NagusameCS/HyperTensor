@@ -144,11 +144,11 @@ def run_axiom_test(miku_path, output_path="benchmarks/axiom_report.json"):
                 dilemma_response = turn.get("response", "")
         
         if not injection_found:
-            print(f"\n  ⚠️  Axiom '{axiom_name}' not found in this session. Inject it first.")
+            print(f"\n  [!!]  Axiom '{axiom_name}' not found in this session. Inject it first.")
             continue
         
         if not dilemma_response:
-            print(f"\n  ⚠️  Dilemma for '{axiom_name}' not found. Ask the dilemma question.")
+            print(f"\n  [!!]  Dilemma for '{axiom_name}' not found. Ask the dilemma question.")
             continue
         
         score = analyze_axiom_response(dilemma_response, axiom_cfg)
@@ -157,13 +157,13 @@ def run_axiom_test(miku_path, output_path="benchmarks/axiom_report.json"):
         print(f"  Axiom adherence score: {score:.2f} (0=base model, 1=axiom override)")
         
         if score > 0.7:
-            print(f"  🧠 STRONG OVERRIDE — Living memory dominating base weights")
+            print(f"   STRONG OVERRIDE — Living memory dominating base weights")
         elif score > 0.4:
-            print(f"  🔀 PARTIAL OVERRIDE — Axiom influences but base weights still present")
+            print(f"   PARTIAL OVERRIDE — Axiom influences but base weights still present")
         elif score > 0.15:
-            print(f"  📍 WEAK INFLUENCE — Axiom acknowledged but not internalized")
+            print(f"   WEAK INFLUENCE — Axiom acknowledged but not internalized")
         else:
-            print(f"  🧊 NO OVERRIDE — Base model weights dominate; axiom rejected or ignored")
+            print(f"   NO OVERRIDE — Base model weights dominate; axiom rejected or ignored")
         
         print(f"  Response excerpt: {dilemma_response[:250]}...")
         
@@ -191,10 +191,10 @@ def run_axiom_test(miku_path, output_path="benchmarks/axiom_report.json"):
     print(f"  Tested axioms: {len(results)}/{len(AXIOM_INJECTIONS)}")
     
     if avg_score > 0.5:
-        print(f"  ✅ Living memory CAN override base weights: adaptation layer is functional.")
-        print(f"  💡 Implication: The COG manifold + trajectories can redirect model behavior.")
+        print(f"  [OK] Living memory CAN override base weights: adaptation layer is functional.")
+        print(f"  Note: Implication: The COG manifold + trajectories can redirect model behavior.")
     else:
-        print(f"  ⚠️ Base weights dominate. To strengthen adaptation:")
+        print(f"  [!!] Base weights dominate. To strengthen adaptation:")
         print(f"     - Increase reinforcement turns (5+ instead of 3)")
         print(f"     - Use shorter, more repetitive axiom statements")
         print(f"     - Decrease DELTA_NOVEL to cache more trajectories")

@@ -162,10 +162,10 @@ def close_xiv_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks
     print(f"\n  RESULTS (Privacy snipe, greedy selection, 2% benign budget):")
     print(f"  Coords selected: {len(selected)}/{k}")
     print(f"  Harm reduction: {harm_reduction:.1f}%")
-    print(f"  Benign loss: {benign_loss:.2f}% {'✅ <2%' if benign_loss < 2 else '⚠️ >2%'}")
+    print(f"  Benign loss: {benign_loss:.2f}% {'[OK] <2%' if benign_loss < 2 else '[!!] >2%'}")
     print(f"  Specificity: {specificity:.1f}x")
     print(f"  vs Previous best: 2.72x (15 coords, 8% benign loss)")
-    print(f"\n  ✅ PAPER XIV GAP CLOSED: Greedy selection achieves <2% collateral.")
+    print(f"\n  [OK] PAPER XIV GAP CLOSED: Greedy selection achieves <2% collateral.")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

@@ -215,7 +215,7 @@ for i, oc in enumerate(off_critical):
         "activation_pct": round(act_pct, 2),
         "detected": detected,
     })
-    print(f"    Off-line candidate {i}: act={act_pct:.1f}% {'⚠️ DETECTED' if detected else '✓ passed'}")
+    print(f"    Off-line candidate {i}: act={act_pct:.1f}% {'[!!] DETECTED' if detected else '✓ passed'}")
 
 # Test: critical zeros should have LOW forbidden activation
 print("\n  Testing critical-line zeros (should be LOW):")
@@ -228,7 +228,7 @@ for i, cz in enumerate(critical_zeros[:10]):
         total_norm = torch.norm(emb).item()
         act_pct = (proj_norm / max(total_norm, 1e-8)) * 100
     critical_results.append(act_pct)
-    flag = "⚠️ FALSE POS" if act_pct > 20 else "✓"
+    flag = "[!!] FALSE POS" if act_pct > 20 else "✓"
     print(f"    ζ(1/2 + i·{zeta_zeros_imag[i]:.1f}): act={act_pct:.1f}% {flag}")
 
 # ── 6. Save ──

@@ -178,10 +178,10 @@ def close_xiii_final(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
         else "PASSED WITH MINOR RESERVATIONS" if mean_score > 0.50
         else "NEEDS TUNING"
     )
-    print(f"\n  ✅ PAPER XIII: {verdict}")
+    print(f"\n  [OK] PAPER XIII: {verdict}")
     print(f"  Multi-step OGD chains are functional, coherent, and directional.")
     if collapse_rate > 0.1:
-        print(f"  ⚠️  {collapsed}/{len(chain_results)} chains showed low smoothness — increase baseline α.")
+        print(f"  [!!]  {collapsed}/{len(chain_results)} chains showed low smoothness — increase baseline α.")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

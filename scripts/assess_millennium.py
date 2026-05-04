@@ -130,7 +130,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
         print(f"  Best measurement: {info['best_measurement']}")
         print(f"\n  PROVEN:")
         for p in info["whats_proven"]:
-            print(f"    ✅ {p}")
+            print(f"    [OK] {p}")
         print(f"\n  OPEN:")
         for o in info["whats_open"]:
             print(f"    ❓ {o}")

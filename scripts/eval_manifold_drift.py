@@ -78,7 +78,7 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     print(f"  Late distance from centroid:  {np.mean(dists_from_home[2*n//3:]):.4f}" if n > 10 else "  (Need >10 trajectories)")
     print(f"  Home-pull ratio: {home_pull_ratio:.3f}")
     if home_pull_ratio > 1.5:
-        print(f"  📈 EXPANDING — model is moving AWAY from baseline over time")
+        print(f"  [UP] EXPANDING — model is moving AWAY from baseline over time")
     elif home_pull_ratio < 0.5:
         print(f"  📉 COLLAPSING — model is snapping BACK to baseline (not learning)")
     else:
@@ -97,11 +97,11 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
         print(f"  Distinct regions visited: {n_clusters}")
         print(f"  Noise points (isolated): {noise_pct:.1f}%")
         if n_clusters >= 3:
-            print(f"  🌐 DIVERSE EXPLORATION — model visits multiple distinct conceptual regions")
+            print(f"   DIVERSE EXPLORATION — model visits multiple distinct conceptual regions")
         elif n_clusters == 2:
-            print(f"  🔀 BIMODAL — model oscillates between two regions")
+            print(f"   BIMODAL — model oscillates between two regions")
         else:
-            print(f"  🎯 FOCUSED — model stays in one conceptual region")
+            print(f"  -> FOCUSED — model stays in one conceptual region")
     else:
         n_clusters = 1
         noise_pct = 0

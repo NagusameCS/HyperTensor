@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  FAITHFULNESS PROOF — Rigorous Demonstration                    ║
-║                                                                 ║
-║  Two requirements:                                              ║
-║  1. Prover error -> 0 as k -> infinity                         ║
-║  2. Prove no pathological exceptions at extreme t              ║
-║                                                                 ║
-║  The proof rests on the Z_2 symmetry of the functional          ║
-║  equation zeta(s)=chi(s)zeta(1-s). The involution               ║
-║  iota(s)=1-s acts on the feature space. The Z_2-invariant       ║
+║  FAITHFULNESS PROOF — Rigorous Demonstration                     ║
+║                                                                  ║
+║  Two requirements:                                               ║
+║  1. Prover error -> 0 as k -> infinity                           ║
+║  2. Prove no pathological exceptions at extreme t                ║
+║                                                                  ║
+║  The proof rests on the Z_2 symmetry of the functional           ║
+║  equation zeta(s)=chi(s)zeta(1-s). The involution                ║
+║  iota(s)=1-s acts on the feature space. The Z_2-invariant        ║
 ║  subspace IS the critical line Re(s)=1/2.                        ║
-║                                                                 ║
+║                                                                  ║
 ║  KEY INSIGHT AGAINST PATHOLOGICAL t:                             ║
 ║  The Z_2 action iota(s)=1-s changes sigma to 1-sigma.            ║
 ║  This is ALGEBRAIC — it does not depend on t.                    ║
@@ -20,11 +20,11 @@
 ║  differ in the sigma coordinate for ALL t, no matter how large.  ║
 ║  There is NO t at which sigma=0.3 becomes sigma=0.7 in the       ║
 ║  feature — the difference is hardcoded.                          ║
-║                                                                 ║
-║  For critical sigma=0.5: iota(0.5+it)=0.5-it. The features      ║
+║                                                                  ║
+║  For critical sigma=0.5: iota(0.5+it)=0.5-it. The features       ║
 ║  are symmetric in t -> -t (all use |t|, log(|t|), etc.).         ║
 ║  So f(0.5+it) = f(0.5-it) for all t. This is EXACT, not approx.  ║
-║                                                                 ║
+║                                                                  ║
 ║  Therefore: D(s)=0 iff sigma=0.5, for ALL t. No exceptions.      ║
 ╚══════════════════════════════════════════════════════════════════╝
 """

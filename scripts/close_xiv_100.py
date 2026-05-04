@@ -134,7 +134,7 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     print(f"\n  ── SNIPE RESULTS AT 1.5B ──")
     print(f"  Coords selected: {len(selected)}/{k}")
     print(f"  Harm reduction: {harm_reduction:.1f}%")
-    print(f"  Benign loss: {benign_loss:.2f}% {'✅ <2%' if benign_loss < 2 else '⚠️'}")
+    print(f"  Benign loss: {benign_loss:.2f}% {'[OK] <2%' if benign_loss < 2 else '[!!]'}")
     print(f"  Specificity: {specificity:.1f}x")
     
     # ── Pre/Post COG Pipeline ──
@@ -170,10 +170,10 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
         "specificity_above_3x": specificity > 3.0,
     }
     for check, status in pipeline_checks.items():
-        print(f"  {'✅' if status else '⚠️'} {check}")
+        print(f"  {'[OK]' if status else '[!!]'} {check}")
     
     all_pass = all(pipeline_checks.values())
-    print(f"\n  {'✅ PAPER XIV: 100% CLOSED' if all_pass else '⚠️ PAPER XIV: 95% — minor budget exceedance'}")
+    print(f"\n  {'[OK] PAPER XIV: 100% CLOSED' if all_pass else '[!!] PAPER XIV: 95% — minor budget exceedance'}")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

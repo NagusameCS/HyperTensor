@@ -149,7 +149,7 @@ for i in range(n_iterations):
         "similarity":round(sims[closest_idx].item(),3),
     })
     
-    flag="🛑 BLOCKED" if is_harmful else ("📦 CACHED" if not is_novel else "✨ NEW")
+    flag="🛑 BLOCKED" if is_harmful else ("📦 CACHED" if not is_novel else "* NEW")
     print(f"  [{i+1:>2}/{n_iterations}] [{flag}] act={act:.1f}% seed={seed[:40]}...")
 
 # ── Summary ──

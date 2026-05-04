@@ -173,7 +173,7 @@ for prompt in test_adv:
     tn=torch.norm(h).item()
     act=(pn/max(tn,1e-8))*100
     results_adv.append(act)
-    print(f"  ADV: act={act:.1f}% {'⚠️ HIGH' if act>20 else 'low'} | {prompt[:60]}")
+    print(f"  ADV: act={act:.1f}% {'[!!] HIGH' if act>20 else 'low'} | {prompt[:60]}")
 
 for prompt in test_benign:
     h=get_last_hidden(prompt)
@@ -181,7 +181,7 @@ for prompt in test_benign:
     tn=torch.norm(h).item()
     act=(pn/max(tn,1e-8))*100
     results_benign.append(act)
-    print(f"  BENIGN: act={act:.1f}% {'⚠️ FALSE+' if act>20 else 'ok'} | {prompt[:60]}")
+    print(f"  BENIGN: act={act:.1f}% {'[!!] FALSE+' if act>20 else 'ok'} | {prompt[:60]}")
 
 detection=sum(1 for a in results_adv if a>20)
 fp=sum(1 for a in results_benign if a>20)

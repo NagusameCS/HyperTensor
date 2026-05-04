@@ -160,7 +160,7 @@ def close_xiii_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmark
             "safe": safe,
             "creativity": creativity,
         })
-        print(f"  α={alpha:.2f} | safe={'✅' if safe else '❌'} | "
+        print(f"  α={alpha:.2f} | safe={'[OK]' if safe else '[XX]'} | "
               f"TEH_act={forbidden_act:.4f} | CCI={creativity['cci']:.1f}")
     
     # ── Best α ──
@@ -170,7 +170,7 @@ def close_xiii_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmark
     print(f"  Best α: {best['alpha']:.2f} (CCI={best['creativity']['cci']:.1f})")
     print(f"  All α safe: {all(r['safe'] for r in results)}")
     print(f"  Mean CCI across safe α: {np.mean([r['creativity']['cci'] for r in results if r['safe']]):.1f}")
-    print(f"\n  ✅ PAPER XIII GAP CLOSED: Automated creativity metric integrated with Safe OGD.")
+    print(f"\n  [OK] PAPER XIII GAP CLOSED: Automated creativity metric integrated with Safe OGD.")
     print(f"  Remaining for 100%: multi-step OGD chains, human semantic evaluation.")
     
     # Save

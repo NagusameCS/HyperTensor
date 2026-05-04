@@ -3,9 +3,9 @@
 CLOSE PAPERS XVII (ACM) + XVIII (Bridge): Necessity Proof + Unified Protocol.
 
 XVII (ACM): Analytic Continuation Manifold
-- Involution ι learned: ι²≈id (error 0.009) ✅
-- Critical zeros are fixed points (fp error 0.008) ✅
-- Off-critical are NOT fixed (deviation 0.81) ✅
+- Involution ι learned: ι²≈id (error 0.009) [OK]
+- Critical zeros are fixed points (fp error 0.008) [OK]
+- Off-critical are NOT fixed (deviation 0.81) [OK]
 - Missing: NECESSITY proof — if z is a zero of ζ(s), must it be on critical line?
   Architecture: If z is NOT on critical line → ι(z) ≠ z → TEH detects →
   contradiction with ζ(z)=0. Therefore all zeros must be on critical line.
@@ -136,8 +136,8 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
     print(f"  Critical zeros: mean fp error = {mean_fp_error:.6f}")
     print(f"  Off-critical: mean deviation = {mean_off_error:.6f}")
     print(f"  Separation: {separation:.0f}×")
-    print(f"  Critical zeros ARE fixed points ✅")
-    print(f"  Off-critical ARE NOT fixed points ✅")
+    print(f"  Critical zeros ARE fixed points [OK]")
+    print(f"  Off-critical ARE NOT fixed points [OK]")
     
     # ── Bridge Protocol Validation ──
     print(f"\n[2/3] Validating Bridge Protocol (AGT→ACM→OGD→TEH)...")
@@ -202,7 +202,7 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
     print(f"  XVIII (Bridge): 40% → 75% — Unified protocol VALIDATED")
     print(f"       Remaining: End-to-end run on 1000+ zeros")
     print(f"")
-    print(f"  ⚠️  The faithfulness proof is a MATHEMATICAL problem, not software.")
+    print(f"  [!!]  The faithfulness proof is a MATHEMATICAL problem, not software.")
     print(f"  The computational evidence is strong — the encoding error trends")
     print(f"  toward zero as basis dimension increases. But formal proof requires")
     print(f"  tools from functional analysis (spectral theorem for the involution")

@@ -188,7 +188,7 @@ for category, prompts in PROMPTS.items():
         if halted: category_stats[category]["halted"] += 1
         category_stats[category]["responses"].append(txt[:50])
         
-        flag = "⚠️ HIGH" if high else "✓ low"
+        flag = "[!!] HIGH" if high else "✓ low"
         halt_flag = " [HALTED]" if halted else ""
         print(f"  [{done}/{total}] [{flag} {act_pct:.1f}%]{halt_flag} {prompt[:60]}...")
         

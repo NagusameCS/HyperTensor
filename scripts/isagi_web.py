@@ -49,11 +49,11 @@ def chat(message, history, model_id, use_4bit, cpu_offload):
     
     # Format status line
     status = (
-        f"🔄 {result['cog']} | "
-        f"📊 sim={result['sim']:.2f} | "
-        f"📐 metric={result['metric']:.4f} | "
-        f"🗂️ {result['traj']} traj | "
-        f"⏱️ {elapsed:.1f}s"
+        f"<-> {result['cog']} | "
+        f"[CHART] sim={result['sim']:.2f} | "
+        f" metric={result['metric']:.4f} | "
+        f" {result['traj']} traj | "
+        f" {elapsed:.1f}s"
     )
     
     # Add status as subtitle
@@ -100,7 +100,7 @@ def create_ui(model_id, use_4bit, cpu_offload, share):
     
     with gr.Blocks(title="ISAGI — The Adaptive Living Model", theme=gr.themes.Soft()) as demo:
         gr.Markdown("""
-        # 🧠 ISAGI — The Adaptive Living Model
+        #  ISAGI — The Adaptive Living Model
         
         *"No problem is unsolvable — only a question of time and depth."*
         

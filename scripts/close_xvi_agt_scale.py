@@ -154,11 +154,11 @@ def close_agt(model_id=None, output_path="benchmarks/xvi_agt_scaled.json"):
     
     print(f"\n  Convergence trend: slope={trend['slope']:.2f}/log(N), R²={trend['r2']:.3f}")
     if trend['slope'] > 0 and trend['r2'] > 0.8:
-        print(f"  ✅ Gap GROWS with N — 1D subspace is NOT a small-N artifact")
+        print(f"  [OK] Gap GROWS with N — 1D subspace is NOT a small-N artifact")
     elif trend['slope'] > 0:
         print(f"  ↗️  Gap trends upward — consistent with 1D subspace at scale")
     else:
-        print(f"  ⚠️  Need larger N to confirm trend")
+        print(f"  [!!]  Need larger N to confirm trend")
     
     # ── Detection at scale ──
     print(f"\n[3/4] Detection analysis at N={len(primes)}...")
@@ -210,14 +210,14 @@ def close_agt(model_id=None, output_path="benchmarks/xvi_agt_scaled.json"):
     final_k95 = convergence_results[-1]["k95"]
     
     if final_k90 <= 2 and separation > 100:
-        print(f"  ✅ 1D critical subspace CONFIRMED at N={len(primes)}")
+        print(f"  [OK] 1D critical subspace CONFIRMED at N={len(primes)}")
         print(f"     k90={final_k90}, k95={final_k95} — zeros occupy a single geometric line")
         print(f"     Separation: {separation:.0f}× — detection is trivial at any threshold")
-        print(f"  ✅ PAPER XVI: 90% — 10K scaling validated")
+        print(f"  [OK] PAPER XVI: 90% — 10K scaling validated")
         print(f"     Remaining: 10^6 prime scaling (compute-bound, mechanism proven)")
         status = "90%_CLOSED"
     else:
-        print(f"  ⚠️  Need larger N for definitive 1D claim")
+        print(f"  [!!]  Need larger N for definitive 1D claim")
         status = "80%_CLOSED"
     
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else "benchmarks", exist_ok=True)

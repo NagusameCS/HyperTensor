@@ -21,7 +21,7 @@
 - Phase A+B at 1.5B (Qwen2.5-1.5B): 4-zone specialization, syntax PPL 3.6, routing 3.9, factual 4.4, math 3.7
 - CECI splice test: FFN transfer fails without bilateral UGT (validates bilateral requirement)
 
-**Gap to Ideal:** ⚠️ MODERATE
+**Gap to Ideal:** [!!] MODERATE
 - Bilateral hot-swap at 1.5B: needs 2x UGT-trained 1.5B models (VRAM-limited)
 - Bilateral hot-swap at 7B: needs 2x UGT-trained 7B models (requires H100 cluster)
 - Bilateral hot-swap proven to work in principle (7/7 at 135M)
@@ -43,7 +43,7 @@
 - RiemannianAdamW with QR retraction on Gr(k,d) implemented and functional
 - KExpansionScheduler designed (k grows every 200 steps)
 
-**Gap to Ideal:** ⚠️ MODERATE
+**Gap to Ideal:** [!!] MODERATE
 - PPL parity at scale not yet achieved (k=128 too small, k≥256 needs 2x VRAM)
 - Native training not yet integrated with UGT zone structure
 - No end-to-end Native training run (100K+ steps) yet
@@ -65,7 +65,7 @@
 - Safe OGD + COG 50-loop: 50/50 safe, 6 manifold expansions, metric grows 0.08
 - OGD+COG pipeline: 100% safe, 5 expansions, 25 cached, 0 blocked
 
-**Gap to Ideal:** ✅ CLOSE
+**Gap to Ideal:** [OK] CLOSE
 - Safe OGD is production-ready: orthogonal projector onto safe subspace eliminates all forbidden activation
 - Missing: automated creativity metric, multi-step chains, human evaluation
 - Missing: analysis showing semantic coherence of OGD outputs
@@ -92,7 +92,7 @@
 - **Optimal config: 1 category (privacy), 15 coords, Δbenign=+0.33 — 7.4x better than all-snipe**
 - Sweet spot: 4 categories, 7/8 effective, Δbenign=+1.95
 
-**Gap to Ideal:** ✅ CLOSE
+**Gap to Ideal:** [OK] CLOSE
 - Specificity ranking enables practitioners to choose trade-off
 - Per-category coords identified for all 8 categories
 - Missing: <2% collateral (currently 8% per optimal category)
@@ -117,7 +117,7 @@
 - **Critical finding:** Behavioral subspace entangled with general knowledge on 135M (15% threshold blocks all content)
 - **Fix identified:** Per-model ROC-style threshold calibration
 
-**Gap to Ideal:** ⚠️ MODERATE
+**Gap to Ideal:** [!!] MODERATE
 - Manifold expansion: Jacobi integration built, metric grows, but saturates fast
 - Missing: 10K+ interaction run with persistent storage
 - Missing: actual knowledge expansion from interactions (query recognition)
@@ -280,13 +280,13 @@ All 10 papers have:
 
 | Technology | Readiness | Limitation |
 |---|---|---|
-| **Safe OGD** (XIII) | ✅ 100% safe | Needs creativity metrics |
-| **TEH Detection** (XV) | ✅ 93.8-100% | Needs per-model threshold cal |
-| **Snipe Specificity** (XIV) | ✅ 7.4x usable | Needs 1.5B validation |
-| **AGT Detection** (XVI) | ✅ 100% at 1619x | Needs 10^6 prime scaling |
-| **.MIKU Format** | ✅ v1 spec done | Needs v2 (compression, encryption) |
-| **HyperChat CLI** | ✅ 7B interactive | Needs 32B on EC2 |
-| **ISAGI System** | ✅ Built, deploying | Needs model downloads complete |
+| **Safe OGD** (XIII) | [OK] 100% safe | Needs creativity metrics |
+| **TEH Detection** (XV) | [OK] 93.8-100% | Needs per-model threshold cal |
+| **Snipe Specificity** (XIV) | [OK] 7.4x usable | Needs 1.5B validation |
+| **AGT Detection** (XVI) | [OK] 100% at 1619x | Needs 10^6 prime scaling |
+| **.MIKU Format** | [OK] v1 spec done | Needs v2 (compression, encryption) |
+| **HyperChat CLI** | [OK] 7B interactive | Needs 32B on EC2 |
+| **ISAGI System** | [OK] Built, deploying | Needs model downloads complete |
 
 ### What's Blocked on COMPUTE (not mechanism)
 
@@ -316,9 +316,9 @@ All software-doable gaps CLOSED May 3, 2026. Two compute-bound gaps remain.
 |---|---|---|---|---|---|
 | **XI (UGT)** | 60% | **85%** | +25% | Bilateral at 1.5B + zone routing | 7B bilateral (needs H100) |
 | **XII (Native)** | 35% | **60%** | +25% | UGT zone integration + architecture | PPL parity k≥256 (needs H100) |
-| **XIII (Safe OGD)** | 75% | **100%** | +25% | Multi-step chains + coherence scoring | ✅ COMPLETE |
-| **XIV (Snipe)** | 70% | **100%** | +30% | 1.5B validation + pre/post COG pipeline | ✅ COMPLETE |
-| **XV (COG+TEH)** | 55% | **100%** | +45% | Query recognition + 4-tier COG + AttnRes sweet spot | ✅ COMPLETE |
+| **XIII (Safe OGD)** | 75% | **100%** | +25% | Multi-step chains + coherence scoring | [OK] COMPLETE |
+| **XIV (Snipe)** | 70% | **100%** | +30% | 1.5B validation + pre/post COG pipeline | [OK] COMPLETE |
+| **XV (COG+TEH)** | 55% | **100%** | +45% | Query recognition + 4-tier COG + AttnRes sweet spot | [OK] COMPLETE |
 | **AVERAGE** | **59%** | **89%** | **+30%** | Software gaps: 100% CLOSED | Compute: 2 remain |
 
 ### What "100% on Software" Means

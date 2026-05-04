@@ -242,7 +242,7 @@ def run_cog_100(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/x
     print(f"  Trajectories cached: {len(trajectories)}")
     print(f"  Metric growth linearity: R²={linear_r2:.3f}")
     print(f"  Saturation detected: {'Yes' if saturating else 'No (still growing)'}")
-    print(f"\n  ✅ PAPER XV GAP PARTIALLY CLOSED: 100-COG run functional.")
+    print(f"\n  [OK] PAPER XV GAP PARTIALLY CLOSED: 100-COG run functional.")
     print(f"  Remaining for 100%: Scale to 10K+, query recognition, cross-session learning.")
     
     os.makedirs("benchmarks", exist_ok=True)

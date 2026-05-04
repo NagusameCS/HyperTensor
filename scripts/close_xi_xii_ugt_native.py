@@ -159,9 +159,9 @@ def validate_bilateral_ugt_architecture(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     print(f"  XI Bilateral: validated at 1.5B (7B needs H100)")
     print(f"  XII Native: {compression_ratio:.1f}% params, {variance_preserved:.1f}% variance")
     print(f"  XII Integration: zone-aware native training target defined")
-    print(f"\n  ✅ XI: 60% → 80% (bilateral validated, 7B scaling = compute-bound)")
-    print(f"  ✅ XII: 35% → 55% (native architecture integrated with UGT zones)")
-    print(f"  ⚠️ Full 100% for XI+XII needs H100 cluster for 7B bilateral + k≥256 native PPL parity")
+    print(f"\n  [OK] XI: 60% → 80% (bilateral validated, 7B scaling = compute-bound)")
+    print(f"  [OK] XII: 35% → 55% (native architecture integrated with UGT zones)")
+    print(f"  [!!] Full 100% for XI+XII needs H100 cluster for 7B bilateral + k≥256 native PPL parity")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

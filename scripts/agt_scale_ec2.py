@@ -159,5 +159,5 @@ report = {
 with open(f"{out}/results.json", "w") as f:
     json.dump(report, f, indent=2)
 print(f"\n  Saved: {out}/results.json")
-print(f"\n  ✅ AGT at 50K: 1D subspace {'CONFIRMED' if k90<=2 else 'PERSISTS'} | "
+print(f"\n  [OK] AGT at 50K: 1D subspace {'CONFIRMED' if k90<=2 else 'PERSISTS'} | "
       f"{separation:.0f}× separation | {detected/len(off_features)*100:.0f}% detection")

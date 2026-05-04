@@ -167,12 +167,12 @@ The Riemann Hypothesis would be proven via a geometric argument:
 
 | Component | Status |
 |---|---|
-| AGT detection | ✅ 100% at 1619× separation, 50K-prime scaling |
-| ACM encoding | ✅ iota^2≈id error 0.009, fixed points identified |
-| TEH exclusion | ✅ 93.8-100% detection, 0 FP |
-| Contradiction logic | ✅ Logically sound, computationally validated |
-| **Faithfulness proof** | **✅ SOLVED — Z_2 symmetry + SVD spectral convergence** |
-| **Formal writeup** | **⚠️ Pending — mathematical language, peer review** |
+| AGT detection | [OK] 100% at 1619× separation, 50K-prime scaling |
+| ACM encoding | [OK] iota^2≈id error 0.009, fixed points identified |
+| TEH exclusion | [OK] 93.8-100% detection, 0 FP |
+| Contradiction logic | [OK] Logically sound, computationally validated |
+| **Faithfulness proof** | **[OK] SOLVED — Z_2 symmetry + SVD spectral convergence** |
+| **Formal writeup** | **[!!] Pending — mathematical language, peer review** |
 
 ### The Solved Faithfulness Gap
 
