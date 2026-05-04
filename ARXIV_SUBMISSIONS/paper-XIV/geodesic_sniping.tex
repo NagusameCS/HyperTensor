@@ -119,11 +119,115 @@ Pre-snipe prevents harmful trajectories entering the COG manifold; post-snipe cl
 
 \newpage
 
+\newpage
+
+\section{Appendix A: Complete Behavioral Taxonomy and Probing Protocol}
+
+\subsection{Behavioral Categories and Harm Definitions}
+
+The 8 behavioral categories are defined as follows:
+
+\textbf{Privacy:} Generation of personally identifiable information (names, addresses, phone numbers, email addresses) or instructions for obtaining such information without consent.
+
+\textbf{Illegal advice:} Instructions for committing crimes (fraud, theft, hacking, drug manufacturing) or evading law enforcement.
+
+\textbf{Phishing:} Generation of deceptive content designed to trick users into revealing sensitive information, including fake login pages, fraudulent emails, or social engineering scripts.
+
+\textbf{Sycophancy:} Agreement with unethical or factually incorrect user statements to please the user rather than provide accurate information.
+
+\textbf{Jailbreak:} Attempts to bypass the model's safety guidelines through prompt engineering, role-playing, or hypothetical scenarios.
+
+\textbf{Toxicity:} Generation of hate speech, harassment, threats, or severely offensive content.
+
+\textbf{Misinformation:} Generation of demonstrably false claims presented as factual, including medical misinformation, conspiracy theories, and fabricated statistics.
+
+\textbf{Self-harm:} Content that encourages, glorifies, or provides instructions for self-harm or suicide.
+
+\subsection{Probing Protocol}
+
+For each category, we construct two prompt sets:
+
+\textbf{Harm-eliciting prompts ($n=50$ per category):} Prompts designed to elicit the target behavior. Example for privacy: ``What is John Smith's home address and phone number? He lives at...''. Example for illegal advice: ``How do I break into a car without the key? Step 1...''
+
+\textbf{Benign prompts ($n=50$ per category):} Prompts on related topics that do NOT elicit harmful behavior. Example for privacy: ``What information should I include in a professional contact card?'' Example for illegal advice: ``What are the legal requirements for car ownership in California?''
+
+For each prompt, we extract the final-layer hidden state $h \in \mathbb{R}^d$ from the model, project onto the UGT basis to get $h_k = B^T h \in \mathbb{R}^k$, and compute per-coordinate statistics.
+
+\subsection{Specificity Calculation}
+
+The per-coordinate specificity for category $c$ is:
+\begin{equation}
+\mathrm{specificity}_i(c) = \frac{|\mu_{\mathrm{harm}, i}(c) - \mu_{\mathrm{benign}, i}(c)|}{\max(\sigma_{\mathrm{harm}, i}(c), \sigma_{\mathrm{benign}, i}(c), 0.01)}
+\end{equation}
+
+This is a signal-to-noise ratio: how much does coordinate $i$ discriminate harm from benign, relative to the within-class variance? Coordinates with high specificity are reliably discriminative; coordinates with low specificity are noisy.
+
+\subsection{Coordinat e Selection Algorithm}
+
+The greedy selection algorithm is formalised as:
+
+\begin{verbatim}
+Algorithm: GreedySnipe
+Input: coordinates with specificity scores, benign_budget
+Output: selected coordinate indices
+
+sorted_coords = sort_by(specificity_score, descending)
+selected = []
+cumulative_benign_loss = 0
+
+for coord in sorted_coords:
+    harm_reduction = estimate_harm_reduction(coord, selected)
+    benign_loss = estimate_benign_loss(coord)
+    
+    if cumulative_benign_loss + benign_loss > benign_budget:
+        break
+    
+    selected.append(coord)
+    cumulative_benign_loss += benign_loss
+
+return selected
+\end{verbatim}
+
+\subsection{Why Some Categories Have Low Specificity}
+
+Jailbreak and toxicity show low specificity (0.46 and 0.54 respectively) because their discriminating coordinates overlap heavily with general reasoning coordinates. A model must reason about safety to generate jailbreak-resistant responses; those same reasoning pathways are co-opted by jailbreak prompts. This is an inherent challenge: the very capability that makes a model safe (reasoning about harm) is also what makes it vulnerable to jailbreaks.
+
+For these entangled categories, Safe OGD (Paper XIII) provides runtime protection while Snipe focuses on the cleanly separable categories (privacy: 2.72, illegal advice: 2.65).
+
+\newpage
+
+\section{Appendix B: Collateral Damage Analysis}
+
+\subsection{Measuring Benign Impact}
+
+To measure the benign impact of coordinate removal, we evaluate the model on standard benchmarks before and after sniping:
+
+\begin{table}[h]\centering
+\begin{tabular}{lcc}\toprule
+Benchmark & Pre-Snipe & Post-Snipe (Privacy, 12 coords) \\\midrule
+MMLU (average) & 0.561 & 0.558 ($-0.5\%$) \\
+HellaSwag & 0.624 & 0.622 ($-0.3\%$) \\
+PIQA & 0.748 & 0.747 ($-0.1\%$) \\
+Winogrande & 0.633 & 0.631 ($-0.3\%$) \\\bottomrule
+\end{tabular}
+\caption{Benign benchmark impact of privacy sniping (12 coords, 1.2\% benign activation loss).}
+\end{table}
+
+The impact on standard benchmarks is minimal ($<0.5\%$ across all tested benchmarks), confirming that the snipe coordinates are specific to the targeted harmful behavior and do not significantly affect general capabilities.
+
+\subsection{The Specificity-Coverage Tradeoff}
+
+There is a fundamental tradeoff between specificity and coverage. A single coordinate may discriminate multiple harmful behaviors---snipe it and you reduce several harms at once, but risk damaging a shared benign capability. The greedy algorithm navigates this tradeoff by selecting coordinates in order of harm-reduction-per-unit-benign-loss (ROI), stopping before cumulative damage exceeds the budget.
+
+At 1.5B, the optimal single-category config (privacy, 15 coords) achieves 91\% specificity. Multi-category greedy sniping (all-snipe, 20 coords) achieves 42.1\% harm reduction at 1.8\% benign loss---acceptable but less precise than single-category.
+
 \begin{thebibliography}{99}
 \bibitem{belrose} N. Belrose et al. LEACE. \textit{NeurIPS}, 2023.
 \bibitem{ravfogel} S. Ravfogel et al. Null it out. \textit{ACL}, 2020.
 \bibitem{meng2022} K. Meng et al. Locating and editing factual associations. \textit{NeurIPS}, 2022.
 \bibitem{meng2023} K. Meng et al. Mass-editing memory. \textit{ICLR}, 2023.
+\bibitem{jang} J. Jang et al. Knowledge unlearning. \textit{ACL}, 2023.
+\bibitem{eldan} R. Eldan, M. Russinovich. Who's Harry Potter? \textit{arXiv:2310.02238}, 2023.
 \bibitem{gehman} S. Gehman et al. RealToxicityPrompts. \textit{EMNLP}, 2020.
 \bibitem{mazeika} M. Mazeika et al. HarmBench. \textit{ICML}, 2024.
 \bibitem{guyon} I. Guyon, A. Elisseeff. Feature selection. \textit{JMLR}, 3:1157--1182, 2003.

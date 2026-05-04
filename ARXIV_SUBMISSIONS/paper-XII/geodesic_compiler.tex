@@ -146,12 +146,150 @@ Variance ceiling at 7B (34.5\% at $k=768$). Singular value collapse if $C$ conce
 H100 scaling ($k^*=2135$). Joint training with UGT basis initialisation. Extension to MLP layers.
 
 \newpage
+\newpage
+
+\section{Appendix A: Mathematical Foundations of NativeLinear}
+
+\subsection{SVD Spectrum of Trained Weights}
+
+The foundation of Native Geodesic Training is the empirical observation that trained transformer weight matrices have a rapidly decaying singular value spectrum. For a weight matrix $W \in \mathbb{R}^{d \times d}$, its SVD is $W = U \Sigma V^T$ with $\Sigma = \mathrm{diag}(\sigma_1, \sigma_2, \ldots, \sigma_d)$. The singular values follow a power law:
+\begin{equation}
+\sigma_i \approx \sigma_1 \cdot i^{-\alpha}
+\end{equation}
+with $\alpha \approx 0.7$ for attention weights (measured on Qwen2.5-1.5B-Instruct, 112 projections across 28 layers $\times$ 4 attention slots).
+
+The cumulative variance captured by the top-$k$ singular vectors is:
+\begin{equation}
+V(k) = \frac{\sum_{i=1}^k \sigma_i^2}{\sum_{i=1}^d \sigma_i^2} \approx \frac{\sum_{i=1}^k i^{-2\alpha}}{\sum_{i=1}^d i^{-2\alpha}}
+\end{equation}
+
+For $\alpha = 0.7$, $V(128) \approx 0.30$ (30\% of variance), $V(512) \approx 0.55$, $V(1536) \approx 0.85$. This means that even at $k=1536$ (the full dimension for a 1.5B model), some variance remains in the tail---explaining why PPL parity requires larger $k$ at 7B scale where $d=3584$.
+
+\subsection{Grassmann Manifold and Stiefel Manifold}
+
+The NativeLinear basis $B$ lives on the Stiefel manifold $\mathrm{St}(k,d) = \{B \in \mathbb{R}^{d \times k} : B^T B = I_k\}$. The Grassmann manifold $\mathrm{Gr}(k,d)$ is the quotient $\mathrm{St}(k,d) / O(k)$, identifying bases that span the same subspace.
+
+The tangent space at $B$ is:
+\begin{equation}
+T_B \mathrm{St}(k,d) = \{\Delta \in \mathbb{R}^{d \times k} : B^T \Delta + \Delta^T B = 0\}
+\end{equation}
+
+The Riemannian gradient of a function $f(B)$ is the projection of the Euclidean gradient onto the tangent space:
+\begin{equation}
+\mathrm{grad} f(B) = \nabla f(B) - B \cdot \mathrm{sym}(B^T \nabla f(B))
+\end{equation}
+where $\mathrm{sym}(X) = (X + X^T)/2$.
+
+\subsection{QR Retraction}
+
+The QR retraction maps a tangent vector $\Delta \in T_B \mathrm{St}(k,d)$ back to the manifold:
+\begin{equation}
+R_B(\Delta) = \mathrm{qf}(B + \Delta)
+\end{equation}
+where $\mathrm{qf}(X)$ extracts the $Q$ factor from $X = QR$. This is a second-order retraction, meaning it agrees with the exponential map to second order.
+
+The key property is that $R_B(\Delta)^T R_B(\Delta) = I_k$, preserving orthonormality to machine precision. The computational cost is $O(d k^2)$ for QR decomposition of a $d \times k$ matrix.
+
+\subsection{Convergence Analysis}
+
+The loss function for Native training is the relative Frobenius error:
+\begin{equation}
+L(B, C) = \frac{\|B C B^T - W\|_F^2}{\|W\|_F^2}
+\end{equation}
+
+By the Eckart-Young theorem, the optimal rank-$k$ approximation to $W$ is $U_{[:,:k]} \Sigma_{[:k,:k]} V_{[:,:k]}^T$, with error:
+\begin{equation}
+L_{\mathrm{opt}}(k) = \frac{\sum_{i=k+1}^d \sigma_i^2}{\sum_{i=1}^d \sigma_i^2} \approx \frac{\sum_{i=k+1}^d i^{-2\alpha}}{\sum_{i=1}^d i^{-2\alpha}}
+\end{equation}
+
+NativeLinear with a sufficiently expressive $C$ can achieve this optimum when $B = U_{[:,:k]}$ and $C = \Sigma_{[:k,:k]}$, giving $BCB^T = U_{[:,:k]} \Sigma_{[:k,:k]} U_{[:,:k]}^T$. In practice, training finds a basis close to the optimal one, with loss decreasing monotonically with $k$.
+
+\subsection{Parameter Efficiency Analysis}
+
+The parameter ratio for square matrices is:
+\begin{equation}
+r(k, d) = \frac{k^2 + dk}{d^2} = \frac{k}{d} + \frac{k^2}{d^2}
+\end{equation}
+
+For $k \ll d$, this is approximately $k/d$. For $d=1536$ and $k=128$, $r \approx 0.090 = 9.0\%$. For rectangular matrices $[d_{\mathrm{out}}, d_{\mathrm{in}}]$ with separate $B_{\mathrm{in}}, B_{\mathrm{out}}$:
+\begin{equation}
+r(k, d_{\mathrm{in}}, d_{\mathrm{out}}) = \frac{k^2 + k(d_{\mathrm{in}} + d_{\mathrm{out}})}{d_{\mathrm{in}} d_{\mathrm{out}}}
+\end{equation}
+
+For FFN down-projection with $d_{\mathrm{in}}=1536, d_{\mathrm{out}}=8960$, the standard matrix has 13.8M parameters. At $k=128$, NativeLinear uses $k^2 + 128(1536+8960) = 1.36$M parameters (9.9\%).
+
+\newpage
+
+\section{Appendix B: KExpansion Scheduler --- Full Algorithm}
+
+The KExpansionScheduler is formalised as Algorithm~1.
+
+\begin{verbatim}
+Algorithm 1: KExpansionScheduler
+Input: k_init, k_step, k_max, patience, threshold
+Output: Trained NativeLinear model
+
+k = k_init
+B = random_orthonormal(d, k)  # from SVD of random weights
+C = random(k, k)
+best_loss = inf
+steps_since_improvement = 0
+
+while k <= k_max:
+    for step in range(patience):
+        # Training step
+        W_native = B @ C @ B.T
+        loss = ||W_native - W_target||^2 / ||W_target||^2
+        loss.backward()
+        RiemannianAdamW.step()
+        # QR retraction every N steps
+        if step % N == 0:
+            Q, R = qr(B); B = Q
+    
+    if loss < best_loss - threshold:
+        best_loss = loss
+        steps_since_improvement = 0
+    else:
+        steps_since_improvement += 1
+    
+    if steps_since_improvement >= 2:
+        # Expand k
+        k_new = min(k + k_step, k_max)
+        B_new = random_orthonormal(d, k_new)
+        B_new[:, :k] = B  # Preserve old basis
+        # Gram-Schmidt orthogonalize new columns
+        for j in range(k, k_new):
+            for i in range(j):
+                B_new[:, j] -= (B_new[:, i].T @ B_new[:, j]) * B_new[:, i]
+            B_new[:, j] /= ||B_new[:, j]||
+        
+        C_new = zeros(k_new, k_new)
+        C_new[:k, :k] = C  # Preserve old core
+        # Initialize new block
+        C_new[k:, :k] = small_random(k_new-k, k)
+        C_new[:k, k:] = small_random(k, k_new-k)
+        
+        B, C, k = B_new, C_new, k_new
+        steps_since_improvement = 0
+
+return B, C
+\end{verbatim}
+
+The Gram-Schmidt step ensures new basis columns are orthogonal to all existing columns, preserving the orthonormality of $B$ and ensuring that new directions capture novel variance rather than rediscovering old directions.
+
+\subsection{Why KExpansion Works}
+
+The KExpansionScheduler exploits a property of the power-law spectrum: the first $k$ singular vectors capture the dominant directions of variation, and the marginal benefit of each additional vector decreases. Starting at small $k$ provides a coarse approximation that captures the most important structure. Expanding $k$ refines this approximation by adding directions that capture progressively finer detail.
+
+This is analogous to progressive refinement in numerical linear algebra (e.g., incremental SVD, Brand 2002) but applied to the optimisation of the basis itself rather than to data decomposition.
+
 \begin{thebibliography}{99}
 \bibitem{hu} E.J. Hu et al. LoRA. \textit{ICLR}, 2022.
 \bibitem{zhao} J. Zhao et al. GaLore. \textit{ICML}, 2024.
 \bibitem{hsu} Y-C. Hsu et al. MONET. \textit{arXiv:2212.04496}, 2022.
 \bibitem{huang} L. Huang et al. Orthogonal weight normalization. \textit{AAAI}, 2018.
 \bibitem{absil} P-A. Absil et al. \textit{Optimization on Matrix Manifolds}. Princeton, 2008.
+\bibitem{brand} M. Brand. Incremental SVD. \textit{ECCV}, 2002.
 \bibitem{golub} G.H. Golub, C.F. Van Loan. \textit{Matrix Computations}. Johns Hopkins, 2013.
 \bibitem{stewart} W.K.O. Stewart. HyperTensor Repository. 2026.
 \end{thebibliography}

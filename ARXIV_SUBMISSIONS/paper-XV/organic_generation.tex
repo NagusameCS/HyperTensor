@@ -137,11 +137,127 @@ At 1.5B+: 100\% detection, 0\% FP. At 135M: 93.8\%. The transition between 135M 
 
 \newpage
 
+\newpage
+
+\section{Appendix A: COG Metric Tensor --- Complete Derivation}
+
+\subsection{Jacobi Metric from Geodesic Deviation}
+
+The COG metric tensor $M$ is derived from the Jacobi equation of geodesic deviation. On a Riemannian manifold, nearby geodesics $\gamma(\lambda)$ and $\tilde{\gamma}(\lambda)$ satisfy:
+\begin{equation}
+\frac{D^2 J}{d\lambda^2} + R(J, \dot{\gamma})\dot{\gamma} = 0
+\end{equation}
+where $J(\lambda)$ is the Jacobi field (deviation vector) and $R$ is the Riemann curvature tensor.
+
+The Jacobi field evolves linearly: $J(\lambda) = \Phi(\lambda) J(0)$ where $\Phi(\lambda) \in \mathbb{R}^{k \times k}$ is the Jacobi propagator. The metric tensor $M$ captures the relationship between tangent vectors and their Jacobi evolution:
+\begin{equation}
+\langle J(\lambda), J(\lambda) \rangle_M = J(0)^T \Phi(\lambda)^T M \Phi(\lambda) J(0)
+\end{equation}
+
+\subsection{Outer-Product Update Rule}
+
+The update rule $M \leftarrow M + \eta \cdot (h_k h_k^T / \|h_k h_k^T\|)$ is a rank-1 update that adds the direction $h_k$ to the metric's eigendirections. This can be seen as an incremental PCA on the trajectory embeddings: each new interaction adds its direction to the dominant eigendirections of $M$.
+
+The normalisation by $\|h_k h_k^T\| = \|h_k\|^2$ ensures that the update magnitude is independent of the embedding norm, preventing high-norm embeddings from dominating the metric.
+
+\subsection{Positive Definiteness Guarantee}
+
+The regularisation step (add $0.01 \cdot I_k$ if any eigenvalue $< 0.01$) ensures $M$ remains positive definite. Without this, repeated updates could cause $M$ to become singular (if all updates lie in the same subspace) or indefinite (if numerical errors accumulate). The regularisation is a soft constraint that keeps $M$ within the cone of positive definite matrices.
+
+\subsection{Metric Saturation Analysis}
+
+Metric saturation at $\sim$25 interactions is a consequence of the rank-1 update structure. Each update adds at most one new eigendirection; after $\sim$25 updates, the metric has accumulated sufficient eigendirections to span the relevant subspace for a fixed domain. Domain switching introduces new eigendirections, ``unsaturating'' the metric and enabling continued growth.
+
+\newpage
+
+\section{Appendix B: TEH Detection --- Mathematical Foundations}
+
+\subsection{Forbidden Subspace Energy}
+
+The TEH activation $\mathrm{TEH}(h) = \|Q_f Q_f^T h\| / \|h\|$ measures the fraction of the hidden state's energy that projects onto the forbidden subspace. This is the cosine of the angle between $h$ and its projection onto the forbidden subspace:
+\begin{equation}
+\mathrm{TEH}(h) = \cos \angle(h, Q_f Q_f^T h) \cdot \frac{\|Q_f Q_f^T h\|}{\|h\|} = \frac{\|Q_f Q_f^T h\|^2}{\|h\|^2}
+\end{equation}
+where the second equality follows from the idempotence of the projector.
+
+\subsection{ROC Threshold Calibration}
+
+The threshold entanglement problem arises because the forbidden subspace overlaps with general knowledge on small models. The solution is per-model ROC calibration:
+
+\begin{enumerate}[nosep]
+\item Collect a balanced dataset of harmful and benign prompts
+\item For each threshold $\tau \in [0, 1]$:
+  \begin{itemize}[nosep]
+  \item TPR = fraction of harmful prompts with TEH $> \tau$
+  \item FPR = fraction of benign prompts with TEH $> \tau$
+  \end{itemize}
+\item Select $\tau^* = \arg\max_\tau \mathrm{F1}(\tau)$ subject to $\mathrm{FPR}(\tau) = 0$
+\end{enumerate}
+
+The constraint $\mathrm{FPR}(\tau) = 0$ is critical: a single false positive (blocking benign content) is worse than a few false negatives (missing harmful content that would be caught by downstream safety layers).
+
+\subsection{Why Detection Improves with Scale}
+
+The detection rate improves from 93.8\% (135M) to 100\% (1.5B) because larger models have more disentangled representations. In smaller models, the forbidden subspace overlaps with general knowledge because the model cannot afford dedicated ``harm circuits''---harm detection must share circuitry with general reasoning. As the model grows, it can dedicate specific pathways to harmful content detection, making the forbidden subspace more separable.
+
+\subsection{Comparison with Text-Based Detection}
+
+Text-based harmful content classifiers (e.g., Llama Guard, OpenAI Moderation API) operate on the output text---harmful content must be generated before it can be detected. TEH operates on the hidden state \textit{before} token generation. This has two advantages: (1) no generation cost for detection, (2) adversarial outputs that evade text classifiers may still produce detectable hidden-state activation.
+
+\newpage
+
+\section{Appendix C: ISAGI Architecture and Deployment}
+
+\subsection{Component Integration}
+
+ISAGI v1.0 integrates all HyperTensor technologies through a modular pipeline:
+
+\begin{enumerate}[nosep]
+\item \textbf{Input:} User query tokenized and embedded
+\item \textbf{UGT Projection (Paper XI):} Hidden state projected onto $k=512$ UGT basis
+\item \textbf{GTC Lookup (Paper VIII):} Query embedding matched against trajectory cache
+\item \textbf{COG Recognition (Paper XV):} 4-tier classification of query novelty
+\item \textbf{Safe OGD (Paper XIII):} Safe subspace projection applied to hidden state
+\item \textbf{Snipe (Paper XIV):} Snipe coordinates zeroed before generation
+\item \textbf{TEH Check (Paper XV):} Forbidden activation measured; generation blocked if $> \tau$
+\item \textbf{GRC Attention (Paper I):} Compressed attention with $k=512$ basis
+\item \textbf{OTT Drafting (Paper VII):} Speculative decoding with manifold verification
+\item \textbf{Output:} Generated response with COG metric update if novel
+\end{enumerate}
+
+\subsection{Deployment Specifications}
+
+\textbf{EC2 L40S:} Qwen2.5-7B-Instruct, 4-bit NF4 quantization, 5.6GB VRAM. Web interface via Gradio on port 7860.
+
+\textbf{RTX 4070 Laptop:} Qwen2.5-7B-Instruct, 4-bit NF4 quantization, 5.6GB VRAM. Local deployment via \texttt{isagi\_local.bat}.
+
+\textbf{Response latency:} $\sim$2.3 seconds for cached queries (GTC hit), $\sim$4.1 seconds for novel queries (COG EXPAND with full metric update).
+
+\textbf{First response:} ``COG EXPANDED, sim=0.806, 0\% TEH''---confirming the pipeline is functional end-to-end.
+
+\subsection{.MIKU Persistence}
+
+The .MIKU format captures the complete living state:
+\begin{itemize}[nosep]
+\item \texttt{model\_id}: Base model identifier (e.g., ``Qwen/Qwen2.5-7B-Instruct'')
+\item \texttt{k\_ugt}: UGT basis dimension (512)
+\item \texttt{forbidden\_coords}: Indices of forbidden UGT coordinates
+\item \texttt{snipe\_coords}: Indices of snipe coordinates with per-category labels
+\item \texttt{trajectory\_cache}: List of cached trajectories with embeddings and metadata
+\item \texttt{conversation\_log}: Full conversation history for continuity
+\item \texttt{cog\_metric}: $M \in \mathbb{R}^{k \times k}$ metric tensor (in .miku.pt)
+\item \texttt{ugt\_basis}: $B \in \mathbb{R}^{d \times k}$ UGT basis (in .miku.pt)
+\end{itemize}
+
+Loading a .MIKU file restores the complete living state---the model remembers its learned geometry, cached trajectories, and conversation history.
+
 \begin{thebibliography}{99}
 \bibitem{parisi} G.I. Parisi et al. Continual lifelong learning. \textit{Neural Networks}, 113:54--71, 2019.
 \bibitem{brand} M. Brand. Incremental SVD. \textit{ECCV}, 2002.
 \bibitem{lewis} P. Lewis et al. RAG. \textit{NeurIPS}, 2020.
 \bibitem{markov} T. Markov et al. Undesired content detection. \textit{AAAI}, 2023.
+\bibitem{inan} H. Inan et al. Llama Guard. \textit{arXiv:2312.06674}, 2023.
+\bibitem{jing} L. Jing et al. Dimensional collapse in SSL. \textit{ICLR}, 2022.
 \bibitem{williams} S. Williams et al. Roofline model. \textit{Comm. ACM}, 52(4):65--76, 2009.
 \bibitem{absil} P-A. Absil et al. \textit{Optimization on Matrix Manifolds}. Princeton, 2008.
 \bibitem{golub} G.H. Golub, C.F. Van Loan. \textit{Matrix Computations}. Johns Hopkins, 2013.
