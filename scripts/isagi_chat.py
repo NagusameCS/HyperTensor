@@ -660,7 +660,7 @@ def build_isagi(model_id, use_4bit=True, load_miku=None, gpu_l2_mb=None, cpu_off
     print(f"    /save <path>  — Save .miku state")
     print(f"    /status       — Show all system stats (GTC, OTT, GRC, COG)")
     print(f"    /gtc          — Show GTC cache hit rate")
-    print(f"    /tokens N     — Set max response tokens (current: {args.max_tokens})")
+    print(f"    /tokens N     — Set max response tokens (default: {MAX_NEW})")
     print(f"    /think        — Toggle verbose reasoning")
     print(f"    /quit         — Exit (auto-saves)")
     print(f"{'='*70}\n")
