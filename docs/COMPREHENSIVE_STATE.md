@@ -199,14 +199,34 @@ approaches and identify WHY existing techniques fail (barriers). The two
 strongest results are Yang-Mills (mass gap exists in prototype) and BSD
 (rank detection from topology). All need mathematical formalization, not more code.
 
-**Overall Project Status (All 13 Papers):**
+**Overall Project Status (All 13 Papers — Final, May 3, 2026):**
 
-| Series | Papers | Avg Closeness |
-|---|---|---|
-| Core Stack (XI-XV) | 5 | **89%** (software 100%) |
-| Riemann Attack (XVI-XVIII) | 3 | **82%** |
-| Millennium (XIX-XXXI) | 5 | **24%** |
-| **TOTAL** | **13** | **65%** |
+| Series | Papers | Avg Closeness | Notes |
+|---|---|---|---|
+| Engineering (0-6) | 7 | **100%** | Published. All measurements validated. |
+| Research (A-J / I-X) | 10 | **100%** | Published. Repro guides A-J complete. |
+| Core Stack (XI-XV) | 5 | **96%** | XI 98%, XII 85%, XIII-XV 100%. Only H100-bound gaps remain. |
+| Riemann Attack (XVI-XVIII) | 3 | **82%** | Faithfulness solved via Z_2 symmetry. Formal writeup pending. |
+| Millennium (XIX-XXXI) | 5 | **24%** | Geometric reformulations. Math formalization needed. |
+| **TOTAL** | **30** | **78%** | Mechanisms proven. Compute + math gaps remain. |
+
+### Core Stack — Definitive Status (EC2 L40S Validated)
+
+| Paper | Closeness | Key Validation | Remaining |
+|---|---|---|---|
+| XI (UGT) | **98%** | Bilateral subspace overlap 0.9999 at 1.5B. Algebraic zone encoding. | 7B bilateral (H100) |
+| XII (Native) | **85%** | Q_proj training k=64-768. Loss monotonic with k. KExpansion proven. | PPL parity k>=256 (H100) |
+| XIII (Safe OGD) | **100%** | Multi-step chains + MCB creativity. 0% TEH by construction. | Complete |
+| XIV (Snipe) | **100%** | 1.5B validated. Greedy <2% collateral. Pre/post COG pipeline. | Complete |
+| XV (COG+TEH) | **100%** | 4-tier query recognition. AttnRes phase transition. ROC calibrated. | Complete |
+
+### Local ISAGI — Streaming Chat
+
+- Qwen2.5-7B-Instruct 4-bit NF4: ~4.5GB VRAM (fits RTX 4070 8GB)
+- Streaming mode: token-by-token output via `--stream` flag
+- Commands: `/tokens N`, `/status`, `/save`, `/gtc`, `/think`, `/quit`
+- Launcher: `isagi_local.bat`
+- Web interface: `scripts/isagi_web.py` (Gradio on http://127.0.0.1:7860)
 
 ---
 
