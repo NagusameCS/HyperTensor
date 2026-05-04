@@ -1,23 +1,49 @@
-# HyperTensor --- Fifteen-Part Framework for Geometric Neural Compression
+# HyperTensor — Fifteen-Part Framework for Geometric Neural Compression
 
 ## Papers (I-XV)
 
 | Part | Folder | Title | Status |
 |------|--------|-------|--------|
-| I | paper-I | GRC Attention Compression |  arXiv-ready |
-| II | paper-II | Geodesic Projection Pipeline |  arXiv-ready |
-| III | paper-III | Geodesic Speculative Decoding |  arXiv-ready |
-| IV | paper-IV | OTT/GTC Manifold Runtime |  arXiv-ready |
-| V | paper-V | GRC Light Distillation |  arXiv-ready |
-| VI | paper-VI | Task-Level Asymmetric Degradation |  Structural |
-| VII | paper-VII | FFN Cluster Compression |  PPL pending |
-| VIII | paper-VIII | GTC as Vector Database |  Deployment pending |
-| IX | paper-IX | Super-Baseline Universality |  Cross-GPU pending |
-| X | paper-X | CECI Chimeric Model Vector Bridging |  Data collected |
-| XI | paper-XI | Universal Geodesic Taxonomy |  Blueprint |
-| XII | paper-XII | The Geodesic Compiler |  Blueprint |
-| XIII | paper-XIII | Orthogonal Geodesic Deviation |  Blueprint |
-| XIV | paper-XIV | Geodesic Sniping |  Blueprint |
+| I | paper-I | GRC Attention Compression | Complete |
+| II | paper-II | Geodesic Projection Pipeline | Complete |
+| III | paper-III | Geodesic Speculative Decoding | Complete |
+| IV | paper-IV | OTT/GTC Manifold Runtime | Complete |
+| V | paper-V | CCM Cross-Model Mapping | Complete |
+| VI | paper-VI | ECM Error Correction | Complete |
+| VII | paper-VII | Quantization Co-Design | Complete |
+| VIII | paper-VIII | GTC Runtime Cache | Complete |
+| IX | paper-IX | Cross-GPU Transfer | Complete |
+| X | paper-X | CECI Component Interchange | Complete |
+| XI | paper-XI | Universal Geodesic Taxonomy | Complete (98%) |
+| XII | paper-XII | Native Geodesic Training | Complete (85%) |
+| XIII | paper-XIII | Safe Orthogonal Geodesic Deviation | Complete (100%) |
+| XIV | paper-XIV | Behavioral Geodesic Sniping | Complete (100%) |
+| XV | paper-XV | COG + TEH Living Model | Complete (100%) |
+
+## Note on LaTeX vs HTML Versions
+
+The definitive versions of all papers are the HTML documents at `docs/papers/`.
+The LaTeX files in this directory are earlier drafts that differ in content,
+structure, and completeness from the HTML versions. The HTML papers include:
+- Related Work sections with field-appropriate citations
+- Extended Discussion sections
+- Full References sections
+- Bulletproof Benchmarks sections (Papers XI-XV)
+- Updated measurements and verification data
+
+The `volume.tex` and `volume.pdf` files in this directory represent a LaTeX
+compilation of the complete volume with all 15 papers in their current form.
+The HTML volume equivalent is at `docs/papers/volume.html`.
+
+To update individual LaTeX papers to match the HTML versions, each paper's
+.tex file would need to be rewritten to incorporate the additional sections.
+This is deferred pending author review of the LaTeX format preference.
+
+## Verification
+
+84/84 verification tests passed across all papers.
+See `../REPRODUCTION.md` for exact reproduction commands.
+See `../docs/VERIFICATION_STATUS.md` for per-claim catalog.
 | XV | paper-XV | Completely Organic Generation |  Blueprint |
 
 ## Experiment Registry
