@@ -70,16 +70,26 @@ def load_model_cpu(model_id):
     return model, tok, n_layers, d_model
 
 def generate_cpu(model, tok, prompt, max_tokens=80):
-    """Generate text on CPU."""
-    enc = tok(prompt, return_tensors="pt", truncation=True, max_length=256)
+    """Generate text on CPU using chat template for consistent output."""
+    # Use chat template if available
+    if hasattr(tok, 'apply_chat_template') and tok.chat_template:
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            input_text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        except:
+            input_text = prompt
+    else:
+        input_text = prompt
+    
+    enc = tok(input_text, return_tensors="pt", truncation=True, max_length=512)
     np = enc.input_ids.shape[1]
     with torch.no_grad():
         out = model.generate(
-            **enc, max_new_tokens=max_tokens, do_sample=True,
-            temperature=0.7, top_p=0.9,
+            **enc, max_new_tokens=max_tokens, do_sample=False,  # greedy for determinism
             pad_token_id=tok.eos_token_id,
         )
-    return tok.decode(out[0, np:], skip_special_tokens=True).strip()
+    result = tok.decode(out[0, np:], skip_special_tokens=True).strip()
+    return result if result else "(empty)"
 
 def compute_basis(weight, k_frac=0.5):
     """Compute GRC/UGT basis from weight matrix SVD."""
@@ -280,7 +290,7 @@ def prove_grafting(graft_name, grafted_model, baseline_model, ablated_model,
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="HuggingFaceTB/SmolLM2-135M-Instruct")
+    parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--n-prompts", type=int, default=10)
     parser.add_argument("--save", default=str(OUTPUT_DIR / "graft_proof_results.json"))
     args = parser.parse_args()
