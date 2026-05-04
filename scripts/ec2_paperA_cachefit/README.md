@@ -89,7 +89,7 @@ work but are >10 cost.
 - Worst case manual cleanup:
   ```powershell
   aws ec2 describe-instances --region us-east-1 --filters Name=tag:Project,Values=HyperTensor Name=instance-state-name,Values=running --query 'Reservations[].Instances[].InstanceId' --output text
-  aws ec2 terminate-instances --region us-east-1 --instance-ids <id>
+  aws ec2 terminate-instances --region us-east-1 --instance-ids 
   ```
 
 ### Quotas
