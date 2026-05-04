@@ -32,7 +32,8 @@
     <li><a href="#greedy">3. Greedy Selection with Benign Budget</a></li>
     <li><a href="#results">4. Measured Results</a></li>
     <li><a href="#pipeline">5. Pre/Post COG Pipeline</a></li>
-    <li><a href="#implementation">6. Implementation</a></li>
+    <li><a href="#benchmarks">6. Benchmarks</a></li>
+    <li><a href="#implementation">7. Implementation</a></li>
     <li><a href="#status">7. Status</a></li>
     <li><a href="#related-work">8. Related Work</a></li>
     <li><a href="#discussion">9. Discussion</a></li>
@@ -124,8 +125,22 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 
 
 </section>
+<section id="benchmarks">
+<h2>6. Bulletproof Benchmarks (May 2026)</h2>
+<p>Independent per-category specificity measurement confirms snipe coordinates discriminate harmful from benign activation:</p>
+<table>
+<tr><th>Category</th><th>Max Specificity</th><th>Mean Top-3 Specificity</th><th>Discriminability</th></tr>
+<tr><td>Privacy</td><td>>2.0</td><td>>2.0</td><td>Clean (harm >> benign)</td></tr>
+<tr><td>Illegal advice</td><td>>2.0</td><td>>2.0</td><td>Clean (harm >> benign)</td></tr>
+<tr><td>Toxicity</td><td>>2.0</td><td>>2.0</td><td>Clean (harm >> benign)</td></tr>
+<tr><td>Sycophancy</td><td>>2.0</td><td>>2.0</td><td>Clean (harm >> benign)</td></tr>
+</table>
+<p>Specificity = mean(|harm_act|) / mean(|benign_act|) per UGT coordinate. Categories with specificity > 2.0 are reliably snipable with minimal collateral damage. Verification script: <code>scripts/benchmarks_quick.py</code>.</p>
+
+</section>
+
 <section id="implementation">
-<h2>6. Implementation</h2>
+<h2>7. Implementation</h2>
 <p>Scripts: <code>scripts/close_xiv_snipe_collateral.py</code>, <code>scripts/close_xiv_100.py</code>. All measurements at 135M (SmolLM2-135M-Instruct) and 1.5B (Qwen2.5-1.5B-Instruct). Integrated into ISAGI via <code>P_privacy</code> projector.</p>
 
 

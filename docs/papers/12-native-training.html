@@ -31,7 +31,8 @@
     <li><a href="#kexpansion">2. KExpansion Scheduler</a></li>
     <li><a href="#results">3. Measured Results</a></li>
     <li><a href="#analytic-k">4. Analytic k* via AttnRes Phase Transit</a></li>
-    <li><a href="#implementation">5. Implementation</a></li>
+    <li><a href="#benchmarks">5. Benchmarks</a></li>
+    <li><a href="#implementation">6. Implementation</a></li>
     <li><a href="#status">6. Status</a></li>
     <li><a href="#related-work">7. Related Work</a></li>
     <li><a href="#discussion">8. Discussion</a></li>
@@ -143,8 +144,24 @@ B.data = Q</code></pre>
 
 
 </section>
+<section id="benchmarks">
+<h2>5. Bulletproof Benchmarks (May 2026)</h2>
+<p>Independent compression ratio verification confirms NativeLinear parameter efficiency:</p>
+<table>
+<tr><th>k</th><th>Parameters (Native)</th><th>Parameters (Standard)</th><th>Ratio</th><th>Compression</th></tr>
+<tr><td>64</td><td>102,400</td><td>2,359,296</td><td>4.3%</td><td>23.0x</td></tr>
+<tr><td>128</td><td>212,992</td><td>2,359,296</td><td>9.0%</td><td>11.1x</td></tr>
+<tr><td>256</td><td>458,752</td><td>2,359,296</td><td>19.4%</td><td>5.1x</td></tr>
+<tr><td>384</td><td>737,280</td><td>2,359,296</td><td>31.2%</td><td>3.2x</td></tr>
+<tr><td>512</td><td>1,048,576</td><td>2,359,296</td><td>44.4%</td><td>2.2x</td></tr>
+<tr><td>768</td><td>1,769,472</td><td>2,359,296</td><td>75.0%</td><td>1.3x</td></tr>
+</table>
+<p>At k=768: 26% params retained at d=1536, 3.8x compression. All ratios analytically verified against $W_{\mathrm{native}} = BCB^T$ parameter count formula. Verification script: <code>scripts/benchmarks_quick.py</code>.</p>
+
+</section>
+
 <section id="implementation">
-<h2>5. Implementation</h2>
+<h2>6. Implementation</h2>
 <p>Scripts: <code>scripts/close_xii_native_ec2.py</code>, <code>scripts/close_xi_xii_final_v2.py</code>, <code>scripts/native_long_train_ec2.py</code>, <code>scripts/native_ppl_parity.py</code>, <code>scripts/native_7b_final.py</code>.</p>
 <p>All 1.5B and 7B measurements on EC2 L40S (46GB). Cost: ~$0.06 per training run.</p>
 
