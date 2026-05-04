@@ -33,6 +33,26 @@ import numpy as np
 torch.set_grad_enabled(False)
 
 # ═══════════════════════════════════════════════════════
+# STREAMING HELPER
+# ═══════════════════════════════════════════════════════
+
+class _CallbackStreamer:
+    """Minimal streamer that calls a callback with decoded text per token."""
+    def __init__(self, tokenizer, callback):
+        self.tokenizer = tokenizer
+        self.callback = callback
+        self._buffer = ""
+    
+    def put(self, token_ids):
+        text = self.tokenizer.decode(token_ids[0], skip_special_tokens=True)
+        if text.strip():
+            self.callback(text)
+    
+    def end(self):
+        pass
+
+
+# ═══════════════════════════════════════════════════════
 # ISAGI PERSONALITY — The Core Identity
 # ═══════════════════════════════════════════════════════
 
@@ -127,9 +147,10 @@ class GTCCache:
             self.misses += 1
             return False, None, 0.0
         
-        # Normalize
+        # Normalize query
         q = F.normalize(query_emb.unsqueeze(0).float(), dim=1)
-        cache_stack = F.normalize(torch.stack(self.embeddings).float(), dim=1)
+        # Move cache to query device (embeddings stored on CPU to save VRAM)
+        cache_stack = F.normalize(torch.stack(self.embeddings).float().to(q.device), dim=1)
         sims = (cache_stack @ q.T).squeeze()
         
         best_idx = torch.argmax(sims).item()
@@ -639,6 +660,7 @@ def build_isagi(model_id, use_4bit=True, load_miku=None, gpu_l2_mb=None, cpu_off
     print(f"    /save <path>  — Save .miku state")
     print(f"    /status       — Show all system stats (GTC, OTT, GRC, COG)")
     print(f"    /gtc          — Show GTC cache hit rate")
+    print(f"    /tokens N     — Set max response tokens (current: {args.max_tokens})")
     print(f"    /think        — Toggle verbose reasoning")
     print(f"    /quit         — Exit (auto-saves)")
     print(f"{'='*70}\n")
@@ -660,7 +682,7 @@ def build_isagi(model_id, use_4bit=True, load_miku=None, gpu_l2_mb=None, cpu_off
 # CHAT TURN — The ISAGI Way
 # ═══════════════════════════════════════════════════════
 
-def isagi_turn(system, user_input, verbose=False):
+def isagi_turn(system, user_input, verbose=False, max_tokens=None, stream_callback=None):
     """Process one conversation turn through the complete ISAGI stack.
     
     Pipeline:
@@ -669,11 +691,16 @@ def isagi_turn(system, user_input, verbose=False):
     3. OTT speculative draft → candidate responses
     4. COG manifold verification → select most coherent
     5. Safe OGD projection → geometric safety guarantee
-    6. Full model generation → final response
+    6. Full model generation → final response (with optional streaming)
     7. COG expansion → learn from novel interaction
+    
+    Args:
+        max_tokens: Override MAX_NEW for this turn (None = use default)
+        stream_callback: fn(token_text) called for each token during generation
     """
     t0 = time.time()
     s = system
+    mt = max_tokens if max_tokens is not None else MAX_NEW
     
     # Get user hidden state
     h_user = s["get_h"](user_input)
@@ -733,15 +760,30 @@ def isagi_turn(system, user_input, verbose=False):
     enc = s["tok"](full_prompt, return_tensors="pt", truncation=True, max_length=2048).to(s["model"].device)
     np_tok = enc.input_ids.shape[1]
     
-    out = s["model"].generate(
-        **enc,
-        max_new_tokens=MAX_NEW,
-        do_sample=True,
-        temperature=TEMPERATURE,
-        top_p=TOP_P,
-        pad_token_id=s["tok"].eos_token_id,
-    )
-    response = s["tok"].decode(out[0, np_tok:], skip_special_tokens=True).strip()
+    if stream_callback is not None:
+        # Streaming mode: generate token by token, calling callback
+        from transformers import TextStreamer
+        streamer = _CallbackStreamer(s["tok"], stream_callback)
+        out = s["model"].generate(
+            **enc,
+            max_new_tokens=mt,
+            do_sample=True,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+            pad_token_id=s["tok"].eos_token_id,
+            streamer=streamer,
+        )
+        response = s["tok"].decode(out[0, np_tok:], skip_special_tokens=True).strip()
+    else:
+        out = s["model"].generate(
+            **enc,
+            max_new_tokens=mt,
+            do_sample=True,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+            pad_token_id=s["tok"].eos_token_id,
+        )
+        response = s["tok"].decode(out[0, np_tok:], skip_special_tokens=True).strip()
     
     # ── Step 8: Verify response (OTT verification) ──
     if drafts:
@@ -842,6 +884,10 @@ def main():
                         help="Use 4-bit quantization for 8GB GPUs")
     parser.add_argument("--offload", action="store_true", dest="cpu_offload",
                         help="CPU offload: run 32B model on 8GB VRAM by splitting across GPU+CPU")
+    parser.add_argument("--max-tokens", type=int, default=MAX_NEW, dest="max_tokens",
+                        help=f"Max tokens per response (default: {MAX_NEW}, use /tokens N in chat to change)")
+    parser.add_argument("--stream", action="store_true", dest="stream",
+                        help="Stream tokens as they are generated")
     parser.add_argument("--load", type=str, help="Load .miku state file")
     parser.add_argument("--save", type=str, help="Save .miku state file on exit")
     parser.add_argument("--verbose", action="store_true", help="Show reasoning trace")
@@ -896,9 +942,30 @@ def main():
                 args.verbose = not args.verbose
                 print(f"  Verbose reasoning: {'ON' if args.verbose else 'OFF'}")
                 continue
+            if user_input.startswith("/tokens"):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    try:
+                        args.max_tokens = int(parts[1])
+                        print(f"  Max tokens set to {args.max_tokens}")
+                    except ValueError:
+                        print(f"  Usage: /tokens <number>  (current: {args.max_tokens})")
+                else:
+                    print(f"  Max tokens: {args.max_tokens}  |  Usage: /tokens <number>")
+                continue
             
-            result = isagi_turn(system, user_input, verbose=args.verbose)
-            print(f"\nISAGI: {result['response']}")
+            # Set up streaming callback
+            stream_cb = None
+            if args.stream:
+                def _stream_cb(text):
+                    print(text, end="", flush=True)
+                stream_cb = _stream_cb
+                print("\nISAGI: ", end="", flush=True)
+            
+            result = isagi_turn(system, user_input, verbose=args.verbose,
+                               max_tokens=args.max_tokens, stream_callback=stream_cb)
+            if not args.stream:
+                print(f"\nISAGI: {result['response']}")
             src = result.get('source', '')
             src_info = f" src:{src}" if src != "ISAGI-full" else ""
             print(f"  [COG:{result['cog']}{src_info} sim:{result['sim']:.2f} "
