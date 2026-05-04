@@ -52,7 +52,7 @@ BASE_CONFIG = {
 
 MATH_CONFIG = {
     **BASE_CONFIG,
-    "description": "Dedicated Math Model — trained exclusively on mathematical reasoning data",
+    "description": "Dedicated Math Model --- trained exclusively on mathematical reasoning data",
     "output_name": "smollm2-135m-math-only",
     "datasets": [
         {
@@ -86,7 +86,7 @@ MATH_CONFIG = {
 
 LANGUAGE_CONFIG = {
     **BASE_CONFIG,
-    "description": "Dedicated Language Model — trained exclusively on natural language data",
+    "description": "Dedicated Language Model --- trained exclusively on natural language data",
     "output_name": "smollm2-135m-language-only",
     "datasets": [
         {

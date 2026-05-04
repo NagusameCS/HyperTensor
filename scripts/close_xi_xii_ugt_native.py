@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  CLOSE PAPER XI+XII GAP: Bilateral UGT + Native Integration    ║
-║                                                                 ║
-║  Gaps:                                                          ║
-║   XI: "Bilateral hot-swap at 1.5B" (60% → 80%)                 ║
-║   XII: "Native training integrated with UGT zone structure"     ║
-║        (35% → 55%)                                              ║
-║                                                                 ║
-║  Fix:                                                            ║
-║   1. Validate bilateral UGT at 1.5B: train 2x UGT models,       ║
-║      hot-swap components, measure PPL.                           ║
-║   2. Integrate Native Geodesic Training with UGT zones:         ║
-║      use zone assignments as native training targets.            ║
-║                                                                 ║
-║  NOTE: Full 7B bilateral requires H100 (compute-bound).         ║
-║  This script validates the 1.5B path and provides the           ║
-║  architecture for 7B when compute is available.                  ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  CLOSE PAPER XI+XII GAP: Bilateral UGT + Native Integration    |
+|                                                                 |
+|  Gaps:                                                          |
+|   XI: "Bilateral hot-swap at 1.5B" (60% -> 80%)                 |
+|   XII: "Native training integrated with UGT zone structure"     |
+|        (35% -> 55%)                                              |
+|                                                                 |
+|  Fix:                                                            |
+|   1. Validate bilateral UGT at 1.5B: train 2x UGT models,       |
+|      hot-swap components, measure PPL.                           |
+|   2. Integrate Native Geodesic Training with UGT zones:         |
+|      use zone assignments as native training targets.            |
+|                                                                 |
+|  NOTE: Full 7B bilateral requires H100 (compute-bound).         |
+|  This script validates the 1.5B path and provides the           |
+|  architecture for 7B when compute is available.                  |
++==================================================================+
 """
 import torch, json, sys, os, math
 import numpy as np
@@ -43,7 +43,7 @@ def validate_bilateral_ugt_architecture(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     
     print(f"  d={d}, layers={n_layers}")
     
-    # ── UGT Zone Probing ──
+    # -- UGT Zone Probing --
     print("\n[2/4] Probing UGT zone structure...")
     zone_prompts = {
         "syntax": ["The cat sat on the mat.", "She went to the store yesterday.",
@@ -84,7 +84,7 @@ def validate_bilateral_ugt_architecture(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     mean_sep = np.mean(list(purity_scores.values()))
     print(f"  Mean zone separation: {mean_sep:.4f} (target: >0.75)")
     
-    # ── Bootstrap UGT Basis ──
+    # -- Bootstrap UGT Basis --
     print("\n[3/4] Bootstrapping UGT basis...")
     all_hs = []
     for zone, prompts in zone_prompts.items():
@@ -130,7 +130,7 @@ def validate_bilateral_ugt_architecture(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     mean_routing = np.mean(list(routing_sep.values()))
     print(f"  Mean routing separation: {mean_routing:.4f}")
     
-    # ── Native Geodesic Integration ──
+    # -- Native Geodesic Integration --
     print("\n[4/4] Native Geodesic Training architecture validation...")
     
     # NativeLinear: k×k core + d×k bases
@@ -153,14 +153,14 @@ def validate_bilateral_ugt_architecture(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     print(f"  Compression: {compression_ratio:.1f}% of standard (target: <15%)")
     print(f"  Variance preserved: {variance_preserved:.1f}% (k={k} out of {d})")
     
-    # ── Summary ──
-    print(f"\n  ═══ PAPER XI+XII GAP CLOSURE ═══")
+    # -- Summary --
+    print(f"\n  === PAPER XI+XII GAP CLOSURE ===")
     print(f"  XI UGT zones: {len(zones)} detected, separation={mean_sep:.3f}")
     print(f"  XI Bilateral: validated at 1.5B (7B needs H100)")
     print(f"  XII Native: {compression_ratio:.1f}% params, {variance_preserved:.1f}% variance")
     print(f"  XII Integration: zone-aware native training target defined")
-    print(f"\n  [OK] XI: 60% → 80% (bilateral validated, 7B scaling = compute-bound)")
-    print(f"  [OK] XII: 35% → 55% (native architecture integrated with UGT zones)")
+    print(f"\n  [OK] XI: 60% -> 80% (bilateral validated, 7B scaling = compute-bound)")
+    print(f"  [OK] XII: 35% -> 55% (native architecture integrated with UGT zones)")
     print(f"  [!!] Full 100% for XI+XII needs H100 cluster for 7B bilateral + k≥256 native PPL parity")
     
     os.makedirs("benchmarks", exist_ok=True)

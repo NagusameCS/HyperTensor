@@ -32,8 +32,8 @@ MathJax = {
       tr: '{\\operatorname{tr}}',
       Cov: '{\\operatorname{Cov}}',
       Var: '{\\operatorname{Var}}',
-      argmax: '{\\operatorname*{arg\\,max}}',
-      argmin: '{\\operatorname*{arg\\,min}}'
+      argmax: '{\\operatorname{arg\\,max}}',
+      argmin: '{\\operatorname{arg\\,min}}'
     }
   },
   svg: { fontCache: 'global' }
@@ -78,12 +78,12 @@ trade is that there is a quality floor set by the joint Gram spectrum
 itself. On Llama-3.1-8B-Instruct the floor at <span class="math inline">\(k{=}1024\)</span> is roughly the
 bottom <span class="math inline">\(9\%\)</span> of joint Q+K+V energy (<span class="math inline">\(k_{95}{\approx}1682\)</span>), and the
 realised perplexity penalty is <span class="math inline">\(+13.30\%\)</span> at <span class="math inline">\(k{=}1536\)</span> on WikiText-2
-<span class="citation" data-cites="merity2017wikitext">(<strong>merity2017wikitext?</strong>)</span>. Paper A’s Limitations section decomposes
+<span class="citation" data-cites="merity2017wikitext">(merity2017wikitext?)</span>. Paper A's Limitations section decomposes
 that penalty into intrinsic floor and reducible implementation choice.</p>
 <p>This paper exercises the largest reducible lever, light distillation,
 behind an opt-in flag. The design constraint is that turning it on
-must not break Paper A’s runtime path; turning it off must reproduce
-Paper A’s numbers exactly.</p>
+must not break Paper A's runtime path; turning it off must reproduce
+Paper A's numbers exactly.</p>
 </section>
 <section id="sec:method" class="level2">
 <h2>Method</h2>
@@ -120,7 +120,7 @@ full LoRA fine-tuning.</p>
 (<span class="math inline">\(\hat{\Wmat}_X = \Wmat_X^\prime + \Amat_X \Bmat_X\)</span>) and re-quantised
 to Q4_K_M via the standard llama.cpp quantize path. The runtime
 loads the resulting GGUF unchanged; no runtime code changes are
-needed. If the user disables distillation, Paper A’s pipeline runs
+needed. If the user disables distillation, Paper A's pipeline runs
 unmodified.</p>
 </section>
 </section>
@@ -188,13 +188,13 @@ empirical reproduction will be published alongside the populated
 results once the runner has executed.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-hu2021lora" class="csl-entry" role="listitem">
-Hu, Edward, Yelong Shen, Phillip Wallis, et al. 2021. <em><span>LoRA</span>: Low-Rank Adaptation of Large Language Models</em>. <a href="https://arxiv.org/abs/2106.09685">https://arxiv.org/abs/2106.09685</a>.
+Hu, Edward, Yelong Shen, Phillip Wallis, et al. 2021. <span>LoRA</span>: Low-Rank Adaptation of Large Language Models. <a href="https://arxiv.org/abs/2106.09685">https://arxiv.org/abs/2106.09685</a>.
 </div>
 <div id="ref-sun2024massive" class="csl-entry" role="listitem">
-Sun, Mingjie, Xinlei Chen, J. Zico Kolter, and Zhuang Liu. 2024. <em>Massive Activations in Large Language Models</em>. <a href="https://arxiv.org/abs/2402.17762">https://arxiv.org/abs/2402.17762</a>.
+Sun, Mingjie, Xinlei Chen, J. Zico Kolter, and Zhuang Liu. 2024. Massive Activations in Large Language Models. <a href="https://arxiv.org/abs/2402.17762">https://arxiv.org/abs/2402.17762</a>.
 </div>
 <div id="ref-xiao2024streamingllm" class="csl-entry" role="listitem">
-Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. Efficient Streaming Language Models with Attention Sinks. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
 </div>
 </div>
 </section>

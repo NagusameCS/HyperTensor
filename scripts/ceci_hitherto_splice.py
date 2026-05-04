@@ -39,7 +39,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     
     print("=" * 60)
-    print("HITHERTO CECI SPLICE — Max Pairs (28/28)")
+    print("HITHERTO CECI SPLICE --- Max Pairs (28/28)")
     print(f"  Izumi (math attention) + Kyouko (language FFN)")
     print(f"  k={args.k}, d=1536, GQA 16:4")
     print("=" * 60)
@@ -75,7 +75,7 @@ def main():
         Wq_new = splice_attention(Wq_m, Wq_l, P_math, ke)
         q_err = float(np.linalg.norm(Wq_new - Wq_l, 'fro') / max(np.linalg.norm(Wq_l, 'fro'), 1e-10))
         
-        # K and V — splice if dims match (GQA: both are (d_kv, d))
+        # K and V --- splice if dims match (GQA: both are (d_kv, d))
         Wk_m = ml.self_attn.k_proj.weight.data.float().numpy()
         Wk_l = ll.self_attn.k_proj.weight.data.float().numpy()
         Wv_m = ml.self_attn.v_proj.weight.data.float().numpy()

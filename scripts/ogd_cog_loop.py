@@ -21,7 +21,7 @@ print("  OGD+COG CREATIVE SYNTHESIS LOOP")
 print("  Papers XIII+XV: Safe Organic Creation")
 print("="*60)
 
-# ── Load model ──
+# -- Load model --
 print("\n[1] Loading model + UGT basis...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID,torch_dtype=torch.float16,device_map=DEVICE)
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -39,14 +39,14 @@ Pf_forbidden=Bf@Bf.T
 
 print(f"  Model loaded. d={d_model}, k={k_basis}")
 
-# ── Helper: get hidden state ──
+# -- Helper: get hidden state --
 def get_hidden(text):
     enc=tok(text,return_tensors="pt",truncation=True,max_length=128).to(DEVICE)
     with torch.no_grad():
         out=model(**enc,output_hidden_states=True)
     return out.hidden_states[-1][0,-1,:].float()
 
-# ── OGD Generator (simplified) ──
+# -- OGD Generator (simplified) --
 def ogd_deviate(base_h,alpha=0.15):
     """Generate novel embedding by orthogonal geodesic deviation.
     alpha controls creativity: 0=copy, 0.15=creative, 0.3=speculative."""
@@ -67,7 +67,7 @@ def ogd_deviate(base_h,alpha=0.15):
     
     return new_h
 
-# ── TEH Check ──
+# -- TEH Check --
 def teh_check(h):
     """Check if hidden state activates forbidden subspace."""
     pn=torch.norm(Pf_forbidden@h).item()
@@ -75,7 +75,7 @@ def teh_check(h):
     act=(pn/max(tn,1e-8))*100
     return act,act>15.0
 
-# ── COG Cache ──
+# -- COG Cache --
 class COGCache:
     def __init__(self):
         self.trajectories=[]
@@ -94,7 +94,7 @@ class COGCache:
 
 cache=COGCache()
 
-# ── Creative Loop ──
+# -- Creative Loop --
 print("\n[2] Running OGD+COG creative synthesis loop...")
 
 # Seed concepts (benign, diverse topics)
@@ -152,7 +152,7 @@ for i in range(n_iterations):
     flag="🛑 BLOCKED" if is_harmful else ("📦 CACHED" if not is_novel else "* NEW")
     print(f"  [{i+1:>2}/{n_iterations}] [{flag}] act={act:.1f}% seed={seed[:40]}...")
 
-# ── Summary ──
+# -- Summary --
 blocked=sum(1 for r in results if r["teh_flagged"])
 cached=sum(1 for r in results if r["cached"])
 novel=sum(1 for r in results if r["novel"] and not r["teh_flagged"])

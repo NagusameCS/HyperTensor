@@ -1,4 +1,4 @@
-"""Circuit Complexity Manifold (CCM) Prototype — Paper XIX.
+"""Circuit Complexity Manifold (CCM) Prototype --- Paper XIX.
 Embeds Boolean circuits on a k-manifold. Tests if P vs NP circuits
 have geometrically separable curvature signatures.
 Deploy to EC2."""
@@ -17,7 +17,7 @@ print("  CIRCUIT COMPLEXITY MANIFOLD (CCM)")
 print("  Paper XIX: Geometric P vs NP")
 print("=" * 60)
 
-# ── Circuit Generation ──
+# -- Circuit Generation --
 print("\n[1] Generating Boolean circuits...")
 
 def generate_2sat_instance(n_vars=8, n_clauses=12):
@@ -78,7 +78,7 @@ for _ in range(n_each):
 
 print(f"  Generated {len(circuits)} circuits (2-SAT, Horn-SAT, 3-SAT, TSP)")
 
-# ── Feature Extraction ──
+# -- Feature Extraction --
 print("\n[2] Extracting circuit features...")
 
 def circuit_features(c):
@@ -169,7 +169,7 @@ labels = torch.tensor(labels)
 print(f"  Feature dim: {FEAT_DIM}")
 print(f"  P circuits: {(labels==0).sum().item()}, NP circuits: {(labels==1).sum().item()}")
 
-# ── Train Manifold ──
+# -- Train Manifold --
 print("\n[3] Training circuit manifold...")
 
 embedder = torch.nn.Sequential(
@@ -240,7 +240,7 @@ for step in range(steps):
               f"acc={acc.item():.2f} intra={intra_loss.item():.3f} "
               f"inter={inter_loss.item():.3f} curv={curv_loss.item():.3f}")
 
-# ── Measure Curvature Gap ──
+# -- Measure Curvature Gap --
 print("\n[4] Measuring P vs NP curvature gap...")
 
 with torch.no_grad():
@@ -281,7 +281,7 @@ print(f"  P-subspace compactness: {p_compactness:.3f}")
 print(f"  NP-subspace compactness: {np_compactness:.3f}")
 print(f"  Principal angles: {[f'{a*180/math.pi:.1f}°' for a in principal_angles[:5].tolist()]}")
 
-# ── TEH-like test: can a P-circuit be forced into NP region? ──
+# -- TEH-like test: can a P-circuit be forced into NP region? --
 print("\n[5] TEH barrier test: crossing from P to NP subspace...")
 # Take random P circuits and project toward NP subspace
 P_forbidden = np_basis @ np_basis.T  # projector onto NP subspace
@@ -313,10 +313,10 @@ for i in range(20):
     })
 
 mean_barrier = sum(r["barrier_ratio"] for r in test_results) / len(test_results)
-print(f"  Mean P→NP barrier ratio: {mean_barrier:.4f}")
+print(f"  Mean P->NP barrier ratio: {mean_barrier:.4f}")
 print(f"  Interpretation: {'STRONG SEPARATION' if mean_barrier < 0.5 else 'MODERATE' if mean_barrier < 0.8 else 'WEAK'}")
 
-# ── Save ──
+# -- Save --
 output = {
     "config": {
         "n_circuits": len(circuits),
@@ -345,5 +345,5 @@ print(f"  CCM RESULTS")
 print(f"{'='*60}")
 print(f"  P vs NP classification: {acc*100:.1f}%")
 print(f"  Curvature gap: {curvature_gap:.1f}°")
-print(f"  P→NP barrier: {mean_barrier:.4f} ({'STRONG' if mean_barrier<0.5 else 'MODERATE' if mean_barrier<0.8 else 'WEAK'})")
+print(f"  P->NP barrier: {mean_barrier:.4f} ({'STRONG' if mean_barrier<0.5 else 'MODERATE' if mean_barrier<0.8 else 'WEAK'})")
 print(f"  Saved to {OUT_DIR}/")

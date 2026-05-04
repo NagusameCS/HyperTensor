@@ -48,7 +48,7 @@ RAG_LLM_MS = 50.0           # attention over retrieved context + generation
 
 def compute_correct_speedup(gtc_hit_rate):
     """Compute correct GTC vs RAG speedup accounting for miss fallback."""
-    # GTC: on hit → fast lookup; on miss → full forward
+    # GTC: on hit -> fast lookup; on miss -> full forward
     gtc_per_query_ms = (
         gtc_hit_rate * GTC_LOOKUP_US / 1000 +
         (1 - gtc_hit_rate) * GTC_MISS_FALLBACK_MS
@@ -80,11 +80,11 @@ for hit_rate in [0.0, 0.10, 0.25, 0.50, 0.70, 0.80, 0.90, 0.915, 0.95, 0.99, 0.9
     gtc_ms, rag_ms, speedup = compute_correct_speedup(hit_rate)
     note = ""
     if hit_rate == 0.915:
-        note = "← Paper IV: 25% cache"
+        note = "<- Paper IV: 25% cache"
     elif hit_rate == 0.996:
-        note = "← Paper IV: 50% cache"
+        note = "<- Paper IV: 50% cache"
     elif hit_rate == 0.90:
-        note = "← H1 assumed"
+        note = "<- H1 assumed"
     
     results.append({
         "hit_rate": hit_rate,
@@ -171,7 +171,7 @@ print()
 print("    For the Paper VIII comparison, we used 90% as a conservative")
 print("    estimate between the 25% and 50% cache fraction measurements.")
 print("    The 1121.8 'result' from H1 came from a simulation that didn't")
-print("    model miss fallback — it compared GTC lookup time against RAG's")
+print("    model miss fallback --- it compared GTC lookup time against RAG's")
 print("    full generation time, even on queries where GTC would miss.")
 print()
 

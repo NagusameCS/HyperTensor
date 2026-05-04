@@ -5,7 +5,7 @@ question,A,B,C,D,answer
 "According to four-dimensional geometry, the angles of a triangle add to 180°","always.","sometimes.","never.","on planet Earth only.",1
 "A voltage will be induced in a wire loop when the magnetic field within that loop","changes","aligns with the electric field","is at right angles to the electric field","converts to magnetic energy",0
 "Among these colors, the one that has the most energy per photon is","red","yellow-green","blue","violet",3
-"According to general relativity,","mass distorts spacetime.","gravity affects clocks.","light can’t escape from a black hole.","All of these.",3
+"According to general relativity,","mass distorts spacetime.","gravity affects clocks.","light can't escape from a black hole.","All of these.",3
 "A step-up transformer in an electric circuit can step up","voltage","energy","Both of these","Neither of these",0
 "Spectral lines of the elements are","chaotic","ordered","positioned by amplitude","in phase",1
 "A wave transfers","amplitude","wavelength","frequency","energy",3
@@ -20,10 +20,10 @@ question,A,B,C,D,answer
 "When you squeeze an air-filled party balloon, you increase its","volume","mass","weight","density",3
 "Polarization is a property of","transverse waves","longitudinal waves","all waves","None of these",0
 "In a vacuum, an object has no","buoyant force","mass","weight","All of these",0
-"Temperature is generally proportional to a substance’s","thermal energy.","vibrational kinetic energy.","average translational kinetic energy.","rotational kinetic energy.",2
-"In a hydraulic press operation, the output piston cannot","move farther than the input piston","exceed the force input","exceed the input piston’s speed","produce increased energy",3
+"Temperature is generally proportional to a substance's","thermal energy.","vibrational kinetic energy.","average translational kinetic energy.","rotational kinetic energy.",2
+"In a hydraulic press operation, the output piston cannot","move farther than the input piston","exceed the force input","exceed the input piston's speed","produce increased energy",3
 "When a spinning system contracts in the absence of an external torque its rotational speed increases and its angular momentum","decreases","increases","remains unchanged","may increase or decrease",2
-"According to Hooke’s law, if you hang by a tree branch and note how much it bends, then hanging with twice the weight produces","half the bend.","the same bend if the branch doesn’t break.","twice the bend.","4 times the bend.",2
+"According to Hooke's law, if you hang by a tree branch and note how much it bends, then hanging with twice the weight produces","half the bend.","the same bend if the branch doesn't break.","twice the bend.","4 times the bend.",2
 "When an increase in speed doubles the kinetic energy of a moving body its momentum","increases but less than doubles","doubles","more than doubles","depends on factors not stated",0
 "Suppose the number of neutrons in a reactor that is starting up doubles each minute reaching one billion neutrons in 10 minutes. When did the number of neutrons reach half a billion?","1 minute.","2 minutes.","5 minutes.","9 minutes.",3
 "If an object is already moving and the sum of all the vector forces on a mass is zero, then the object will","move at a constant speed in a straight line","accelerate at a constant rate in a straight line","come to rest","increase its amount of inertia",0
@@ -33,7 +33,7 @@ question,A,B,C,D,answer
 "A heavy rock and a light rock in free fall (zero air resistance) have the same acceleration. The heavy rock doesn't have a greater acceleration because the","force due to gravity is the same on each.","air resistance is always zero in free fall.","inertia of both rocks is the same.","ratio of force to mass is the same.",3
 "When an increase in speed doubles the momentum of a moving body its kinetic energy","increases but less than doubles","doubles","more than doubles","depends on factors not stated",2
 "The equation E = mc^2 indicates that energy","equals mass moving at the speed of light squared.","equals moving mass.","is fundamentally different than mass.","and mass are closely related.",3
-"General relativity predicts that","light leaving the Sun is slowed by gravity.","light passing the Sun is deflected.","a clock on the Sun’s surface runs faster than on Earth.","All of these.",3
+"General relativity predicts that","light leaving the Sun is slowed by gravity.","light passing the Sun is deflected.","a clock on the Sun's surface runs faster than on Earth.","All of these.",3
 "When an element ejects an alpha particle, the atomic number of the resulting element","reduces by 2","reduces by 4","increases by 2","increases by 4",0
 "As more lamps are connected in parallel in a circuit, the current in the power source","increases","decreases","remains the same","Not enough information to say",0
 "An airplane with its nose pointing north with an airspeed of 40 km/h in a 30-km/h crosswind (at right angles) has a groundspeed of","30 km/h","40 km/h","50 km/h","60 km/h",2
@@ -43,7 +43,7 @@ question,A,B,C,D,answer
 "Bow waves are produced by waves of water","overlapping one another","constructively interfering","moving slower than the source producing them","All of these",3
 "The speed of sound is slightly greater on a","cold day","hot day","day with steady temperature","None of these",1
 "Consider two mercury barometers, one having a cross-sectional area of 1 cm2 and the other 2 cm2. The height of mercury in the narrower tube is","half","twice","the same","None of these",2
-"The second law of thermodynamics tells us that heat doesn’t flow from","hot to cold ever","cold to hot ever","hot to cold without external energy","cold to hot without external energy",3
+"The second law of thermodynamics tells us that heat doesn't flow from","hot to cold ever","cold to hot ever","hot to cold without external energy","cold to hot without external energy",3
 "In a mixture of hydrogen oxygen and nitrogen gases at a given temperature the molecules having the greatest average speed are those of","hydrogen.","oxygen.","nitrogen.","But all have the same speed on average.",0
 "Compared with the power input, the power output of an ideal transformer is","greater","less","the same","Any of these",2
 "The amount of air drag on an 0.8-N flying squirrel dropping vertically at terminal velocity is","less than 0.8 N","0.8 N","greater than 0.8 N","dependent on the orientation of its body",1
@@ -51,7 +51,7 @@ question,A,B,C,D,answer
 "The potential energy of a compressed spring and the potential energy of a charged object both depend on","the work done on them","motion","Both of these","Neither of these",0
 "A step-up transformer in an electrical circuit can step up","voltage","energy","Both of these","Neither of these",0
 "The neutrons in an atom are normally found","inside the nucleus","outside the nucleus","Either of these","Neither of these",0
-"The greenish-blue color of ocean water is due mostly to light that hasn’t been","absorbed","reflected","scattered","refracted",0
+"The greenish-blue color of ocean water is due mostly to light that hasn't been","absorbed","reflected","scattered","refracted",0
 "Noise-canceling devices make use of sound","destruction","interference","resonance","amplification",1
 "Black is the combination of","all the colors together","two or more appropriate colors","light when a prism is held upside down","None of these",3
 "In a circuit of two lamps in parallel, if the current in one lamp is 2 A, the current in the other lamp is","about 1 A","2 A","Depends on which lamp is closer to the battery","Not enough information to say",3
@@ -59,13 +59,13 @@ question,A,B,C,D,answer
 "If the frequency of one source of sound is 500 Hz and a second sound source is 504 Hz, then when the two waves interfere with each other, the beat frequency will be","2 Hz","4 Hz","8 Hz","16 Hz",1
 "The loudness of a sound is most closely related to its","frequency","period","wavelength","amplitude",3
 "The electric field inside the dome of a Van de Graaff generator is zero when the dome is","charged","uncharged","Either of these","Neither of these",2
-"The redness of a sunrise or sunset is due mostly to light that hasn’t been","absorbed","transmitted","scattered","polarized",2
+"The redness of a sunrise or sunset is due mostly to light that hasn't been","absorbed","transmitted","scattered","polarized",2
 "When a nucleus of uranium-238 emits an alpha particle, left behind is","thorium-242","thorium-238","thorium-234","radium-214",2
 "The Doppler effect occurs when a source of sound moves","toward you","away from you","Both of these","None of these",2
 "When a proton is plucked from an atomic nucleus, the atom has a decrease in","charge","energy","mass","all of these",3
 "If the Sun were twice as massive, its pull on Mars would be","unchanged","twice as much","half as much","four times as much",1
 "During the time an aircraft produces a sonic boom the aircraft is","breaking the sound barrier","pulling out of a subsonic dive","flying faster than sound","Each of these produces a sonic boom",2
-"When food is exposed to gamma radiation, the food","becomes slightly radioactive","doesn’t become radioactive","will spoil faster","should be avoided",1
+"When food is exposed to gamma radiation, the food","becomes slightly radioactive","doesn't become radioactive","will spoil faster","should be avoided",1
 "The red glow in the neon tube of an advertising sign is a result of","fluorescence.","coherence.","polarization.","de-excitation.",3
 "Light that is not transmitted by opaque materials is","reflected or converted to internal energy in the material.","mainly reflected.","mainly refracted.","transmitted at a lower frequency.",0
 "Imagine you're standing on the surface of a shrinking planet. If it shrinks to one-tenth its original diameter with no change in mass on the shrunken surface you'd weigh","1/100 as much","10 times as much","100 times as much","1000 times as much",2
@@ -77,28 +77,28 @@ question,A,B,C,D,answer
 "All of the following are electromagnetic waves EXCEPT","microwaves","light waves","X-rays","None is outside the family; all are electromagnetic waves",3
 "Big brother and little sister can balance on a seesaw because of balanced","forces","torques","energies","All of these",1
 "Any atom that emits an alpha particle or beta particle","becomes an atom of a different element always.","may become an atom of a different element.","becomes a different isotope of the same element.","increases its mass.",0
-"Regelation occurs due to water’s","high specific heat","open-structured ice crystals","high rate of expansion","slight tendency to freeze when its temperature is lowered",1
+"Regelation occurs due to water's","high specific heat","open-structured ice crystals","high rate of expansion","slight tendency to freeze when its temperature is lowered",1
 "A big fish swims upon and swallows a small fish that is at rest. Right after lunch, the fattened big fish has a change in","speed","momentum","Both","Neither",0
 "A capacitor can store","charge","energy","Both of these","Neither of these",2
 "For a tube closed at one end, the length of the tube at a frequency of 256 Hz will be","one-quarter the value for a tube open at both ends","one-half the value for a tube open at both ends","twice the value for a tube open at both ends","four times the value for a tube open at both ends",1
 "The period of a 10-Hz wave is","1/10 s","1.0 s","10 s","None of these",0
 "If the Sun collapsed to become a black hole Planet Earth would","continue in its present orbit.","likely be sucked into the black hole.","be pulled apart by tidal forces.","Both C and D.",0
 "The electric field between a pair of oppositely charged parallel plates","gets weaker with distance inside the plates","follows the inverse-square law","Both of these","Neither of these",3
-"The flight of a blimp best illustrates","Archimedes’ principle","Pascal’s principle","Bernoulli’s principle","Boyle’s law",0
+"The flight of a blimp best illustrates","Archimedes' principle","Pascal's principle","Bernoulli's principle","Boyle's law",0
 "The distance of your image behind a plane mirror is equal to","half your height","half your distance from the mirror","your distance in front of the mirror","more than your distance in front of the mirror",2
 "The discrete orbits of electrons are best understood when modeled by","high-speed particles","particles on springs","waves","photons",2
 "Heat engines, such as a jet engine, are more efficient when run at","high temperatures","constant temperatures","low temperatures","a constant rate",0
 "The phenomenon of interference occurs for","sound waves","light waves","Both of these","Neither of these",2
 "As more lamps are connected in a series circuit the current in the power source","increases.","decreases.","remains much the same.","Need more information.",1
-"When you buy a pipe in a hardware store, the water isn’t included. When you buy copper wire, electrons","must be supplied by you","are included in the wire","may fall out—hence insulation","None of these",1
+"When you buy a pipe in a hardware store, the water isn't included. When you buy copper wire, electrons","must be supplied by you","are included in the wire","may fall out---hence insulation","None of these",1
 "When a uranium nucleus undergoes fission the energy released is primarily in the form of","gamma radiation.","kinetic energy of fission fragments.","kinetic energy of ejected neutrons.","All of these about equally.",1
-"Most of the radiation in Earth’s biosphere is","natural background radiation","the result of military activities","from nuclear power plants","in the form of cosmic rays",0
+"Most of the radiation in Earth's biosphere is","natural background radiation","the result of military activities","from nuclear power plants","in the form of cosmic rays",0
 "When white light enters a prism green light is bent more than","blue light.","violet light.","red light.","None of these choices is correct.",2
 "When a ball at rest hangs by a single vertical string tension in the string is mg. If the ball is made to move in amhorizontal circle so that the string describes a cone string tension","is mg","is greater than mg always","is less than mg always","may be greater or less than mg depending on the speed of the ball",1
 "When a tin can is whirled in a horizontal circle, the net force on the can acts","inward","outward","upward","None of these",0
 "The highest ocean tides occur when Earth and the Moon are","lined up with the Sun","at right angles to the Sun","at any angle to the Sun","lined up during spring",0
 "Lift a 100-N crate with an ideal pulley system by pulling a rope downward with 25 N of force. For every 1-m length of rope pulled down, the crate rises","25 cm","25 m","50 cm","None of these",0
-"Hot sand cools off faster at night than does vegetation. Compared with vegetation, sand’s specific heat capacity is","lower","higher","about the same","Can’t say",0
+"Hot sand cools off faster at night than does vegetation. Compared with vegetation, sand's specific heat capacity is","lower","higher","about the same","Can't say",0
 "The color of light most intense in the solar radiation curve is","infrared","red","yellow-green","violet",2
 "If the current in the filament of a lamp is 3 A, the current in the connecting wire is","less than 3 A","3 A","more than 3 A","Not enough information to say",1
 "If two protons and two neutrons are removed from the nucleus of neon-20, a nucleus of which element remains?","Magnesium-22","Magnesium-20","Oxygen-18","Oxygen-16",3
@@ -109,9 +109,9 @@ question,A,B,C,D,answer
 "If an iron nucleus split in two, its fission fragments would have","less mass per nucleon","more mass per nucleon","the same mass per nucleon","either more or less mass per nucleon",1
 "The surface of Planet Earth loses energy to outer space due mostly to","conduction.","convection.","radiation.","radioactivity.",2
 "The direction of natural processes is from states of","higher order to lower order","lower order to higher order","disorganization to organization","disorder to equilibrium",0
-"A principal source of the Earth’s internal energy is","tidal friction.","gravitational pressure.","radioactivity.","solar radiation.",2
+"A principal source of the Earth's internal energy is","tidal friction.","gravitational pressure.","radioactivity.","solar radiation.",2
 "A diffraction grating relies on light","interference","amplitudes","variations in brightness","being composed of photons",0
-"A satellite in Earth orbit is above Earth’s","atmosphere","gravitational field","Both","Neither",0
+"A satellite in Earth orbit is above Earth's","atmosphere","gravitational field","Both","Neither",0
 "The time it takes for a pendulum swinging to and fro refers to its","frequency","period","wavelength","amplitude",1
 "As entropy in a system increases, energy in the system","becomes more ordered","becomes less ordered","reaches equilibrium","moves toward destruction",1
 "When water changes to steam, energy is","absorbed by the water","released by the water","conserved as the phase change occurs","changed to a different form",0
@@ -123,7 +123,7 @@ question,A,B,C,D,answer
 "A 10-Ω resistor carries 10 A. The voltage across the resistor is","0","more than 0 but less than 10 V","10 V","more than 10 V",3
 "A cannonball is fired horizontally at 10 m/s from a cliff. Its speed one second after being fired is about","10 m/s","14 m/s","16 m/s","20 m/s",1
 "The average speed of a gazelle traveling a distance of 2 km in a time of one-half hour is","1 km/h","2 km/h","4 km/h","greater than 4 km/h",2
-"The metal detectors people walk through at airports operate via","Ohm’s law","Faraday’s law","Coulomb’s law","Newton’s laws",1
+"The metal detectors people walk through at airports operate via","Ohm's law","Faraday's law","Coulomb's law","Newton's laws",1
 "Sound travels in","solids","liquids","gases","All of these",3
 "When a fusion reaction converts a pair of hydrogen isotopes to an alpha particle and a neutron most of the energy released is in the form of","gamma radiation.","kinetic energy of the alpha particle.","kinetic energy of the neutron.","All of these about equally.",2
 "Polarization is a property of","transverse waves.","longitudinal waves.","all waves.","None of these.",0
@@ -131,14 +131,14 @@ question,A,B,C,D,answer
 "The lowest possible temperature is absolute zero, at","0 kelvin","−273°C","Both are the same","None of these",2
 "Refraction occurs when a wave crosses a boundary and changes","speed and direction","intensity","frequency","amplitude",0
 "When you tap a piece of wood, it will produce a characteristic sound related to its","wavelength","amplitude","period","natural frequency",3
-"When wind speeds up as it blows over the top of a hill, atmospheric pressure there","increases","decreases","isn’t affected","reduces to zero",1
+"When wind speeds up as it blows over the top of a hill, atmospheric pressure there","increases","decreases","isn't affected","reduces to zero",1
 "When white light passes through a prism, the light that bends more than green is","red","yellow","blue","None of these",2
-"If you travel at high speed, then compared with your friends who “stay at home,” you are","older.","younger.","neither younger nor older.","longer.",1
+"If you travel at high speed, then compared with your friends who "stay at home," you are","older.","younger.","neither younger nor older.","longer.",1
 "The component of velocity that can remain constant for a tossed baseball is","horizontal","vertical","Either of these","None of these",0
 "The crystals that make up minerals are composed of","atoms with a definite geometrical arrangement.","molecules that perpetually move.","X-ray patterns.","3-dimensional chessboards.",0
 "Two vectors, one 3 N and the other 4 N, can have a resultant of","0 N","5 N","8 N","Any of these",1
 "Radioactivity has been around on Earth since the","middle of the 1900s","Industrial Revolution","advent of medical technology","Earth formed",3
-"When the shadow of the Moon falls on Earth, we have a","lunar eclipse.","solar eclipse.","solar eclipse if it’s daytime and lunar eclipse if it’s nighttime.","very dangerous event.",1
+"When the shadow of the Moon falls on Earth, we have a","lunar eclipse.","solar eclipse.","solar eclipse if it's daytime and lunar eclipse if it's nighttime.","very dangerous event.",1
 "In both fission and fusion, energy is released while mass","decreases","remains unchanged; is conserved","increases","may decrease or increase",0
 "When relatively slow-moving molecules condense from the air, the temperature of the remaining air tends to","remain unchanged","decrease","increase","spread out uniformly",2
 "If the volume of an object were to double, with no change in mass, its density would","halve.","double.","be the same.","None of these.",0
@@ -149,7 +149,7 @@ question,A,B,C,D,answer
 "To view your full-face image in a steamy mirror compared with the height of your face the minimum height of the patch to wipe away is","one-quarter.","one-half.","the same.","dependent on your distance from the mirror.",1
 "The vibrations in a transverse wave move in a direction","along the wave","perpendicular to the wave","Both of these","Neither of these",1
 "A 1134-Hz tuning fork is sounded at the same time a piano note is struck. You hear three beats per second. The frequency of the piano string is","1131 Hz","1134 Hz","1137 Hz","More information is needed",3
-"Huygens’ principle for light is primarily described by","waves","rays","particles","photons",0
+"Huygens' principle for light is primarily described by","waves","rays","particles","photons",0
 "When the temperature of a strip of iron is increased, the length of the strip","also increases.","actually decreases.","may increase and may decrease.","decreases in width as it gets longer.",0
 "When light undergoes interference, it can sometimes","build up to more than the sum of amplitudes","cancel completely","Both of these","Neither of these",1
 "When the color yellow is seen on your TV screen the phosphors being activated on the screen are","mainly yellow.","blue and red.","green and yellow.","red and green.",3
@@ -157,7 +157,7 @@ question,A,B,C,D,answer
 "A math book and a physics book sitting on a table are tied together with a length of string. With the string taut one book is pushed off the edge of the table. As it falls the other book is dragged horizontally across the table surface. With no friction acceleration of the books is","zero","g/2","g","a value between zero and g",3
 "A motor and a generator are","similar devices","very different devices","forms of transformers","energy sources",0
 "As more lamps are connected in parallel in a circuit the current in the power source","increases.","decreases.","remains much the same.","Need more information.",0
-"Newton’s law of cooling applies to objects that","cool","warm up","Both","Neither",2
+"Newton's law of cooling applies to objects that","cool","warm up","Both","Neither",2
 "The fact that the Moon always shows its same face to Earth is evidence that the Moon rotates about its axis about once per","day","month","year","None of these for the moon does not rotate about an axis",1
 "Consider a ball rolling in a horizontal circular path on the inside surface of a cone. The normal force on the ball","is mg","is greater than mg always","may be greater or less than mg","is less than mg always",1
 "The compressions and rarefactions in sound normally travel","in the same direction","in opposite directions","at right angles to each other","None of these",0
@@ -180,7 +180,7 @@ question,A,B,C,D,answer
 "The work done on a 100-kg crate that is hoisted 2 m in a time of 4 s is","200 J","500 J","800 J","2000 J",3
 "A capacitor loses half its remaining charge every second. If after five seconds its charge is q what was its initial charge?","4q.","8q.","16q.","32q.",3
 "The mass of an atom comes mostly from its _ ; and its volume from its _.","nucleons; nucleons.","electrons; electrons.","electrons; nucleons.","nucleons; electrons.",3
-"The definition of magnetic inclination is the angle between","magnetic north and geographic north","magnetic north and geographic south","the earth’s magnetic field at any point and the vertical","the earth’s magnetic field at any point and the horizontal",3
+"The definition of magnetic inclination is the angle between","magnetic north and geographic north","magnetic north and geographic south","the earth's magnetic field at any point and the vertical","the earth's magnetic field at any point and the horizontal",3
 "The pitch of a sound is mostly related to its","intensity","frequency","amplitude","speed",1
 "As more lamps are connected to a series circuit, the current in the power source","increases","decreases","remains the same","None of these",1
 "When an element ejects an alpha particle, the mass number of the resulting element","reduces by 2","reduces by 4","increases by 2","increases by 4",1
@@ -191,9 +191,9 @@ question,A,B,C,D,answer
 "At very high speeds, an object appears to an observer at rest to be","shorter in the direction of travel.","shrunken in all directions.","shorter in the direction perpendicular to travel.","longer in all directions.",0
 "When a wave moves from shallow water to deep water, the","frequency decreases, the wavelength increases, and the speed increases","frequency does not change, the wavelength increases, and the speed increases","frequency does not change, the wavelength decreases, and the speed decreases","frequency does not change, the wavelength increases, and the speed decreases",1
 "When you drop a ball from rest it accelerates downward at 9.8 m/s^2. If you instead throw it downward assuming no air resistance its acceleration immediately after leaving your hand is","9.8 m/s2","more than 9.8 m/s2","less than 9.8 m/s2","Cannot say unless the speed of throw is given.",0
-"Carbon-14 is primarily produced by cosmic radiation in the","atmosphere","food we eat","Earth’s interior","fallout of nuclear bomb tests",0
+"Carbon-14 is primarily produced by cosmic radiation in the","atmosphere","food we eat","Earth's interior","fallout of nuclear bomb tests",0
 "Chain reactions in a fission reactor are caused by","kinetic energy","energy conversion","mass conversion","ejected neutrons",3
-"Satellites in circular Earth orbit maintain a constant speed because gravitational force on them is","zero","practically zero","appreciably weaker than at Earth’s surface","without a component of force along their circular path",3
+"Satellites in circular Earth orbit maintain a constant speed because gravitational force on them is","zero","practically zero","appreciably weaker than at Earth's surface","without a component of force along their circular path",3
 "The complementary color of blue is","magenta","yellow","cyan","white",1
 "The difference between dc and ac in electric circuits is that in dc, charges flow","steadily in one direction","in one direction","to and fro","All of these",1
 "To receive an electric shock there must be a","current in one direction.","presence of moisture.","high voltage and low body resistance.","voltage difference across part or all of your body.",3

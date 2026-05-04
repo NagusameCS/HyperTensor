@@ -16,7 +16,7 @@ question,A,B,C,D,answer
 "Which of the following is an example of monosomy?","46,XX","47,XXX","69,XYY","45,X",3
 "QTL analysis is used to","identify chromosome regions associated with a complex trait in a genetic cross","determine which genes are expressed at a developmental stage","map genes in bacterial viruses","identify RNA polymerase binding sites",0
 "What would be the frequency of AABBCC individuals from a mating of two AaBbCc individuals?","1.0/64","1.0/32","1.0/128","1.0/256",0
-"It is currently estimated that there are ______ human protein-coding genes although this estimate may be reduced over time.","10,000–15,000","19,000–20,000","29,000–30,000","100,000",1
+"It is currently estimated that there are ______ human protein-coding genes although this estimate may be reduced over time.","10,000--15,000","19,000--20,000","29,000--30,000","100,000",1
 "With which of the following relatives is an individual most likely to share a common HLA haplotype?","Father","Mother","Sister","Son",2
 "Which of the following genes conveys susceptibility for polygenic Alzheimer disease?","APP","PS1","PS2","APOE",3
 "The DiGeorge/Shprintzen syndrome is caused by a deletion in which chromosome?","4","7","15","22",3
@@ -77,7 +77,7 @@ question,A,B,C,D,answer
 "Which of the following statements about Hirschsprung disease is incorrect?","It shows an association with Down syndrome.","It is more common in girls than in boys.","RET is a major susceptibility gene.","Recurrence risks are greater for long segment disease than for short segment disease.",1
 "Which of the following conditions is caused by a trinucleotide (triplet) repeat expansion?","Cystic fibrosis","Duchenne muscular dystrophy","Huntington disease","Osteogenesis imperfecta",2
 "Which of the following causes female pseudohermaphroditism?","Androgen insensitivity","Campomelic dysplasia","Congenital adrenal hyperplasia","Klinefelter syndrome",2
-"Which component of transcribed RNA in eukaryotes is present in the initial transcript but is removed before translation occurs?","Intron","3’ Poly A tail","Ribosome binding site","5’ cap",0
+"Which component of transcribed RNA in eukaryotes is present in the initial transcript but is removed before translation occurs?","Intron","3' Poly A tail","Ribosome binding site","5' cap",0
 "Which of the following is not a recognized complication of cystic fibrosis?","Cancer of the oesophagus","Congenital absence of the vas deferens","Diabetes mellitus","Liver cirrhosis",0
 "Which of the following diagnostic techniques is of no value for the diagnosis of neural tube defects?","Amniocentesis","Chorion villus sampling (CVS)","Maternal serum screening","Ultrasonography",1
 "Which of the following conditions is a peroxisomal disorder?","Acute intermittent porphyria","Maple syrup urine disease","Medium chain acyl-CoA dehydrogenase deficiency","Zellweger syndrome",3

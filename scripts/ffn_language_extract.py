@@ -6,9 +6,9 @@ The FFN block acts as a key-value memory bank (Geva et al. 2021).
 Different columns respond to different input patterns.  This script
 clusters FFN columns by their activation patterns to identify:
 
-  1. "Language memory" — columns that activate on syntactic/lexical patterns
-  2. "Math memory" — columns that activate on numerical/symbolic patterns
-  3. "Shared memory" — columns that respond to both
+  1. "Language memory" --- columns that activate on syntactic/lexical patterns
+  2. "Math memory" --- columns that activate on numerical/symbolic patterns
+  3. "Shared memory" --- columns that respond to both
 
 In a real experiment, this would separate the Language model's FFN into
 extractable language-memory clusters and non-language (shared/general) clusters.
@@ -74,7 +74,7 @@ def cluster_ffn_columns(W_gate: np.ndarray, W_up: np.ndarray,
     """
     Cluster FFN columns by their combined gate+up weight patterns.
 
-    Uses L2-magnitude sorting (simplest) — the massive-activation
+    Uses L2-magnitude sorting (simplest) --- the massive-activation
     phenomenon means a few columns have outlier norms and carry
     disproportionate importance.  These are the "sink-like" columns
     that encode high-impact knowledge (likely domain-specific).

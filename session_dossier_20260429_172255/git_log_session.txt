@@ -67,7 +67,7 @@ Adds frontier-scale Phase-1 manifold parameters paragraph to Sec measurement-anc
   Pure h-PCA (--axex-no-actaware) also keeps the legacy code path active.
 
 * scripts/run_lm_eval_suite.ps1: Start-GeodServer now polls /v1/models over
-  HTTP (180s deadline) instead of just TCP-connect (60s) — fixes early
+  HTTP (180s deadline) instead of just TCP-connect (60s) --- fixes early
   timeout when model load takes >60s.
 
 * scripts/benchmark_rank_pareto.ps1: per-rank cache warmup pass (Repeats=1)
@@ -75,7 +75,7 @@ Adds frontier-scale Phase-1 manifold parameters paragraph to Sec measurement-anc
   pollute the std of the real run.
 
 * scripts/campaign/build_remote_arch_cuda.sh: new idempotent CUDA build
-  recipe for Arch + zig 0.14 + openblas + nvcc sm_86 → builds and atomically
+  recipe for Arch + zig 0.14 + openblas + nvcc sm_86 -> builds and atomically
   swaps in geodessical with cuda_kernels.so.
 
 * scripts/campaign/remote_arch_suite.sh, context_length_sweep.ps1,

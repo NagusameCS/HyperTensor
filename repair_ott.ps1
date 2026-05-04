@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-OTT Speculative Decode — Automated Repair & Calibration Suite
+OTT Speculative Decode --- Automated Repair & Calibration Suite
 =============================================================
 Fixes the two root causes of 0% acceptance:
   1. Degenerate geometry cache (samples_used=0, empty Christoffel symbols)
@@ -31,7 +31,7 @@ function Invoke-Step {
     Write-Host "`n>>> $Label" -ForegroundColor Cyan
     & $Block
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
-        Write-Error "Step failed with exit code $LASTEXITCODE — aborting."
+        Write-Error "Step failed with exit code $LASTEXITCODE --- aborting."
     }
     Write-Host "    OK`n" -ForegroundColor Green
 }
@@ -88,7 +88,7 @@ if ($samplesUsed -le 0) {
     Write-Error "GEOMETRY VALIDATION FAILED: samples_used=$samplesUsed (still 0). Phase 1 did not run."
 }
 if ($christoffelOk -ne 1) {
-    Write-Warning "WARNING: christoffel_computed=$christoffelOk — GRC subspace may not initialise. Check axiom_beta_report.json."
+    Write-Warning "WARNING: christoffel_computed=$christoffelOk --- GRC subspace may not initialise. Check axiom_beta_report.json."
 }
 Write-Host "    samples_used=$samplesUsed  christoffel=$christoffelOk  metric_pts=$metricPts" -ForegroundColor Green
 
@@ -126,7 +126,7 @@ if ($odLine) {
         Write-Warning "OD table still proposes EOS (tok=2). The boundary guard in main.c will block it, but consider re-running Step 3 with a longer -n to bake more anchor states."
     }
 } else {
-    Write-Host "    (no SPEC-DBG line — OD may not be ready; check full output)" -ForegroundColor Yellow
+    Write-Host "    (no SPEC-DBG line --- OD may not be ready; check full output)" -ForegroundColor Yellow
 }
 
 #  STEP 4: C3 Calibration Sweep 
@@ -165,9 +165,9 @@ Invoke-Step "STEP 5: Final smoke test" {
     if ($doneLine -match "acceptance_rate=([\d.]+)%") {
         $acc = [double]$Matches[1]
         if ($acc -ge 20.0) {
-            Write-Host "    Acceptance rate: $acc% — PASS (>= 20%)" -ForegroundColor Green
+            Write-Host "    Acceptance rate: $acc% --- PASS (>= 20%)" -ForegroundColor Green
         } else {
-            Write-Warning "    Acceptance rate: $acc% — below 20%. GRC may need more correction rounds; try a longer -n run."
+            Write-Warning "    Acceptance rate: $acc% --- below 20%. GRC may need more correction rounds; try a longer -n run."
         }
     }
 }

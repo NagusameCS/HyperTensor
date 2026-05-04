@@ -3,7 +3,7 @@
 Paper X Feasibility: Gauge-Aligned Subspace Overlap Analysis.
 
 Tests whether the intrinsic k-dimensional subspaces of different
-transformer layers overlap — the prerequisite for chimeric model splicing.
+transformer layers overlap --- the prerequisite for chimeric model splicing.
 Uses layers as proxies for "specialized models" since we can't yet
 train dedicated Math/Language models.
 

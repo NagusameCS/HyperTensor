@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-C3 — OTT Speculative Decode Calibration Sweep
+C3 --- OTT Speculative Decode Calibration Sweep
 ==============================================
 Grid-searches --ott-spec-thresh x --ott-spec-batch to find the Pareto frontier
 of acceptance rate vs verifier throughput for the active model.
@@ -19,7 +19,7 @@ Usage:
 Parameters:
   -Model      Path to the GGUF model file  (default: models\smollm2-135m-instruct-q8_0.gguf)
   -MaxTokens  Tokens to generate per run   (default: 32)
-  -Reps       Repetitions per cell         (default: 1 — increase for stable averages)
+  -Reps       Repetitions per cell         (default: 1 --- increase for stable averages)
   -OutDir     Directory for output files   (default: .)
 
 Outputs:
@@ -46,7 +46,7 @@ if (-not (Test-Path $exe)) { Write-Error "geodessical.exe not found; run build_h
 $modelPath = $Model
 if (-not (Test-Path $modelPath)) { Write-Error "Model not found: $modelPath" }
 
-#  Validation prompts (locked set — do NOT change between runs) 
+#  Validation prompts (locked set --- do NOT change between runs) 
 $Prompts = @(
     "Explain the water cycle in three sentences.",
     "What is the capital of France?",
@@ -71,7 +71,7 @@ $results = [System.Collections.Generic.List[PSCustomObject]]::new()
 $totalCells = $Thresholds.Count * $BatchSizes.Count * $Prompts.Count * $Reps
 $done = 0
 
-Write-Host "`n[C3] Calibration Sweep — $totalCells runs total`n" -ForegroundColor Cyan
+Write-Host "`n[C3] Calibration Sweep --- $totalCells runs total`n" -ForegroundColor Cyan
 
 foreach ($thresh in $Thresholds) {
     foreach ($batch in $BatchSizes) {

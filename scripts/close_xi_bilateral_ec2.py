@@ -284,7 +284,7 @@ def main():
         json.dump(report, f, indent=2)
     
     print(f"\n  [OK] Report: {OUT}/results.json")
-    print(f"  XI: Bilateral UGT validated at 1.5B — {n_passed}/{n_total} layers pass")
+    print(f"  XI: Bilateral UGT validated at 1.5B --- {n_passed}/{n_total} layers pass")
     print(f"  Closeness: 95% -> 98% (only 7B scaling remains)")
 
 if __name__ == "__main__":

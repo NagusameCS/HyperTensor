@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  EVALUATION 1: "Ship of Theseus" Longitudinal Benchmark         ║
-║                                                                 ║
-║  Tests the model against ITSELF over time. Ask the same set     ║
-║  of deeply complex questions on Day 1, Day 14, Day 30.          ║
-║  Measure semantic divergence — if the living memory works,      ║
-║  the model shouldn't just rephrase; its AXIOMS should shift.    ║
-║                                                                 ║
-║  Usage:                                                         ║
-║    python eval_ship_of_theseus.py --load session1.miku          ║
-║    python eval_ship_of_theseus.py --load session1.miku \\       ║
-║         --compare session2.miku --output theseus_report.json    ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  EVALUATION 1: "Ship of Theseus" Longitudinal Benchmark         |
+|                                                                 |
+|  Tests the model against ITSELF over time. Ask the same set     |
+|  of deeply complex questions on Day 1, Day 14, Day 30.          |
+|  Measure semantic divergence --- if the living memory works,      |
+|  the model shouldn't just rephrase; its AXIOMS should shift.    |
+|                                                                 |
+|  Usage:                                                         |
+|    python eval_ship_of_theseus.py --load session1.miku          |
+|    python eval_ship_of_theseus.py --load session1.miku \\       |
+|         --compare session2.miku --output theseus_report.json    |
++==================================================================+
 """
 import json, sys, os, argparse, math
 import torch
@@ -58,7 +58,7 @@ def compute_semantic_divergence(response_a, response_b):
     # 3. Length shift
     len_ratio = abs(len(ta) - len(tb)) / max(len(ta), len(tb), 1)
     
-    # 4. Keyword drift — track concept mentions
+    # 4. Keyword drift --- track concept mentions
     concept_keywords = {
         "consciousness": ["conscious", "awareness", "qualia", "subjective", "experience", "feeling"],
         "understanding": ["understand", "comprehend", "grasp", "meaning", "semantic", "interpret"],
@@ -115,7 +115,7 @@ def load_miku_responses(miku_path):
 def run_theseus_eval(path_a, path_b=None, output_path="benchmarks/theseus_report.json"):
     """Compare responses across sessions."""
     print("=" * 70)
-    print("  SHIP OF THESEUS — Longitudinal Evaluation")
+    print("  SHIP OF THESEUS --- Longitudinal Evaluation")
     print("=" * 70)
     
     responses_a = load_miku_responses(path_a)
@@ -131,20 +131,20 @@ def run_theseus_eval(path_a, path_b=None, output_path="benchmarks/theseus_report
                 div = compute_semantic_divergence(responses_a[q], responses_b[q])
                 results[q[:60]] = div
                 print(f"\n  Q: {q[:60]}...")
-                print(f"     Divergence: {div['divergence_score']:.3f} → {div['interpretation']}")
+                print(f"     Divergence: {div['divergence_score']:.3f} -> {div['interpretation']}")
                 for kw, drift in div['keyword_drift'].items():
                     if drift > 0.3:
                         print(f"       ↳ {kw}: drift={drift:.3f}")
         
         avg_div = np.mean([r["divergence_score"] for r in results.values()])
-        print(f"\n  ═══ OVERALL ═══")
+        print(f"\n  === OVERALL ===")
         print(f"  Mean divergence: {avg_div:.3f}")
         print(f"  Interpretation: Over time, the model's responses are {results[list(results.keys())[0]]['interpretation'] if results else 'N/A'}")
         
         if avg_div > 0.35:
-            print(f"  [OK] Living memory is WORKING — responses are evolving, not just rephrasing.")
+            print(f"  [OK] Living memory is WORKING --- responses are evolving, not just rephrasing.")
         else:
-            print(f"  [!!] Responses are stable — living memory may need more interactions between sessions.")
+            print(f"  [!!] Responses are stable --- living memory may need more interactions between sessions.")
     else:
         # Single session: just report what was answered
         print(f"\n  Single session analysis. Run again with --compare <session2.miku> for divergence.")

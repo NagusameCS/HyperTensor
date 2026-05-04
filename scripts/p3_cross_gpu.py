@@ -8,11 +8,11 @@ on the current GPU and emits a per-rank CSV + summary JSON.
 
 The cache-fit model predicts k* = largest power-of-two k where the
 attention working set fits L2 with ~25% headroom:
-  - RTX 4070 Laptop (32 MB L2) → k* = 1024  (PAPER A, CONFIRMED)
-  - RTX 4090          (72 MB L2) → k* = 1536  (PREDICTED)
-  - A100              (40 MB L2) → k* = 1024  (PREDICTED)
-  - H100              (50 MB L2) → k* = 1280  (PREDICTED)
-  - L40S              (96 MB L2) → k* = 1536  (PREDICTED)
+  - RTX 4070 Laptop (32 MB L2) -> k* = 1024  (PAPER A, CONFIRMED)
+  - RTX 4090          (72 MB L2) -> k* = 1536  (PREDICTED)
+  - A100              (40 MB L2) -> k* = 1024  (PREDICTED)
+  - H100              (50 MB L2) -> k* = 1280  (PREDICTED)
+  - L40S              (96 MB L2) -> k* = 1536  (PREDICTED)
 
 Usage (local RTX 4070 Laptop):
   python scripts/p3_cross_gpu.py --model models/smollm2-135m-instruct-q8_0.gguf
@@ -26,9 +26,9 @@ Usage (EC2, any GPU):
 
 Outputs:
   benchmarks/p3_cross_gpu/
-    p3_raw.csv          ← per-(k, prompt, rep) throughput
-    p3_summary.json     ← per-k mean/stdev/CI
-    p3_report.md        ← verdict: confirmed / falsified / consistent
+    p3_raw.csv          <- per-(k, prompt, rep) throughput
+    p3_summary.json     <- per-k mean/stdev/CI
+    p3_report.md        <- verdict: confirmed / falsified / consistent
 """
 
 from __future__ import annotations

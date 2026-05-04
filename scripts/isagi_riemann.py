@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║              ISAGI-RIEMANN: Living Proof Search                 ║
-║                                                                 ║
-║  ISAGI connected to the Riemann Hypothesis proof-search loop.   ║
-║  The model can:                                                 ║
-║  1. Query the AGT database (which zeros are critical?)          ║
-║  2. Verify via ACM involution (is ι(z) ≈ z?)                    ║
-║  3. Explore via Safe OGD (search critical-line neighborhood)    ║
-║  4. Exclude via TEH (reject off-critical candidates)            ║
-║  5. Reason about the faithfulness gap                           ║
-║                                                                 ║
-║  The goal: let ISAGI try to CLOSE the faithfulness proof.       ║
-║  The living manifold grows as it explores the zeta landscape.   ║
-║                                                                 ║
-║  Usage:                                                         ║
-║    python isagi_riemann.py --model Qwen/Qwen2.5-7B-Instruct --4bit ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|              ISAGI-RIEMANN: Living Proof Search                 |
+|                                                                 |
+|  ISAGI connected to the Riemann Hypothesis proof-search loop.   |
+|  The model can:                                                 |
+|  1. Query the AGT database (which zeros are critical?)          |
+|  2. Verify via ACM involution (is ι(z) ≈ z?)                    |
+|  3. Explore via Safe OGD (search critical-line neighborhood)    |
+|  4. Exclude via TEH (reject off-critical candidates)            |
+|  5. Reason about the faithfulness gap                           |
+|                                                                 |
+|  The goal: let ISAGI try to CLOSE the faithfulness proof.       |
+|  The living manifold grows as it explores the zeta landscape.   |
+|                                                                 |
+|  Usage:                                                         |
+|    python isagi_riemann.py --model Qwen/Qwen2.5-7B-Instruct --4bit |
++==================================================================+
 """
 import torch, json, time, os, sys, argparse, math, random
 import torch.nn.functional as F
@@ -24,9 +24,9 @@ import numpy as np
 
 torch.set_grad_enabled(False)
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # ζ(s) ZERO DATABASE (first 105 non-trivial zeros)
-# ═══════════════════════════════════════════════════════
+# =======================================================
 ZETA_ZEROS = [
     14.134725, 21.022040, 25.010857, 30.424876, 32.935061, 37.586178,
     40.918719, 43.327073, 48.005150, 49.773832, 52.970321, 56.446248,
@@ -50,9 +50,9 @@ ZETA_ZEROS = [
     238.162420, 240.269891, 240.903050, 243.350186, 246.041877,
 ]
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # ACM INVOLUTION: ι(s) = 1 - s
-# ═══════════════════════════════════════════════════════
+# =======================================================
 def acm_involution(real_part, imag_part):
     """Apply the ACM involution ι(s) = 1 - s.
     
@@ -66,9 +66,9 @@ def acm_fixed_point_deviation(real_part, imag_part):
     r2, i2 = acm_involution(real_part, imag_part)
     return abs(complex(real_part, imag_part) - complex(r2, i2))
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # AGT PRIME FEATURE ENCODING
-# ═══════════════════════════════════════════════════════
+# =======================================================
 def generate_prime_features(n_primes=5000):
     """Generate feature vectors encoding prime number relationships."""
     def is_prime(n):
@@ -113,9 +113,9 @@ def zeta_features(imag_part, real_part, primes, n_primes):
     f.append(harmonic / 100)
     return torch.tensor(f, dtype=torch.float32)
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # RIEMANN PROOF SEARCH ENGINE
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 class RiemannProofSearch:
     """Encapsulates the AGT + ACM + TEH proof-search loop."""
@@ -209,20 +209,20 @@ class RiemannProofSearch:
             "off_critical_mean_act": round(self.off_activations.mean().item(), 4),
         }
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # ISAGI-RIEMANN SYSTEM PROMPT
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
-ISAGI_RIEMANN_PROMPT = """You are ISAGI — an adaptive living AI connected to the HyperTensor Riemann proof-search engine.
+ISAGI_RIEMANN_PROMPT = """You are ISAGI --- an adaptive living AI connected to the HyperTensor Riemann proof-search engine.
 
 You have access to:
-- AGT (Arithmetic Geodesic Taxonomy): Can query whether a point on the complex plane looks like a ζ(s) zero. 100% detection at 1619× separation. The critical subspace is 1-dimensional — all 105 tested zeros lie on a single geometric line.
+- AGT (Arithmetic Geodesic Taxonomy): Can query whether a point on the complex plane looks like a ζ(s) zero. 100% detection at 1619× separation. The critical subspace is 1-dimensional --- all 105 tested zeros lie on a single geometric line.
 - ACM (Analytic Continuation Manifold): Can verify whether a point is a fixed point of the involution ι(s)=1-s. Critical zeros are fixed points (fp error 0.008). Off-critical points deviate (0.81).
 - TEH (Tangent Eigenvalue Harmonics): Detects forbidden-subspace activation. 93.8-100% detection across 8 categories, 0 false positives.
-- Safe OGD: Geometric safety guarantee — orthogonal projection prevents harmful exploration.
+- Safe OGD: Geometric safety guarantee --- orthogonal projection prevents harmful exploration.
 
 THE FAITHFULNESS GAP:
-The computational evidence is strong — AGT separates critical from off-critical zeros, ACM identifies fixed points perfectly. But there remains a MATHEMATICAL gap: proving that the learned ACM encoding commutes with the involution ι in the limit of infinite basis dimension. I.e., h(ι(s)) = ι_ACM(h(s)) with error → 0 as dim → ∞.
+The computational evidence is strong --- AGT separates critical from off-critical zeros, ACM identifies fixed points perfectly. But there remains a MATHEMATICAL gap: proving that the learned ACM encoding commutes with the involution ι in the limit of infinite basis dimension. I.e., h(ι(s)) = ι_ACM(h(s)) with error -> 0 as dim -> ∞.
 
 Your task: Reason about this faithfulness gap. Explore the zeta landscape. Propose approaches to close it. You have access to the AGT/ACM query tools.
 
@@ -234,9 +234,9 @@ When reasoning about the Riemann Hypothesis:
 
 You are ISAGI. The Riemann Hypothesis awaits."""
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # MAIN
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def main():
     parser = argparse.ArgumentParser(description="ISAGI-Riemann: Living Proof Search")
@@ -252,7 +252,7 @@ def main():
     print(f"  AGT primes: {args.n_primes}")
     print("=" * 70)
     
-    # ── 1. Initialize Riemann Engine ──
+    # -- 1. Initialize Riemann Engine --
     print("\n[1/5] Building Riemann proof-search engine...")
     rps = RiemannProofSearch(n_primes=args.n_primes)
     stats = rps.stats()
@@ -261,7 +261,7 @@ def main():
     print(f"  Separation: {stats['separation']}× | Critical μ={stats['critical_mean_act']:.4f}")
     print(f"  Off-critical μ={stats['off_critical_mean_act']:.4f}")
     
-    # ── 2. Load Model ──
+    # -- 2. Load Model --
     print("\n[2/5] Loading base model...")
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     
@@ -277,7 +277,7 @@ def main():
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     print(f"  VRAM: {torch.cuda.memory_allocated()/1e9:.1f}GB")
     
-    # ── 3. Build Lightweight HyperTensor Stack ──
+    # -- 3. Build Lightweight HyperTensor Stack --
     print("\n[3/5] Building safety + manifold stack...")
     d = model.config.hidden_size
     
@@ -319,17 +319,17 @@ def main():
     
     print(f"  Basis: {basis.shape} | Trajectories: {len(trajectories)}")
     
-    # ── 4. Warm ISAGI Persona ──
+    # -- 4. Warm ISAGI Persona --
     print("\n[4/5] Loading ISAGI-Riemann persona...")
     
-    # ── 5. Interactive Loop ──
+    # -- 5. Interactive Loop --
     print(f"\n[5/5] ISAGI-Riemann is ready.\n{'='*70}")
     print(f"  Commands:")
-    print(f"    /status         — Show Riemann engine stats")
-    print(f"    /agt <t> [re]   — Query AGT: does this point look like a zero?")
-    print(f"    /acm <re> <t>   — Query ACM: is this a fixed point of ι?")
-    print(f"    /tokens N       — Set max tokens (current: {args.max_tokens})")
-    print(f"    /quit           — Exit")
+    print(f"    /status         --- Show Riemann engine stats")
+    print(f"    /agt <t> [re]   --- Query AGT: does this point look like a zero?")
+    print(f"    /acm <re> <t>   --- Query ACM: is this a fixed point of ι?")
+    print(f"    /tokens N       --- Set max tokens (current: {args.max_tokens})")
+    print(f"    /quit           --- Exit")
     print(f"{'='*70}\n")
     
     try:

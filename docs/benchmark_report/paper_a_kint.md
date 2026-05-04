@@ -1,6 +1,6 @@
-## Paper A — k_int Generalisation Across Architectures
+## Paper A --- k_int Generalisation Across Architectures
 
-Summary: across the sampled models, intrinsic rank k_int (95% joint-Gram variance) stays below d and is often in the 0.5–0.7 d range, supporting rank-limited attention compression.
+Summary: across the sampled models, intrinsic rank k_int (95% joint-Gram variance) stays below d and is often in the 0.5--0.7 d range, supporting rank-limited attention compression.
 
 | Model | d | Mean k_int | k_int/d | Min k_int | Max k_int | Layers sampled |
 |-------|---|-----------|---------|-----------|-----------|----------------|

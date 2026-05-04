@@ -273,7 +273,7 @@ def main():
     
     if best_k:
         print(f"\n  [OK] Native achieves <{target_ratio:.0f}% params at k={best_k}")
-        print(f"  XII: KExpansion validated — Native architecture works at 1.5B")
+        print(f"  XII: KExpansion validated --- Native architecture works at 1.5B")
         print(f"  Closeness: 80% -> 85% (k-expansion proven, PPL parity needs k>=256)")
     else:
         print(f"\n  [!!] Need larger k for <{target_ratio:.0f}% params")

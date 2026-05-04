@@ -206,7 +206,7 @@ def test_model(model, tokenizer, name):
         
         status = " GIBBERISH" if is_gibberish else (" MATCH" if match else " OK")
         print(f"  [{status}] {prompt[:60]}...")
-        print(f"    → {response_clean[:120]}")
+        print(f"    -> {response_clean[:120]}")
     
     return results
 
@@ -265,11 +265,11 @@ def main():
         viable_layers[int(layer_str)] = info["viable"]
     
     if viability["viable_count"] == 0:
-        print("\n NO VIABLE LAYERS — CECI not possible at this rank")
+        print("\n NO VIABLE LAYERS --- CECI not possible at this rank")
         return
     
-    # Splice: DeepSeek attention → Qwen body
-    print(f"\n[6] Splicing: DeepSeek attention → Qwen body ({viability['viable_count']} layers)...")
+    # Splice: DeepSeek attention -> Qwen body
+    print(f"\n[6] Splicing: DeepSeek attention -> Qwen body ({viability['viable_count']} layers)...")
     splice_attention(model_a, model_b, viable_layers, args.k)
     
     # Test chimeric model

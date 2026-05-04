@@ -20,7 +20,7 @@ print("=" * 60)
 print("  UGT SCALING: Qwen2.5-1.5B (k=512)")
 print("=" * 60)
 
-# ── Load model ──
+# -- Load model --
 print("\n[1] Loading Qwen2.5-1.5B...")
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID, torch_dtype=torch.float16, device_map=DEVICE
@@ -35,7 +35,7 @@ n_layers = model.config.num_hidden_layers
 print(f"  d_model={d_model}, layers={n_layers}, k={K_BASIS}")
 print(f"  VRAM used: {torch.cuda.memory_allocated()/1e9:.1f}GB")
 
-# ── Create taxonomic basis ──
+# -- Create taxonomic basis --
 print("\n[2] Creating taxonomic basis (k=512)...")
 # Subspace definitions scaled proportionally
 # k=512: syntax 0-191, routing 192-383, factual 384-447, math 448-511
@@ -56,7 +56,7 @@ Q, R = torch.linalg.qr(basis)
 basis = Q  # orthonormal basis [d, k]
 basis.requires_grad = True
 
-# ── Training data ──
+# -- Training data --
 # Mixed domain: syntax, general, math, reasoning
 train_texts = [
     # Syntax / general
@@ -80,7 +80,7 @@ train_texts = [
 
 print(f"  Training texts: {len(train_texts)}")
 
-# ── Phase A: Basis-only alignment ──
+# -- Phase A: Basis-only alignment --
 print(f"\n[3] Phase A: Basis alignment ({PHASE_A_STEPS} steps)...")
 for p in model.parameters():
     p.requires_grad = False
@@ -138,11 +138,11 @@ for step in range(PHASE_A_STEPS):
 Q, R = torch.linalg.qr(basis.float())
 basis.data.copy_(Q)
 
-# ── Save basis ──
+# -- Save basis --
 torch.save(basis.detach(), f"{OUT_DIR}/taxonomic_basis.pt")
 print(f"  Basis saved: {basis.shape}")
 
-# ── Phase B: Zone specialization (light) ──
+# -- Phase B: Zone specialization (light) --
 print(f"\n[4] Phase B: Zone specialization ({PHASE_B_STEPS} steps)...")
 # Create zone head weights
 zone_dim = 64
@@ -206,7 +206,7 @@ for step in range(PHASE_B_STEPS):
         print(f"  Step {step+1:>5d}/{PHASE_B_STEPS}: loss={loss.item():.6f}  "
               f"zones=[{zs[0]:.2f},{zs[1]:.2f},{zs[2]:.2f},{zs[3]:.2f}]")
 
-# ── Measure zone specialization ──
+# -- Measure zone specialization --
 print("\n[5] Measuring zone specialization...")
 test_prompts = {
     "syntax": [
@@ -244,7 +244,7 @@ for zname, prompts in test_prompts.items():
     zone_ppls[zname] = round(total_loss / max(total_tok, 1), 2)
     print(f"  {zname:<10}: PPL={zone_ppls[zname]:.1f}")
 
-# ── Save ──
+# -- Save --
 print("\n[6] Saving model...")
 torch.save(zone_heads.detach(), f"{OUT_DIR}/zone_heads.pt")
 

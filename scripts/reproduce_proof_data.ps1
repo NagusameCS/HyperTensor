@@ -80,7 +80,7 @@ if (Test-Path "$ROOT\docs\figures\paper-e\rho_sweep\rho_summary.json") {
     & $PY "$ROOT\scripts\paperA_proof\update_paperE_rho.py"
     Write-Host "[reproduce] Paper E tex updated."
 } else {
-    Write-Host "[reproduce] WARNING: rho_summary.json not found — skipping Paper E update."
+    Write-Host "[reproduce] WARNING: rho_summary.json not found --- skipping Paper E update."
 }
 
 Write-Host ""

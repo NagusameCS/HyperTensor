@@ -2,7 +2,7 @@
 """
 GTC 50% CACHE FRACTION SCALER.
 Paper IV measured 99.6% coverage at 50% cache fraction.
-Records are only 5.96 KB each — scaling is a VRAM/RAM allocation problem.
+Records are only 5.96 KB each --- scaling is a VRAM/RAM allocation problem.
 
 This script calculates the exact VRAM budget needed to achieve 99.6% hit rate,
 the resulting speedup over RAG (353.7), and builds the deployment plan.
@@ -28,13 +28,13 @@ RAG_PER_QUERY_MS = 50.5       # RAG: search + LLM decode per query
 
 # How many records in the full library?
 # Paper IV: 25% cache fraction = 25% of all possible trajectories cached
-# At 25% cache with 100K records → full library = 400K records
+# At 25% cache with 100K records -> full library = 400K records
 FULL_LIBRARY_RECORDS = 400_000
 RECORDS_25PCT = int(FULL_LIBRARY_RECORDS * 0.25)   # 100K
 RECORDS_50PCT = int(FULL_LIBRARY_RECORDS * 0.50)   # 200K
 
 print("=" * 70)
-print("GTC 50% CACHE FRACTION — Deployment Analysis")
+print("GTC 50% CACHE FRACTION --- Deployment Analysis")
 print("=" * 70)
 
 # ---------------------------------------------------------------------------
@@ -136,15 +136,15 @@ print()
 print("[5] WHY THIS IS BETTER THAN 'CHEATING GEOMETRY'")
 print()
 print("  The H1 experiment tried to get 1121.8 speedup by comparing")
-print("  GTC lookup-only against RAG full pipeline — ignoring miss fallback.")
+print("  GTC lookup-only against RAG full pipeline --- ignoring miss fallback.")
 print("  That was wrong. The correct approach:")
 print()
 print(f"  1. Accept that GTC miss fallback costs 28ms (same as RAG)")
-print(f"  2. Make misses RARE by scaling the cache (50% → 99.6% hit)")
+print(f"  2. Make misses RARE by scaling the cache (50% -> 99.6% hit)")
 print(f"  3. At 99.6% hit: GTC={gtc_ms:.3f}ms/query vs RAG=50.5ms/query")
-print(f"  4. Result: {speedup_vs_rag(COVERAGE_50PCT):.0f} speedup — honest, measured, reproducible")
+print(f"  4. Result: {speedup_vs_rag(COVERAGE_50PCT):.0f} speedup --- honest, measured, reproducible")
 print()
-print(f"  The 1121.8 number was 'cheating the differential geometry' —")
+print(f"  The 1121.8 number was 'cheating the differential geometry' ---")
 print(f"  pretending misses don't exist. The 354 number is honest:")
 print(f"  cheap VRAM makes misses so rare they barely matter.")
 print()
@@ -155,16 +155,16 @@ print()
 print("[6] DEPLOYMENT PLAN")
 print()
 print("  Phase 1 (CPU, now): Pre-compute 200K GTC records")
-print("    → scripts/build_gtc_library.py --fraction 0.50 --out gtc_50pct")
+print("    -> scripts/build_gtc_library.py --fraction 0.50 --out gtc_50pct")
 print()
 print("  Phase 2 (Any GPU): Load into VRAM, benchmark hit rate")
-print("    → Verify 99.6% coverage on SmolLM2-135M + WikiText-2")
+print("    -> Verify 99.6% coverage on SmolLM2-135M + WikiText-2")
 print()
 print("  Phase 3 (EC2 L40S): Full 1M-query benchmark at 50% cache")
-print("    → Confirm 354 speedup over RAG")
+print("    -> Confirm 354 speedup over RAG")
 print()
 print("  Phase 4 (Production): Pre-load 200K records (~1.2 GB) into VRAM")
-print("    → Every GPU with ≥2 GB VRAM gets 99.6% hit rate")
+print("    -> Every GPU with ≥2 GB VRAM gets 99.6% hit rate")
 print()
 
 # ---------------------------------------------------------------------------

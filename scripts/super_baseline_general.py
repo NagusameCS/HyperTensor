@@ -139,42 +139,42 @@ def analyze_general_kernels():
     kernels = [
         {
             "name": "Attention QKV projection",
-            "bytes_per_token": "3d² (full) → 3dk + dk (proj+basis)",
+            "bytes_per_token": "3d² (full) -> 3dk + dk (proj+basis)",
             "dimensionality_reduction": "k/d",
             "condition": "k < d/2, dk < L2",
             "likelihood": "HIGH (Paper A confirmed)",
         },
         {
             "name": "LoRA-augmented FFN",
-            "bytes_per_token": "dd_ffn (full) → dr (LoRA)",
+            "bytes_per_token": "dd_ffn (full) -> dr (LoRA)",
             "dimensionality_reduction": "r/d_ffn",
             "condition": "r << d_ffn, dr < L2",
             "likelihood": "MEDIUM (LoRA already exists, but not fused)",
         },
         {
             "name": "KV-cache projection",
-            "bytes_per_token": "2d_kvctx (full) → 2kctx (proj)",
+            "bytes_per_token": "2d_kvctx (full) -> 2kctx (proj)",
             "dimensionality_reduction": "k/d_kv",
             "condition": "long context, k < d_kv",
             "likelihood": "HIGH (Paper C §kv-cache, unmeasured)",
         },
         {
             "name": "Embedding table lookup",
-            "bytes_per_token": "Vd (full) → Vk (proj)",
+            "bytes_per_token": "Vd (full) -> Vk (proj)",
             "dimensionality_reduction": "k/d",
             "condition": "V large, k/d < 0.5",
             "likelihood": "LOW (embedding is rarely bottlenecked by BW)",
         },
         {
             "name": "Mixture-of-Experts routing",
-            "bytes_per_token": "n_expertsd (full) → k (top-1)",
+            "bytes_per_token": "n_expertsd (full) -> k (top-1)",
             "dimensionality_reduction": "1/n_experts",
             "condition": "sparse gating, expert weights in L2",
             "likelihood": "MEDIUM (MoE routing is bandwidth-heavy)",
         },
         {
             "name": "Speculative draft verification",
-            "bytes_per_token": "T_V + γT_D (full) → T_V + γT_D(k)",
+            "bytes_per_token": "T_V + γT_D (full) -> T_V + γT_D(k)",
             "dimensionality_reduction": "k/d (on drafter only)",
             "condition": "drafter cost dominates, k < d/2",
             "likelihood": "HIGH (Paper C, tier-asymmetric deployment)",
@@ -189,7 +189,7 @@ def analyze_general_kernels():
 
 def main():
     ap = argparse.ArgumentParser(
-        description="106% Anomaly Generalization — Super-Baseline Predictor"
+        description="106% Anomaly Generalization --- Super-Baseline Predictor"
     )
     ap.add_argument("--gpu", default=None,
                     help="GPU name to analyze (e.g. 'RTX 4090', 'A100')")
@@ -238,7 +238,7 @@ def main():
               f"{'byte_ratio':>10s}  {'bw_ratio':>10s}  {'flop_ovh':>10s}  {'T_ratio':>10s}")
         print(f"  {'-'*72}")
         for r in result["rank_sweep"]:
-            marker = " ← k*" if r["k"] == result["predicted_kstar"] else ""
+            marker = " <- k*" if r["k"] == result["predicted_kstar"] else ""
             print(f"  {r['k']:6d}  {r['S_MB']:7.1f}  {r['regime']:>12s}  "
                   f"{r['byte_ratio']:10.3f}  {r['bw_ratio']:10.3f}  "
                   f"{r['flop_overhead']:10.3f}  {r['t_ratio']:10.4f}{marker}")

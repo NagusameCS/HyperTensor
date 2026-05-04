@@ -7,10 +7,10 @@
 
 .DESCRIPTION
     Targets the L2-capacity dimension of the cache-fit hypothesis using
-    AWS-available GPUs. NO benchmark data is left on EC2 — the local
+    AWS-available GPUs. NO benchmark data is left on EC2 --- the local
     machine is the data store.
 
-    Default: g6e.xlarge (L40S, 96 MB L2, 48 GB) — workstation flagship
+    Default: g6e.xlarge (L40S, 96 MB L2, 48 GB) --- workstation flagship
     analog of the table in the request.
 
     Supported -InstanceType values (all single-GPU unless noted):
@@ -153,7 +153,7 @@ Ok "AMI: $amiId  ($amiNm)"
 # ---------------------------------------------------------------------------
 $vpcId = aws ec2 describe-vpcs --region $Region --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text
 if ($vpcId -eq 'None' -or -not $vpcId) { Err "No default VPC in $Region"; exit 3 }
-# Collect all default-VPC subnets, prefer (a,b,c,f,e,d) — common GPU capacity preference.
+# Collect all default-VPC subnets, prefer (a,b,c,f,e,d) --- common GPU capacity preference.
 $subnetRows = aws ec2 describe-subnets --region $Region --filters "Name=vpc-id,Values=$vpcId" --query 'Subnets[].[SubnetId,AvailabilityZone]' --output text
 $subnets = @()
 foreach ($line in ($subnetRows -split "`n")) {
@@ -429,7 +429,7 @@ catch {
 }
 finally {
     if ($KeepInstance) {
-        Warn "KeepInstance set — instance $instanceId still running. Cost is on you."
+        Warn "KeepInstance set --- instance $instanceId still running. Cost is on you."
         Warn "Terminate: aws ec2 terminate-instances --region $Region --instance-ids $instanceId"
     } else {
         Log "Terminating $instanceId..."

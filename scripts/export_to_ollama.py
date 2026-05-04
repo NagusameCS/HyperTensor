@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OLLAMA EXPORTER — Convert LoRA-trained pure models to Ollama GGUF.
+OLLAMA EXPORTER --- Convert LoRA-trained pure models to Ollama GGUF.
 
 Merges LoRA adapter into base SmolLM2-135M weights, exports as safetensors,
 then creates Ollama Modelfile for deployment.
@@ -71,7 +71,7 @@ def merge_and_export(adapter_path: str, output_dir: str, model_name: str):
             "--outtype", "f16"
         ], check=False)
     else:
-        print("[4] GGUF conversion script not found — skipping.")
+        print("[4] GGUF conversion script not found --- skipping.")
         print("    Install: pip install gguf && python -m gguf.convert")
         gguf_path = None
     
@@ -96,7 +96,7 @@ def create_modelfile(model_name: str, gguf_path: Path = None,
         )
     
     modelfile = f"""# Ollama Modelfile for {model_name}
-# HyperTensor Paper X — Pure Single-Skill Model
+# HyperTensor Paper X --- Pure Single-Skill Model
 
 FROM {gguf_path or model_dir}
 

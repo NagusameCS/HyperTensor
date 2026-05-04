@@ -254,7 +254,7 @@ index 0000000..07355b1
 +++ b/scripts/analyze_thermal.py
 @@ -0,0 +1,224 @@
 +"""
-+analyze_thermal.py — turn nvidia-smi CSV trace into a paper-ready summary.
++analyze_thermal.py --- turn nvidia-smi CSV trace into a paper-ready summary.
 +
 +Input: docs/figures/paper-b/v02_empirical/thermal_sustained_8b.csv
 +       header: ts,gpu_C,sm_MHz,mem_MHz,power_W,util_pct
@@ -401,7 +401,7 @@ index 0000000..07355b1
 +
 +    (OUT / "thermal_summary.json").write_text(json.dumps(summary, indent=2))
 +
-+    md = ["# Thermal Rank — Sustained-Decode Empirical Trace", "",
++    md = ["# Thermal Rank --- Sustained-Decode Empirical Trace", "",
 +          "Hardware: RTX 4070 Laptop (8 GB VRAM, ~40 TFLOPS FP16 peak); "
 +          "model: Meta-Llama-3.1-8B-Instruct Q4_K_M (8.31 B params, "
 +          "4693 MB on-disk).",
@@ -436,7 +436,7 @@ index 0000000..07355b1
 +               f"{s['late_third']['power_W']:.1f} | "
 +               f"{s['late_third']['gpu_C']:.1f} |",
 +               f"| Δ     | {s['delta_sm_MHz']:+.0f} "
-+               f"({s['delta_sm_pct']:+.1f} %) | — | "
++               f"({s['delta_sm_pct']:+.1f} %) | --- | "
 +               f"{s['delta_T_C']:+.1f} |"]
 +
 +    if "throughput_drift" in summary:
@@ -459,13 +459,13 @@ index 0000000..07355b1
 +           "The Thermal Rank module (`runtime/nn/thermal_rank.c`) consumes "
 +           "exactly the telemetry channels measured here (NVML "
 +           "`nvmlDeviceGetTemperature`, `nvmlDeviceGetPowerUsage`). The "
-+           "thresholds in code default to T_low=65 °C → full rank, "
-+           "T_high=85 °C → min rank, with a linear interpolation between. "
++           "thresholds in code default to T_low=65 °C -> full rank, "
++           "T_high=85 °C -> min rank, with a linear interpolation between. "
 +           "The empirically observed active-window distribution (above) "
 +           "shows whether the workload reaches the actuation band. If the "
 +           "p90 active temp sits below T_low, the rank is held at full and "
 +           "Thermal Rank reduces to a no-op for this workload (which is "
-+           "the *correct* behaviour — no throttling pressure means no rank "
++           "the *correct* behaviour --- no throttling pressure means no rank "
 +           "reduction is needed); the feature only differentiates from "
 +           "fixed-rank operation under thermal load.",
 +           "",
@@ -509,16 +509,16 @@ index 0000000..393c43c
 +       models (smollm2-135m, gemma-4-e2b, phi-3.5-mini).
 +    2. Constructing three classes of L-step trajectories through the
 +       fitted manifold of intrinsic dimension n:
-+         (a) baked geodesics (Magnus-3 propagator)  → SHF "floor"
-+         (b) nearest-neighbour walks on the cloud   → "manifold-conformant"
-+         (c) random straight-line paths             → "off-manifold ceiling"
++         (a) baked geodesics (Magnus-3 propagator)  -> SHF "floor"
++         (b) nearest-neighbour walks on the cloud   -> "manifold-conformant"
++         (c) random straight-line paths             -> "off-manifold ceiling"
 +    3. Computing |J_l|^2 along each trajectory using the same Riemann
 +       tensor estimator (riemann_tensor) used by the Jacobi propagator.
 +    4. Reporting per-class mean SHF penalty + per-residual FLOP cost.
 +
 +This gives the HJB future-work paragraph a concrete order of magnitude:
 +  - the *floor* is what training would converge to (zero if perfectly
-+    geodesic — measures finite-difference truncation),
++    geodesic --- measures finite-difference truncation),
 +  - the "conformant" magnitude is what an untrained-on-this-loss network
 +    already achieves geometrically,
 +  - the "off-manifold" magnitude is the worst-case if no curvature
@@ -801,7 +801,7 @@ index 0000000..393c43c
 +    print(f"\nWrote {out_json}")
 +
 +    # Markdown summary
-+    md = ["# HJB / SHF Loss — Empirical Feasibility Stub", "",
++    md = ["# HJB / SHF Loss --- Empirical Feasibility Stub", "",
 +          "Computed per `scripts/hjb_feasibility.py` from the discrete "
 +          "Jacobi residual",
 +          "",
@@ -819,7 +819,7 @@ index 0000000..393c43c
 +          "|---|---:|---:|---:|---:|---:|"]
 +    for m, v in verdict.items():
 +        if v == "error":
-+            md.append(f"| {m} | — | — | — | — | — |")
++            md.append(f"| {m} | --- | --- | --- | --- | --- |")
 +            continue
 +        md.append(
 +            f"| {m} | {v['shf_floor (baked geodesic)']:.3e} "
@@ -847,7 +847,7 @@ index 0000000..393c43c
 +        "## Kinetic vs curvature decomposition (mean per node)",
 +        "",
 +        "$\\mathcal{J}_\\ell = \\Delta^2 s_\\ell + \\hat R(s_\\ell)\\,"
-+        "\\Delta s_\\ell$ — we report the squared magnitudes of the two "
++        "\\Delta s_\\ell$ --- we report the squared magnitudes of the two "
 +        "summands separately so the dominant component is visible.",
 +        "",
 +        "| Model | class | kinetic mean $\\|\\Delta^2 s\\|^2$ | curvature mean "
@@ -895,7 +895,7 @@ index 0000000..393c43c
 +        "for n=8 intrinsic, L=32 layers), the dynamic range "
 +        "(off/floor ratio) determines a meaningful $\\lambda$ "
 +        "schedule, and per-token training cost is $O(n^5)$ in "
-+        "intrinsic dim — affordable when the runtime caches the "
++        "intrinsic dim --- affordable when the runtime caches the "
 +        "Riemann tensor at sample points (which it already does for "
 +        "the Jacobi propagator). However the empirical kinetic/curvature "
 +        "ratio shows that on the manifolds currently exported from "

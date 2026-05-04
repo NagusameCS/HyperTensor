@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Python-only Task Benchmark Harness — bypasses geodessical2 ChatML blocker.
+Python-only Task Benchmark Harness --- bypasses geodessical2 ChatML blocker.
 
 Evaluates GRC-compressed SmolLM2-135M-Instruct on MMLU and GSM8K
 using transformers + proper ChatML template.

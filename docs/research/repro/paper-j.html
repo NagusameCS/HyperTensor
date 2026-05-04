@@ -24,7 +24,7 @@
 </nav>
 <header class="paper-header">
   <span class="tag">Reproduce J · CECI Splicing</span>
-  <h1>Reproduce Paper J: CECI — Cross-Encoded Component Interchange</h1>
+  <h1>Reproduce Paper J: CECI --- Cross-Encoded Component Interchange</h1>
   <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
   <p class="meta">
     HyperTensor Project · May 2026
@@ -36,7 +36,7 @@
 <h2>Scope</h2>
 <p>Reproduces the CECI (Cross-Encoded Component Interchange) splicing experiment:
 hot-swapping FFN layers between two independently UGT-trained models and
-measuring PPL degradation. Validates the bilateral UGT requirement — that
+measuring PPL degradation. Validates the bilateral UGT requirement --- that
 component interchange only succeeds when both models share the same UGT
 taxonomic basis, proving the basis encodes functional semantics.</p>
 <h2>Hardware target</h2>
@@ -59,15 +59,15 @@ taxonomic basis, proving the basis encodes functional semantics.</p>
     --model-b ../models/ugt_model_b --layers 0,4,8,12,16,20,24,28</code></pre>
 <h2>Step 3: Expected output</h2>
 <ul>
-  <li><strong>Bilateral UGT (both models UGT-trained):</strong> 7/7 layers pass.
+  <li>Bilateral UGT (both models UGT-trained): 7/7 layers pass.
     Mean ΔPPL = -0.11 (slight improvement from component diversity).</li>
-  <li><strong>Unilateral UGT (one model UGT, one vanilla):</strong> FFN transfer fails.
+  <li>Unilateral UGT (one model UGT, one vanilla): FFN transfer fails.
     ΔPPL > +50, confirming bilateral requirement.</li>
-  <li><strong>Random splice (different layers):</strong> ΔPPL > +100, expected failure.</li>
+  <li>Random splice (different layers): ΔPPL > +100, expected failure.</li>
 </ul>
 <h2>Validation</h2>
 <p>The key validation: FFN transfer works ONLY when both models share the UGT
-basis. This proves the basis encodes functional semantics — it's not just a
+basis. This proves the basis encodes functional semantics --- it's not just a
 compression artifact. The bilateral requirement is the central architectural
 claim of Paper XI (Universal Geodesic Taxonomy).</p>
 </article>

@@ -38,7 +38,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </nav>
 
 <div style="background:#eef4ff;border:1px solid #2d6be4;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
-<strong>HyperTensor Framework Update (May 3, 2026):</strong> This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
+HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
 </div>
 
 
@@ -102,8 +102,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <p>
       What's new in v0.3: the speculative path now has a first
       end-to-end empirical anchor. On SmolLM2-135M-Instruct (Q8_0, ChatML), the OTT
-      stack reaches <code>status=geodesic_ready</code> with <strong>38.5%
-      acceptance</strong> and 76.5 tok/s end-to-end. See the new
+      stack reaches <code>status=geodesic_ready</code> with 38.5%
+      acceptance and 76.5 tok/s end-to-end. See the new
       §<a href="#measured">5.5, First end-to-end measurements</a>. These are first
       numbers on a 135M instruct model, not the full 8B sweep, the §<a
       href="#status">8</a> status list reflects what is and isn't yet measured.
@@ -157,7 +157,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         <tr><td>Drafter step cost $T_D$</td><td>Cost of one autoregressive token from the drafter.</td></tr>
         <tr><td>AttnRes</td><td>Block Attention Residuals, replaces the standard PreNorm residual accumulation with a softmax-weighted sum over per-block summary vectors. Mitigates the $\mathcal{O}(\sqrt{L})$ residual-stream magnitude growth that vanilla PreNorm produces. Kimi Team, arXiv:2603.15031.</td></tr>
         <tr><td>$\sqrt{L}$ residual growth</td><td>Empirical observation that PreNorm residual-stream magnitudes grow approximately as $\sqrt{L}$ in $L$ blocks because each block adds an approximately unit-variance update. AttnRes attenuates this. See ref&nbsp;[3].</td></tr>
-        <tr><td>KV-cache compression</td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1–2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
+        <tr><td>KV-cache compression</td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1--2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
       </tbody>
     </table>
   </div>
@@ -230,8 +230,8 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
         an additional VRAM tier. We therefore characterise the design with a thought
         experiment of "drafter = GP-compressed 8B; verifier = uncompressed 8B on a
         24&nbsp;GB-class GPU" and we are explicit that we have not run that hardware.</li>
-    <li><strong>Speculative rejection is rejection sampling against the verifier
-        distribution, not greedy match.</strong> This is the standard "modified
+    <li>Speculative rejection is rejection sampling against the verifier
+        distribution, not greedy match. This is the standard "modified
         rejection" technique from refs&nbsp;[1,&nbsp;2]; it preserves the verifier's
         sampling distribution exactly under the standard assumption that the drafter
         and verifier share a tokenizer and token vocabulary. They do here (both are the
@@ -613,9 +613,9 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
         and was reverted; this is the realistic route to $\alpha \ge 0.9$ on the
         same model.</li>
     <li>Functional <code>--ott-swarm-k</code> (currently exits non-zero); when
-        fixed, expected to push $\alpha$ into the 0.6–0.8 range.</li>
+        fixed, expected to push $\alpha$ into the 0.6--0.8 range.</li>
     <li>Per-prompt OD bake (currently OD is baked once on a generic anchor; baking
-        per-prompt is expected to lift $\alpha$ towards 0.7–0.8).</li>
+        per-prompt is expected to lift $\alpha$ towards 0.7--0.8).</li>
     <li>Citation pass to fixed bibliography numbers.</li>
   </ol>
   <p>
@@ -704,7 +704,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <li>Cai, T. et al., Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads, 2024.</li>
     <li>Li, Y. et al., EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty, 2024.</li>
     <li>Zhang, J. et al., Draft &amp; Verify: Lossless Large Language Model Acceleration via Self-Speculative Decoding, 2023.</li>
-    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression…</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
+    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression...</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
   </ol>
 </section>
 
@@ -715,8 +715,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
-    <a href="02-geodesic-projection.html">← Paper 2</a> &middot;
-    <a href="04-organic-training-theory.html">Paper 4 →</a>
+    <a href="02-geodesic-projection.html"><- Paper 2</a> &middot;
+    <a href="04-organic-training-theory.html">Paper 4 -></a>
   </p>
 </footer>
 

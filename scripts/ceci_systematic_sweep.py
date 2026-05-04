@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CECI Systematic Within-Band Sweep — Statistical significance test.
+CECI Systematic Within-Band Sweep --- Statistical significance test.
 
 Tests whether CECI splicing is scientifically viable by measuring
 splice residual and LoRA recoverability (ρ_CECI) across ALL
@@ -59,7 +59,7 @@ def main():
     n_layers = _n_layers_gguf(model)
     layers = list(range(16))  # First 16 layers
 
-    print(f"CECI SYSTEMATIC SWEEP — Within-Band Feasibility")
+    print(f"CECI SYSTEMATIC SWEEP --- Within-Band Feasibility")
     print(f"Model: {Path(model).name}, k={k}, T={T}")
     print(f"Layers: 0-15 (16 layers, 120 pairs)")
     print()
@@ -133,12 +133,12 @@ def main():
         n = len(by_dl[dl]["rho"])
         viable = sum(1 for i in range(n) if by_dl[dl]["gd"][i] < 0.94 and by_dl[dl]["rho"][i] > 0.2)
         if viable / n > 0.7:
-            verdict = " VIABLE — CECI works at this distance"
+            verdict = " VIABLE --- CECI works at this distance"
         elif viable / n > 0.3:
-            verdict = " MARGINAL — mixed results"
+            verdict = " MARGINAL --- mixed results"
         else:
-            verdict = " INFEASIBLE — subspaces too different"
-        print(f"  ΔL={dl}: {viable}/{n} pairs viable ({viable/n*100:.0f}%) — {verdict}")
+            verdict = " INFEASIBLE --- subspaces too different"
+        print(f"  ΔL={dl}: {viable}/{n} pairs viable ({viable/n*100:.0f}%) --- {verdict}")
 
     with open("benchmarks/ceci_systematic_sweep.json", "w") as f:
         json.dump({"config": {"model": model, "k": k, "T": T, "n_pairs": len(all_results)},

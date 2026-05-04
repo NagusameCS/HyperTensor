@@ -15,7 +15,7 @@ from peft import PeftModel
 MATH_MODEL = "outputs/pure_models/qwen2.5-1.5b-math-pure/final"
 LANG_MODEL = "outputs/pure_models/qwen2.5-1.5b-language-pure/final"
 BASE = "Qwen/Qwen2.5-1.5B"
-K = 768  # k/d = 0.50 — super-baseline compression!
+K = 768  # k/d = 0.50 --- super-baseline compression!
 SINK_T = 32
 OUT = Path("benchmarks/ceci_qwen2.5_1.5b_k768")
 OUT.mkdir(parents=True, exist_ok=True)
@@ -109,7 +109,7 @@ def main():
     
     if gd_mean < 0.05 and ov_mean > 0.99:
         print(f"\n  SHARED SCAFFOLD CONFIRMED at Qwen2.5-1.5B scale!")
-        print(f"  GD={gd_mean:.4f} — cross-model geometry is essentially perfect.")
+        print(f"  GD={gd_mean:.4f} --- cross-model geometry is essentially perfect.")
         print(f"  SmolLM2-135M (d=576): GD=0.014, 13/30 viable at k=512")
         print(f"  Qwen2.5-1.5B (d=1536): GD={gd_mean:.4f}, {n_viable}/{n_layers} viable at k={K}")
     

@@ -15,8 +15,8 @@
     "GRC flags: --axex-compress --axex-attn-only --axex-skip-o --axex-weight-pca --axex-compress-rank K --ppl-eval",
     "k=1536 and k=2048 produce IDENTICAL PPL (7.6936) at 4-decimal precision.",
     "Mechanistic explanation: Llama-3.1-8B uses GQA with 8 KV heads x 128 head_dim = 1024 K/V projection dim. With --axex-attn-only the rank applies to attention projections; once k >= 1024 the K and V matrices are full-rank (lossless), so increasing k beyond 1024 only changes Q. Q's PCA energy is already saturated at k=1536, so k=2048 adds zero further fidelity.",
-    "k=1024 PPL retention 161% is noticeably worse than published v0.6.1 (~157%) — small variance from prompt window / cache state but in the same regime.",
+    "k=1024 PPL retention 161% is noticeably worse than published v0.6.1 (~157%) --- small variance from prompt window / cache state but in the same regime.",
     "k=1536 PPL retention 113.3% matches published v0.6.1 record (13.30%) exactly.",
-    "Operational implication: for Llama-3.1-8B with --axex-attn-only, k=1536 is the Pareto rank — k=2048 is wasted memory/compute."
+    "Operational implication: for Llama-3.1-8B with --axex-attn-only, k=1536 is the Pareto rank --- k=2048 is wasted memory/compute."
   ]
 }

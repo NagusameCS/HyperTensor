@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-P2 PHASE 4: FFN LoRA Distillation — Paper VII gap closure.
+P2 PHASE 4: FFN LoRA Distillation --- Paper VII gap closure.
 Applies Paper V's LoRA distillation protocol to FFN layers.
 Trains rank-8 LoRA adapters to recover FFN output after cluster compression.
 

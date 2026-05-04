@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper J / X: Chimeric Model Vector Bridging — HyperTensor</title>
+<title>Paper J / X: Chimeric Model Vector Bridging --- HyperTensor</title>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
 nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{font-weight:600;color:var(--text);text-decoration:none}
@@ -49,18 +49,18 @@ footer a{color:var(--text)}
 </div>
 
 <h2>Abstract</h2>
-<p>Paper X introduces the Cross-Embedding Compatibility Index (CECI) and Chimeric Model Vector Bridging (CMVB): a protocol for measuring whether independently-trained transformer models have compatible internal representations that would permit surgical component transfer (e.g., grafting one model's attention heads onto another's body). The core metric is the Grassmann distance between the subspaces spanned by corresponding weight matrices. A systematic sweep of SmolLM2-135M layers reveals that no pair of non-adjacent layers achieves GD below the 0.94 threshold required for gauge-aligned splicing without post-hoc alignment. However, a gauge transformation (the Axiom Gauge from Paper VI) applied to both donor and recipient reduces GD from 0.96 to 0.15 in cross-band splicing tests, achieving a splice residual below 0.15 and CECI above 0.85. This demonstrates that component transfer is possible but requires a shared coordinate system—motivating the Universal Geodesic Taxonomy proposed in follow-on work (Papers XI+).</p>
+<p>Paper X introduces the Cross-Embedding Compatibility Index (CECI) and Chimeric Model Vector Bridging (CMVB): a protocol for measuring whether independently-trained transformer models have compatible internal representations that would permit surgical component transfer (e.g., grafting one model's attention heads onto another's body). The core metric is the Grassmann distance between the subspaces spanned by corresponding weight matrices. A systematic sweep of SmolLM2-135M layers reveals that no pair of non-adjacent layers achieves GD below the 0.94 threshold required for gauge-aligned splicing without post-hoc alignment. However, a gauge transformation (the Axiom Gauge from Paper VI) applied to both donor and recipient reduces GD from 0.96 to 0.15 in cross-band splicing tests, achieving a splice residual below 0.15 and CECI above 0.85. This demonstrates that component transfer is possible but requires a shared coordinate system---motivating the Universal Geodesic Taxonomy proposed in follow-on work (Papers XI+).</p>
 
 <h2>Key Findings</h2>
 <ul>
-<li><strong>No natural compatibility:</strong> Without gauge alignment, Grassmann distance between corresponding layers of independently-trained models exceeds 0.86, making naive component transfer infeasible.</li>
-<li><strong>Gauge alignment works:</strong> The Axiom Gauge from Paper VI reduces inter-model GD to 0.15, enabling viable splicing.</li>
-<li><strong>Permutation invariance is the bottleneck:</strong> Neural networks develop arbitrary coordinate systems; the GL(d) symmetry of weight space means two models with identical initialization but different training data will diverge in their internal representations.</li>
-<li><strong>CECI as a diagnostic:</strong> The Cross-Embedding Compatibility Index provides a single scalar metric (0-1) for assessing whether two models can be mechanically combined.</li>
-<li><strong>Motivates UGT:</strong> The findings directly motivate the Universal Geodesic Taxonomy (Paper XI), which proposes to eliminate permutation invariance by design through enforced taxonomic coordinates during training.</li>
+<li>No natural compatibility: Without gauge alignment, Grassmann distance between corresponding layers of independently-trained models exceeds 0.86, making naive component transfer infeasible.</li>
+<li>Gauge alignment works: The Axiom Gauge from Paper VI reduces inter-model GD to 0.15, enabling viable splicing.</li>
+<li>Permutation invariance is the bottleneck: Neural networks develop arbitrary coordinate systems; the GL(d) symmetry of weight space means two models with identical initialization but different training data will diverge in their internal representations.</li>
+<li>CECI as a diagnostic: The Cross-Embedding Compatibility Index provides a single scalar metric (0-1) for assessing whether two models can be mechanically combined.</li>
+<li>Motivates UGT: The findings directly motivate the Universal Geodesic Taxonomy (Paper XI), which proposes to eliminate permutation invariance by design through enforced taxonomic coordinates during training.</li>
 </ul>
 
-<div class="note"><strong>Reproduction:</strong> The CECI sweep uses <code>python scripts/ceci_splice_test.py --model-a ... --model-b ...</code>. Gauge alignment requires the Axiom Gauge module from <code>scripts/axiom_gauge.py</code>. Full sweep protocol in the PDF appendix.</div>
+<div class="note">Reproduction: The CECI sweep uses <code>python scripts/ceci_splice_test.py --model-a ... --model-b ...</code>. Gauge alignment requires the Axiom Gauge module from <code>scripts/axiom_gauge.py</code>. Full sweep protocol in the PDF appendix.</div>
 
 <div class="dl">
 <a href="../../ARXIV_SUBMISSIONS/paper-X/ceci_splicing.pdf">Download PDF</a>

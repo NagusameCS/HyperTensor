@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Chimeric Model Splicing — Implementation of Phase 2-4 Protocol.
+Chimeric Model Splicing --- Implementation of Phase 2-4 Protocol.
 
 This script implements the HyperTensor chimeric splicing pipeline on
 a single model (SmolLM2-135M) as a validation of the geometric
 infrastructure.  In a single-model setting, we treat early layers
 (0-9) as "Math attention" and late layers (20-29) as "Language FFN,"
 splicing the attention geometry from early layers into the FFN
-geometry from late layers.  This is a structural validation — the
+geometry from late layers.  This is a structural validation --- the
 real experiment requires dedicated single-skill models.
 
 Pipeline:
@@ -180,7 +180,7 @@ def compute_splice_residual(Wq_attn: np.ndarray, Wk_attn: np.ndarray, Wv_attn: n
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Chimeric Model Splicing — Protocol Implementation"
+        description="Chimeric Model Splicing --- Protocol Implementation"
     )
     ap.add_argument("--model", default="models/smollm2-135m-instruct-q8_0.gguf")
     ap.add_argument("--out", default="benchmarks/chimeric_splice")

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Geodessical — Riemannian Manifold Visualization</title>
+<title>Geodessical --- Riemannian Manifold Visualization</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #0a0a0f; color: #e0e0e0; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
@@ -29,7 +29,7 @@ canvas { display: block; margin: 10px auto; border: 1px solid #222; border-radiu
 <body>
 <div id="header">
   <h1>GEODESSICAL</h1>
-  <div class="sub">Riemannian Manifold Visualization — Organic Training Theory</div>
+  <div class="sub">Riemannian Manifold Visualization --- Organic Training Theory</div>
 </div>
 <div id="phases"></div>
 <div id="view"><div id="loading">Loading manifold data...</div></div>
@@ -266,7 +266,7 @@ function showPhase(idx, btn) {
   }
 }
 
-/* ─── Helpers ─── */
+/* --- Helpers --- */
 function mkPanel(parent, title) {
   const p = document.createElement('div'); p.className = 'panel';
   const h = document.createElement('h2'); h.textContent = title;
@@ -287,18 +287,18 @@ function mkCanvas(panel, w, h) {
 function curvColor(v, lo, hi) {
   let t = (hi > lo) ? (v - lo) / (hi - lo) : 0.5;
   t = Math.max(0, Math.min(1, t));
-  /* Blue (low R) → Cyan → Green → Yellow → Red (high R) */
+  /* Blue (low R) -> Cyan -> Green -> Yellow -> Red (high R) */
   const r = Math.floor(255 * Math.min(1, 2*t));
-  const g = Math.floor(255 * (t < 0.5 ? 2*t : 2*(1-t)));
+  const g = Math.floor(255 * (t < 0.5 ? 2t : 2(1-t)));
   const b = Math.floor(255 * Math.min(1, 2*(1-t)));
   return `rgb(${r},${g},${b})`;
 }
 function simColor(v) {
   const t = Math.max(0, Math.min(1, v));
-  return `rgb(${Math.floor(30+200*t)},${Math.floor(50+150*t)},${Math.floor(200-100*t)})`;
+  return `rgb(${Math.floor(30+200t)},${Math.floor(50+150t)},${Math.floor(200-100t)})`;
 }
 
-/* ─── Phase 1: PCA Cloud & Scree Plot ─── */
+/ --- Phase 1: PCA Cloud & Scree Plot --- */
 function renderPhase1(view) {
   const d = data['phase1_manifold.json']; if (!d) return;
   /* Stats */
@@ -362,11 +362,11 @@ function drawCloud(canvas, pts) {
   for (const p of pts) {
     for (let d = 0; d < nd; d++) { mins[d] = Math.min(mins[d], p[d]); maxs[d] = Math.max(maxs[d], p[d]); }
   }
-  const pad = 40, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  const pad = 40, w = canvas.width - 2pad, h = canvas.height - 2pad;
   function proj(p) {
     const x = (maxs[0] > mins[0]) ? (p[0]-mins[0])/(maxs[0]-mins[0]) : 0.5;
     const y = (nd > 1 && maxs[1] > mins[1]) ? (p[1]-mins[1])/(maxs[1]-mins[1]) : 0.5;
-    return [pad + x*w, pad + (1-y)*h];
+    return [pad + xw, pad + (1-y)h];
   }
   /* Grid */
   ctx.strokeStyle = '#181825'; ctx.lineWidth = 0.5;
@@ -381,16 +381,16 @@ function drawCloud(canvas, pts) {
     const alpha = 0.3 + 0.5 * depth;
     const size = 1.5 + 2 * depth;
     ctx.fillStyle = `rgba(100,180,255,${alpha})`;
-    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI2); ctx.fill();
   }
-  /* Axis labels */
+  / Axis labels */
   ctx.fillStyle = '#556'; ctx.font = '11px monospace';
   ctx.fillText('PC1', canvas.width/2, canvas.height - 5);
   ctx.save(); ctx.translate(10, canvas.height/2); ctx.rotate(-Math.PI/2);
   ctx.fillText('PC2', 0, 0); ctx.restore();
 }
 
-/* ─── Phase 2: Head Similarity Heatmap ─── */
+/* --- Phase 2: Head Similarity Heatmap --- */
 function renderPhase2(view) {
   const d = data['phase2_symmetry.json']; if (!d) return;
   const sp = mkPanel(view, 'Symmetry Extraction');
@@ -412,20 +412,20 @@ function renderPhase2(view) {
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         ctx.fillStyle = simColor(d.similarity_matrix[i][j]);
-        ctx.fillRect(off + j*cellSize, off + i*cellSize, cellSize-1, cellSize-1);
+        ctx.fillRect(off + jcellSize, off + icellSize, cellSize-1, cellSize-1);
       }
     }
     ctx.fillStyle = '#556'; ctx.font = '10px monospace';
-    ctx.fillText('Head j →', sz/2-20, sz-5);
+    ctx.fillText('Head j ->', sz/2-20, sz-5);
     ctx.save(); ctx.translate(8, sz/2); ctx.rotate(-Math.PI/2);
-    ctx.fillText('Head i →', 0, 0); ctx.restore();
+    ctx.fillText('Head i ->', 0, 0); ctx.restore();
     const lg = document.createElement('div'); lg.className = 'legend';
     lg.textContent = `${n}x${n} cosine similarity, bright = high similarity`;
     hp.appendChild(lg);
   }
 }
 
-/* ─── Phase 3: Curvature Heatmap ─── */
+/* --- Phase 3: Curvature Heatmap --- */
 function renderPhase3(view) {
   const d = data['phase3_curvature.json']; if (!d) return;
   const sp = mkPanel(view, 'Curvature Field');
@@ -471,7 +471,7 @@ function drawCurvatureMap(canvas, points) {
     minX = Math.min(minX, p.pos[0]); maxX = Math.max(maxX, p.pos[0]);
     if (p.pos.length > 1) { minY = Math.min(minY, p.pos[1]); maxY = Math.max(maxY, p.pos[1]); }
   }
-  const pad = 50, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  const pad = 50, w = canvas.width - 2pad, h = canvas.height - 2pad;
   for (const p of points) {
     if (!p.pos) continue;
     const x = pad + (maxX>minX ? (p.pos[0]-minX)/(maxX-minX) : 0.5) * w;
@@ -506,15 +506,15 @@ function drawChristoffelHist(canvas, points) {
   ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.moveTo(pad, 10); ctx.lineTo(pad, canvas.height-pad);
   ctx.lineTo(canvas.width-10, canvas.height-pad); ctx.stroke();
   for (let i = 0; i < nbins; i++) {
-    const bh = maxBin > 0 ? (bins[i]/maxBin)*h2 : 0;
+    const bh = maxBin > 0 ? (bins[i]/maxBin)h2 : 0;
     ctx.fillStyle = '#5a8';
-    ctx.fillRect(pad + i*bw, canvas.height-pad-bh, bw-1, bh);
+    ctx.fillRect(pad + ibw, canvas.height-pad-bh, bw-1, bh);
   }
   ctx.fillStyle = '#556'; ctx.font = '10px monospace';
   ctx.fillText('||Γ||_F', canvas.width/2-15, canvas.height-5);
 }
 
-/* ─── Phase 4: Axiom Summary ─── */
+/* --- Phase 4: Axiom Summary --- */
 function renderPhase4(view) {
   const d = data['phase4_axioms.json']; if (!d) return;
   const sp = mkPanel(view, 'Axiom Formalization');
@@ -549,7 +549,7 @@ function renderPhase4(view) {
   });
 }
 
-/* ─── Phase 5: Geodesic Trajectories ─── */
+/* --- Phase 5: Geodesic Trajectories --- */
 function renderPhase5(view) {
   const d = data['phase5_geodesic.json']; if (!d) return;
   const sp = mkPanel(view, 'Geodesic Pilot');
@@ -566,7 +566,7 @@ function renderPhase5(view) {
     const c = mkCanvas(tp, 600, 500);
     drawTrajectories(c, d.trajectories);
     const lg = document.createElement('div'); lg.className = 'legend';
-    lg.textContent = `${d.trajectories.length} geodesic paths. ○ = start, × = target, ● = endpoint. `
+    lg.textContent = `${d.trajectories.length} geodesic paths. o = start, × = target, * = endpoint. `
       + 'Green = high cos_sim, Red = low.';
     tp.appendChild(lg);
   }
@@ -586,7 +586,7 @@ function drawTrajectories(canvas, trajs) {
   const minX = Math.min(...allX), maxX = Math.max(...allX);
   const minY = allY.length > 0 ? Math.min(...allY) : 0;
   const maxY = allY.length > 0 ? Math.max(...allY) : 1;
-  const pad = 50, w = canvas.width - 2*pad, h = canvas.height - 2*pad;
+  const pad = 50, w = canvas.width - 2pad, h = canvas.height - 2pad;
   function proj(p) {
     const x = pad + (maxX>minX ? (p[0]-minX)/(maxX-minX) : 0.5) * w;
     const y = pad + (1 - (maxY>minY && p.length>1 ? (p[1]-minY)/(maxY-minY) : 0.5)) * h;
@@ -615,13 +615,13 @@ function drawTrajectories(canvas, trajs) {
     ctx.stroke(); ctx.globalAlpha = 1;
     /* Start marker (circle) */
     ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    /* Endpoint marker (filled dot) */
+    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI2); ctx.fill(); ctx.stroke();
+    / Endpoint marker (filled dot) */
     const lastPt = t.path[t.path.length - 1];
     const [ex, ey] = proj(lastPt);
     ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI*2); ctx.fill();
-    /* Target marker (cross) */
+    ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI2); ctx.fill();
+    / Target marker (cross) */
     if (t.target) {
       const [tx, ty] = proj(t.target);
       ctx.strokeStyle = '#fa0'; ctx.lineWidth = 2;

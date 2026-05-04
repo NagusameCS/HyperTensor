@@ -39,7 +39,7 @@ def riemann_tensor(M: Manifold, x: np.ndarray, h: float = 5e-3) -> np.ndarray:
     """Riemann tensor R^a_bcd at x, in coordinate basis. Shape (n, n, n, n)."""
     n = M.dim
     G_x = M.gamma_at(x)  # (n, n, n) with k last
-    # Need ∂_c Γ^a_bd — recompute Γ at perturbed nearest neighbours.
+    # Need ∂_c Γ^a_bd --- recompute Γ at perturbed nearest neighbours.
     dG = np.zeros((n, n, n, n))  # (c, i, j, k) with k last (= a)
     for c in range(n):
         ep = x.copy(); ep[c] += h
@@ -75,7 +75,7 @@ def build_propagator(M: Manifold, xs: np.ndarray, vs: np.ndarray, dl: float) -> 
         speeds[t] = float(vs[t] @ g_t @ vs[t])
 
     # State y = [J, J'] in R^{2n}; J' here is the coordinate (not covariant)
-    # derivative — sufficient for the leading-order propagator.
+    # derivative --- sufficient for the leading-order propagator.
     state = np.eye(2 * n)[:, :n].copy()  # columns = perturbation directions
     state_full = np.zeros((2 * n, n))
     state_full[:n] = np.eye(n)  # J(0) = I

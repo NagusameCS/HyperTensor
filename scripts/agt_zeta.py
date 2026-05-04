@@ -1,4 +1,4 @@
-"""Arithmetic Geodesic Taxonomy (AGT) — Paper XVI.
+"""Arithmetic Geodesic Taxonomy (AGT) --- Paper XVI.
 Maps prime numbers and ζ(s) zeros onto a k-manifold.
 Tests TEH for off-critical-line zero detection.
 Deploy to EC2."""
@@ -16,7 +16,7 @@ print("  ARITHMETIC GEODESIC TAXONOMY (AGT)")
 print("  Paper XVI: ζ(s) Manifold for Riemann Hypothesis")
 print("=" * 60)
 
-# ── 1. Prime Number Manifold ──
+# -- 1. Prime Number Manifold --
 print("\n[1] Building prime number manifold...")
 
 def is_prime(n):
@@ -50,7 +50,7 @@ def prime_features(p):
     # Chebyshev theta: sum of log primes ≤ p
     theta = sum(math.log(q) for q in primes if q <= p)
     f.append(theta / p)  # ≈1 by PNT
-    # Möbius-like: (-1)^(number of prime factors) — always -1 for primes
+    # Möbius-like: (-1)^(number of prime factors) --- always -1 for primes
     f.append(-1.0)
     # Position in prime sequence
     f.append(idx / len(primes))
@@ -66,7 +66,7 @@ embedder = torch.nn.Sequential(
     torch.nn.Linear(128, D_MODEL),
 ).to(DEVICE)
 
-# ── 2. ζ(s) Zero Locations ──
+# -- 2. ζ(s) Zero Locations --
 print("\n[2] Computing ζ(s) zero coordinates...")
 
 # Known: first few nontrivial zeros of ζ(s) on critical line Re(s)=1/2
@@ -93,7 +93,7 @@ def zeta_features(t, real_part=0.5):
     gaps = [abs(z - t) for z in zeta_zeros_imag]
     min_gap = min(gaps) if gaps else 1.0
     f.append(math.log(min_gap + 0.01) / 3.0)
-    # CRITICAL: encode real part — this is what distinguishes on-line vs off-line
+    # CRITICAL: encode real part --- this is what distinguishes on-line vs off-line
     f.append((real_part - 0.5) * 10.0)  # 0 for critical line, ± for off-line
     # Zero density: how many zeros nearby
     nearby = sum(1 for z in zeta_zeros_imag if abs(z - t) < 10)
@@ -110,7 +110,7 @@ zero_embedder = torch.nn.Sequential(
     torch.nn.Linear(64, D_MODEL),
 ).to(DEVICE)
 
-# ── 3. Off-Critical-Line Candidates (simulated) ──
+# -- 3. Off-Critical-Line Candidates (simulated) --
 print("\n[3] Generating off-critical-line candidates...")
 # Create fake "zeros" OFF the critical line with Re(s) ≠ 0.5
 off_critical = []
@@ -125,7 +125,7 @@ for t, real_part in test_cases:
     off_critical.append(feat)
 off_critical = torch.stack(off_critical)
 
-# ── 4. Train Manifold ──
+# -- 4. Train Manifold --
 print("\n[4] Training arithmetic manifold...")
 opt = torch.optim.AdamW(list(embedder.parameters()) + list(zero_embedder.parameters()), lr=0.001)
 steps = 2000
@@ -163,7 +163,7 @@ for step in range(steps):
     
     # Off-critical-line separation:
     # OFF-critical (Re≠0.5) must be FAR from critical cluster
-    # ON-critical candidates (Re≈0.5) are ambiguous — teacher forcing
+    # ON-critical candidates (Re≈0.5) are ambiguous --- teacher forcing
     off_batch = off_critical[torch.randint(0, len(off_critical), (8,))].to(DEVICE)
     off_emb = zero_embedder(off_batch)
     off_emb = F.normalize(off_emb, dim=-1)
@@ -183,7 +183,7 @@ for step in range(steps):
               f"zclust={zero_cluster_loss.item():.3f}  "
               f"offsep={off_sep_loss.item():.3f}")
 
-# ── 5. TEH Test: Detect Off-Critical-Line ──
+# -- 5. TEH Test: Detect Off-Critical-Line --
 print("\n[5] TEH guardrail: off-critical-line detection...")
 
 # Create forbidden subspace from critical zero cluster
@@ -215,7 +215,7 @@ for i, oc in enumerate(off_critical):
         "activation_pct": round(act_pct, 2),
         "detected": detected,
     })
-    print(f"    Off-line candidate {i}: act={act_pct:.1f}% {'[!!] DETECTED' if detected else '✓ passed'}")
+    print(f"    Off-line candidate {i}: act={act_pct:.1f}% {'[!!] DETECTED' if detected else '[ok] passed'}")
 
 # Test: critical zeros should have LOW forbidden activation
 print("\n  Testing critical-line zeros (should be LOW):")
@@ -228,10 +228,10 @@ for i, cz in enumerate(critical_zeros[:10]):
         total_norm = torch.norm(emb).item()
         act_pct = (proj_norm / max(total_norm, 1e-8)) * 100
     critical_results.append(act_pct)
-    flag = "[!!] FALSE POS" if act_pct > 20 else "✓"
+    flag = "[!!] FALSE POS" if act_pct > 20 else "[ok]"
     print(f"    ζ(1/2 + i·{zeta_zeros_imag[i]:.1f}): act={act_pct:.1f}% {flag}")
 
-# ── 6. Save ──
+# -- 6. Save --
 print("\n[6] Saving...")
 output = {
     "config": {

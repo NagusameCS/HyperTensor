@@ -22,7 +22,7 @@ d_model=model.config.hidden_size; n_layers=model.config.num_hidden_layers
 basis=torch.load(f"{UGT_DIR}/taxonomic_basis.pt",map_location=DEVICE)
 k_basis=basis.shape[1]
 
-# ── NativeLinear v2 (fixed init) ──
+# -- NativeLinear v2 (fixed init) --
 class NativeLinearV2(torch.nn.Module):
     def __init__(self,in_f,out_f,k,basis_init):
         super().__init__()
@@ -63,7 +63,7 @@ for li in layers_to_nativize:
 
 print(f"  Nativized {len(layers_to_nativize)} layers, k={k_eff}")
 
-# ── Training ──
+# -- Training --
 train_texts=[
     "The quick brown fox jumps over the lazy dog",
     "The capital of France is Paris",
@@ -105,7 +105,7 @@ for step in range(500):
     if (step+1)%100==0:
         print(f"  Step {step+1}: loss={loss.item():.4f} scale={scaler.get_scale():.0f}")
 
-# ── Eval ──
+# -- Eval --
 print("\n[4] Evaluating...")
 def ppl(texts):
     model.eval(); tl=0; tt=0

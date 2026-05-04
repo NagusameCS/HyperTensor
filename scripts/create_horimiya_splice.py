@@ -35,7 +35,7 @@ def splice_layer_attention(W_math, W_lang, P_math, gauge_G, k=512):
     W_math: math model attention weight (d, cols)
     W_lang: language model attention weight (d, cols)
     P_math: GRC basis from math model (d, k)
-    gauge_G: GL(k) gauge alignment from language→math
+    gauge_G: GL(k) gauge alignment from language->math
     
     Returns: spliced weight W_spliced
     """
@@ -153,7 +153,7 @@ def main():
         
         if is_viable:
             # Full CECI splice: project HORI attention through MIYA basis.
-            # GD≈0 (subspaces identical) → identity gauge.
+            # GD≈0 (subspaces identical) -> identity gauge.
             # P_math is (d, k) = (576, k) from Q; works for Q/K/V projections
             # because all project along the same hidden dimension.
             G = np.eye(args.k)
@@ -192,7 +192,7 @@ def main():
             ml.self_attn.k_proj.weight.copy_(torch.from_numpy(Wk_new))
             ml.self_attn.v_proj.weight.copy_(torch.from_numpy(Wv_new))
         
-        # HORI FFN → MIYA model (language knowledge)
+        # HORI FFN -> MIYA model (language knowledge)
         with torch.no_grad():
             ml.mlp.gate_proj.weight.copy_(ll.mlp.gate_proj.weight)
             ml.mlp.up_proj.weight.copy_(ll.mlp.up_proj.weight)
@@ -227,7 +227,7 @@ def main():
     print(f"  FFN:       HORI (language knowledge/memory)")
     print(f"  Viable:    {len(viable_layers)}/{n_layers} layers fully spliced")
     print(f"  Fallback:  {n_layers - len(viable_layers)}/{n_layers} layers use MIYA attention")
-    print(f"\n  Next: convert to GGUF → ollama create HORIMIYA")
+    print(f"\n  Next: convert to GGUF -> ollama create HORIMIYA")
 
 if __name__ == '__main__':
     main()

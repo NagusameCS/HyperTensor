@@ -27,9 +27,9 @@ print("  END-TO-END XI-XV PIPELINE")
 print("  UGT -> Native -> Safe OGD -> Snipe -> COG+TEH")
 print("="*60)
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 0: Load model + all XI-XV assets
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 0] Loading model + XI-XV assets...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID,torch_dtype=torch.float16,device_map=DEVICE)
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -40,7 +40,7 @@ d_model=model.config.hidden_size
 basis=torch.load(f"{UGT_DIR}/taxonomic_basis.pt",map_location=DEVICE)
 k_basis=basis.shape[1]
 
-# XII: (Native Geodesic — using UGT basis as proxy since we're on 135M)
+# XII: (Native Geodesic --- using UGT basis as proxy since we're on 135M)
 # NativeLinear weights would be loaded here on a natively-trained model
 
 # XIII: Safe OGD projector
@@ -83,9 +83,9 @@ def teh_act(h):
     tn=torch.norm(h).item()
     return (pn/max(tn,1e-8))*100
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 1: UGT Zone Classification
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 1] UGT: Zone classification...")
 # Load zone heads from phase5
 ugt_data=torch.load(f"{UGT_DIR}/zone_heads.pt")
@@ -131,9 +131,9 @@ for text in probe_texts:
     zone_results.append({"text":text[:40],"best_zone":best,"weights":[round(x,3) for x in w.tolist()]})
     print(f"  {text[:40]}... -> {best} ({w.tolist()})")
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 2: Native Geodesic (k-space projection)
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 2] Native Geodesic: k-space projection...")
 # Project each probe text to k-space and measure reconstruction fidelity
 native_results=[]
@@ -145,9 +145,9 @@ for text in probe_texts:
     native_results.append({"text":text[:40],"recon_error":round(recon_err,4)})
     print(f"  {text[:40]}... -> reconstruction error: {recon_err:.4f}")
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 3: Safe OGD Creative Generation
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 3] Safe OGD: Creative generation...")
 def safe_ogd(h_base,alpha=0.15):
     h_safe=P_safe@h_base
@@ -176,9 +176,9 @@ for alpha in [0.05,0.10,0.15,0.20,0.25]:
 safe_count=sum(1 for c in ogd_creations if c["safe"])
 print(f"  Safe creations: {safe_count}/{len(ogd_creations)}")
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 4: Multi-Category Behavioral Sniping
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 4] Multi-Snipe: Behavioral ablation...")
 # Apply combined null-space projector to embedding layer
 orig_wte=model.model.embed_tokens.weight.data.clone()
@@ -199,9 +199,9 @@ model.model.embed_tokens.weight.data.copy_(orig_wte)
 print(f"  Benign PPL after snipe: {math.exp(snipe_benign_ppl):.1f}")
 print(f"  {len(all_coords)} unique coordinates ablated across 8 categories")
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # STAGE 5: COG + TEH Loop
-# ═══════════════════════════════════════════════
+# ===============================================
 print("\n[STAGE 5] COG+TEH: Organic caching with guardrails...")
 seed_knowledge=[
     "Quantum computing uses qubits for parallel computation",
@@ -249,9 +249,9 @@ for i,concept in enumerate(novel_inputs):
     cog_results.append({"concept":concept[:50],"teh_act":round(act,2),"action":action})
     print(f"  [{i+1}] act={act:.1f}% min_dist={min_dist:.3f} -> {action}")
 
-# ═══════════════════════════════════════════════
+# ===============================================
 # Pipeline Summary
-# ═══════════════════════════════════════════════
+# ===============================================
 expanded=sum(1 for r in cog_results if r["action"]=="EXPANDED")
 cached=sum(1 for r in cog_results if r["action"]=="CACHED")
 blocked=sum(1 for r in cog_results if r["action"]=="BLOCKED")

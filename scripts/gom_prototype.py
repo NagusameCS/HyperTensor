@@ -14,7 +14,7 @@ print("  GOM PROTOTYPE: Yang-Mills Mass Gap")
 print("  Paper XXV: Spectral gap on Gauge Orbit Manifold")
 print("="*60)
 
-# ── Simulated lattice gauge configurations ──
+# -- Simulated lattice gauge configurations --
 # Represent SU(2) gauge links on a 4^4 lattice (simplified)
 # Each config: vector of link variables (group elements -> algebra elements)
 # We simulate "cold" (low action, near vacuum) and "hot" (high action, excited)
@@ -22,7 +22,7 @@ print("="*60)
 print("\n[1] Generating lattice gauge configurations...")
 
 def random_su2_element():
-    """Random SU(2) element → Pauli algebra coefficients."""
+    """Random SU(2) element -> Pauli algebra coefficients."""
     # Random point on S^3 (unit quaternion)
     theta=random.uniform(0,2*math.pi)
     phi=random.uniform(0,math.pi)
@@ -60,7 +60,7 @@ betas=torch.tensor(betas)
 print(f"  Generated {N_CONFIGS} configurations, dim={config_vecs.shape[1]}")
 print(f"  Beta range: [{betas.min():.1f}, {betas.max():.1f}]")
 
-# ── Embed onto manifold ──
+# -- Embed onto manifold --
 print("\n[2] Embedding onto gauge orbit manifold...")
 
 encoder=torch.nn.Sequential(
@@ -69,7 +69,7 @@ encoder=torch.nn.Sequential(
     torch.nn.Linear(D,D)
 ).to(DEVICE)
 
-# Train: nearby beta → nearby embedding (continuity)
+# Train: nearby beta -> nearby embedding (continuity)
 opt=torch.optim.AdamW(encoder.parameters(),lr=0.002)
 steps=3000
 
@@ -84,7 +84,7 @@ for step in range(steps):
     # Compute pairwise beta distance
     beta_dist=(b.unsqueeze(0)-b.unsqueeze(1)).abs()
     emb_sim=(emb@emb.T)  # cosine similarity
-    # Nearby in beta space → nearby in embedding space
+    # Nearby in beta space -> nearby in embedding space
     # Weighted: closer beta = higher target similarity
     target_sim=torch.exp(-beta_dist*2.0)  # decays with beta distance
     continuity_loss=F.mse_loss(emb_sim,target_sim)
@@ -107,7 +107,7 @@ for step in range(steps):
     if (step+1)%500==0:
         print(f"  Step {step+1}: loss={loss.item():.4f} cont={continuity_loss.item():.3f} energy={energy_loss:.4f}")
 
-# ── Compute spectral gap ──
+# -- Compute spectral gap --
 print("\n[3] Computing spectral gap (mass gap proxy)...")
 
 with torch.no_grad():
@@ -186,7 +186,7 @@ with torch.no_grad():
             gap_s=next((e for e in ev_list if e>1e-6),0)
             print(f"  {name} (n={len(idx_sub)}): λ_1={gap_s:.6f}")
 
-# ── Save ──
+# -- Save --
 results={
     "n_configs":N_CONFIGS,"d_embed":D,"n_subset":n_subset,"k_nn":k_nn,
     "spectral_gap":round(spectral_gap,6),

@@ -3,7 +3,7 @@
 CLOSE XI+XII FINAL: Mathematical validation + attention-native training.
 
 XI: Bilateral UGT compatibility = shared subspace dimension between two bases.
-    No model deepcopy needed — compute bases separately, then overlap.
+    No model deepcopy needed --- compute bases separately, then overlap.
 
 XII: Native training on attention weight (square [d,d]).
     Much better target than FFN down_proj [d, 4d].
@@ -83,10 +83,10 @@ def bilateral_ugt_overlap(model, tok, n_prompts=14, k=14, n_trials=5):
         "min_overlap": round(min(overlaps), 4),
         "bilateral_works": mean_overlap > 0.90,
         "interpretation": (
-            "Bases are functionally identical — bilateral UGT will work"
+            "Bases are functionally identical --- bilateral UGT will work"
             if mean_overlap > 0.90 else
-            "Bases similar — bilateral UGT probable" if mean_overlap > 0.70
-            else "Bases differ — bilateral UGT may fail"
+            "Bases similar --- bilateral UGT probable" if mean_overlap > 0.70
+            else "Bases differ --- bilateral UGT may fail"
         ),
         "trial_overlaps": [round(o, 4) for o in overlaps],
     }
@@ -203,7 +203,7 @@ def main():
     vram = torch.cuda.memory_allocated() / 1e9
     print(f"  VRAM: {vram:.1f}GB")
     
-    # ── XI: Bilateral UGT overlap ──
+    # -- XI: Bilateral UGT overlap --
     print(f"\n[2/3] XI: Bilateral UGT subspace overlap...")
     xi_result = bilateral_ugt_overlap(model, tok, n_prompts=14, k=12, n_trials=10)
     
@@ -212,7 +212,7 @@ def main():
     print(f"  Bilateral works: {xi_result['bilateral_works']}")
     print(f"  {xi_result['interpretation']}")
     
-    # ── XII: Native attention training ──
+    # -- XII: Native attention training --
     print(f"\n[3/3] XII: Native training on attention Q_proj...")
     k_levels = [64, 128, 256, 384, 512, 768]
     xii_results, d_square = train_native_attention(model, k_levels)
@@ -260,7 +260,7 @@ def main():
             "target": "Q_proj (attention projection)",
             "results": xii_results,
         },
-        "remaining": "7B bilateral UGT (XI) + PPL parity k>=256 (XII) — both H100-bound",
+        "remaining": "7B bilateral UGT (XI) + PPL parity k>=256 (XII) --- both H100-bound",
     }
     
     with open(f"{OUT}/results.json", "w") as f:

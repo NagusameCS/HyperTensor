@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Master Results Dashboard — aggregates all benchmark data across all tiers.
+Master Results Dashboard --- aggregates all benchmark data across all tiers.
 
 Scans the benchmarks/ directory for all JSON/CSV results, computes
 cross-experiment summaries, and emits a unified markdown report.
@@ -36,7 +36,7 @@ def safe_load(p: Path) -> dict:
 def build_dashboard() -> str:
     """Build a comprehensive markdown dashboard from all benchmark data."""
     lines = []
-    lines.append("# HyperTensor — Master Results Dashboard")
+    lines.append("# HyperTensor --- Master Results Dashboard")
     lines.append(f"*Generated: 2026-05-01*")
     lines.append("")
     lines.append("---")
@@ -77,7 +77,7 @@ def build_dashboard() -> str:
             improvements = [r.get("weight_improvement_pct", 0) for r in results]
             mean_imp = sum(improvements) / len(improvements) if improvements else 0
             lines.append(f"**Mean weight-only improvement**: **+{mean_imp:.1f}%**")
-            lines.append(f"*(Paper A reports 1–3% at higher k; at k=256 we measure {mean_imp:.1f}%)*")
+            lines.append(f"*(Paper A reports 1--3% at higher k; at k=256 we measure {mean_imp:.1f}%)*")
         lines.append("")
 
     # ---- Section 2: Tier 2 Results ----
@@ -128,8 +128,8 @@ def build_dashboard() -> str:
         best = data.get("best_heterogeneous", {})
         best_u = data.get("best_uniform", {})
         lines.append("### Heterogeneous Drafters")
-        lines.append(f"- **Best config**: {best.get('config', '?')} → {best.get('throughput_tok_per_ms', '?')} tok/ms")
-        lines.append(f"- **Best uniform**: {best_u.get('config', '?')} → {best_u.get('throughput_tok_per_ms', '?')} tok/ms")
+        lines.append(f"- **Best config**: {best.get('config', '?')} -> {best.get('throughput_tok_per_ms', '?')} tok/ms")
+        lines.append(f"- **Best uniform**: {best_u.get('config', '?')} -> {best_u.get('throughput_tok_per_ms', '?')} tok/ms")
         lines.append(f"- **Result**: Heterogeneous {'beats' if best.get('throughput_tok_per_ms', 0) > best_u.get('throughput_tok_per_ms', 0) else 'does NOT beat'} uniform")
         lines.append("")
 
@@ -197,13 +197,13 @@ def build_dashboard() -> str:
     lines.append("|------|------|--------|--------|------------|")
     items = [
         ("T1", "Cross-GPU P3", "p3_cross_gpu.py", " EC2", "Auto-detect GPU+L2"),
-        ("T1", "Per-Matrix Bases", "per_matrix_bases.py", " Done", "44.8–94.3% error reduction"),
+        ("T1", "Per-Matrix Bases", "per_matrix_bases.py", " Done", "44.8--94.3% error reduction"),
         ("T1", "Distill Phase 2", "distill_runner.py", " EC2", "Full LoRA training loop"),
         ("T1", "AttnRes Sweep", "attnres_sweep.py", " Running", "Baseline 32.7k tok/s"),
         ("T2", "Task Benchmarks", "task_bench.py", " Data", "MMLU/GSM8K/HumanEval"),
-        ("T2", "FFN Compression", "ffn_cluster_compress.py", " Done", "+21–25% w/ 4 clusters"),
+        ("T2", "FFN Compression", "ffn_cluster_compress.py", " Done", "+21--25% w/ 4 clusters"),
         ("T2", "Calibrated Sink", "calibrated_sink.py", " Done", "+7.6% at k=256"),
-        ("T2", "KV-Cache Long Ctx", "kv_cache_long_context.py", " Test", "2K–32K sweep"),
+        ("T2", "KV-Cache Long Ctx", "kv_cache_long_context.py", " Test", "2K--32K sweep"),
         ("T3", "OTT-Native (SHF)", "shf_loss.py", " Done", "11 SNR separation"),
         ("T3", "Quant Co-Design", "quant_co_design.py", " Done", "GRC doesn't hurt quant"),
         ("T3", "MoE  GRC", "moe_gqa_analysis.py", " Done", "Per-head = 2 joint k95"),

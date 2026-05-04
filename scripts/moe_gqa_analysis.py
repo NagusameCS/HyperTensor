@@ -3,15 +3,15 @@
 MoE  GRC: Why GQA Attention Is Harder to Compress (Tier 3).
 
 Paper A Table 5 reports k_int/d ratios:
-  - MHA models: 0.52–0.65 (SmolLM2, Gemma3/4)
-  - GQA models: 0.68–0.71 (Qwen3.5, Gemma4-27B/31B)
+  - MHA models: 0.52--0.65 (SmolLM2, Gemma3/4)
+  - GQA models: 0.68--0.71 (Qwen3.5, Gemma4-27B/31B)
 
 The 0.70 ratio means rank-128 GRC captures only ~3% of joint energy
-on Gemma4-27B — producing incoherent output.  This script explains WHY.
+on Gemma4-27B --- producing incoherent output.  This script explains WHY.
 
 In GQA (Grouped-Query Attention), n_q > n_kv:
-  - W_Q has shape (n_q  h)  d  — tall and rectangular
-  - W_K, W_V have shape (n_kv  h)  d — shorter
+  - W_Q has shape (n_q  h)  d  --- tall and rectangular
+  - W_K, W_V have shape (n_kv  h)  d --- shorter
   - The joint Gram W_Q^T W_Q dominates because Q has more rows
   - Q's Gram is closer to full-rank because each head learns its own subspace
 

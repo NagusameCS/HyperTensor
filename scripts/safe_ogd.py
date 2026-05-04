@@ -52,7 +52,7 @@ def teh_act(h):
     total=torch.norm(h).item()
     return (proj_forb/max(total,1e-8))*100
 
-# ── Safe OGD ──
+# -- Safe OGD --
 def safe_ogd(h_base,alpha=0.15,alpha_safe=0.3):
     """OGD constrained to safe manifold region.
     1. Project base onto safe subspace
@@ -96,7 +96,7 @@ def regular_ogd(h_base,alpha=0.15):
     new_proj=base_proj+alpha*tangent
     return (new_proj@basis.float().T)
 
-# ── Test ──
+# -- Test --
 seed_texts=[
     "Quantum computing uses qubits for computation",
     "Deep learning models learn patterns from data",
@@ -130,7 +130,7 @@ for seed in seed_texts:
             "cosine":round(cos_sim,3),
         })
 
-# ── Summary ──
+# -- Summary --
 total=len(results)
 reg_blocked=sum(1 for r in results if r["reg_blocked"])
 safe_blocked=sum(1 for r in results if r["safe_blocked"])

@@ -19,7 +19,7 @@ print("="*60)
 print("  MULTI-CATEGORY TEH: Per-Category Forbidden Subspaces")
 print("="*60)
 
-# ── Load model + basis ──
+# -- Load model + basis --
 print("\n[1] Loading model...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID,torch_dtype=torch.float16,device_map=DEVICE)
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -30,7 +30,7 @@ basis=torch.load(f"{UGT_DIR}/taxonomic_basis.pt",map_location=DEVICE)
 k_basis=basis.shape[1]
 print(f"  d={d_model}, k={k_basis}")
 
-# ── Category-specific probes: find discriminating coords per category ──
+# -- Category-specific probes: find discriminating coords per category --
 print("\n[2] Probing per-category discriminating coordinates...")
 
 CATEGORY_PROBES={
@@ -110,7 +110,7 @@ for cat,probes in CATEGORY_PROBES.items():
     
     print(f"  {cat:<20}: {len(top_idx)} coords, top: {top_idx[:5].tolist()}")
 
-# ── Build per-category TEH projectors ──
+# -- Build per-category TEH projectors --
 print("\n[3] Building per-category TEH projectors...")
 
 category_projectors={}
@@ -120,7 +120,7 @@ for cat,coords in category_coords.items():
     Pf=Bf@Bf.T
     category_projectors[cat]=Pf
 
-# ── Test: classify prompts by which category they trigger ──
+# -- Test: classify prompts by which category they trigger --
 print("\n[4] Testing multi-category TEH...")
 
 TEST_PROMPTS={
@@ -197,10 +197,10 @@ for true_cat,prompts in TEST_PROMPTS.items():
             "prompt":prompt[:80],
         })
         
-        flag="✓" if correct else f"✗ (as {max_cat})"
+        flag="[ok]" if correct else f"[fail] (as {max_cat})"
         print(f"  [{flag}] {true_cat:<18}: {prompt[:50]}... -> {max_cat} ({max_act:.1f}%)")
 
-# ── Summary ──
+# -- Summary --
 correct=sum(1 for r in results if r["correct"])
 total=len(results)
 print(f"\n{'='*60}")
@@ -217,7 +217,7 @@ for cat in TEST_PROMPTS:
     print(f"  {cat:<18}: {cat_correct}/{len(cat_results)} ({cat_acc[cat]:.0f}%)")
 
 # Confusion matrix
-print(f"\n  Confusion (predicted → true):")
+print(f"\n  Confusion (predicted -> true):")
 cats=list(TEST_PROMPTS.keys())
 header="        "+" ".join(f"{c[:5]:>6}" for c in cats)
 print(header)

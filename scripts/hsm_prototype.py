@@ -15,7 +15,7 @@ print("  HSM PROTOTYPE: 2D Navier-Stokes Manifold")
 print("  Paper XXII: Enstrophy = Curvature")
 print("="*60)
 
-# ── Generate 2D flow fields ──
+# -- Generate 2D flow fields --
 print(f"\n[1] Generating 2D flow fields ({GRID}x{GRID} grid)...")
 
 def kolmogorov_flow(x,y,t,Re):
@@ -100,12 +100,12 @@ print(f"  Field dim: {field_vecs.shape[1]}")
 print(f"  Enstrophy range: [{enstrophy_t.min():.4f}, {enstrophy_t.max():.4f}]")
 print(f"  Re range: [{Re_t.min():.0f}, {Re_t.max():.0f}]")
 
-# ── Embed onto manifold ──
+# -- Embed onto manifold --
 print("\n[2] Embedding flows onto hydrodynamic manifold...")
 
-# PCA compression first (2*GRID^2=2048 → 256)
+# PCA compression first (2*GRID^2=2048 -> 256)
 U,S,Vh=torch.linalg.svd(field_vecs.float()-field_vecs.float().mean(0),full_matrices=False)
-pca_basis=Vh[:256,:].T  # [2048, 256] — right singular vectors = feature space directions
+pca_basis=Vh[:256,:].T  # [2048, 256] --- right singular vectors = feature space directions
 compressed=field_vecs.float()@pca_basis  # [N, 256]
 
 encoder=torch.nn.Sequential(
@@ -122,7 +122,7 @@ for step in range(steps):
     emb=encoder(cv)
     emb_norm=F.normalize(emb,dim=-1)
     
-    # Continuity: similar flows → nearby embedding
+    # Continuity: similar flows -> nearby embedding
     feat_dist=torch.cdist(cv,cv)
     sim_target=torch.exp(-feat_dist*0.3)
     emb_sim=emb_norm@emb_norm.T
@@ -141,7 +141,7 @@ for step in range(steps):
     if (step+1)%1000==0:
         print(f"  Step {step+1}: loss={loss.item():.4f} cont={cont_loss.item():.3f} enstrophy={enstrophy_loss.item():.3f}")
 
-# ── Measure enstrophy-curvature correspondence ──
+# -- Measure enstrophy-curvature correspondence --
 print("\n[3] Measuring enstrophy vs curvature...")
 
 with torch.no_grad():
@@ -196,7 +196,7 @@ with torch.no_grad():
     print(f"  Spectral gap: {spectral_gap:.6f}")
     print(f"  First 6 eigenvalues: {[round(e,4) for e in eigs_sorted[:6]]}")
 
-# ── Save ──
+# -- Save --
 results={
     "n_snapshots":n_snapshots,"grid":GRID,"d_embed":D,
     "enstrophy_curvature_corr":round(corr,3),
@@ -205,7 +205,7 @@ results={
     "curvature_ratio":round(curv_high/max(curv_low,1e-8),2),
     "spectral_gap":round(spectral_gap,6),
     "first_6_eigs":[round(e,4) for e in eigs_sorted[:6]],
-    "interpretation":"Positive enstrophy-curvature correlation validates HSM geometric formulation" if corr>0.3 else "Weak correlation — need higher Re flows or 3D",
+    "interpretation":"Positive enstrophy-curvature correlation validates HSM geometric formulation" if corr>0.3 else "Weak correlation --- need higher Re flows or 3D",
 }
 with open(f"{OUT}/results.json","w") as f: json.dump(results,f,indent=2)
 torch.save({"encoder":encoder.state_dict(),"pca_basis":pca_basis},f"{OUT}/model.pt")

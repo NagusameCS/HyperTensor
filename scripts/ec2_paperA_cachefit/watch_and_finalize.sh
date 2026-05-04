@@ -27,7 +27,7 @@ while true; do
   sleep 10
 done
 
-# Now run NCU baseline only (no GRC NCU — too expensive).
+# Now run NCU baseline only (no GRC NCU --- too expensive).
 NCU_BIN=""
 for c in /usr/local/cuda/bin/ncu /usr/local/cuda-12.9/bin/ncu /opt/nvidia/nsight-compute/*/ncu $(command -v ncu 2>/dev/null); do
   [ -x "$c" ] && NCU_BIN="$c" && break
@@ -57,7 +57,7 @@ fi
 # Build summary + tarball
 cd "$OUT"
 {
-  echo "===== Paper-A cache-fit results — L40S (GPU, partial) ====="
+  echo "===== Paper-A cache-fit results --- L40S (GPU, partial) ====="
   date -u
   echo
   echo "----- baseline tok/s extract -----"

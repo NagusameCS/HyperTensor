@@ -107,7 +107,7 @@ def main():
     ap.add_argument("--case", default="sphere",
                     help="'sphere' for the sanity case, or a model name like smollm2-135m.")
     ap.add_argument("--dim", type=int, default=0,
-                    help="Intrinsic dimension; 0 → defaults (3 for sphere, 8 for models).")
+                    help="Intrinsic dimension; 0 -> defaults (3 for sphere, 8 for models).")
     ap.add_argument("--n-seeds", type=int, default=8)
     ap.add_argument("--steps", type=int, default=20, dest="T")
     ap.add_argument("--dl", type=float, default=0.05)
@@ -127,7 +127,7 @@ def main():
     p = out_dir / f"{args.case}_validity_radius.json"
     p.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
-    print(f"[gtc/validity] case={args.case} dim={args.dim} wall={out['wall_s']}s → {p}")
+    print(f"[gtc/validity] case={args.case} dim={args.dim} wall={out['wall_s']}s -> {p}")
     for eps in eps_grid:
         s = out["stats"][f"{eps:.4f}"]
         print(f"  eps={eps:>6.3f}  mean={s['mean']:.3f}  p95={s['p95']:.3f}  (n={s['n']})")

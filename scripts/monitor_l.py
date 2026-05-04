@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Model L completion monitor — polls every 2 min, triggers post-L pipeline on completion."""
+"""Model L completion monitor --- polls every 2 min, triggers post-L pipeline on completion."""
 import os, sys, time, subprocess
 from datetime import datetime
 
@@ -13,7 +13,7 @@ with open(LOG, 'w') as log:
         ts = datetime.now().strftime("%H:%M:%S")
         
         if os.path.exists(FINAL):
-            log.write(f"[{ts}] DETECTED — Model L complete!\n")
+            log.write(f"[{ts}] DETECTED --- Model L complete!\n")
             print(f"[{ts}] MODEL L COMPLETE! Running post-L pipeline...")
             result = subprocess.run([sys.executable, "scripts/post_l_runner.py"], 
                                     capture_output=True, text=True)

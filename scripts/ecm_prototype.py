@@ -14,7 +14,7 @@ print("  ECM PROTOTYPE: BSD Rank Detection")
 print("  Paper XXVIII: Rank = Homology Dimension")
 print("="*60)
 
-# ── Simulated elliptic curve database ──
+# -- Simulated elliptic curve database --
 # Real LMFDB data: elliptic curves have conductor N, rank r (mostly 0-3),
 # and various invariants. We simulate realistic distributions.
 
@@ -57,7 +57,7 @@ for r_target in [0,1,2,3]:
 
 print(f"  Generated {len(curves)} curves, ranks 0-3")
 
-# ── Feature extraction ──
+# -- Feature extraction --
 def curve_features(c):
     """Extract features from elliptic curve data."""
     f=[]
@@ -80,7 +80,7 @@ def curve_features(c):
         p_idx=c["ap"].index(ap)
         p=[2,3,5,7,11,13][p_idx]
         f.append(ap/(2*math.sqrt(p)))  # normalized to [-1,1]
-    # Rank (only for training — would be unknown at test time)
+    # Rank (only for training --- would be unknown at test time)
     f.append(c["rank"]/3.0)
     
     return torch.tensor(f,dtype=torch.float32)
@@ -90,7 +90,7 @@ cvecs=torch.stack([curve_features(c) for c in curves])
 labels=torch.tensor(ranks)
 print(f"  Feature dim: {FEAT_DIM}")
 
-# ── Train manifold ──
+# -- Train manifold --
 print("\n[2] Training elliptic curve manifold...")
 
 encoder=torch.nn.Sequential(
@@ -134,7 +134,7 @@ for step in range(steps):
             acc=(logits.argmax(-1)==rl).float().mean()
         print(f"  Step {step+1}: loss={loss.item():.4f} acc={acc:.2f} intra={intra_loss:.3f} inter={inter_loss:.3f}")
 
-# ── Rank as homology dimension ──
+# -- Rank as homology dimension --
 print("\n[3] Measuring rank as homology dimension...")
 
 with torch.no_grad():
@@ -172,7 +172,7 @@ print(f"  Per-rank accuracy: { {r:f'{per_rank_acc.get(r,0)*100:.0f}%' for r in r
 print(f"  Rank subspace dimensions: {rank_dims}")
 print(f"  BSD prediction: rank = homology dim, values: {list(rank_dims.values())}")
 
-# ── Save ──
+# -- Save --
 results={
     "n_curves":len(curves),"d_embed":D,"feat_dim":FEAT_DIM,
     "accuracy":round(acc*100,1),
@@ -183,4 +183,4 @@ results={
 with open(f"{OUT}/results.json","w") as f: json.dump(results,f,indent=2)
 torch.save({"encoder":encoder.state_dict(),"predictor":rank_predictor.state_dict()},f"{OUT}/model.pt")
 print(f"\nSaved to {OUT}/")
-print(f"ECM: rank subspace dims = {rank_dims} | BSD: rank = topology ✓")
+print(f"ECM: rank subspace dims = {rank_dims} | BSD: rank = topology [ok]")

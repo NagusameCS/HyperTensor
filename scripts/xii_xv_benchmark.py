@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 XII-XV INTEGRATION BENCHMARK
-Tests full pipeline: Compile → Synthesize → Snipe → Organic Gen
+Tests full pipeline: Compile -> Synthesize -> Snipe -> Organic Gen
 
 Usage:
   python scripts/xii_xv_benchmark.py --model HuggingFaceTB/SmolLM2-135M-Instruct --k 64 --snip-frac 0.01 --prompt "The capital of France is" --n-tokens 10 --iter 40
@@ -41,7 +41,7 @@ def main():
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     n_layers = len(model.model.layers); d = model.config.hidden_size
     
-    # ════ XII: Geodesic Compiler ════
+    # ==== XII: Geodesic Compiler ====
     print("\n" + "=" * 50)
     print("PAPER XII: Geodesic Compiler")
     print("=" * 50)
@@ -64,9 +64,9 @@ def main():
     
     ratio = total_comp / max(total_orig, 1)
     results['xii_compression'] = round(1/ratio, 1)
-    print(f"  {total_orig/1e6:.1f}MB → {total_comp/1e6:.1f}MB ({results['xii_compression']}x smaller)")
+    print(f"  {total_orig/1e6:.1f}MB -> {total_comp/1e6:.1f}MB ({results['xii_compression']}x smaller)")
     
-    # ════ XIII: Geodesic Synthesis ════
+    # ==== XIII: Geodesic Synthesis ====
     print("\n" + "=" * 50)
     print("PAPER XIII: Geodesic Synthesis")
     print("=" * 50)
@@ -100,7 +100,7 @@ def main():
     print(f"  Generated: \"{gen_text}\"")
     print(f"  Speed: {results['xiii_tok_per_sec']} tok/s")
     
-    # ════ XIV: Geodesic Sniping ════
+    # ==== XIV: Geodesic Sniping ====
     print("\n" + "=" * 50)
     print("PAPER XIV: Geodesic Sniping")
     print("=" * 50)
@@ -128,7 +128,7 @@ def main():
     print(f"  Total: {total_cols} columns, snipped: {n_snip}")
     print(f"  By slot: {results['xiv_snip_slots']}")
     
-    # ════ XV: Organic Generation ════
+    # ==== XV: Organic Generation ====
     print("\n" + "=" * 50)
     print("PAPER XV: Organic Generation")
     print("=" * 50)
@@ -142,10 +142,10 @@ def main():
     results['xv_final_delta'] = round(float(deltas[-1]), 4)
     results['xv_converged'] = bool(deltas[-1] < deltas[0] * 0.1)
     results['xv_generated'] = gen_full[:100]
-    print(f"  Delta: {deltas[0]:.4f} → {deltas[-1]:.4f} (converged: {results['xv_converged']})")
+    print(f"  Delta: {deltas[0]:.4f} -> {deltas[-1]:.4f} (converged: {results['xv_converged']})")
     print(f"  Generated: \"{gen_full[:80]}\"")
     
-    # ════ SUMMARY ════
+    # ==== SUMMARY ====
     print("\n" + "=" * 50)
     print("INTEGRATION SUMMARY")
     print("=" * 50)

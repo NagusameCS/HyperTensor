@@ -6,10 +6,10 @@ Compresses any HuggingFace LLM's projection weights into k-dimensional bases.
 Saves compressed weights as safetensors for direct loading.
 
 Subcommands:
-  compress   — Compress a model, save compressed weights + bases
-  info       — Show compression stats for a compiled model
-  compare    — Side-by-side output comparison (original vs compressed)
-  benchmark  — Measure speed & memory of compressed model
+  compress   --- Compress a model, save compressed weights + bases
+  info       --- Show compression stats for a compiled model
+  compare    --- Side-by-side output comparison (original vs compressed)
+  benchmark  --- Measure speed & memory of compressed model
 
 Examples:
   python scripts/geodesic_compile.py compress --model HuggingFaceTB/SmolLM2-135M-Instruct --k 256 --out ./compressed
@@ -29,7 +29,7 @@ from safetensors.torch import save_file, load_file
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 SLOTS = {
     'Q': ('self_attn', 'q_proj'), 'K': ('self_attn', 'k_proj'),
     'V': ('self_attn', 'v_proj'), 'O': ('self_attn', 'o_proj'),
@@ -37,9 +37,9 @@ SLOTS = {
     'down': ('mlp', 'down_proj'),
 }
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Core math
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def build_shared_basis(matrices: List[Tuple[str, np.ndarray]], n_iter: int = 3) -> Optional[np.ndarray]:
     K_sum = None; d = None
@@ -66,9 +66,9 @@ def compress_weight(W: np.ndarray, basis: np.ndarray, k: int):
 def frob_err(orig, recon):
     return float(np.linalg.norm(orig - recon, 'fro') / max(np.linalg.norm(orig, 'fro'), 1e-10))
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Data structures
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 @dataclass
 class LayerCompression:
@@ -113,9 +113,9 @@ class CompressedModel:
                 errors=lm['errors']))
         return cls(config=meta['config'], layers=layers, stats=meta['stats'])
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Compress
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def compress_model(model_id: str, k: int, slots: List[str], device="auto", dtype=torch.float16) -> CompressedModel:
     print(f"Loading {model_id}...")
@@ -169,9 +169,9 @@ def compress_model(model_id: str, k: int, slots: List[str], device="auto", dtype
         config={'model_id': model_id, 'd_model': d, 'n_layers': n_layers, 'slots': valid_slots},
         layers=layers, stats=stats)
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Decompress & Compare
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def decompress_state_dict(cm: CompressedModel, original_id: str) -> dict:
     config = AutoConfig.from_pretrained(original_id)
@@ -206,20 +206,20 @@ def compare_outputs(original_id: str, cm: CompressedModel, prompts: List[str], m
             ct = tok.decode(comp.generate(**inp, max_new_tokens=max_tokens, do_sample=False, pad_token_id=tok.eos_token_id)[0][nprompt:], skip_special_tokens=True)
         match = ot == ct
         results.append({'prompt': prompt, 'original': ot, 'compressed': ct, 'match': match})
-        print(f"  [{'✓' if match else '✗'}] \"{prompt}\"")
+        print(f"  [{'[ok]' if match else '[fail]'}] \"{prompt}\"")
         print(f"    Orig: \"{ot[:80]}\""); print(f"    Comp: \"{ct[:80]}\"")
     
     rate = sum(1 for r in results if r['match']) / max(len(results), 1)
     print(f"\n  Match rate: {rate:.1%}")
     return results
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # CLI
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Geodesic Compiler — compress LLM weights")
+    p = argparse.ArgumentParser(description="Geodesic Compiler --- compress LLM weights")
     sub = p.add_subparsers(dest='cmd')
     
     cp = sub.add_parser('compress', help='Compress a model')
@@ -246,12 +246,12 @@ def main():
         cm = compress_model(args.model, args.k, args.slots.split(","), args.device)
         out = Path(args.out); cm.save(out)
         print(f"\nSaved to {out}")
-        print(f"  {cm.stats['original_mb']}MB → {cm.stats['compressed_mb']}MB ({cm.stats['compression_ratio']}x)")
+        print(f"  {cm.stats['original_mb']}MB -> {cm.stats['compressed_mb']}MB ({cm.stats['compression_ratio']}x)")
         print(f"  Slot errors: {cm.stats.get('slot_errors', {})}")
     elif args.cmd == 'info':
         cm = CompressedModel.load(Path(args.dir))
         print(f"Model: {cm.config['model_id']}, k={cm.stats['k_target']}")
-        print(f"Size: {cm.stats['original_mb']} → {cm.stats['compressed_mb']} MB ({cm.stats['compression_ratio']}x)")
+        print(f"Size: {cm.stats['original_mb']} -> {cm.stats['compressed_mb']} MB ({cm.stats['compression_ratio']}x)")
         print(f"Layers: {cm.stats['n_compressed']}/{cm.stats['n_layers']}")
         print(f"Slot errors: {cm.stats.get('slot_errors', {})}")
     elif args.cmd == 'compare':

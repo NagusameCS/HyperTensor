@@ -198,7 +198,7 @@ def compute_rho(Wq: np.ndarray, Wk: np.ndarray, Wv: np.ndarray,
     rho ~ 0.42 at k=1024, lora_rank=8 for Llama-3.1-8B (Paper E estimate).
     """
     P = build_shared_basis(Wq, Wk, Wv)
-    P_perp = P[:, k:]           # (d, d-k) — discarded directions
+    P_perp = P[:, k:]           # (d, d-k) --- discarded directions
 
     eta_total = 0.0
     eta_recov = 0.0

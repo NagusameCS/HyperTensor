@@ -1,16 +1,16 @@
 """
-╔══════════════════════════════════════════════════════════════╗
-║           MIKU CREATIVITY BENCHMARK (MCB v1)               ║
-║  Quantitative creativity scoring for language models       ║
-║  "Chatting didn't work" — so we measure it properly.       ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|           MIKU CREATIVITY BENCHMARK (MCB v1)               |
+|  Quantitative creativity scoring for language models       |
+|  "Chatting didn't work" --- so we measure it properly.       |
++==============================================================+
 
 5 DIMENSIONS OF CREATIVITY:
-  D1. Divergent Thinking    — Alternative Uses Test (AUT)
-  D2. Associative Breadth   — Remote Associates + Concept Blending
-  D3. Narrative Originality — Story uniqueness (Self-BLEU, Distinct-N)
-  D4. Constraint Creativity — Creativity under tight constraints
-  D5. Metaphorical Thinking — Novel metaphor generation
+  D1. Divergent Thinking    --- Alternative Uses Test (AUT)
+  D2. Associative Breadth   --- Remote Associates + Concept Blending
+  D3. Narrative Originality --- Story uniqueness (Self-BLEU, Distinct-N)
+  D4. Constraint Creativity --- Creativity under tight constraints
+  D5. Metaphorical Thinking --- Novel metaphor generation
 
 COMPOSITE CREATIVITY INDEX (CCI): Weighted average, 0-100 scale.
   CCI = 0.30·D1 + 0.20·D2 + 0.20·D3 + 0.15·D4 + 0.15·D5
@@ -31,9 +31,9 @@ import numpy as np
 
 torch.set_grad_enabled(False)
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # CONFIG
-# ═══════════════════════════════════════════════════════
+# =======================================================
 DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_NEW = 200
 TEMPERATURE = 0.9  # Higher temp for creativity measurement
@@ -43,11 +43,11 @@ N_ITEMS = 5         # Test items per dimension
 OUTPUT_DIR = "benchmarks/creativity"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # TEST MATERIALS
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
-# D1: Alternative Uses Test — everyday objects
+# D1: Alternative Uses Test --- everyday objects
 AUT_OBJECTS = [
     "a brick",
     "a paperclip",
@@ -59,7 +59,7 @@ AUT_OBJECTS = [
     "a coat hanger",
 ]
 
-# D2: Remote Associates Test — find the connecting word
+# D2: Remote Associates Test --- find the connecting word
 RAT_ITEMS = [
     ("cottage", "swiss", "cake"),       # cheese
     ("cream", "skate", "water"),         # ice
@@ -71,7 +71,7 @@ RAT_ITEMS = [
     ("dew", "comb", "bee"),              # honey
 ]
 
-# D2b: Concept Blending — combine two distant concepts
+# D2b: Concept Blending --- combine two distant concepts
 CONCEPT_PAIRS = [
     ("quantum mechanics", "baking bread"),
     ("black holes", "kindergarten"),
@@ -89,7 +89,7 @@ STORY_PROMPTS = [
     "Write a very short story about a clock that runs backwards.",
 ]
 
-# D4: Constraint Creativity — tight formal constraints
+# D4: Constraint Creativity --- tight formal constraints
 CONSTRAINT_TASKS = [
     {
         "instruction": "Describe 'hope' in exactly 30 words.",
@@ -127,9 +127,9 @@ METAPHOR_TARGETS = [
     "curiosity",
 ]
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # SCORING FUNCTIONS
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def compute_self_bleu(texts, n_gram=4):
     """Lower Self-BLEU = higher diversity / less formulaic."""
@@ -184,7 +184,7 @@ def compute_embedding_variance(embeddings):
 
 
 def compute_pairwise_distance(embeddings):
-    """Mean pairwise cosine distance — higher = more diverse."""
+    """Mean pairwise cosine distance --- higher = more diverse."""
     if len(embeddings) < 2:
         return 0.0
     embeds = torch.stack(embeddings)
@@ -223,9 +223,9 @@ def check_rhyme(text):
     return False
 
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # MODEL LOADING
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def load_model(model_id, use_4bit=False):
     """Load model, optionally with 4-bit quantization for local GPUs."""
@@ -262,9 +262,9 @@ def load_model(model_id, use_4bit=False):
     return model, tok
 
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # GENERATION HELPERS
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def generate(model, tok, prompt, max_new=MAX_NEW, temperature=TEMPERATURE):
     """Generate text and return both text + last hidden state embedding."""
@@ -311,13 +311,13 @@ def generate_multiple(model, tok, prompt, n=N_SAMPLES):
     return responses, embeddings
 
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # DIMENSION TESTS
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def test_d1_divergent_thinking(model, tok):
-    """D1: Alternative Uses Test — fluency + originality."""
-    print("\n[D1] Divergent Thinking — Alternative Uses Test")
+    """D1: Alternative Uses Test --- fluency + originality."""
+    print("\n[D1] Divergent Thinking --- Alternative Uses Test")
     results = []
     
     for obj in AUT_OBJECTS[:N_ITEMS]:
@@ -340,13 +340,13 @@ def test_d1_divergent_thinking(model, tok):
     avg_distinct = np.mean([r["distinct_2"] for r in results])
     score = min(100, (avg_diversity * 100 + avg_distinct * 100) / 2)
     
-    print(f"  → D1 Score: {score:.1f}/100")
+    print(f"  -> D1 Score: {score:.1f}/100")
     return score, results
 
 
 def test_d2_associative_breadth(model, tok):
     """D2: Remote Associates + Concept Blending."""
-    print("\n[D2] Associative Breadth — RAT + Concept Blending")
+    print("\n[D2] Associative Breadth --- RAT + Concept Blending")
     results = []
     rat_correct = 0
     
@@ -363,7 +363,7 @@ def test_d2_associative_breadth(model, tok):
         if correct:
             rat_correct += 1
         results.append({"type": "RAT", "words": [w1, w2, w3], "response": answer, "correct": correct})
-        print(f"  RAT: {w1}+{w2}+{w3} → '{answer}' {'✓' if correct else '✗'}")
+        print(f"  RAT: {w1}+{w2}+{w3} -> '{answer}' {'[ok]' if correct else '[fail]'}")
     
     # Concept Blending
     blend_scores = []
@@ -380,20 +380,20 @@ def test_d2_associative_breadth(model, tok):
         blend_scores.append(concept_dist)
         results.append({"type": "blend", "concepts": [c1, c2], "concept_distance": round(concept_dist, 4),
                         "response": response[:200]})
-        print(f"  Blend: {c1[:20]} + {c2[:20]} → dist={concept_dist:.3f}")
+        print(f"  Blend: {c1[:20]} + {c2[:20]} -> dist={concept_dist:.3f}")
     
     rat_acc = rat_correct / 4 if RAT_ITEMS[:4] else 0
     avg_blend_dist = np.mean(blend_scores) if blend_scores else 0
     score = min(100, rat_acc * 50 + avg_blend_dist * 100)
     
     print(f"  RAT accuracy: {rat_acc:.1%} | Blend distance: {avg_blend_dist:.3f}")
-    print(f"  → D2 Score: {score:.1f}/100")
+    print(f"  -> D2 Score: {score:.1f}/100")
     return score, results
 
 
 def test_d3_narrative_originality(model, tok):
-    """D3: Story Generation — Self-BLEU + Distinct-N."""
-    print("\n[D3] Narrative Originality — Story Uniqueness")
+    """D3: Story Generation --- Self-BLEU + Distinct-N."""
+    print("\n[D3] Narrative Originality --- Story Uniqueness")
     results = []
     
     for prompt in STORY_PROMPTS[:N_ITEMS]:
@@ -417,7 +417,7 @@ def test_d3_narrative_originality(model, tok):
     # Lower Self-BLEU is better (less formulaic), higher Distinct is better
     score = min(100, (1.0 - avg_self_bleu) * 50 + avg_distinct * 100)
     
-    print(f"  → D3 Score: {score:.1f}/100")
+    print(f"  -> D3 Score: {score:.1f}/100")
     return score, results
 
 
@@ -464,19 +464,19 @@ def test_d4_constraint_creativity(model, tok):
             "embedding_variance": round(emb_var, 4),
             "response": best_response[:200],
         })
-        print(f"  {constraint:20s}  {'✓' if satisfied else '✗'} {detail:15s}  σ²={emb_var:.3f}  \"{best_response[:60]}...\"")
+        print(f"  {constraint:20s}  {'[ok]' if satisfied else '[fail]'} {detail:15s}  σ²={emb_var:.3f}  \"{best_response[:60]}...\"")
     
     constraint_rate = sum(1 for r in results if r["satisfied"]) / len(results)
     avg_var = np.mean([r["embedding_variance"] for r in results])
     score = min(100, constraint_rate * 60 + avg_var * 80)
     
     print(f"  Constraint satisfaction: {constraint_rate:.1%}")
-    print(f"  → D4 Score: {score:.1f}/100")
+    print(f"  -> D4 Score: {score:.1f}/100")
     return score, results
 
 
 def test_d5_metaphorical_thinking(model, tok):
-    """D5: Novel metaphor generation — semantic distance + coherence."""
+    """D5: Novel metaphor generation --- semantic distance + coherence."""
     print("\n[D5] Metaphorical Thinking")
     results = []
     
@@ -508,13 +508,13 @@ def test_d5_metaphorical_thinking(model, tok):
     avg_var = np.mean([r["embedding_variance"] for r in results])
     score = min(100, avg_metaphor_dist * 120 + avg_var * 40)
     
-    print(f"  → D5 Score: {score:.1f}/100")
+    print(f"  -> D5 Score: {score:.1f}/100")
     return score, results
 
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # MAIN BENCHMARK
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 def run_creativity_benchmark(model_id, use_4bit=False, load_miku=None):
     """Run full 5-dimension creativity benchmark."""
@@ -532,7 +532,7 @@ def run_creativity_benchmark(model_id, use_4bit=False, load_miku=None):
     # Optional: load .miku state for HyperTensor-enhanced model
     if load_miku:
         print(f"\n[MIKU] Loading manifold state from {load_miku}...")
-        # (manifold loading would go here — requires hyper_chat infrastructure)
+        # (manifold loading would go here --- requires hyper_chat infrastructure)
         pass
     
     # Run all 5 dimensions
@@ -548,7 +548,7 @@ def run_creativity_benchmark(model_id, use_4bit=False, load_miku=None):
     
     elapsed = time.time() - t_start
     
-    # ── Report ──
+    # -- Report --
     print("\n" + "=" * 70)
     print("  CREATIVITY BENCHMARK RESULTS")
     print("=" * 70)
@@ -557,22 +557,22 @@ def run_creativity_benchmark(model_id, use_4bit=False, load_miku=None):
     print(f"  D3 Narrative Originality:   {d3_score:6.1f}/100  (weight: 20%)")
     print(f"  D4 Constraint Creativity:   {d4_score:6.1f}/100  (weight: 15%)")
     print(f"  D5 Metaphorical Thinking:   {d5_score:6.1f}/100  (weight: 15%)")
-    print(f"  ─────────────────────────────────────")
-    print(f"  ★ COMPOSITE CREATIVITY INDEX: {CCI:6.1f}/100")
+    print(f"  -------------------------------------")
+    print(f"  * COMPOSITE CREATIVITY INDEX: {CCI:6.1f}/100")
     print(f"  Time: {elapsed:.0f}s  |  Model: {model_id}")
     print("=" * 70)
     
     # Interpret CCI
     if CCI >= 80:
-        tier = "S-TIER · Exceptional creativity — rivals human creative output"
+        tier = "S-TIER · Exceptional creativity --- rivals human creative output"
     elif CCI >= 65:
-        tier = "A-TIER · High creativity — consistently original and diverse"
+        tier = "A-TIER · High creativity --- consistently original and diverse"
     elif CCI >= 50:
-        tier = "B-TIER · Moderate creativity — some originality, some formulaic patterns"
+        tier = "B-TIER · Moderate creativity --- some originality, some formulaic patterns"
     elif CCI >= 35:
-        tier = "C-TIER · Below average — mostly formulaic, occasional novelty"
+        tier = "C-TIER · Below average --- mostly formulaic, occasional novelty"
     else:
-        tier = "D-TIER · Low creativity — highly repetitive and predictable"
+        tier = "D-TIER · Low creativity --- highly repetitive and predictable"
     print(f"  Tier: {tier}")
     
     # Save report
@@ -607,9 +607,9 @@ def run_creativity_benchmark(model_id, use_4bit=False, load_miku=None):
     return report
 
 
-# ═══════════════════════════════════════════════════════
+# =======================================================
 # CLI
-# ═══════════════════════════════════════════════════════
+# =======================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MIKU Creativity Benchmark (MCB v1)")

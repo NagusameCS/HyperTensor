@@ -4,10 +4,10 @@ COMPREHENSIVE CHIMERIC BENCHMARK.
 Compares all four models on MMLU, GSM8K, language fluency, and PPL.
 
 Models:
-  MIYA       — SmolLM2-135M + math LoRA (pure math)
-  HORI       — SmolLM2-135M + language LoRA (pure language)
-  HORIMIYA   — CECI splice k=512 (13/30 layers)
-  HORIMIYA-MP — Full-rank splice k=576 (30/30 layers)
+  MIYA       --- SmolLM2-135M + math LoRA (pure math)
+  HORI       --- SmolLM2-135M + language LoRA (pure language)
+  HORIMIYA   --- CECI splice k=512 (13/30 layers)
+  HORIMIYA-MP --- Full-rank splice k=576 (30/30 layers)
 
 CPU/GPU: Runs on CPU for fairness (no GPU speed artifacts).
 Uses HuggingFace evaluate + lm-eval-harness where available,

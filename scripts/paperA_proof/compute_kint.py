@@ -1,5 +1,5 @@
 """
-compute_kint.py  —  Paper A cross-model generalisation data
+compute_kint.py  ---  Paper A cross-model generalisation data
 
 For each GGUF model, sample a subset of layers, compute the joint
 Gram eigenspectrum of {W_Q, W_K, W_V}, and find k_int (the rank needed

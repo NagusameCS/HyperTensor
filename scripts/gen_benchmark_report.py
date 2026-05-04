@@ -1,5 +1,5 @@
 """
-gen_benchmark_report.py  —  Comprehensive A–E benchmark report generator
+gen_benchmark_report.py  ---  Comprehensive A--E benchmark report generator
 ==========================================================================
 Reads all artefacts produced by the conversion farm + geodessical log files
 and emits:
@@ -37,7 +37,7 @@ OUT_DIR_DEF    = REPO / "docs" / "benchmark_report"
 
 
 # ---------------------------------------------------------------------------
-# Paper A  — k_int generalisation
+# Paper A  --- k_int generalisation
 # ---------------------------------------------------------------------------
 def load_kint_results() -> list[dict]:
     rows = []
@@ -54,12 +54,12 @@ def load_kint_results() -> list[dict]:
 
 def paper_a_md(rows: list[dict]) -> str:
     if not rows:
-        return "## Paper A — k_int Generalisation\n\nNo data yet.\n"
+        return "## Paper A --- k_int Generalisation\n\nNo data yet.\n"
 
-    lines = ["## Paper A — k_int Generalisation Across Architectures",
+    lines = ["## Paper A --- k_int Generalisation Across Architectures",
              "",
              "Summary: across the sampled models, intrinsic rank k_int (95%"
-             " joint-Gram variance) stays below d and is often in the 0.5–0.7 d range,"
+             " joint-Gram variance) stays below d and is often in the 0.5--0.7 d range,"
              " supporting rank-limited attention compression.",
              ""]
 
@@ -148,9 +148,9 @@ def paper_a_md(rows: list[dict]) -> str:
                 entries = entries.get("entries", [])
             if not entries:
                 continue
-            lines += ["", f"### Multi-k Pareto Sweep — {mk_dir.name}", "",
+            lines += ["", f"### Multi-k Pareto Sweep --- {mk_dir.name}", "",
                       "Throughput (tok/s) vs compression rank k.",
-                      "Demonstrates the accuracy–speed Pareto frontier (Paper A §Pareto).",
+                      "Demonstrates the accuracy--speed Pareto frontier (Paper A §Pareto).",
                       "",
                       "| k | Mean tok/s | SD | N |",
                       "|---|-----------|----|----|"]
@@ -170,7 +170,7 @@ def paper_a_md(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Paper B  — load / VRAM efficiency   (parse geodessical log files)
+# Paper B  --- load / VRAM efficiency   (parse geodessical log files)
 # ---------------------------------------------------------------------------
 _RE_LOAD   = re.compile(r"load[_ ]?time[:\s]+(\d+)\s*ms", re.I)
 _RE_LOAD2  = re.compile(r"model loaded.*?(\d+)\s*ms", re.I)
@@ -228,7 +228,7 @@ def _parse_log(log_path: Path) -> dict:
     if m:
         info["offload_from_layer"] = int(m.group(1))
 
-    # tok/s  — look for "X tok/s" or "X tokens/s"
+    # tok/s  --- look for "X tok/s" or "X tokens/s"
     toks = re.findall(r"([\d.]+)\s+tok(?:ens)?/s", text, re.I)
     if toks:
         info["tok_s"] = float(toks[-1])
@@ -285,9 +285,9 @@ def load_log_results(farm_run_id: str = "") -> list[dict]:
 def paper_b_md(rows: list[dict]) -> str:
     b_rows = [r for r in rows if r.get("job_id", "").startswith("B_")]
     if not b_rows:
-        return "## Paper B — Load / VRAM Efficiency\n\nNo log data yet.\n"
+        return "## Paper B --- Load / VRAM Efficiency\n\nNo log data yet.\n"
 
-    lines = ["## Paper B — Load & VRAM Efficiency",
+    lines = ["## Paper B --- Load & VRAM Efficiency",
              "",
              "Summary: load logs show several compressed models fitting within an"
              " 8 GB-class GPU budget, with model-dependent offload behavior.",
@@ -305,11 +305,11 @@ def paper_b_md(rows: list[dict]) -> str:
         seen[tag] = r
 
     for tag, r in sorted(seen.items()):
-        load   = r.get("load_ms", "—")
-        tensors= r.get("gpu_tensors", "—")
-        mb     = r.get("gpu_mb", "—")
-        off    = r.get("offload_from_layer", "—")
-        toks   = r.get("tok_s", "—")
+        load   = r.get("load_ms", "---")
+        tensors= r.get("gpu_tensors", "---")
+        mb     = r.get("gpu_mb", "---")
+        off    = r.get("offload_from_layer", "---")
+        toks   = r.get("tok_s", "---")
         if isinstance(mb, float):
             mb = f"{mb:.0f}"
         if isinstance(toks, float):
@@ -321,7 +321,7 @@ def paper_b_md(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Paper C  — decode throughput  (also from log files, filtered to decode runs)
+# Paper C  --- decode throughput  (also from log files, filtered to decode runs)
 # ---------------------------------------------------------------------------
 def _find_ott_empirical_dir() -> Path | None:
     """Return the most recent benchmarks/ott_empirical* directory that has summary.json."""
@@ -363,7 +363,7 @@ def paper_c_md(rows: list[dict]) -> str:
     decode_rows = [r for r in rows
                    if r.get("job_id", "").startswith("C_")
                    and r.get("tok_s") is not None]
-    lines = ["## Paper C — Decode Throughput Under GRC Compression",
+    lines = ["## Paper C --- Decode Throughput Under GRC Compression",
              "",
              "Summary: preliminary decode measurements indicate usable throughput"
              " with GRC and provide early OTT/AttnRes interaction evidence.",
@@ -381,9 +381,9 @@ def paper_c_md(rows: list[dict]) -> str:
             seen[tag] = r
 
         for tag, r in sorted(seen.items()):
-            toks = r.get("tok_s", "—")
-            load = r.get("load_ms", "—")
-            mb   = r.get("gpu_mb", "—")
+            toks = r.get("tok_s", "---")
+            load = r.get("load_ms", "---")
+            mb   = r.get("gpu_mb", "---")
             rank = "128"  # from manifest; log doesn't always echo it
             if isinstance(mb, float):
                 mb = f"{mb:.0f}"
@@ -415,7 +415,7 @@ def paper_c_md(rows: list[dict]) -> str:
                             base_map[e["model"]] = e.get("mean_tok_s", 1.0)
                     for e in entries:
                         base = base_map.get(e["model"], 1.0)
-                        su = f"{e['mean_tok_s']/base:.2f}" if base > 0 else "—"
+                        su = f"{e['mean_tok_s']/base:.2f}" if base > 0 else "---"
                         lines.append(f"| {e['model']} | {e['mode']} | "
                                      f"{e['mean_tok_s']} | {e['mean_alpha_pct']} | {su} |")
                     lines.append("")
@@ -431,10 +431,10 @@ def paper_c_md(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Paper D  — HJB feasibility
+# Paper D  --- HJB feasibility
 # ---------------------------------------------------------------------------
 def paper_d_md() -> str:
-    lines = ["## Paper D — HJB Feasibility Spectrum", ""]
+    lines = ["## Paper D --- HJB Feasibility Spectrum", ""]
     summary_f = HJB_DIR / "hjb_residual_summary.md"
     if summary_f.exists():
         lines.append(summary_f.read_text(encoding="utf-8"))
@@ -445,10 +445,10 @@ def paper_d_md() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Paper E  — rho / distillation
+# Paper E  --- rho / distillation
 # ---------------------------------------------------------------------------
 def paper_e_md() -> str:
-    lines = ["## Paper E — Rho / Distillation Spectrum", ""]
+    lines = ["## Paper E --- Rho / Distillation Spectrum", ""]
     # Prefer spectrum folder with per-model subdirectories, then fallback files.
     rho_files: list[Path] = []
     if RHO_DIR.exists():
@@ -597,12 +597,12 @@ def build_master(kint_rows, log_rows, run_id, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    header = f"""# HyperTensor Geodessical — A–E Benchmark Master Report
+    header = f"""# HyperTensor Geodessical --- A--E Benchmark Master Report
 Generated: {ts}  
 GPU: RTX 4070 Laptop (8 GB VRAM) · Ryzen 9 7940HS · 32 GB RAM  
 Runtime: geodessical v0.6.0 "Synapse"
 
-> This report consolidates current A–E benchmark evidence, including
+> This report consolidates current A--E benchmark evidence, including
 > k_int structure, load behavior, decode experiments, HJB feasibility checks,
 > and rho-spectrum results. It is an interim evidence snapshot, not a final
 > cross-hardware/cross-model claim.
@@ -642,7 +642,7 @@ Runtime: geodessical v0.6.0 "Synapse"
 # Main
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="Generate A–E benchmark report")
+    ap = argparse.ArgumentParser(description="Generate A--E benchmark report")
     ap.add_argument("--farm-run-id", default="grc_farm_spectrum_v1",
                     help="Farm run_id for state/summary.json lookup")
     ap.add_argument("--out-dir", default=str(OUT_DIR_DEF),

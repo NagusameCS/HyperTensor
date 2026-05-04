@@ -1,7 +1,7 @@
 """
-Numerical verification of Eckart–Young–Mirsky theoretical bound for GRC.
+Numerical verification of Eckart--Young--Mirsky theoretical bound for GRC.
 
-The Eckart–Young theorem states that for any matrix W ∈ ℝ^{mn} with singular
+The Eckart--Young theorem states that for any matrix W ∈ ℝ^{mn} with singular
 values σ_1 ≥ σ_2 ≥ ... ≥ σ_min(m,n), the best rank-k approximation in both
 spectral and Frobenius norms is given by truncated SVD:
 
@@ -9,14 +9,14 @@ spectral and Frobenius norms is given by truncated SVD:
     ||W - W_k||_2  = σ_{k+1}
 
 GRC builds the projection from the *combined Gram matrix* K = Σ_i W_i^T W_i,
-which is NOT a per-matrix optimal projection — it's a shared subspace. So the
-GRC reconstruction error must be ≥ the Eckart–Young lower bound.
+which is NOT a per-matrix optimal projection --- it's a shared subspace. So the
+GRC reconstruction error must be ≥ the Eckart--Young lower bound.
 
 This script measures:
-  1. The Eckart–Young oracle bound for each {Q, K, V} matrix at k = 1024, 1536.
+  1. The Eckart--Young oracle bound for each {Q, K, V} matrix at k = 1024, 1536.
   2. The actual GRC error using the *shared* projection P_t from the combined
      Gram matrix.
-  3. The ratio (GRC excess error) — a tight gap implies the shared basis is
+  3. The ratio (GRC excess error) --- a tight gap implies the shared basis is
      near-optimal; a loose gap motivates per-matrix bases (future work item).
 """
 from __future__ import annotations
@@ -65,7 +65,7 @@ def grc_error(W, P_t, k):
 
 
 def build_grc_basis(W_q, W_k, W_v, n_iter=3):
-    """Build P_t the way GRC does — eigvecs of normalised combined Gram matrix."""
+    """Build P_t the way GRC does --- eigvecs of normalised combined Gram matrix."""
     K = W_q.T @ W_q + W_k.T @ W_k + W_v.T @ W_v
     K = K / np.linalg.norm(K, "fro")
     # Power iteration to stabilise top eigvecs (as in axiom_exploit.c)

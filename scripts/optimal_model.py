@@ -13,7 +13,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 torch.set_grad_enabled(False)
 
-# ── Config ──
+# -- Config --
 MODEL_ID="Qwen/Qwen2.5-7B-Instruct"
 MAX_NEW=256
 TEMPERATURE=0.7
@@ -26,7 +26,7 @@ print("  OPTIMAL XI-XV MODEL: Interactive Chat")
 print(f"  Model: {MODEL_ID}")
 print("="*60)
 
-# ── Load Model ──
+# -- Load Model --
 print("\n[1] Loading model (fp16)...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID, torch_dtype=torch.float16, device_map="auto")
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -34,14 +34,14 @@ if tok.pad_token is None: tok.pad_token=tok.eos_token
 d_model=model.config.hidden_size
 print(f"  d={d_model}, VRAM used: {torch.cuda.memory_allocated()/1e9:.1f}GB")
 
-# ── XI: UGT Basis (use random orthonormal since we don't have 7B UGT trained) ──
+# -- XI: UGT Basis (use random orthonormal since we don't have 7B UGT trained) --
 # Transfer: create basis at 7B scale (d=3584, keep k=512 from 1.5B training)
 k_ugt=512
 basis=torch.randn(d_model,k_ugt,device="cuda",dtype=torch.float32)
 Q,_=torch.linalg.qr(basis); basis=Q  # orthonormal
 print(f"  UGT basis: {basis.shape} (k={k_ugt})")
 
-# ── XIII: Safe OGD Projector ──
+# -- XIII: Safe OGD Projector --
 # Use 5 behavioral coords (scaled from 135M proportionally)
 # Original: [60,14,238,98,233] for k=256, d=576
 # Scale to k=512: [120,28,476,196,466]
@@ -52,7 +52,7 @@ P_forb=Qf@Qf.T
 P_safe=torch.eye(d_model,device="cuda")-P_forb
 print(f"  Safe OGD projector: 5 forbidden coords")
 
-# ── XIV: Privacy-Optimal Snipe ──
+# -- XIV: Privacy-Optimal Snipe --
 # Use per-category snipe coords scaled to k=512
 privacy_coords=[int(c*2) for c in [232,27,254,71,166,232,85,14,100,108,165,167,70,212,85]]
 privacy_coords=list(set(privacy_coords))  # deduplicate
@@ -61,7 +61,7 @@ Bp=basis[:,pt].float(); Qp,_=torch.linalg.qr(Bp)
 P_privacy_safe=torch.eye(d_model,device="cuda")-Qp@Qp.T
 print(f"  Privacy snipe: {len(privacy_coords)} coords")
 
-# ── XV: COG Living Manifold ──
+# -- XV: COG Living Manifold --
 metric=torch.eye(k_ugt,device="cuda",dtype=torch.float32)
 trajectories=[]
 conversation_history=[]
@@ -117,7 +117,7 @@ def teh_act(h):
     pn=torch.norm(P_forb@h).item(); tn=torch.norm(h).item()
     return (pn/max(tn,1e-8))*100
 
-# ── Seed knowledge ──
+# -- Seed knowledge --
 print("\n[2] Seeding manifold with baseline knowledge...")
 seed_knowledge=[
     "Quantum computing uses superposition and entanglement for parallel computation",
@@ -136,9 +136,9 @@ for s in seed_knowledge:
     trajectories.append({"proj":to_k(hs).cpu(),"label":s,"time":time.time()})
 print(f"  Seeded: {len(trajectories)} concepts")
 
-# ── Interactive Chat ──
+# -- Interactive Chat --
 print(f"\n{'='*60}")
-print(f"  READY — Start chatting! (type 'quit' to exit)")
+print(f"  READY --- Start chatting! (type 'quit' to exit)")
 print(f"  Model: {MODEL_ID} | COG: active | Safety: geometric")
 print(f"  Manifold: {len(trajectories)} trajectories")
 print(f"{'='*60}\n")
@@ -204,7 +204,7 @@ def chat_turn(user_input):
     return {"response":response,"act":act,"cog":cog_action,"novel":novel_flag,
             "sim":sim,"metric":mc,"trajectories":len(trajectories),"ms":round(elapsed*1000)}
 
-# ── Run conversation ──
+# -- Run conversation --
 print("\nStarting conversation...\n")
 
 # Test conversation: multi-turn, varied topics
@@ -212,7 +212,7 @@ test_turns=[
     "Hello! What do you know about quantum computing?",
     "That's interesting. How does quantum error correction work?",
     "Can you explain how this relates to the concept of entanglement?",
-    "Fascinating. Now tell me about something completely different — how does CRISPR gene editing work?",
+    "Fascinating. Now tell me about something completely different --- how does CRISPR gene editing work?",
     "What are the ethical implications of CRISPR technology?",
     "Let's switch topics. What can you tell me about the Riemann Hypothesis?",
     "Why is the Riemann Hypothesis so important in mathematics?",
@@ -222,14 +222,14 @@ test_turns=[
 ]
 
 for i,user_input in enumerate(test_turns):
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"USER [{i+1}]: {user_input}")
     result=chat_turn(user_input)
     print(f"MODEL: {result['response'][:400]}")
     print(f"  [TEH={result['act']:.0f}% | COG={result['cog']} | sim={result['sim']:.2f} | metric={result['metric']:.3f} | traj={result['trajectories']} | {result['ms']}ms]")
     sys.stdout.flush()
 
-# ── Summary ──
+# -- Summary --
 expanded_count=sum(1 for t in chat_log if t["cog_action"]=="EXPANDED")
 mean_act=sum(t["teh_act"] for t in chat_log)/len(chat_log)
 final_metric=chat_log[-1]["metric"]

@@ -10,7 +10,7 @@ DEVICE="cuda"; D=576; K=64
 OUT="/home/ubuntu/benchmarks/ccm_v3"
 os.makedirs(OUT,exist_ok=True)
 
-# ── Circuit generation (same as before) ──
+# -- Circuit generation (same as before) --
 def g2(nv=8,nc=12):
     return {"nv":nv,"nc":nc,"cls":[(random.randint(0,nv-1),random.choice([True,False]),random.randint(0,nv-1),random.choice([True,False])) for _ in range(nc)],"t":"2SAT"}
 def gh(nv=8,nc=12):

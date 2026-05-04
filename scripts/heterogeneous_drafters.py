@@ -15,7 +15,7 @@ The expected throughput is:
   T(k₁:k₄) = E[accepted] / (Σᵢ T_D(kᵢ) + T_V)
 
 where acceptance probability α(k) depends on compression rank
-(higher rank → higher α, from Paper C measurements).
+(higher rank -> higher α, from Paper C measurements).
 
 Usage:
   python scripts/heterogeneous_drafters.py --gamma 4
@@ -183,9 +183,9 @@ def main():
     best = results[0]
     best_uniform = [r for r in results if r["config"].startswith("uniform")][0]
     print(f"\n  Best heterogeneous: {best['config']} "
-          f"→ {best['throughput_tok_per_ms']:.4f} tok/ms")
+          f"-> {best['throughput_tok_per_ms']:.4f} tok/ms")
     print(f"  Best uniform:       {best_uniform['config']} "
-          f"→ {best_uniform['throughput_tok_per_ms']:.4f} tok/ms")
+          f"-> {best_uniform['throughput_tok_per_ms']:.4f} tok/ms")
     if best["throughput_tok_per_ms"] > best_uniform["throughput_tok_per_ms"]:
         gain = (best["throughput_tok_per_ms"] / best_uniform["throughput_tok_per_ms"] - 1) * 100
         print(f"  Heterogeneous win: +{gain:.1f}% over best uniform")

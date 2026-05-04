@@ -1,14 +1,14 @@
 # scripts/paper_a/multi_k_sweep.ps1
-# Paper A Empirical — Multi-rank Pareto sweep
+# Paper A Empirical --- Multi-rank Pareto sweep
 # ============================================
 # For each k in K_VALUES runs geodessical.exe on a locked prompt set,
 # measures tok/s (throughput) and optionally perplexity, and builds the
 # Pareto frontier data for Figure 2 (throughput  PPL vs rank).
 #
 # Produces:
-#   <OutDir>/multi_k_results.csv     — raw per-run data
-#   <OutDir>/multi_k_summary.json    — mean ± SD per k
-#   <OutDir>/multi_k_report.md       — narrative table for Paper A
+#   <OutDir>/multi_k_results.csv     --- raw per-run data
+#   <OutDir>/multi_k_summary.json    --- mean ± SD per k
+#   <OutDir>/multi_k_report.md       --- narrative table for Paper A
 #
 # Usage:
 #   .\scripts\paper_a\multi_k_sweep.ps1
@@ -22,7 +22,7 @@ param(
     [switch]$WithPPL           # add --ppl-eval runs (slow; one per k)
 )
 $ErrorActionPreference = "Stop"
-# Use geodessical2.exe — gives proper decode tok/s output without auto-PPL mode
+# Use geodessical2.exe --- gives proper decode tok/s output without auto-PPL mode
 $exe = "C:\Users\legom\HyperTensor\build_host\geodessical2.exe"
 if (-not (Test-Path $exe)) { throw "geodessical.exe not found" }
 if (-not (Test-Path $Model)) { throw "Model not found: $Model" }
@@ -179,7 +179,7 @@ $summary | ConvertTo-Json -Depth 3 | Set-Content $summaryPath -Encoding UTF8
 $baseRow = $summary | Where-Object { $_.k -eq "baseline" }
 $baseVal = if ($baseRow) { $baseRow.mean_toks } else { 1.0 }
 
-$md = @("# Paper A — Multi-k Rank Sweep Results", "",
+$md = @("# Paper A --- Multi-k Rank Sweep Results", "",
         "**Model**: Llama-3.1-8B-Instruct Q4_K_M  ",
         "**GPU**: RTX 4070 Laptop (8 GB VRAM)  ",
         "**Date**: $(Get-Date -Format 'yyyy-MM-dd')  ",
@@ -189,7 +189,7 @@ $md = @("# Paper A — Multi-k Rank Sweep Results", "",
         "|--------|-----------|-----|---------------------|-------|"
         )
 foreach ($s in ($summary | Sort-Object { if ($_.k -eq 'baseline') { -1 } else { [int]$_.k } })) {
-    $speedup = if ($baseVal -gt 0) { [math]::Round($s.mean_toks / $baseVal, 4) } else { "—" }
+    $speedup = if ($baseVal -gt 0) { [math]::Round($s.mean_toks / $baseVal, 4) } else { "---" }
     $md += "| $($s.k) | $($s.mean_toks) | $($s.sd_toks) | $speedup | $($s.n_obs) |"
 }
 $md += @("",

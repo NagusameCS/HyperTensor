@@ -1,18 +1,18 @@
-# HyperTensor Geodessical — A–E Benchmark Master Report
+# HyperTensor Geodessical --- A--E Benchmark Master Report
 Generated: 2026-05-01 03:37 UTC  
 GPU: RTX 4070 Laptop (8 GB VRAM) · Ryzen 9 7940HS · 32 GB RAM  
 Runtime: geodessical v0.6.0 "Synapse"
 
-> This report consolidates current A–E benchmark evidence, including
+> This report consolidates current A--E benchmark evidence, including
 > k_int structure, load behavior, decode experiments, HJB feasibility checks,
 > and rho-spectrum results. It is an interim evidence snapshot, not a final
 > cross-hardware/cross-model claim.
 
 ---
 
-## Paper A — k_int Generalisation Across Architectures
+## Paper A --- k_int Generalisation Across Architectures
 
-Summary: across the sampled models, intrinsic rank k_int (95% joint-Gram variance) stays below d and is often in the 0.5–0.7 d range, supporting rank-limited attention compression.
+Summary: across the sampled models, intrinsic rank k_int (95% joint-Gram variance) stays below d and is often in the 0.5--0.7 d range, supporting rank-limited attention compression.
 
 | Model | d | Mean k_int | k_int/d | Min k_int | Max k_int | Layers sampled |
 |-------|---|-----------|---------|-----------|-----------|----------------|
@@ -146,21 +146,21 @@ Model & $d$ & $\bar{k}_\mathrm{int}$ & $\bar{k}_\mathrm{int}/d$ \\
 
 ---
 
-## Paper B — Load & VRAM Efficiency
+## Paper B --- Load & VRAM Efficiency
 
 Summary: load logs show several compressed models fitting within an 8 GB-class GPU budget, with model-dependent offload behavior.
 
 | Model | Load (ms) | GPU tensors | GPU VRAM (MB) | Offload from | tok/s |
 |-------|----------|-------------|---------------|--------------|-------|
-| GLM-4.7-Flash | 817 | 5 | 457 | — | — |
+| GLM-4.7-Flash | 817 | 5 | 457 | --- | --- |
 | Gemma3-12B | 5400 | 236 | 6019 | 47 | 3.8 |
-| Gemma3-4B | 2280 | 171 | 2174 | — | 58.3 |
-| Gemma4-31B | 6155 | 103 | 6444 | 21 | — |
-| Qwen3.5-35B | 1220 | 82 | 1051 | — | — |
+| Gemma3-4B | 2280 | 171 | 2174 | --- | 58.3 |
+| Gemma4-31B | 6155 | 103 | 6444 | 21 | --- |
+| Qwen3.5-35B | 1220 | 82 | 1051 | --- | --- |
 
 ---
 
-## Paper C — Decode Throughput Under GRC Compression
+## Paper C --- Decode Throughput Under GRC Compression
 
 Summary: preliminary decode measurements indicate usable throughput with GRC and provide early OTT/AttnRes interaction evidence.
 
@@ -169,7 +169,7 @@ No farm decode log rows yet; showing OTT/AttnRes empirical sections below.
 
 ---
 
-# OTT Speculative Decode — Empirical Speedup Table
+# OTT Speculative Decode --- Empirical Speedup Table
 
 Paper C empirical anchor data  
 Rows show mean tok/s ± 95% CI and acceptance rate α across 10 locked prompts.
@@ -177,9 +177,9 @@ Speedup = mean_tok_s / baseline_tok_s for the same model.
 
 | Model | Mode | thresh | batch | tok/s | ±CI | α (%) | ±CI | geo_frac | Speedup |
 |-------|------|--------|-------|-------|-----|-------|-----|----------|---------|
-| SmolLM2-135M | baseline | 0.0 | 0 | 71.92 | ±21.96 | — | ±— | — | 1.0 |
-| SmolLM2-135M | spec | 0.45 | 4 | 33.66 | ±19.22 | — | ±— | — | 0.468 |
-| SmolLM2-135M | spec_grc | 0.45 | 4 | 81.31 | ±12.57 | 46.9 | ±— | 46.9% | 1.131 |
+| SmolLM2-135M | baseline | 0.0 | 0 | 71.92 | ±21.96 | --- | ±--- | --- | 1.0 |
+| SmolLM2-135M | spec | 0.45 | 4 | 33.66 | ±19.22 | --- | ±--- | --- | 0.468 |
+| SmolLM2-135M | spec_grc | 0.45 | 4 | 81.31 | ±12.57 | 46.9 | ±--- | 46.9% | 1.131 |
 
 ## Key observations
 
@@ -193,9 +193,9 @@ Speedup = mean_tok_s / baseline_tok_s for the same model.
 
 ---
 
-## Paper D — HJB Feasibility Spectrum
+## Paper D --- HJB Feasibility Spectrum
 
-# HJB / SHF Loss — Empirical Feasibility Stub
+# HJB / SHF Loss --- Empirical Feasibility Stub
 
 Computed per `scripts/hjb_feasibility.py` from the discrete Jacobi residual
 
@@ -221,7 +221,7 @@ applied to three trajectory classes through each model's fitted Phase-3 Riemanni
 
 ## Kinetic vs curvature decomposition (mean per node)
 
-$\mathcal{J}_\ell = \Delta^2 s_\ell + \hat R(s_\ell)\,\Delta s_\ell$ — we report the squared magnitudes of the two summands separately so the dominant component is visible.
+$\mathcal{J}_\ell = \Delta^2 s_\ell + \hat R(s_\ell)\,\Delta s_\ell$ --- we report the squared magnitudes of the two summands separately so the dominant component is visible.
 
 | Model | class | kinetic mean $\|\Delta^2 s\|^2$ | curvature mean $\|\hat R\Delta s\|^2$ | kin/curv |
 |---|---|---:|---:|---:|
@@ -242,13 +242,13 @@ $\mathcal{J}_\ell = \Delta^2 s_\ell + \hat R(s_\ell)\,\Delta s_\ell$ — we repo
 - The off-manifold value bounds the penalty from above and indicates the dynamic range over which $\lambda$ should be tuned.
 - The kinetic / curvature ratio quantifies how much of the Bellman residual actually carries curvature signal. On the Phase-3 manifolds we have access to the kinetic $\Delta^2$ term dominates by many orders of magnitude (consistent with the curvature-warp negative result, FIVE\_FINDINGS §5: these manifolds are nearly flat). Practical implication: a training-time SHF schedule must either (a) operate on a manifold of demonstrably non-zero curvature, or (b) reduce to ordinary smoothness regularisation (kinetic-only) on current network outputs.
 
-Implication for paper-D §HJB-Regularised Joint Training: the loss term is empirically tractable (sub-second compute for n=8 intrinsic, L=32 layers), the dynamic range (off/floor ratio) determines a meaningful $\lambda$ schedule, and per-token training cost is $O(n^5)$ in intrinsic dim — affordable when the runtime caches the Riemann tensor at sample points (which it already does for the Jacobi propagator). However the empirical kinetic/curvature ratio shows that on the manifolds currently exported from frozen pretrained networks the curvature contribution to $L_{SHF}$ is negligible; the loss in its current form would act primarily as a second-difference smoothness penalty on block summaries.
+Implication for paper-D §HJB-Regularised Joint Training: the loss term is empirically tractable (sub-second compute for n=8 intrinsic, L=32 layers), the dynamic range (off/floor ratio) determines a meaningful $\lambda$ schedule, and per-token training cost is $O(n^5)$ in intrinsic dim --- affordable when the runtime caches the Riemann tensor at sample points (which it already does for the Jacobi propagator). However the empirical kinetic/curvature ratio shows that on the manifolds currently exported from frozen pretrained networks the curvature contribution to $L_{SHF}$ is negligible; the loss in its current form would act primarily as a second-difference smoothness penalty on block summaries.
 
 Generated 2026-04-30 12:13:45; data: hjb_residual_magnitudes.json
 
 ---
 
-## Paper E — Rho / Distillation Spectrum
+## Paper E --- Rho / Distillation Spectrum
 
 | Model | Rank | LoRA rank | Layers | Mean ρ | Source |
 |-------|------|-----------|--------|--------|--------|

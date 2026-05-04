@@ -28,7 +28,7 @@ MAX_TEXT_LENGTH = 4096
 
 # === AGGRESSIVE FILTERS ===
 
-# Patterns that indicate conversational/instructional wrappers — MUST BE STRIPPED
+# Patterns that indicate conversational/instructional wrappers --- MUST BE STRIPPED
 CONVERSATIONAL_STRIP = [
     r"(?i)^(sure|absolutely|certainly|of course)[,!.].*",
     r"(?i)^(let me|i will|i can|i'll|we'll|we will)\b.*",
@@ -37,13 +37,13 @@ CONVERSATIONAL_STRIP = [
     r"(?i)^(i hope|hopefully|good luck)\b.*",
     r"(?i)^(question[:]?\s*).*",
     r"(?i)^(problem[:]?\s*).*",
-    r"(?i)\b(step\s*\d+[:.]?\s*).*",  # "Step 1:" — keep the math after, strip the label
+    r"(?i)\b(step\s*\d+[:.]?\s*).*",  # "Step 1:" --- keep the math after, strip the label
     r"(?i)^(explanation[:]?\s*).*",
     r"(?i)^(solution[:]?\s*).*",
     r"(?i)^(let's|let us)\b.*",
 ]
 
-# Patterns that indicate natural language / prose — EXCLUDE ENTIRELY
+# Patterns that indicate natural language / prose --- EXCLUDE ENTIRELY
 NATURAL_LANGUAGE_EXCLUDE = [
     r"(?i)\b(once upon a time)\b",
     r"(?i)\b(chapter\s+\d+)\b",
@@ -56,7 +56,7 @@ NATURAL_LANGUAGE_EXCLUDE = [
     r"(?i)\b(character|protagonist|narrator)\b",
 ]
 
-# Math-positive patterns — at least ONE must match
+# Math-positive patterns --- at least ONE must match
 MATH_POSITIVE = [
     r"\d+",                    # Contains numbers
     r"[+\-*/=<>]",            # Contains math operators
@@ -158,7 +158,7 @@ def load_gsm8k() -> list[str]:
             question = row.get("question", "")
             answer = row.get("answer", "")
             # GSM8K answers often have "#### final_answer" format
-            # Strip the "####" marker — keep the reasoning chain
+            # Strip the "####" marker --- keep the reasoning chain
             answer = re.sub(r'####\s*\d+.*$', '', answer).strip()
             
             combined = f"Q: {question}\nA: {answer}"
@@ -202,7 +202,7 @@ def load_math_dataset() -> list[str]:
 
 
 def load_openwebmath() -> list[str]:
-    """Load OpenWebMath — raw mathematical web content."""
+    """Load OpenWebMath --- raw mathematical web content."""
     samples = []
     try:
         from datasets import load_dataset
@@ -237,7 +237,7 @@ def load_proof_data() -> list[str]:
                     text = row.get("text", "") or row.get("content", "")
                     # Check for formal proof syntax
                     if any(kw in text.lower() for kw in ["theorem", "lemma", "proof", "qed", 
-                           "induction", "forall", "exists", "λ", "→", "∀", "∃"]):
+                           "induction", "forall", "exists", "λ", "->", "∀", "∃"]):
                         cleaned = format_math_sample(text, ds_path)
                         if cleaned:
                             samples.append(cleaned)

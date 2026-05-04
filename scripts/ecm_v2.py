@@ -15,7 +15,7 @@ print("  ECM v2: Rank from Topology (BSD Real Test)")
 print("  Paper XXVIII: Rank = Homology Dimension")
 print("="*60)
 
-# ── Generate elliptic curves with hidden rank ──
+# -- Generate elliptic curves with hidden rank --
 print("\n[1] Generating elliptic curve database...")
 
 def random_curve():
@@ -52,7 +52,7 @@ for r_target in [0,1,2,3]:
 
 print(f"  Generated {len(curves)} curves, ranks 0-3")
 
-# ── Features WITHOUT rank label ──
+# -- Features WITHOUT rank label --
 def curve_features_v2(c):
     """Structural features only. NO rank label. Rank must be inferred."""
     f=[]
@@ -84,7 +84,7 @@ cvecs=torch.stack([curve_features_v2(c) for c in curves])
 labels=torch.tensor(ranks)
 print(f"  Feature dim: {FEAT_DIM} (no rank label)")
 
-# ── Train manifold WITHOUT rank supervision ──
+# -- Train manifold WITHOUT rank supervision --
 print("\n[2] Training manifold (self-supervised topology learning)...")
 
 encoder=torch.nn.Sequential(
@@ -93,7 +93,7 @@ encoder=torch.nn.Sequential(
     torch.nn.Linear(256,D)
 ).to(DEVICE)
 
-# Self-supervised: curves with similar properties → nearby embedding
+# Self-supervised: curves with similar properties -> nearby embedding
 opt=torch.optim.AdamW(encoder.parameters(),lr=0.002)
 steps=5000
 
@@ -105,7 +105,7 @@ for step in range(steps):
     
     # Compute feature-space distances
     feat_dist=torch.cdist(cv,cv)
-    # Nearby in feature space → nearby in embedding space
+    # Nearby in feature space -> nearby in embedding space
     # Weighted continuity
     sim_target=torch.exp(-feat_dist*0.5)
     emb_sim=emb@emb.T
@@ -121,7 +121,7 @@ for step in range(steps):
     if (step+1)%1000==0:
         print(f"  Step {step+1}: loss={loss.item():.4f} cont={cont_loss.item():.3f} spread={spread_loss.item():.3f}")
 
-# ── Detect rank from topology ──
+# -- Detect rank from topology --
 print("\n[3] Detecting rank from topological structure...")
 
 with torch.no_grad():
@@ -173,7 +173,7 @@ with torch.no_grad():
     # Correlation: does subspace dim track rank?
     rank_dim_pairs=[(cluster_ranks[c],cluster_dims[c]) for c in range(n_clusters) if c in cluster_ranks]
     rank_dim_pairs.sort()
-    print(f"  Rank→Dim mapping: {rank_dim_pairs}")
+    print(f"  Rank->Dim mapping: {rank_dim_pairs}")
     
     # Compute correlation
     if len(rank_dim_pairs)>=2:
@@ -229,7 +229,7 @@ with torch.no_grad():
     
     print(f"  Per-rank accuracy: { {r:f'{per_rank_acc.get(r,0):.0f}%' for r in range(4)} }")
 
-# ── Save ──
+# -- Save --
 results={
     "n_curves":len(curves),"d_embed":D,"feat_dim":FEAT_DIM,
     "rank_prediction_accuracy":round(rank_acc,1),

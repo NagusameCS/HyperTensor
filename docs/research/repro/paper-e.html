@@ -50,9 +50,9 @@
 
 <h2>Hardware target</h2>
 <ul>
-  <li><strong>Phase 1</strong>: any x86_64 host with Python 3.11+ and 16 GB RAM. CPU only. Runs in 60-120&nbsp;s for an 8B model.</li>
-  <li><strong>Phase 2</strong>: 1x A100/L40S/H100 with 24 GB VRAM and PyTorch 2.4. Estimated wall clock for 500 steps at LoRA r=8: 30-60&nbsp;min on A100.</li>
-  <li><strong>Phase 3</strong>: same host as Phase 2, plus a working <code>llama.cpp</code> build with the <code>quantize</code> tool.</li>
+  <li>Phase 1: any x86_64 host with Python 3.11+ and 16 GB RAM. CPU only. Runs in 60-120&nbsp;s for an 8B model.</li>
+  <li>Phase 2: 1x A100/L40S/H100 with 24 GB VRAM and PyTorch 2.4. Estimated wall clock for 500 steps at LoRA r=8: 30-60&nbsp;min on A100.</li>
+  <li>Phase 3: same host as Phase 2, plus a working <code>llama.cpp</code> build with the <code>quantize</code> tool.</li>
 </ul>
 
 <h2>Quick start (Phase 1, CPU-only)</h2>
@@ -87,12 +87,12 @@ python scripts/grc_distill.py \
 <h2>Expected outputs</h2>
 <ul>
   <li><code>distill_out/distill_manifest.json</code>: configuration record + stage marker (<code>scaffold</code>, <code>calibration_free</code>, or <code>distill_requested</code>).</li>
-  <li><strong>Pending (Phase 2)</strong>: per-layer LoRA residual weights and a final perplexity delta against the un-distilled GRC k=1024 baseline. Expected: closure of approximately half of the 61.4% PPL gap, hitting roughly +30% over the uncompressed baseline at unchanged decode throughput.</li>
+  <li>Pending (Phase 2): per-layer LoRA residual weights and a final perplexity delta against the un-distilled GRC k=1024 baseline. Expected: closure of approximately half of the 61.4% PPL gap, hitting roughly +30% over the uncompressed baseline at unchanged decode throughput.</li>
 </ul>
 
 <h2>Caveats</h2>
 <ul>
-  <li>The empirical Phase-2 results in Paper E are explicitly listed as <em>Pending</em> until the EC2 A100 runner is functional.</li>
+  <li>The empirical Phase-2 results in Paper E are explicitly listed as Pending until the EC2 A100 runner is functional.</li>
   <li>The Wikitext-2 calibration corpus citation in the paper triggers a pandoc warning; this is a known harmless reference issue and does not affect the rendered PDF or HTML.</li>
 </ul>
 

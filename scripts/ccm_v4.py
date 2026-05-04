@@ -1,4 +1,4 @@
-"""CCM v4: COMPUTATIONAL COST features for genuine P→NP barrier.
+"""CCM v4: COMPUTATIONAL COST features for genuine P->NP barrier.
 Encodes: SAT phase transition, estimated solution cost,
 backbone size, clause density, and graph-theoretic complexity.
 These features reflect ACTUAL computational hardness, not just type labels.
@@ -16,7 +16,7 @@ print("  CCM v4: Computational Cost Features")
 print("  Real P vs NP: curvature from hardness")
 print("="*60)
 
-# ── Circuit generation with computational cost ──
+# -- Circuit generation with computational cost --
 def estimate_sat_cost(c):
     """Estimate computational cost of solving a SAT instance."""
     t=c["t"]
@@ -193,7 +193,7 @@ for step in range(5000):
         with torch.no_grad(): acc=(logits.argmax(-1)==bl).float().mean()
         print(f"  Step {step+1}: loss={loss.item():.4f} acc={acc:.2f} inter={inter:.3f} curv={curv:.3f}")
 
-print("\n[3] Measuring P→NP barrier...")
+print("\n[3] Measuring P->NP barrier...")
 with torch.no_grad():
     ae=F.normalize(emb(cv.to(DEVICE)),dim=-1)
     pe=ae[lb==0]; npe=ae[lb==1]
@@ -214,7 +214,7 @@ with torch.no_grad():
 
 print(f"  Accuracy: {acc*100:.1f}%")
 print(f"  Curvature gap: {gap:.1f}°")
-print(f"  P→NP barrier: {barrier:.4f}")
+print(f"  P->NP barrier: {barrier:.4f}")
 print(f"  P self-projection: {sum(p_self)/len(p_self):.3f}")
 print(f"  NP self-projection: {sum(np_self)/len(np_self):.3f}")
 print(f"  Barrier quality: {'STRONG' if barrier<0.5 else 'MODERATE' if barrier<0.8 else 'WEAK'}")

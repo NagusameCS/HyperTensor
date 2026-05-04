@@ -61,4 +61,4 @@ print(f"  SmolLM2 k=512: GD=0.014, 13/30 (43.3%)")
 if gd_mean < 0.05:
     print("  SHARED SCAFFOLD CONFIRMED at 3x scale!")
 else:
-    print(f"  GD={gd_mean:.4f} — scaffold may not hold at this scale")
+    print(f"  GD={gd_mean:.4f} --- scaffold may not hold at this scale")

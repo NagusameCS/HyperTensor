@@ -1,11 +1,11 @@
-/* ─────────────────────────────────────────────────────────
+/* ---------------------------------------------------------
    reader.css, shared theme + Kindle-style reader controls
    for the HyperTensor research site.
    Loaded AFTER each paper's inline <style> so the
-   :root[data-…] selectors win on specificity.
-   ───────────────────────────────────────────────────────── */
+   :root[data-...] selectors win on specificity.
+   --------------------------------------------------------- */
 
-/* ─── Dark theme ─── */
+/* --- Dark theme --- */
 :root[data-theme="dark"] {
   --bg:        #0f1115;
   --bg-soft:   #161a21;
@@ -29,7 +29,7 @@
 :root[data-theme="dark"] mjx-container { color: var(--text) !important; }
 :root[data-theme="dark"] mjx-container svg { color: var(--text) !important; }
 
-/* ─── Sepia / paper theme ─── */
+/* --- Sepia / paper theme --- */
 :root[data-theme="sepia"] {
   --bg:        #f4ecd8;
   --bg-soft:   #ebe2cb;
@@ -48,7 +48,7 @@
 }
 :root[data-theme="sepia"] nav { background: rgba(244,236,216,0.92) !important; }
 
-/* ─── Font size (Kindle-style steps) ─── */
+/* --- Font size (Kindle-style steps) --- */
 :root[data-fontsize="xs"] { font-size: 14px; }
 :root[data-fontsize="s"]  { font-size: 15.5px; }
 :root[data-fontsize="m"]  { font-size: 17px; }      /* default */
@@ -56,23 +56,23 @@
 :root[data-fontsize="xl"] { font-size: 21px; }
 :root[data-fontsize="xxl"]{ font-size: 23px; }
 
-/* ─── Line height ─── */
+/* --- Line height --- */
 :root[data-lineheight="tight"]  body { line-height: 1.5; }
 :root[data-lineheight="normal"] body { line-height: 1.75; } /* default */
 :root[data-lineheight="loose"]  body { line-height: 2.0; }
 
-/* ─── Column width ─── */
+/* --- Column width --- */
 :root[data-width="narrow"] { --max-w: 640px; }
 :root[data-width="normal"] { --max-w: 780px; }   /* default */
 :root[data-width="wide"]   { --max-w: 920px; }
 :root[data-width="full"]   { --max-w: 1180px; }
 
-/* ─── Font family ─── */
+/* --- Font family --- */
 :root[data-font="sans"]   body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 :root[data-font="serif"]  body { font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', serif; }
 :root[data-font="mono"]   body { font-family: 'IBM Plex Mono', 'Consolas', 'Menlo', monospace; }
 
-/* ─── Reader controls panel ─── */
+/* --- Reader controls panel --- */
 .reader-toggle {
   position: fixed;
   right: 1.1rem;
@@ -148,7 +148,7 @@
   letter-spacing: 0.02em;
 }
 
-/* ─── Print / Save-as-PDF stylesheet ───────────────────
+/* --- Print / Save-as-PDF stylesheet -------------------
    Targets the browser's built-in "Save as PDF" exporter. Goal: a
    one-column, A4-friendly document that ignores all the on-screen
    chrome (nav, reader toggles, hover panels) and never lets a table
@@ -264,7 +264,7 @@
 
   p, li { font-size: 10.5pt !important; line-height: 1.5 !important; orphans: 3; widows: 3; }
 
-  /* Abstract box → quiet bordered block */
+  /* Abstract box -> quiet bordered block */
   .abstract-box {
     background: #fafafa !important;
     border: 1px solid #aaa !important;
@@ -405,7 +405,7 @@
   .thread-tag { color: #000 !important; }
 }
 
-/* ─── Dark-mode visibility patches ──────────────────────
+/* --- Dark-mode visibility patches ----------------------
    Several inline styles in older paper HTML hard-code light colours.
    These rules force them to follow the theme variables so dark mode
    actually renders content (was: black-on-dark code, light-yellow
@@ -433,10 +433,10 @@
 :root[data-theme="dark"] hr { border-color: var(--border); }
 :root[data-theme="dark"] strong { color: var(--text); }
 
-/* ─── Tables: avoid horizontal scroll bars by default ────
+/* --- Tables: avoid horizontal scroll bars by default ----
    On wide screens, allow the table to break out of the column to use
    the full container width before triggering scroll. On narrow screens,
-   tighten font and padding so 6–7-column tables still fit. */
+   tighten font and padding so 6--7-column tables still fit. */
 .table-wrap {
   margin-left: calc((var(--max-w) - 100%) / -2);
   margin-right: calc((var(--max-w) - 100%) / -2);
@@ -454,7 +454,7 @@
 }
 .table-wrap { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
-/* ─── Repo-path link style ─────────────────────────────
+/* --- Repo-path link style -----------------------------
    Anchors marked .repo-link are paths into the source tree. They
    render in mono and use a subtle underline rather than blue link
    colour, so they read as paths and not as web links. */
@@ -472,11 +472,11 @@ a.repo-link:hover {
   color: var(--accent);
 }
 
-/* ─── Term tooltip ─────────────────────────────────────
+/* --- Term tooltip -------------------------------------
    <a class="term" href="https://en.wikipedia.org/...">word</a>
    for external definitions; on hover, dotted underline + the title
    attribute is used as the tooltip (browser native). For in-house
-   terms, use <span class="term defined" data-def="…">word</span>
+   terms, use <span class="term defined" data-def="...">word</span>
    with a custom hover bubble. */
 a.term, a.term:visited {
   color: inherit;
@@ -515,7 +515,7 @@ a.term:hover { border-bottom-color: var(--accent); color: var(--accent); }
 @media (max-width: 700px) { .term.defined::after { display: none; } }
 
 
-/* ─── Universal nav layout fix ─────────────────────────
+/* --- Universal nav layout fix -------------------------
    Older paper pages (2, 3, 4, 00) ship an inline 
 av { display:flex }
    with no flex-wrap and no responsive break, so the link list overflows

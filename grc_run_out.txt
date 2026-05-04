@@ -51,7 +51,7 @@
   Total time    : 1 ms
 [AXIOM-BETA-3] ======================================
 [AXIOM-BETA-3] Report: axiom_beta_report.json
-[AXEX-COMPRESS] Note: rank 1536 is large for dim=4096 (38% of min_mn) — first-run compression will be slow; cached for subsequent runs.
+[AXEX-COMPRESS] Note: rank 1536 is large for dim=4096 (38% of min_mn) --- first-run compression will be slow; cached for subsequent runs.
 [AXEX-MANIFOLD] Skip-O mode: O_proj preserved at full rank (Q/K/V compressed only)
 [AXEX-MANIFOLD] Weight-PCA mode: Pt = top-k eigenvectors of K=Σ W^T W (maximises weight energy, no calib data needed)
 [AXEX-MANIFOLD] Attention-only mode: Q/K/V/O compressed, FFN preserved (near-lossless accuracy)

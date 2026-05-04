@@ -44,7 +44,7 @@ from grc_distill import (
 def per_matrix_svd(W: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
     """Return (W_proj, P) where P is the top-k right singular vectors of W."""
     U, S, Vt = np.linalg.svd(W, full_matrices=False)
-    P = Vt[:k, :].T  # (d, k) — top-k right singular vectors
+    P = Vt[:k, :].T  # (d, k) --- top-k right singular vectors
     W_proj = W @ P @ P.T
     return W_proj, P
 

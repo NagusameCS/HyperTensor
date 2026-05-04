@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-STREAMLINED PURE DATA BUILDER — Single script for both Math and Language.
+STREAMLINED PURE DATA BUILDER --- Single script for both Math and Language.
 
 Strategy:
   - Use CONTINUED PRETRAINING from SmolLM2-135M base (shared init guaranteed)
@@ -25,7 +25,7 @@ from pathlib import Path
 # ===========================================================================
 
 MATH_EXCLUDE = [
-    # Natural language markers — MUST NOT appear in math corpus
+    # Natural language markers --- MUST NOT appear in math corpus
     r"(?i)\b(once upon a time)\b",
     r"(?i)\b(chapter\s+\d+)\b",
     r"(?i)\b(she\s+said|he\s+said|they\s+said)\b",
@@ -51,7 +51,7 @@ MATH_INCLUDE = [
 # ===========================================================================
 
 LANG_EXCLUDE = [
-    # Math/STEM markers — MUST NOT appear in language corpus
+    # Math/STEM markers --- MUST NOT appear in language corpus
     r"\\begin\{", r"\\end\{", r"\\frac\{", r"\\sqrt\{",
     r"\\sum", r"\\int", r"\\alpha", r"\\beta", r"\\infty",
     r"\$\$", r"\$[^$]+\$", r"\\\[", r"\\\]",
@@ -93,7 +93,7 @@ def filter_language(text: str) -> bool:
     for pat in LANG_EXCLUDE:
         if re.search(pat, text):
             return False
-    # Check digit ratio — too many digits = math/STEM
+    # Check digit ratio --- too many digits = math/STEM
     digits = len(re.findall(r'\d', text))
     if digits / max(len(text), 1) > 0.03:
         return False
@@ -252,7 +252,7 @@ def build_language_corpus() -> list[str]:
     
     all_samples = []
     
-    # 1. WikiText-103 — reliable, works with new datasets
+    # 1. WikiText-103 --- reliable, works with new datasets
     print("\n[1] WikiText-103...")
     wiki = load_hf_dataset("wikitext", "wikitext-103-raw-v1", 
                            streaming=False, max_samples=80000)
@@ -260,7 +260,7 @@ def build_language_corpus() -> list[str]:
     all_samples.extend(lang_wiki)
     print(f"  WikiText: {len(lang_wiki):,} kept after filtering")
     
-    # 2. FineWeb — modern clean web text in Parquet format
+    # 2. FineWeb --- modern clean web text in Parquet format
     print("\n[2] FineWeb (CC-MAIN-2024-10 sample)...")
     try:
         from datasets import load_dataset
@@ -286,7 +286,7 @@ def build_language_corpus() -> list[str]:
         lang_more = [s for s in more_wiki if filter_language(s) and s not in set(all_samples)]
         all_samples.extend(lang_more[:30000])
     
-    # 3. OpenWebText2 — if available
+    # 3. OpenWebText2 --- if available
     print("\n[3] OpenWebText2...")
     try:
         owt = load_hf_dataset("the_pile_openwebtext2", max_samples=30000)

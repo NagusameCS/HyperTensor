@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MASTER EXPERIMENT PLAN — Prove every unproven prediction across HyperTensor Papers I-X.
+MASTER EXPERIMENT PLAN --- Prove every unproven prediction across HyperTensor Papers I-X.
 
 STATUS LEGEND: [PENDING] = unproven, [RUNNING] = in progress, [DONE] = measured
 """
@@ -131,7 +131,7 @@ EXPERIMENTS = {
         "paper": "Paper VIII (H)",
         "claim": "Hybrid GTC+RAG combines scalability with precision",
         "status": "PENDING",
-        "experiment": "Implement and benchmark hybrid: FAISS narrows → GTC refines",
+        "experiment": "Implement and benchmark hybrid: FAISS narrows -> GTC refines",
         "metric": "Precision@k vs latency trade-off",
         "pass": "Hybrid Pareto-dominates both pure approaches",
         "requires": ["Results from H1"],
@@ -213,7 +213,7 @@ EXPERIMENTS = {
         "paper": "Paper X (J)",
         "claim": "Cross-model splicing with shared-init dedicated models is viable",
         "status": "RUNNING",
-        "experiment": "Train pure math + language models → CECI splice at k=128",
+        "experiment": "Train pure math + language models -> CECI splice at k=128",
         "metric": "GD, overlap, ρ_CECI per layer",
         "pass": "≥30% layers viable (GD<0.90, ρ>0.30)",
         "requires": ["Model M (training)", "Model L (queued)", "ceci_cross_model.py"],

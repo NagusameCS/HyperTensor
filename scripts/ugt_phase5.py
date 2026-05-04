@@ -15,7 +15,7 @@ Redesigned from Phase 1-4 failures. Key changes:
    
 3. Zone competition: soft winner-take-all per token
    - Each token position: which zone predicts it best?
-   - Winning zone gets more gradient → specializes
+   - Winning zone gets more gradient -> specializes
    - Entropy bonus prevents one zone from dominating
    
 4. Mixed training data:
@@ -45,9 +45,9 @@ OUT.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ugt_infrastructure import TOPLoss, UGTAdapter, TOPMonitor
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Task-specific training data
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 SYNTAX_TEMPLATES = [
     "The {adj} {noun} {verb} the {adj} {noun}.",
@@ -124,7 +124,7 @@ def build_task_dataset(tokenizer, n_samples=2000):
         example = random.choice(REASONING_EXAMPLES)
         samples.append({"text": example, "task": "reasoning"})
     
-    # General text (10%) — from built-in knowledge
+    # General text (10%) --- from built-in knowledge
     n_general = n_samples - len(samples)
     general_texts = [
         "The history of civilization spans thousands of years of human development.",
@@ -173,7 +173,7 @@ def main():
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # ──── 1. Model ────
+    # ---- 1. Model ----
     if args.resume:
         print(f"\n[1] Resuming from {args.resume}...")
         model = AutoModelForCausalLM.from_pretrained(args.resume, torch_dtype=torch.float32)
@@ -196,7 +196,7 @@ def main():
     print(f"    Params: {n_params/1e6:.1f}M")
     print(f"    Vocab size: {model.config.vocab_size}")
     
-    # ──── 2. UGT Adapter ────
+    # ---- 2. UGT Adapter ----
     print(f"\n[2] Wrapping with UGTAdapter v2 (k={args.k}, multi-head)...")
     ugt = UGTAdapter(
         model, k=args.k, zones=zones,
@@ -224,7 +224,7 @@ def main():
     for k, v in init_ov.items():
         print(f"      {k}: {v:.6f}")
     
-    # ──── 3. Training data ────
+    # ---- 3. Training data ----
     print("\n[3] Building task-specific training data...")
     task_samples = build_task_dataset(tokenizer, n_samples=2000 if args.test else 5000)
     task_counts = {}
@@ -248,7 +248,7 @@ def main():
         fw_texts = []
         print(f"    FineWeb-Edu unavailable, using task data only")
     
-    # ──── 3.5 Phase A: Basis-only pre-training ────
+    # ---- 3.5 Phase A: Basis-only pre-training ----
     if args.basis_only_steps > 0:
         print(f"\n[3.5] Phase A: Basis-only pre-training ({args.basis_only_steps} steps)...")
         print(f"    Freezing model weights, training only basis + zone heads")
@@ -323,7 +323,7 @@ def main():
                 purity = top_fn_strong.purity_score(ugt.taxonomic_basis.data)
                 ov_str = " ".join(f"{v:.4f}" for v in overlaps.values())
                 zu_str = " ".join(f"{v:.3f}" for v in zone_usage.detach().tolist())
-                healthy_mark = "✓ HEALTHY" if healthy else "✗"
+                healthy_mark = "[ok] HEALTHY" if healthy else "[fail]"
                 print(f"    Basis step {bs+1:4d}: purity={purity:.4f}, ov=[{ov_str}] {healthy_mark}, zu=[{zu_str}]")
         
         # Unfreeze model for full training
@@ -333,7 +333,7 @@ def main():
         print(f"    Phase A complete. Overlap established.")
         print(f"    Final basis purity: {top_fn_strong.purity_score(ugt.taxonomic_basis.data):.4f}")
     
-    # ──── 4. Training loop ────
+    # ---- 4. Training loop ----
     optimizer = torch.optim.AdamW(ugt.parameters(), lr=args.lr, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.steps)
     monitor = TOPMonitor()
@@ -373,7 +373,7 @@ def main():
                 ugt.taxonomic_basis.data = ugt.taxonomic_basis.data / (
                     torch.norm(ugt.taxonomic_basis.data, dim=0, keepdim=True) + 1e-10)
         
-        # ──── Logging ────
+        # ---- Logging ----
         if (step + 1) % args.eval_every == 0:
             purity = top_fn.purity_score(ugt.taxonomic_basis.data)
             _, overlaps, healthy = top_fn(ugt.taxonomic_basis.data)
@@ -388,7 +388,7 @@ def main():
             
             ov_str = " ".join(f"{v:.4f}" for v in overlaps.values())
             zu_str = " ".join(f"{v:.3f}" for v in zone_usage.values()) if zone_usage else "N/A"
-            healthy_mark = "✓" if healthy else "✗"
+            healthy_mark = "[ok]" if healthy else "[fail]"
             print(f"  Step {step+1:5d}/{args.steps}: loss={avg_loss:.4f}, "
                   f"purity={purity:.4f}, ov=[{ov_str}] {healthy_mark}")
             if zone_usage:
@@ -396,7 +396,7 @@ def main():
             print(f"    {elapsed:.0f}s, lr={scheduler.get_last_lr()[0]:.2e}")
             total_loss = 0.0
         
-        # ──── Checkpoint ────
+        # ---- Checkpoint ----
         if (step + 1) % args.save_every == 0:
             ckpt_dir = OUT / f"checkpoint-{step+1}"
             ckpt_dir.mkdir(exist_ok=True)
@@ -410,7 +410,7 @@ def main():
             }, ckpt_dir / "zone_heads.pt")
             print(f"  Saved checkpoint at step {step+1}")
     
-    # ──── 5. Final save ────
+    # ---- 5. Final save ----
     elapsed = time.time() - t0
     final_purity = top_fn.purity_score(ugt.taxonomic_basis.data)
     _, final_ov, final_healthy = top_fn(ugt.taxonomic_basis.data)
@@ -437,7 +437,7 @@ def main():
     print(f"    Monitor: {OUT / 'training_monitor.json'}")
     print(f"    Model: {final_dir}")
     
-    # ──── 6. Quick zone ablation test ────
+    # ---- 6. Quick zone ablation test ----
     print(f"\n[6] Zone ablation test...")
     test_prompts = [
         "The capital of France is",

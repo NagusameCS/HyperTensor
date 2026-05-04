@@ -18,7 +18,7 @@ print("=" * 60)
 print("  BILATERAL UGT HOT-SWAP DEMO")
 print("=" * 60)
 
-# ── Load models ──
+# -- Load models --
 print("\n[1/6] Loading models...")
 donor_path = "/home/ubuntu/benchmarks/ugt_phase5/final"
 donor = AutoModelForCausalLM.from_pretrained(donor_path, torch_dtype=torch.float16, device_map=DEVICE, local_files_only=True)
@@ -32,7 +32,7 @@ print(f"  Donor: UGT Phase 5 (k={basis.shape[1]})")
 print(f"  Recipient: SmolLM2-135M base (untrained for UGT)")
 print(f"  Taxonomic basis: {basis.shape}")
 
-# ── Baseline PPL (pre-training) ──
+# -- Baseline PPL (pre-training) --
 print("\n[2/6] Measuring baseline PPL...")
 test_texts = [
     "The capital of France is Paris, a city known for its",
@@ -58,7 +58,7 @@ baseline_ppl_recipient = measure_ppl(recipient, test_texts)
 print(f"  Donor PPL (cross-entropy):    {baseline_ppl_donor:.4f}")
 print(f"  Recipient PPL (cross-entropy): {baseline_ppl_recipient:.4f}")
 
-# ── Phase A UGT Training on Recipient ──
+# -- Phase A UGT Training on Recipient --
 print(f"\n[3/6] Phase A UGT training ({STEPS} steps)...")
 
 # Training data: mixed domain sentences
@@ -146,7 +146,7 @@ for step in range(STEPS):
     if (step + 1) % 50 == 0:
         print(f"  Step {step+1:>4d}/{STEPS}: loss={loss.item():.6f}  basis={basis_loss.item():.4f}  top={top_loss.item():.6f}")
 
-# ── Align recipient to UGT basis ──
+# -- Align recipient to UGT basis --
 print("\n[4/6] Aligning recipient to UGT basis...")
 # Orthogonalize the learned basis via QR
 Q, R = torch.linalg.qr(basis_current.float())
@@ -164,8 +164,8 @@ for li in range(n_layers):
         if hasattr(layer.self_attn, name):
             w = getattr(layer.self_attn, name).weight.data
             w_float = w.float()
-            # q/k/v: [n_heads*head_dim, d_model] — project input side (dim=1)
-            # o_proj: [d_model, n_heads*head_dim] — project output side (dim=0)
+            # q/k/v: [n_heads*head_dim, d_model] --- project input side (dim=1)
+            # o_proj: [d_model, n_heads*head_dim] --- project output side (dim=0)
             if w_float.shape[1] == D_MODEL:  # input projection: [*, d_model]
                 w_aligned = w_float @ P_align.float()
             elif w_float.shape[0] == D_MODEL:  # output projection: [d_model, *]
@@ -190,7 +190,7 @@ recipient_ppl = measure_ppl(recipient, test_texts)
 print(f"  Recipient PPL after alignment: {recipient_ppl:.4f}")
 print(f"  PPL change: {recipient_ppl - baseline_ppl_recipient:+.4f}")
 
-# ── Hot-Swap Test ──
+# -- Hot-Swap Test --
 print("\n[5/6] Hot-swap attention heads between donor and recipient...")
 
 # Copy original weights for recovery
@@ -255,7 +255,7 @@ for layer_idx in swap_layers:
     success = "PASS" if delta_donor < 0.5 else "FAIL"
     print(f"  Layer {layer_idx:>2d}: donor Δ={delta_donor:+.4f} recip Δ={delta_recipient:+.4f} [{success}]")
 
-# ── Save results ──
+# -- Save results --
 print("\n[6/6] Saving results...")
 output = {
     "config": {

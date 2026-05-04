@@ -5,8 +5,8 @@ gtc/_phase_io.py
 Tiny loader for the Phase-1 / Phase-3 JSON exports under
 ``legacy/axiom_vis/<model>/``.
 
-We deliberately keep this module minimal — no pandas, no torch, just numpy +
-stdlib — so that the GTC prototype can run on the same `.venv` already in use
+We deliberately keep this module minimal --- no pandas, no torch, just numpy +
+stdlib --- so that the GTC prototype can run on the same `.venv` already in use
 by `scripts/analysis/`.
 """
 from __future__ import annotations

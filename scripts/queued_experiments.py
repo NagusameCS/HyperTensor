@@ -77,7 +77,7 @@ def main():
     target = sys.argv[1] if len(sys.argv) > 1 else "local"
     
     print("=" * 70)
-    print(f"QUEUED EXPERIMENT RUNNER — target: {target}")
+    print(f"QUEUED EXPERIMENT RUNNER --- target: {target}")
     print(f"  {len(QUEUE)} experiments queued")
     print("=" * 70)
     
@@ -89,11 +89,11 @@ def main():
         print(f"  ETA: ~{exp['timeout_min']} min")
         
         if target == "ec2" and exp['needs_ec2']:
-            print(f"  → Queued for EC2 execution")
+            print(f"  -> Queued for EC2 execution")
         elif target == "local" and not exp['needs_ec2']:
-            print(f"  → Ready for local execution (GPU free?)")
+            print(f"  -> Ready for local execution (GPU free?)")
         elif target == "local" and exp['needs_ec2']:
-            print(f"   Needs EC2 — skipped for local")
+            print(f"   Needs EC2 --- skipped for local")
     
     # Save queue
     out = Path("benchmarks/queued_experiments.json")

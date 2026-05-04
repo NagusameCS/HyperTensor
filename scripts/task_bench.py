@@ -24,9 +24,9 @@ Usage:
     --benchmark all --ranks 256,512,1024 --n-shot 5
 
 Dataset setup:
-  data/mmlu/          ← MMLU .csv files by subject (from Hendrycks et al.)
-  data/gsm8k_test.jsonl ← GSM8K test set
-  data/humaneval.jsonl  ← HumanEval problems
+  data/mmlu/          <- MMLU .csv files by subject (from Hendrycks et al.)
+  data/gsm8k_test.jsonl <- GSM8K test set
+  data/humaneval.jsonl  <- HumanEval problems
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def run_prompt(exe: Path, model: Path, prompt: str, k: Optional[int],
                n_tokens: int = 256, temp: float = 0.0,
                ctx_size: int = 2048) -> str:
     """Run a single prompt through the model and return generated text.
-    Uses plain prompt format — the instruct model handles plain
+    Uses plain prompt format --- the instruct model handles plain
     Question/Answer formatting correctly without ChatML tokens."""
     args = [
         str(exe), str(model),

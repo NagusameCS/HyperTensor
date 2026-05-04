@@ -5,7 +5,7 @@ PAPER IX INFRASTRUCTURE: Cross-GPU Super-Baseline Benchmark Runner.
 Systematically measures GRC kernel throughput across different GPU configurations
 to validate Paper IX's cross-GPU super-baseline predictions.
 
-The key claim: the 106% throughput anomaly on RTX 4070 Laptop is NOT a fluke —
+The key claim: the 106% throughput anomaly on RTX 4070 Laptop is NOT a fluke ---
 it transfers universally to other GPU types with k* determined by L2 cache size.
 
 Usage:
@@ -72,7 +72,7 @@ class GRCKernelSimulator:
         self.L = n_layers
         
         if not self.gpu:
-            # Generic GPU — use conservative estimates
+            # Generic GPU --- use conservative estimates
             self.gpu = {"L2_MB": 24, "BW_GBs": 200, "TFLOPS_FP16": 20,
                        "predicted_k_star": 512, "predicted_ratio": 1.02}
     
@@ -170,7 +170,7 @@ class GRCKernelSimulator:
 def analyze_all_gpus() -> dict:
     """Run Paper IX cross-GPU analysis for all GPU types."""
     print("=" * 70)
-    print("PAPER IX — Cross-GPU Super-Baseline Analysis")
+    print("PAPER IX --- Cross-GPU Super-Baseline Analysis")
     print("=" * 70)
     
     results = {}

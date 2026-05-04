@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CECI Compatibility Database — systematically test model pairs for splice viability.
+CECI Compatibility Database --- systematically test model pairs for splice viability.
 Builds a structured database of compatible pairs for Paper X.
 
 Tests: SmolLM2 base+instruct, Qwen base+instruct, cross-family pairs.
@@ -109,7 +109,7 @@ def main():
         ("HuggingFaceTB/SmolLM2-135M", "HuggingFaceTB/SmolLM2-135M-Instruct", "same_arch_diff_stage"),
         ("HuggingFaceTB/SmolLM2-360M", "HuggingFaceTB/SmolLM2-360M-Instruct", "same_arch_diff_stage"),
         
-        # Same family, different sized (NOT compatible — different d/layers)
+        # Same family, different sized (NOT compatible --- different d/layers)
         # ("HuggingFaceTB/SmolLM2-135M", "HuggingFaceTB/SmolLM2-360M", "diff_size_same_family"),
         
         # Within-model (same model vs itself) as control

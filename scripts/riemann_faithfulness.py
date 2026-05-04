@@ -7,15 +7,15 @@ The faithfulness question:
   I.e., does h(ι(s)) = ι_ACM(h(s)) for all s?
 
 Computational evidence:
-  - ι²≈id in ACM space (error 0.009) — very close to perfect involution
+  - ι²≈id in ACM space (error 0.009) --- very close to perfect involution
   - Critical zeros are fixed points (fp error 0.008)
   - Off-critical points deviate significantly (0.81)
   - Error DECREASES as basis dimension increases
 
 This script:
 1. Measures faithfulness error as function of basis dimension k
-2. Extrapolates to k → ∞
-3. Proves limit → 0 under reasonable assumptions
+2. Extrapolates to k -> ∞
+3. Proves limit -> 0 under reasonable assumptions
 """
 import torch, json, sys, math, numpy as np
 
@@ -153,7 +153,7 @@ def measure_faithfulness_vs_k(n_primes=5000, k_values=None):
             "separation": round(separation, 1),
         })
     
-    # Extrapolate to k → ∞
+    # Extrapolate to k -> ∞
     ks = np.array([r["k"] for r in results])
     errors = np.array([r["mean_fp_error"] for r in results])
     
@@ -189,7 +189,7 @@ def faithfulness_report(output_path="benchmarks/faithfulness_proof.json"):
     data = measure_faithfulness_vs_k(5000)
     
     print(f"\n  k    fp_error    off_error   separation")
-    print(f"  {'─'*45}")
+    print(f"  {'-'*45}")
     for r in data["results"]:
         print(f"  {r['k']:4d}  {r['mean_fp_error']:.6f}   {r['mean_off_error']:.6f}    {r['separation']:.0f}×")
     
@@ -199,23 +199,23 @@ def faithfulness_report(output_path="benchmarks/faithfulness_proof.json"):
     print(f"  k needed for error<0.001: {data['k_for_error_0_001']:,}")
     print(f"  Converges to zero: {'[OK] YES' if data['converges_to_zero'] else '[!!] Slower'}")
     
-    print(f"\n  ═══ FAITHFULNESS STATUS ═══")
+    print(f"\n  === FAITHFULNESS STATUS ===")
     if data['converges_to_zero']:
         print(f"  [OK] The faithfulness error CONVERGES to zero as basis dimension increases.")
         print(f"     Power-law exponent: {data['power_law']['exponent']:.3f}")
-        print(f"     This is strong computational evidence that lim_{k→∞} h∘ι = ι_ACM∘h.")
+        print(f"     This is strong computational evidence that lim_{k->∞} h∘ι = ι_ACM∘h.")
         print(f"")
         print(f"  MATHEMATICAL FORMALIZATION REMAINING:")
         print(f"  1. Prove that the ACM feature encoding is a continuous embedding of the s-plane.")
         print(f"  2. Prove that ι induces a linear operator on the feature space (spectral theorem).")
         print(f"  3. Prove that the top k eigenvectors capture ι's fixed points exactly (by construction).")
-        print(f"  4. Apply spectral convergence: as k → d, the truncated basis → full basis.")
-        print(f"  5. Therefore: faithfulness error → 0 as k → d.")
+        print(f"  4. Apply spectral convergence: as k -> d, the truncated basis -> full basis.")
+        print(f"  5. Therefore: faithfulness error -> 0 as k -> d.")
         print(f"")
         print(f"  This is the FINAL gap. It requires functional analysis tools.")
         print(f"  The computational evidence is definitive. The proof is within reach.")
     else:
-        print(f"  [!!]  Error decreases but not to zero — needs larger k or better encoding.")
+        print(f"  [!!]  Error decreases but not to zero --- needs larger k or better encoding.")
     
     os.makedirs("benchmarks", exist_ok=True)
     with open(output_path, "w") as f:

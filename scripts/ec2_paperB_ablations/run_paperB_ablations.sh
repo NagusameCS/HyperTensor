@@ -18,13 +18,13 @@
 #   SKIP_NCU       set to 1 to skip optional NCU (default 1; NCU not informative for PPL)
 #
 # Arms:
-#   A. baseline               — no compression
-#   B. compress (rank-1024)   — --axex-compress + weight-PCA + attn-only + skip-O
-#   C. compress + gauge       — B + --axex-gauge
-#   D. compress + online      — B + --axex-online-basis (signal: ONB rejection counts;
+#   A. baseline               --- no compression
+#   B. compress (rank-1024)   --- --axex-compress + weight-PCA + attn-only + skip-O
+#   C. compress + gauge       --- B + --axex-gauge
+#   D. compress + online      --- B + --axex-online-basis (signal: ONB rejection counts;
 #                                speculative-decode is required for the trigger to fire,
 #                                so this arm runs PPL with --ott-speculative)
-#   E. compress + spec only   — B + --ott-speculative (control for arm D)
+#   E. compress + spec only   --- B + --ott-speculative (control for arm D)
 #
 # Output artifacts in $OUT_DIR:
 #   meta.json

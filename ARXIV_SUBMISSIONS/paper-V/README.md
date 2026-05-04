@@ -1,20 +1,20 @@
-# Paper E — Light Distillation for Calibration-Permitted GRC
+# Paper E --- Light Distillation for Calibration-Permitted GRC
 
-**Status:** Scaffold (v0.2). The Phase 1 reference implementation is
+Status: Scaffold (v0.2). The Phase 1 reference implementation is
 operational; the Phase 2 PyTorch runner is checked-in as a scaffold and
 has not yet executed. Empirical numbers in `sec:status` are predictions,
 not measurements. The paper is published in this scaffolded form so the
 protocol can be reviewed before the run, not after.
 
-**Headline target.** A 50–60% closure of the Paper A perplexity gap
-(measured: +13.30% PPL at k=1536, 6.79 → 7.69 on WikiText-2) using a
+Headline target. A 50--60% closure of the Paper A perplexity gap
+(measured: +13.30% PPL at k=1536, 6.79 -> 7.69 on WikiText-2) using a
 single opt-in distillation pass against a frozen teacher, at unchanged
 runtime structure (kernel-fusion path of Paper A is preserved).
 
 ## Relationship to Paper A
 
 This paper is a strict extension of Paper A. Disabling distillation
-reproduces Paper A’s GRC numbers exactly. The default merge strategy
+reproduces Paper A's GRC numbers exactly. The default merge strategy
 (fused base + side-LoRA, see Sec. `sec:fusion-fit`) preserves the
 +6.27% throughput gain at k=1024.
 
@@ -23,7 +23,7 @@ reproduces Paper A’s GRC numbers exactly. The default merge strategy
 | Item | Section |
 |---|---|
 | Method (Phase 1: GRC projection) | §2.1 |
-| Method (Phase 2: teacher–student LoRA) | §2.2 |
+| Method (Phase 2: teacher--student LoRA) | §2.2 |
 | Method (Phase 3: merge and re-quantise) | §2.3 |
 | First-order PPL gap-closure bound | §3 |
 | Fusion-path preservation | §4 |
@@ -62,7 +62,7 @@ make submit-E   # produces ../dist/paper-E.tar.gz with .bbl and .sty
 
 ## Reproduction
 
-CPU-only Phase 1 reference (60–120 s on a Ryzen 9 7940HS):
+CPU-only Phase 1 reference (60--120 s on a Ryzen 9 7940HS):
 
 ```powershell
 python scripts/grc_distill.py `

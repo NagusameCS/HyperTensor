@@ -1,6 +1,6 @@
-# Paper D — Organic Training Theory and Geodesic Trajectory Caching
+# Paper D --- Organic Training Theory and Geodesic Trajectory Caching
 
-**Source:** web Paper 4 (Organic Training Theory + GTC theory) merged with
+Source: web Paper 4 (Organic Training Theory + GTC theory) merged with
 web Paper 5 (GTC/OTT runtime empirical anchor). Two-part structure: Part I
 formalises OTT/GTC; Part II reports measurements on three open-weight models.
 
@@ -26,7 +26,7 @@ measured-pass with a complete gap analysis for the remainder.
 | Formal addendum (assumption-explicit theorem templates) | §5 |
 | Five open problems (universal vs deployment-scoped) | §6 |
 | Manifold-fit setup from Phase-1 exports | §7 |
-| Coverage table (90.4–91.5%, scale-invariant within $\pm 0.5\%$) | §8 |
+| Coverage table (90.4--91.5%, scale-invariant within $\pm 0.5\%$) | §8 |
 | Batch Jacobi resonance (97$\times$ at $B{=}10$) | §9 |
 | Compressed record store (5.96 KB/record, 30.9 µs/q) | §10 |
 | Density caveat for live decode-step substitution | §10 |

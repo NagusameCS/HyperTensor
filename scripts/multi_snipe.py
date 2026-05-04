@@ -36,7 +36,7 @@ print(f"  Categories: {list(category_coords.keys())}")
 for cat,coords in category_coords.items():
     print(f"  {cat}: {len(coords)} coords")
 
-# ── Measure baseline PPL ──
+# -- Measure baseline PPL --
 def measure_ppl(texts):
     total_loss=0; total_tok=0
     for text in texts:
@@ -73,7 +73,7 @@ baseline_benign_ppl=measure_ppl(benign_texts)
 baseline_harmful_ppl={cat:measure_ppl(texts) for cat,texts in harmful_texts.items()}
 print(f"\n  Baseline benign PPL: {baseline_benign_ppl:.4f}")
 
-# ── Build per-category null-space projectors ──
+# -- Build per-category null-space projectors --
 print("\n[2] Building null-space projectors...")
 snipers={}
 for cat,coords in category_coords.items():
@@ -83,7 +83,7 @@ for cat,coords in category_coords.items():
     P_null=torch.eye(d_model,device=DEVICE)-Q@Q.T
     snipers[cat]=P_null
 
-# ── Apply sniping (one category at a time, measure effect) ──
+# -- Apply sniping (one category at a time, measure effect) --
 print("\n[3] Applying multi-category sniping...")
 # Sniping works by projecting model weights away from behavioral subspaces
 # We apply to the embedding and lm_head layers (lightweight, measurable)
@@ -141,7 +141,7 @@ for cat,P_null in snipers.items():
     spec="SPECIFIC" if specificity>3 else "BROAD" if specificity>1.5 else "INDISCRIMINATE"
     print(f"  {cat:<18}: ΔPPL_target={target_ppl_increase:+.4f} ΔPPL_benign={benign_ppl_increase:+.4f} [{eff}] [{spec}]")
 
-# ── Apply ALL snipes simultaneously ──
+# -- Apply ALL snipes simultaneously --
 print("\n[4] Applying ALL 8 snipes simultaneously...")
 wte_all=orig_wte.float()
 lm_all=orig_lm_head.float()
@@ -175,7 +175,7 @@ print(f"  Unique coords across all categories: {len(all_coords)}")
 print(f"  Post-all-snipe benign PPL: {all_benign_ppl:.4f} (baseline: {baseline_benign_ppl:.4f})")
 print(f"  Benign PPL increase: {all_benign_ppl-baseline_benign_ppl:+.4f}")
 
-# ── Summary ──
+# -- Summary --
 print(f"\n{'='*60}")
 print(f"  MULTI-SNIPE RESULTS")
 print(f"{'='*60}")

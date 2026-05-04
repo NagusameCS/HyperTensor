@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/paper_c/attres_rank_interaction.py  —  Paper C AttnRes  GRC rank sweep
+scripts/paper_c/attres_rank_interaction.py  ---  Paper C AttnRes  GRC rank sweep
 =================================================================================
 The "central empirical unknown" of Paper C §attnres:
 
@@ -8,7 +8,7 @@ The "central empirical unknown" of Paper C §attnres:
   acceptance rate α?
 
   If α drops significantly at lower k, it means the compressed attention
-  manifold diverges from the full-rank verifier's predicted distribution —
+  manifold diverges from the full-rank verifier's predicted distribution ---
   making speculative decode less effective precisely when you most need it
   (on memory-constrained hardware).
 
@@ -24,7 +24,7 @@ Outputs:
   benchmarks/paper_c_attres/
     attres_raw.csv
     attres_summary.json
-    attres_report.md          ← copy-paste into Paper C §attnres
+    attres_report.md          <- copy-paste into Paper C §attnres
 """
 from __future__ import annotations
 
@@ -179,7 +179,7 @@ def main() -> None:
     base_toks  = base_row["mean_tok_s"] if base_row else None
 
     md_lines = [
-        "# Paper C — AttnRes  GRC Rank Interaction",
+        "# Paper C --- AttnRes  GRC Rank Interaction",
         "",
         f"**Model**: {MODEL.name}  ",
         f"**Settings**: thresh={THRESH}, batch={BATCH}, n_tokens={N_TOKENS}, prompts={len(PROMPTS)}, reps={REPS}",
@@ -189,7 +189,7 @@ def main() -> None:
     ]
     for r in sorted(summary_rows, key=lambda x: x["k"] if x["k"] > 0 else 999999):
         label = str(r["k"]) if r["k"] > 0 else "∞"
-        delta_alpha = f"{r['mean_alpha_pct'] - base_alpha:+.2f}" if base_alpha is not None and r["k"] != 0 else "—"
+        delta_alpha = f"{r['mean_alpha_pct'] - base_alpha:+.2f}" if base_alpha is not None and r["k"] != 0 else "---"
         md_lines.append(
             f"| {label} | {r['mean_alpha_pct']:.2f} | ±{r['ci95_alpha_pct']:.2f} "
             f"| {delta_alpha} | {r['mean_tok_s']} | ±{r['ci95_tok_s']} "
@@ -211,9 +211,9 @@ def main() -> None:
             f"({slope_per_1000:+.3f} ppt per 1000 rank units)",
             "",
             "Interpretation:",
-            f"- Slope ≈ 0 → GRC rank does not significantly affect acceptance rate  ",
-            f"- Slope > 0 → higher k (less compression) → higher α (as expected if compressed manifold diverges)  ",
-            f"- Slope < 0 → unexpected, would suggest lower-k manifold is *closer* to verifier",
+            f"- Slope ≈ 0 -> GRC rank does not significantly affect acceptance rate  ",
+            f"- Slope > 0 -> higher k (less compression) -> higher α (as expected if compressed manifold diverges)  ",
+            f"- Slope < 0 -> unexpected, would suggest lower-k manifold is *closer* to verifier",
             "",
         ]
 

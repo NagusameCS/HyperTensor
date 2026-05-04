@@ -1,4 +1,4 @@
-# HyperTensor — Fifteen-Part Framework for Geometric Neural Compression
+# HyperTensor --- Fifteen-Part Framework for Geometric Neural Compression
 
 ## Papers (I-XV)
 
@@ -22,7 +22,7 @@
 
 ## Experiment Registry
 
-30 experiments in `../benchmarks/experiment_registry.json` — 8 verified, 12 scripts built, 10 blueprints.
+30 experiments in `../benchmarks/experiment_registry.json` --- 8 verified, 12 scripts built, 10 blueprints.
 
 ## Build
 
@@ -67,13 +67,13 @@ Or use `make X` for a single paper.
 5. Upload `paper-A.tar.gz` at <https://arxiv.org/submit>.
 
 The convenience target `make submit-A` (etc.) in this folder's `Makefile`
-performs steps 3–4 automatically.
+performs steps 3--4 automatically.
 
 ## arXiv checklist (apply to each paper before upload)
 
 - [ ] `main.pdf` builds cleanly with no overfull-hbox or undefined-reference
       warnings.
-- [ ] `main.bbl` is included in the tarball; `refs.bib` is **not** required.
+- [ ] `main.bbl` is included in the tarball; `refs.bib` is not required.
 - [ ] No `\todo{}` or `\note{}` macros remain.
 - [ ] No TeX comments containing private remarks (run `strip_comments.sh`).
 - [ ] Title, author, abstract match the arXiv submission form.
@@ -100,7 +100,7 @@ the main repository:
 
 ## Versioning
 
-These are **v1** of the arXiv preparation. Each paper's title page records
+These are v1 of the arXiv preparation. Each paper's title page records
 its source-paper revision date. After arXiv assigns identifiers, link them
 back into the project README.
 
@@ -117,8 +117,8 @@ errors out if a prereq is missing rather than fabricating any number.
 | 3 | [`scripts/context_length_sweep.ps1`](../scripts/context_length_sweep.ps1) | Decode tok/s at ctx ∈ {128, 512, 1024, 2048, 4096}, baseline vs. GRC k=1024 | `context_length_sweep.csv`, `context_length_sweep.tex` | Paper A § Results |
 | 4 | [`scripts/benchmark_rank_pareto.ps1`](../scripts/benchmark_rank_pareto.ps1) | Granular rank Pareto at k ∈ {512, 768, 1024, 1280, 1536} | `rank_pareto.csv`, `rank_pareto.tex` | Paper A § Results |
 
-Each generated `.tex` is a single `\begin{tabular}…\end{tabular}` and is
-designed to be wrapped in a `\begin{table}…\end{table}` with a paper-side
+Each generated `.tex` is a single `\begin{tabular}...\end{tabular}` and is
+designed to be wrapped in a `\begin{table}...\end{table}` with a paper-side
 caption, e.g.:
 
 ```latex

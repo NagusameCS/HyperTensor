@@ -113,12 +113,12 @@ if ($LoadOnly -and $rc -ne 0 -and $genLine -and $genLine.Line -match "Generating
 }
 
 if ($rc -ne 0) {
-    Write-Host "[run] ERROR — last 20 lines of stderr:"
+    Write-Host "[run] ERROR --- last 20 lines of stderr:"
     Get-Content $logErr -Tail 20
     exit $rc
 }
 
-Write-Host "[run] OK — last 10 lines of stdout:"
+Write-Host "[run] OK --- last 10 lines of stdout:"
 Get-Content $logOut -Tail 20
 # Extract timing stats if present
 $timingLines = Select-String -Path $logOut -Pattern "tok/s|ms/tok|tokens/s|timing|elapsed|TIMING|Generated|generated" -ErrorAction SilentlyContinue

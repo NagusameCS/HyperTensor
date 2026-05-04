@@ -57,7 +57,7 @@
 
 <#
 .SYNOPSIS
-    Phase 3 Transfer Benchmark — run GRC rank sweep + CI + PPL on any model/hardware
+    Phase 3 Transfer Benchmark --- run GRC rank sweep + CI + PPL on any model/hardware
     and validate against the same gate protocol used for the primary pack.
 
 .DESCRIPTION
@@ -125,7 +125,7 @@ if (-not (Test-Path $Exe)) {
 # Record hardware profile at run time
 $hwFile = Join-Path $packDir "hardware_profile.txt"
 @"
-Phase 3 Transfer — Hardware Profile
+Phase 3 Transfer --- Hardware Profile
 Date    : $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Model   : $Model
 ModelTag: $ModelTag

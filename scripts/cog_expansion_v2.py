@@ -42,7 +42,7 @@ def teh(h):
     pn=torch.norm(Qf@Qf.T@h).item(); tn=torch.norm(h).item()
     return (pn/max(tn,1e-8))*100
 
-# ── Living Manifold ──
+# -- Living Manifold --
 metric=torch.eye(k,device=DEVICE,dtype=torch.float32)
 trajectories=[]
 eta=0.04; delta_novel=0.3
@@ -66,7 +66,7 @@ def expand(h,label):
 def cache(h,label):
     trajectories.append({"proj":to_k(h).cpu(),"label":label,"expanded":False})
 
-# ── Seed knowledge ──
+# -- Seed knowledge --
 seeds=["quantum computing superposition","neural network backpropagation","general relativity spacetime","DNA replication polymerase","carbon cycle photosynthesis",
        "machine learning gradient descent","plate tectonics continental drift","natural selection evolution","electromagnetic spectrum waves","periodic table elements"]
 
@@ -100,7 +100,7 @@ for i,concept in enumerate(novel_inputs):
     if i<12 or action!="CACHED":
         print(f"  [{i+1:>2}] act={act:.1f}% dist={md:.3f} -> {action}")
 
-# ── Phase 3: Query the living manifold ──
+# -- Phase 3: Query the living manifold --
 print(f"\n[4] Phase 3: Query recognition...")
 queries=["How does quantum error correction work?","What detected gravitational waves?",
          "What is CRISPR and how does it edit genes?","Who proved the Poincare conjecture?",
@@ -118,7 +118,7 @@ for q in queries:
     query_results.append({"query":q,"known":not novel,"sim":round(best_sim,3),"match":best_label[:40]})
     print(f"  {'KNOWN' if not novel else 'NEW'}: {q[:45]}... -> {best_label[:35]} (sim={best_sim:.2f})")
 
-# ── Summary ──
+# -- Summary --
 expanded=sum(1 for r in results if r["action"]=="EXPANDED")
 cached=sum(1 for r in results if r["action"]=="CACHED")
 blocked=sum(1 for r in results if r["action"]=="BLOCKED")

@@ -9,7 +9,7 @@ model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16
 d = model.config.hidden_size
 print(f"Loaded. d={d}, layers={model.config.num_hidden_layers}")
 
-results = {"_verification_status": "REAL — measured on RTX 4070 Laptop, May 4 2026",
+results = {"_verification_status": "REAL --- measured on RTX 4070 Laptop, May 4 2026",
            "model": model_id, "d": d, "measurements": []}
 
 for layer_idx in range(min(28, model.config.num_hidden_layers)):

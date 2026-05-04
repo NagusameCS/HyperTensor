@@ -7,9 +7,9 @@ Evolves hidden states via noise-scheduled Christoffel drift.
 Also supports AR-guided hybrid mode to prevent collapse.
 
 Subcommands:
-  relax    — Pure geodesic relaxation (no AR)
-  hybrid   — AR-guided relaxation (prevents collapse)
-  compare  — Compare pure vs hybrid vs standard AR generation
+  relax    --- Pure geodesic relaxation (no AR)
+  hybrid   --- AR-guided relaxation (prevents collapse)
+  compare  --- Compare pure vs hybrid vs standard AR generation
 
 Examples:
   python scripts/organic_generation.py relax --model X --seed "The cat" --n-tokens 20 --iter 100
@@ -57,16 +57,16 @@ def geodesic_drift(h_current: torch.Tensor, embed_normed: torch.Tensor,
     return drift / max(topk.values.shape[-1], 1)
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Pure geodesic relaxation (no AR)
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def pure_relaxation(
     model, tokenizer, seed_text: str, n_tokens: int,
     n_iter: int = 100, noise_scale: float = 0.05,
     temperature: float = 0.8, verbose: bool = False,
 ) -> Dict:
-    """Pure geodesic relaxation — no autoregressive guidance."""
+    """Pure geodesic relaxation --- no autoregressive guidance."""
     device = next(model.parameters()).device
     embed_normed = token_embed_sphere(model)
     gamma = torch.eye(model.config.hidden_size, device=device) * 0.001
@@ -135,9 +135,9 @@ def pure_relaxation(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # AR-guided hybrid relaxation
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def hybrid_relaxation(
     model, tokenizer, seed_text: str, n_tokens: int,
@@ -206,9 +206,9 @@ def hybrid_relaxation(
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Standard AR baseline
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def standard_ar(model, tokenizer, seed_text: str, n_tokens: int,
                 temperature: float = 0.8, do_sample: bool = True) -> Dict:
@@ -236,9 +236,9 @@ def standard_ar(model, tokenizer, seed_text: str, n_tokens: int,
     }
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # CLI
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def cmd_relax(args):
     print(f"Loading {args.model}...")
@@ -252,7 +252,7 @@ def cmd_relax(args):
                               args.iter, args.noise_scale, args.temperature, args.verbose)
     
     print(f"\n  Generated: \"{result['generated'][:120]}\"")
-    print(f"  Delta: {result['initial_delta']:.4f} → {result['final_delta']:.4f}")
+    print(f"  Delta: {result['initial_delta']:.4f} -> {result['final_delta']:.4f}")
     print(f"  Converged: {result['converged']}")
     
     if args.json_out:
@@ -274,7 +274,7 @@ def cmd_hybrid(args):
                                 args.ar_interval, args.verbose)
     
     print(f"\n  Generated: \"{result['generated'][:120]}\"")
-    print(f"  Delta: {result['initial_delta']:.4f} → {result['final_delta']:.4f}")
+    print(f"  Delta: {result['initial_delta']:.4f} -> {result['final_delta']:.4f}")
     
     if args.json_out:
         with open(args.json_out, 'w') as f: json.dump(result, f, indent=2)
@@ -319,7 +319,7 @@ def cmd_compare(args):
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Organic Generation — geodesic relaxation")
+    p = argparse.ArgumentParser(description="Organic Generation --- geodesic relaxation")
     sub = p.add_subparsers(dest='cmd')
     
     rp = sub.add_parser('relax', help='Pure geodesic relaxation')

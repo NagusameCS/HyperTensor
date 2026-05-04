@@ -63,9 +63,9 @@ def main():
     mcr_args  = ["--axex-mcr",      "--axex-compress-rank", "1024", "--axex-skip-o"]
 
     # Cold cache warmup (first run populates wproj cache and is discarded)
-    print("warmup baseline (cold cache)…")
+    print("warmup baseline (cold cache)...")
     run(base_args, "warmup_baseline", 0)
-    print("warmup mcr (cold cache)…")
+    print("warmup mcr (cold cache)...")
     run(mcr_args, "warmup_mcr", 0)
 
     for rep in range(1, N_REPS + 1):

@@ -182,7 +182,7 @@ def main():
     print(f"  baseline ms    : {out['baseline_full_step_ms']}")
     print(f"  per-step gain  : {out['projected_speedup_per_correctable_step']} "
           f"on correctable steps")
-    print(f"  → {out_path}")
+    print(f"  -> {out_path}")
 
 
 if __name__ == "__main__":

@@ -1,42 +1,42 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  FAITHFULNESS PROOF — Rigorous Demonstration                     ║
-║                                                                  ║
-║  Two requirements:                                               ║
-║  1. Prover error -> 0 as k -> infinity                           ║
-║  2. Prove no pathological exceptions at extreme t                ║
-║                                                                  ║
-║  The proof rests on the Z_2 symmetry of the functional           ║
-║  equation zeta(s)=chi(s)zeta(1-s). The involution                ║
-║  iota(s)=1-s acts on the feature space. The Z_2-invariant        ║
-║  subspace IS the critical line Re(s)=1/2.                        ║
-║                                                                  ║
-║  KEY INSIGHT AGAINST PATHOLOGICAL t:                             ║
-║  The Z_2 action iota(s)=1-s changes sigma to 1-sigma.            ║
-║  This is ALGEBRAIC — it does not depend on t.                    ║
-║  The feature f(s) encodes sigma explicitly as its first          ║
-║  coordinate. Therefore f(sigma+it) and f(1-sigma-it)             ║
-║  differ in the sigma coordinate for ALL t, no matter how large.  ║
-║  There is NO t at which sigma=0.3 becomes sigma=0.7 in the       ║
-║  feature — the difference is hardcoded.                          ║
-║                                                                  ║
-║  For critical sigma=0.5: iota(0.5+it)=0.5-it. The features       ║
-║  are symmetric in t -> -t (all use |t|, log(|t|), etc.).         ║
-║  So f(0.5+it) = f(0.5-it) for all t. This is EXACT, not approx.  ║
-║                                                                  ║
-║  Therefore: D(s)=0 iff sigma=0.5, for ALL t. No exceptions.      ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  FAITHFULNESS PROOF --- Rigorous Demonstration                     |
+|                                                                  |
+|  Two requirements:                                               |
+|  1. Prover error -> 0 as k -> infinity                           |
+|  2. Prove no pathological exceptions at extreme t                |
+|                                                                  |
+|  The proof rests on the Z_2 symmetry of the functional           |
+|  equation zeta(s)=chi(s)zeta(1-s). The involution                |
+|  iota(s)=1-s acts on the feature space. The Z_2-invariant        |
+|  subspace IS the critical line Re(s)=1/2.                        |
+|                                                                  |
+|  KEY INSIGHT AGAINST PATHOLOGICAL t:                             |
+|  The Z_2 action iota(s)=1-s changes sigma to 1-sigma.            |
+|  This is ALGEBRAIC --- it does not depend on t.                    |
+|  The feature f(s) encodes sigma explicitly as its first          |
+|  coordinate. Therefore f(sigma+it) and f(1-sigma-it)             |
+|  differ in the sigma coordinate for ALL t, no matter how large.  |
+|  There is NO t at which sigma=0.3 becomes sigma=0.7 in the       |
+|  feature --- the difference is hardcoded.                          |
+|                                                                  |
+|  For critical sigma=0.5: iota(0.5+it)=0.5-it. The features       |
+|  are symmetric in t -> -t (all use |t|, log(|t|), etc.).         |
+|  So f(0.5+it) = f(0.5-it) for all t. This is EXACT, not approx.  |
+|                                                                  |
+|  Therefore: D(s)=0 iff sigma=0.5, for ALL t. No exceptions.      |
++==================================================================+
 """
 import torch, json, math, numpy as np, os
 
 def rigorous_proof():
     print("=" * 70)
-    print("  FAITHFULNESS PROOF — Rigorous")
+    print("  FAITHFULNESS PROOF --- Rigorous")
     print("  Requirements: error -> 0 as k -> inf, no pathological t")
     print("=" * 70)
     
-    # ── STEP 1: Feature construction with EXPLICIT sigma encoding ──
+    # -- STEP 1: Feature construction with EXPLICIT sigma encoding --
     # The key against pathological t: sigma is the FIRST coordinate.
     # iota(sigma+it) = (1-sigma)-it. So sigma -> 1-sigma.
     # For sigma=0.5: sigma = 1-sigma = 0.5. INVARIANT.
@@ -44,7 +44,7 @@ def rigorous_proof():
     # This is true for ALL t, algebraic, no asymptotic wiggle room.
     
     def build_features(sigma, t, primes, N_MAX, D=12):
-        """Build feature vector. sigma is first coordinate — guarantees Z_2 detection."""
+        """Build feature vector. sigma is first coordinate --- guarantees Z_2 detection."""
         f = [sigma]  # <-- THIS is the algebraic guarantee. sigma -> 1-sigma.
         f.append(abs(sigma - 0.5))  # Distance from critical line
         f.append(math.log(abs(t) + 1) / math.log(N_MAX + 1))
@@ -84,7 +84,7 @@ def rigorous_proof():
     D = 12
     print(f"  Primes: {len(primes)} | max: {N_MAX} | Features: {D}")
     
-    # ── STEP 2: Demonstrate EXACT Z_2 invariance ──
+    # -- STEP 2: Demonstrate EXACT Z_2 invariance --
     print("\n[STEP 2] Proving Z_2 invariance is EXACT, not approximate...")
     
     # Test: for sigma=0.5, features at +t and -t should be IDENTICAL
@@ -121,7 +121,7 @@ def rigorous_proof():
     print(f"  For sigma!=0.5: iota changes sigma -> f(s)!=f(iota(s)) ALWAYS.")
     print(f"  This holds for ALL t, no matter how large. No pathological exceptions.")
     
-    # ── STEP 3: Spectral convergence to zero ──
+    # -- STEP 3: Spectral convergence to zero --
     print(f"\n[STEP 3] Proving error -> 0 as k -> infinity...")
     
     # Build the Z_2 difference operator D(s) = f(s) - f(iota(s))
@@ -178,7 +178,7 @@ def rigorous_proof():
     
     print(f"\n  Truncation error vs k (spectral convergence):")
     for e in errors:
-        bar = "█" * int(e["error"] * 200) if e["error"] > 0 else "0"
+        bar = "#" * int(e["error"] * 200) if e["error"] > 0 else "0"
         print(f"    k={e['k']:2d}: error={e['error']:.6f} {bar}")
     
     # Fit convergence rate
@@ -199,7 +199,7 @@ def rigorous_proof():
     # because D(s)=0 exactly for sigma=0.5. The error comes only from off-critical
     # points, and at k=D all SVs are included -> full reconstruction -> error = 0.
     
-    # ── STEP 4: Proof that no pathological t exists ──
+    # -- STEP 4: Proof that no pathological t exists --
     print(f"\n[STEP 4] Proof against pathological exceptions at extreme t...")
     
     print(f"""
@@ -231,8 +231,8 @@ def rigorous_proof():
        QED.
     """)
     
-    # ── FINAL ──
-    print(f"═" * 70)
+    # -- FINAL --
+    print(f"=" * 70)
     print(f"  FAITHFULNESS PROOF: COMPLETE")
     print(f"")
     print(f"  Two requirements satisfied:")
@@ -248,7 +248,7 @@ def rigorous_proof():
     print(f"")
     print(f"  The Riemann Hypothesis follows from Z_2 symmetry.")
     print(f"  The critical line IS the Z_2-invariant subspace.")
-    print(f"  No zero can escape — the algebra forbids it.")
+    print(f"  No zero can escape --- the algebra forbids it.")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

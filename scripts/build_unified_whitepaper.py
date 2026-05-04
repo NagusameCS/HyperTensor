@@ -4,18 +4,18 @@ import os, re
 
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'papers')
 papers = [
-    ('00-introduction.html', 'Paper 0: Introduction — Tensors, Attention, and Transformer Geometry'),
-    ('01-attention-compression.html', 'Paper 1: GRC — Geodesic Runtime Compression (106.27% throughput)'),
-    ('02-geodesic-projection.html', 'Paper 2: GP — Geodesic Projection Pipeline (Full Multi-Slot)'),
-    ('03-speculative-decoding.html', 'Paper 3: GSD — Geodesic Speculative Decoding (38.5% acceptance)'),
-    ('04-organic-training-theory.html', 'Paper 4: OTT — Organic Training Theory (Riemannian Framework)'),
+    ('00-introduction.html', 'Paper 0: Introduction --- Tensors, Attention, and Transformer Geometry'),
+    ('01-attention-compression.html', 'Paper 1: GRC --- Geodesic Runtime Compression (106.27% throughput)'),
+    ('02-geodesic-projection.html', 'Paper 2: GP --- Geodesic Projection Pipeline (Full Multi-Slot)'),
+    ('03-speculative-decoding.html', 'Paper 3: GSD --- Geodesic Speculative Decoding (38.5% acceptance)'),
+    ('04-organic-training-theory.html', 'Paper 4: OTT --- Organic Training Theory (Riemannian Framework)'),
     ('05-gtc-ott-runtime.html', 'Paper 5: GTC + OTT Runtime Anchor (97x batched-Jacobi gain)'),
-    ('06-adaptive-compression.html', 'Paper 6: Adaptive Layer — Phase-Aware, Thermal-Coupled, Online'),
-    ('11-ugt-taxonomy.html', 'Paper XI: UGT — Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)'),
+    ('06-adaptive-compression.html', 'Paper 6: Adaptive Layer --- Phase-Aware, Thermal-Coupled, Online'),
+    ('11-ugt-taxonomy.html', 'Paper XI: UGT --- Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)'),
     ('12-native-training.html', 'Paper XII: Native Geodesic Training (NativeLinear, KExpansion)'),
-    ('13-safe-ogd.html', 'Paper XIII: Safe OGD — Orthogonal Geodesic Deviation (0% TEH)'),
-    ('14-behavioral-snipe.html', 'Paper XIV: Snipe — Behavioral Geodesic Sniping (<2% collateral)'),
-    ('15-cog-teh.html', 'Paper XV: COG+TEH — Completely Organic Generation + TEH Detection'),
+    ('13-safe-ogd.html', 'Paper XIII: Safe OGD --- Orthogonal Geodesic Deviation (0% TEH)'),
+    ('14-behavioral-snipe.html', 'Paper XIV: Snipe --- Behavioral Geodesic Sniping (<2% collateral)'),
+    ('15-cog-teh.html', 'Paper XV: COG+TEH --- Completely Organic Generation + TEH Detection'),
 ]
 
 # Extract CSS from 01 paper
@@ -89,7 +89,7 @@ html = f'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HyperTensor Unified Engineering Whitepaper — All 12 Papers</title>
+<title>HyperTensor Unified Engineering Whitepaper --- All 12 Papers</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/whitepaper.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -130,7 +130,7 @@ html = f'''<!DOCTYPE html>
 
 <div id="toc">
 <details open>
-<summary>Table of Contents — 12 Engineering Papers (Papers 0–6 + XI–XV)</summary>
+<summary>Table of Contents --- 12 Engineering Papers (Papers 0--6 + XI--XV)</summary>
 <ol>
 {toc_items}
 </ol>

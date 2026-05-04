@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UGT Phase 2 — Larger k (256), PCA initialization from real hidden states.
+UGT Phase 2 --- Larger k (256), PCA initialization from real hidden states.
 Tests whether a higher-capacity basis captures enough energy for functional taxonomy.
 
 Usage: python scripts/ugt_phase2.py --k 256 --steps 500 --top-lambda 0.01
@@ -99,7 +99,7 @@ def run_ablation(model, tokenizer, basis, zones):
         
         with torch.no_grad():
             out = model(**enc, output_hidden_states=True)
-            h = out.hidden_states[-1][:, -1, :]  # (1, d) — last token
+            h = out.hidden_states[-1][:, -1, :]  # (1, d) --- last token
             
             # Project and measure energies
             h_k = h @ P  # (1, k)

@@ -32,8 +32,8 @@ MathJax = {
       tr: '{\\operatorname{tr}}',
       Cov: '{\\operatorname{Cov}}',
       Var: '{\\operatorname{Var}}',
-      argmax: '{\\operatorname*{arg\\,max}}',
-      argmin: '{\\operatorname*{arg\\,min}}'
+      argmax: '{\\operatorname{arg\\,max}}',
+      argmin: '{\\operatorname{arg\\,min}}'
     }
   },
   svg: { fontCache: 'global' }
@@ -81,7 +81,7 @@ briefly described in <a href="#sec:ottmodes" data-reference-type="ref+Label" dat
 <section id="sec:why" class="level2">
 <h2>Why Compose</h2>
 <p>Speculative decoding wins because the verifier amortises its forward-pass
-cost over multiple accepted tokens. Compression reduces the drafter’s
+cost over multiple accepted tokens. Compression reduces the drafter's
 cost. These look independent, and on first principles they are, but the
 interaction has a specific shape that matters.</p>
 <p>Let <span class="math inline">\(T_V\)</span> be the verifier-step cost, <span class="math inline">\(T_D\)</span> the drafter-step cost, <span class="math inline">\(\gamma\)</span>
@@ -129,11 +129,11 @@ additional VRAM tier or a tier-asymmetric deployment (e.g. 8B drafter
 on commodity GPU, 70B verifier on a server GPU). (ii) Acceptance
 is rejection sampling against the verifier distribution
 <span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span>, not greedy match;
-this preserves the verifier’s sampling distribution exactly under the
+this preserves the verifier's sampling distribution exactly under the
 standard tokenizer-sharing assumption.</p>
 <p>The runtime additionally supports running the drafter alone
 (<code>--no-verifier</code>) for ablation: this emits the GP-compressed
-model’s output directly, isolating compression cost from speculative
+model's output directly, isolating compression cost from speculative
 gain.</p>
 </section>
 <section id="sec:closedform" class="level2">
@@ -181,7 +181,7 @@ of <span class="math inline">\(\alpha\)</span>, no compression-induced acceptanc
 the full 8B as verifier is not faster than just decoding the full
 8B directly: the verifier is the bottleneck and this is independent of
 GP. Speculative decoding helps when <span class="math inline">\(T_V\gg T_D\)</span>, the deployment shape
-“8B drafter on commodity GPU, 70B verifier on a server GPU” that we
+"8B drafter on commodity GPU, 70B verifier on a server GPU" that we
 cannot currently test. (ii) On hypothetical hardware where a 70B
 verifier is the slow side, the GP saving on the drafter compounds, but
 only if <span class="math inline">\(\Delta\alpha\)</span> is small.</p>
@@ -206,7 +206,7 @@ energy retained by <span class="math inline">\(U\)</span>), a small further miti
 <h5>Why low-rank attention might hurt AttnRes.</h5>
 <p>AttnRes computes a softmax over similarities <span class="math inline">\(\inner{q}{b_n}\)</span>, and
 <span class="math inline">\(\rank b_n\)</span> is bounded by <span class="math inline">\(\rank O\)</span>. Compressing <span class="math inline">\(O\)</span> to rank <span class="math inline">\(k\)</span> means
-<span class="math inline">\(b_n\)</span> lives in (at most) a <span class="math inline">\(k\)</span>-dim subspace. If two blocks’ summaries
+<span class="math inline">\(b_n\)</span> lives in (at most) a <span class="math inline">\(k\)</span>-dim subspace. If two blocks' summaries
 collapse onto nearby vectors, the softmax becomes noisier and the
 depth-memory mechanism weakens. This is the failure mode we expect to
 dominate at small <span class="math inline">\(k/d\)</span>.</p>
@@ -221,7 +221,7 @@ help/hurt regimes above. The honest prior is: wash at moderate
 compression (<span class="math inline">\(k/d\in[0.4,0.6]\)</span>) and small accept-rate loss at aggressive
 compression (<span class="math inline">\(k/d&lt;0.3\)</span>), driven by softmax noise in the AttnRes mixing
 weights. Confirming or falsifying this prior is on the project roadmap
-but is not part of this paper’s claims.</p>
+but is not part of this paper's claims.</p>
 </section>
 </section>
 <section id="kv-cache-compression" class="level2">
@@ -306,8 +306,8 @@ generated tokens per prompt (single-greedy decode, <code>temp=0</code>) yields
 (\sigma\!=\!0.0\%,\ n_\text{prompts}{=}8)\]</span>
 with no per-prompt variance under deterministic decoding;
 the geodesic verifier accepts drafts at a rate determined by the
-model’s residual-stream geometry, not by prompt content.
-The Llama-8B operating point sits above SmolLM2-135M’s
+model's residual-stream geometry, not by prompt content.
+The Llama-8B operating point sits above SmolLM2-135M's
 <span class="math inline">\(\alpha{=}38.5\%\)</span>, consistent with the hypothesis that as residual-stream
 manifolds become smoother at scale (lower intrinsic dimension relative
 to model dimension; see <a href="#sec:why" data-reference-type="ref+Label" data-reference="sec:why">1</a>) the geodesic draft becomes more
@@ -325,10 +325,10 @@ and
 verifier and drafter both pay whatever throughput cost compression imposes,
 so understanding <span class="math inline">\(T_V(k)\)</span> matters for picking the operating rank.
 <a href="#fig:throughput-vs-rank" data-reference-type="ref+Label" data-reference="fig:throughput-vs-rank">1</a> plots decode throughput as a function of
-compression rank <span class="math inline">\(k\)</span> on the companion paper’s reference pack
+compression rank <span class="math inline">\(k\)</span> on the companion paper's reference pack
 (<code>whitepaper_pack_20260427_121815</code>, 4 prompt classes <span class="math inline">\(\times\)</span>
 2 decode budgets, <span class="math inline">\(n{=}8\)</span> per point). The shape that matters for
-<a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a> is the <em>peak at <span class="math inline">\(k{=}1024\)</span></em> (the cache-fit super-baseline),
+<a href="#eq:spec" data-reference-type="ref+Label" data-reference="eq:spec">[eq:spec]</a> is the peak at <span class="math inline">\(k{=}1024\)</span> (the cache-fit super-baseline),
 not the absolute numbers, it tells the speculative scheduler that
 choosing the verifier rank below the natural <span class="math inline">\(k_{95}\)</span> of attention can
 accelerate verification rather than slow it, which is why GRC and
@@ -344,7 +344,7 @@ skip-O) produced a partial result with the per-prompt structure shown in
 <a href="#tab:accept-collapse" data-reference-type="ref+Label" data-reference="tab:accept-collapse">2</a>. At <span class="math inline">\(k{\in}\{128\}\)</span> all four prompts collapse
 to <span class="math inline">\(\alpha{=}0\%\)</span>; at <span class="math inline">\(k{=}256\)</span> three of four prompts collapse and one
 holds at <span class="math inline">\(\alpha{=}56.2\%\)</span>, which is above the <span class="math inline">\(\alpha{=}46.9\%\)</span> headline
-at <span class="math inline">\(k{=}\infty\)</span>. Decode throughput remained healthy (<span class="math inline">\(31\)</span>–<span class="math inline">\(36\)</span> tok/s)
+at <span class="math inline">\(k{=}\infty\)</span>. Decode throughput remained healthy (<span class="math inline">\(31\)</span>--<span class="math inline">\(36\)</span> tok/s)
 on the collapse runs, so the failure mode is verifier rejection, not
 compute starvation. At <span class="math inline">\(k{=}512\)</span> the cold-cache PCA exceeded a
 <span class="math inline">\(15{:}00\)</span> wallclock budget and the run was abandoned; the wproj cache
@@ -414,8 +414,8 @@ routing subspace, and the runtime confirms this is a single
 category-class boundary effect rather than a stochastic outlier (the
 other three prompts at <span class="math inline">\(k{=}256\)</span> are reproducibly at <span class="math inline">\(\alpha{=}0\%\)</span>
 across repetitions). The negative finding is therefore
-<strong>geodesic spec-decode and aggressive GP compression do not
-compose at <span class="math inline">\(k\ll k_{95}\)</span></strong>, which contradicts the multiplicative-
+geodesic spec-decode and aggressive GP compression do not
+compose at <span class="math inline">\(k\ll k_{95}\)</span>, which contradicts the multiplicative-
 composition hypothesis above. The calibration question for v0.2 is
 located: the breakpoint is between <span class="math inline">\(k{=}256\)</span> and the <span class="math inline">\(k{=}1024\)</span>
 headline, and a focused sweep at <span class="math inline">\(k\in\{512, 768, 1024\}\)</span> is needed
@@ -437,8 +437,8 @@ at <span class="math inline">\(k{=}1536, 2048\)</span>. This is the empirical in
 <h3>The Instruct-Greedy-EOS Pathology</h3>
 <section id="why-the-standard-acceptance-rule-fails-on-eos." class="level5">
 <h5>Why the standard acceptance rule fails on EOS.</h5>
-<p>Let <span class="math inline">\(P_D(x\mid c)\)</span> be the drafter’s distribution over the next token given
-context <span class="math inline">\(c\)</span> and <span class="math inline">\(P_V(x\mid c)\)</span> be the verifier’s. Standard exactness-preserving
+<p>Let <span class="math inline">\(P_D(x\mid c)\)</span> be the drafter's distribution over the next token given
+context <span class="math inline">\(c\)</span> and <span class="math inline">\(P_V(x\mid c)\)</span> be the verifier's. Standard exactness-preserving
 speculative decoding
 <span class="citation" data-cites="leviathan2023speculative chen2023speculative">(Leviathan et al. 2023; Chen et al. 2023)</span> accepts a drafted token
 <span class="math inline">\(x\)</span> with probability
@@ -450,7 +450,7 @@ Under greedy drafter sampling at temperature <span class="math inline">\(\tau\!\
 drafter is a delta on its argmax: <span class="math inline">\(P_D(\hat x\mid c)\!\to\!1\)</span> where
 <span class="math inline">\(\hat x=\argmax_x \ell_D(x\mid c)\)</span>. For an instruct-tuned model on a
 short or empty user turn, the verifier-greedy argmax is itself the EOS
-token and the verifier’s softmax over EOS at that position routinely
+token and the verifier's softmax over EOS at that position routinely
 clears <span class="math inline">\(0.95\)</span>, but is rarely exactly <span class="math inline">\(1\)</span>. Concretely, on
 SmolLM2-135M-Instruct at the first decode position after the
 <code>&lt;|im_end|&gt;</code> marker we observe
@@ -467,7 +467,7 @@ verifier put on continuation tokens. Fixing this requires breaking
 <span class="math inline">\(P_D(\text{EOS})\)</span> away from <span class="math inline">\(1\)</span> at the start of the response.</p>
 <p>During first integration the speculative loop returned zero
 tokens on every prompt against the instruct model. The cause is unique
-to instruct-tuned backbones at greedy temperature: the verifier’s argmax
+to instruct-tuned backbones at greedy temperature: the verifier's argmax
 at position 0 (and at several subsequent positions) is the EOS token.
 The standard speculative loop sees an EOS draft, executes
 <code>goto spec_done</code>, and emits an empty response. Earlier
@@ -587,11 +587,11 @@ implemented, not measured.</p>
 <p>The exactness-preserving rejection rule is from Leviathan et al. <span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span> and Chen et al. <span class="citation" data-cites="chen2023speculative">(Chen et al. 2023)</span>.
 EAGLE <span class="citation" data-cites="li2024eagle">(Li et al. 2024)</span> and Medusa <span class="citation" data-cites="cai2024medusa">(Cai et al. 2024)</span> train auxiliary
 drafter heads against the same backbone; we do not, we use a
-GP-compressed copy. This is closer to “self-speculative”
+GP-compressed copy. This is closer to "self-speculative"
 decoding. Production runtimes (vLLM <span class="citation" data-cites="kwon2023vllm">(Kwon et al. 2023)</span>, TensorRT-LLM)
 ship speculative paths; we are not competing on raw tok/s, we are
 characterising the interaction with compression. AttnRes is implemented
-independently here. StreamingLLM <span class="citation" data-cites="xiao2023streamingllm">(Xiao et al. 2023)</span>’s sink-token
+independently here. StreamingLLM <span class="citation" data-cites="xiao2023streamingllm">(Xiao et al. 2023)</span>'s sink-token
 treatment is referenced but orthogonal.</p>
 </section>
 <section id="sec:status" class="level2">
@@ -620,25 +620,25 @@ companion-paper numbers extrapolated to this drafter; whether those
 extrapolations transfer is the central uncertainty.</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-cai2024medusa" class="csl-entry" role="listitem">
-Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <em><span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads</em>. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
+Cai, Tianle, Yuhong Li, Zhengyang Geng, et al. 2024. <span>Medusa</span>: Simple <span>LLM</span> Inference Acceleration Framework with Multiple Decoding Heads. <a href="https://arxiv.org/abs/2401.10774">https://arxiv.org/abs/2401.10774</a>.
 </div>
 <div id="ref-chen2023speculative" class="csl-entry" role="listitem">
-Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>“Accelerating Large Language Model Decoding with Speculative Sampling.”</span> <em>arXiv Preprint</em>. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
+Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>"Accelerating Large Language Model Decoding with Speculative Sampling."</span> arXiv Preprint. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
 </div>
 <div id="ref-kwon2023vllm" class="csl-entry" role="listitem">
-Kwon, Woosuk, Zhuohan Li, Siyuan Zhuang, et al. 2023. <em>Efficient Memory Management for Large Language Model Serving with <span>PagedAttention</span></em>. <a href="https://arxiv.org/abs/2309.06180">https://arxiv.org/abs/2309.06180</a>.
+Kwon, Woosuk, Zhuohan Li, Siyuan Zhuang, et al. 2023. Efficient Memory Management for Large Language Model Serving with <span>PagedAttention</span>. <a href="https://arxiv.org/abs/2309.06180">https://arxiv.org/abs/2309.06180</a>.
 </div>
 <div id="ref-leviathan2023speculative" class="csl-entry" role="listitem">
-Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference from Transformers via Speculative Decoding.”</span> <em>ICML</em>.
+Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>"Fast Inference from Transformers via Speculative Decoding."</span> ICML.
 </div>
 <div id="ref-li2024eagle" class="csl-entry" role="listitem">
-Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <em><span>EAGLE</span>: Speculative Sampling Requires Rethinking Feature Uncertainty</em>. <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a>.
+Li, Yuhui, Fangyun Wei, Chao Zhang, and Hongyang Zhang. 2024. <span>EAGLE</span>: Speculative Sampling Requires Rethinking Feature Uncertainty. <a href="https://arxiv.org/abs/2401.15077">https://arxiv.org/abs/2401.15077</a>.
 </div>
 <div id="ref-stewart2026grc" class="csl-entry" role="listitem">
-Stewart, William Ken Ohara. 2026. <span>“Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression.”</span> <em>HyperTensor Companion Paper, to Appear</em>.
+Stewart, William Ken Ohara. 2026. <span>"Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression."</span> HyperTensor Companion Paper, to Appear.
 </div>
 <div id="ref-xiao2023streamingllm" class="csl-entry" role="listitem">
-Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. Efficient Streaming Language Models with Attention Sinks. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
 </div>
 </div>
 </section>

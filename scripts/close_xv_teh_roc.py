@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  CLOSE PAPER XV GAP: TEH ROC Threshold Calibration              ║
-║                                                                 ║
-║  Gap: "Per-model TEH threshold calibration (ROC sweep)"         ║
-║  Fix: Run TEH on a range of thresholds (0-50%) across           ║
-║       benign + adversarial prompts, compute ROC curve,           ║
-║       find optimal threshold per model.                         ║
-║                                                                 ║
-║  This closes XV from 55% → 75%.                                 ║
-║  Remaining for 100%: 10K+ interaction run, query recognition.   ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  CLOSE PAPER XV GAP: TEH ROC Threshold Calibration              |
+|                                                                 |
+|  Gap: "Per-model TEH threshold calibration (ROC sweep)"         |
+|  Fix: Run TEH on a range of thresholds (0-50%) across           |
+|       benign + adversarial prompts, compute ROC curve,           |
+|       find optimal threshold per model.                         |
+|                                                                 |
+|  This closes XV from 55% -> 75%.                                 |
+|  Remaining for 100%: 10K+ interaction run, query recognition.   |
++==================================================================+
 """
 import torch, json, time, os, sys, math
 import torch.nn.functional as F
 import numpy as np
 
-# ── TEH Probe ──
+# -- TEH Probe --
 def compute_teh_activation(h, basis, forbidden_coords):
     """Compute TEH activation: % of hidden state energy in forbidden subspace."""
     ft = torch.tensor(forbidden_coords, device=h.device, dtype=torch.long)
@@ -26,7 +26,7 @@ def compute_teh_activation(h, basis, forbidden_coords):
     p_total = torch.norm(h.float()).item()
     return (p_forbidden / max(p_total, 1e-8)) * 100
 
-# ── ROC Sweep ──
+# -- ROC Sweep --
 def teh_roc_sweep(model, tok, basis, forbidden_coords, 
                   adversarial_prompts, benign_prompts,
                   thresholds=None):
@@ -56,7 +56,7 @@ def teh_roc_sweep(model, tok, basis, forbidden_coords,
     # ROC at each threshold
     roc = []
     for tau in thresholds:
-        # Detect: TEH_act > tau → flagged as harmful
+        # Detect: TEH_act > tau -> flagged as harmful
         tp = sum(1 for a in adv_activations if a > tau)  # True positive
         fn = sum(1 for a in adv_activations if a <= tau)  # False negative
         fp = sum(1 for a in benign_activations if a > tau)  # False positive
@@ -93,7 +93,7 @@ def teh_roc_sweep(model, tok, basis, forbidden_coords,
         "separation_ratio": np.mean(adv_activations) / max(np.mean(benign_activations), 1e-10),
     }
 
-# ── Main ──
+# -- Main --
 def close_xv_teh_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/xv_teh_closed.json"):
     """Run TEH ROC calibration and prove per-model threshold selection works."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -157,7 +157,7 @@ def close_xv_teh_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
     
     print(f"  Basis: {basis.shape} | Forbidden coords: {forbidden}")
     
-    # ── ROC Sweep ──
+    # -- ROC Sweep --
     print("[3/3] Running TEH ROC sweep (0-50% thresholds)...")
     result = teh_roc_sweep(model, tok, basis, forbidden, adv_texts, benign_texts)
     

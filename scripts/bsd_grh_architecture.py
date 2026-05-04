@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║  PAPER XIX: Birch and Swinnerton-Dyer Conjecture                         ║
-║  Computational Proof Architecture via HyperTensor AGT/ACM                ║
-║                                                                          ║
-║  BSD Conjecture: For an elliptic curve E/Q,                              ║
-║    ord_{s=1} L(E,s) = rank(E(Q))                                         ║
-║                                                                          ║
-║  Key ingredients shared with RH:                                         ║
-║  1. L-function with functional equation (Z_2 symmetry)                   ║
-║  2. Involution iota(s) = 2-s, fixed point s=1                            ║
-║  3. Critical data: a_p (trace of Frobenius), conductor N, rank r         ║
-║  4. AGT encoding of curve data + SVD → rank-related subspace             ║
-║  5. ACM encoding of functional equation → fixed-point detection          ║
-║                                                                          ║
-║  DISCLAIMER: This is a COMPUTATIONAL PROOF ARCHITECTURE, not a           ║
-║  peer-reviewed mathematical proof. All numbers are real computations.    ║
-╚══════════════════════════════════════════════════════════════════════════╝
++==========================================================================+
+|  PAPER XIX: Birch and Swinnerton-Dyer Conjecture                         |
+|  Computational Proof Architecture via HyperTensor AGT/ACM                |
+|                                                                          |
+|  BSD Conjecture: For an elliptic curve E/Q,                              |
+|    ord_{s=1} L(E,s) = rank(E(Q))                                         |
+|                                                                          |
+|  Key ingredients shared with RH:                                         |
+|  1. L-function with functional equation (Z_2 symmetry)                   |
+|  2. Involution iota(s) = 2-s, fixed point s=1                            |
+|  3. Critical data: a_p (trace of Frobenius), conductor N, rank r         |
+|  4. AGT encoding of curve data + SVD -> rank-related subspace             |
+|  5. ACM encoding of functional equation -> fixed-point detection          |
+|                                                                          |
+|  DISCLAIMER: This is a COMPUTATIONAL PROOF ARCHITECTURE, not a           |
+|  peer-reviewed mathematical proof. All numbers are real computations.    |
++==========================================================================+
 """
 import torch, json, math, numpy as np, os, sys, time, random
 from collections import defaultdict
@@ -25,15 +25,15 @@ OUT = "benchmarks/bsd_architecture"
 os.makedirs(OUT, exist_ok=True)
 
 RESULTS = {
-    "_verification_status": "REAL — computational BSD architecture",
+    "_verification_status": "REAL --- computational BSD architecture",
     "_date": "May 4, 2026",
     "_disclaimer": "Computational proof architecture, NOT peer-reviewed mathematical proof.",
     "tests": {}
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # ELLIPTIC CURVE DATABASE (small sample from LMFDB / known curves)
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 # Format: (label, a, b, conductor_N, rank_r, regulator, tamagawa_product, sha_order)
 # a, b define y^2 = x^3 + ax + b (simplified Weierstrass form, discriminant != 0)
@@ -77,18 +77,18 @@ ELLIPTIC_CURVES = [
 ]
 
 print("=" * 70)
-print("  PAPER XIX: BSD Conjecture — Computational Architecture")
+print("  PAPER XIX: BSD Conjecture --- Computational Architecture")
 print(f"  Elliptic curves: {len(ELLIPTIC_CURVES)}")
 print("=" * 70)
 print()
-print("  ⚠️  DISCLAIMER: Computational proof architecture, NOT a")
+print("  WARNING:  DISCLAIMER: Computational proof architecture, NOT a")
 print("  peer-reviewed mathematical proof. All numbers are real")
 print("  computations. The logical chain is self-consistent.")
 print("=" * 70)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 1: AGT Encoding of Elliptic Curves → Rank Detection via SVD
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 1: AGT Encoding of Elliptic Curves -> Rank Detection via SVD
+# ===========================================================================
 
 def is_prime(n):
     if n < 2: return False
@@ -133,7 +133,7 @@ def compute_ap_simulated(curve_idx, p):
     # Hasse bound: |a_p| <= 2*sqrt(p)
     max_ap = int(2 * math.sqrt(p))
     
-    # Rank affects a_p distribution: higher rank → more variation in a_p
+    # Rank affects a_p distribution: higher rank -> more variation in a_p
     # This is a heuristic based on the Sato-Tate conjecture and known BSD patterns
     if r == 0:
         # Rank 0: a_p typically small, L(E,1) != 0
@@ -173,9 +173,9 @@ def compute_ap_simulated(curve_idx, p):
 
 
 def test_bsd_agt_encoding():
-    """AGT encoding of elliptic curves: encode curve data → SVD → detect rank structure."""
+    """AGT encoding of elliptic curves: encode curve data -> SVD -> detect rank structure."""
     print("\n" + "=" * 70)
-    print("  TEST 1: BSD AGT — Elliptic Curve Encoding + Rank Detection")
+    print("  TEST 1: BSD AGT --- Elliptic Curve Encoding + Rank Detection")
     print("=" * 70)
     
     D = 16  # Feature dimension
@@ -187,7 +187,7 @@ def test_bsd_agt_encoding():
     
     for idx, (label, a, b, N, r, reg, tam, sha) in enumerate(ELLIPTIC_CURVES):
         f = []
-        # Explicit rank encoding (like sigma in RH proof — the algebraic invariant)
+        # Explicit rank encoding (like sigma in RH proof --- the algebraic invariant)
         f.append(float(r))  # Coordinate 0: rank (the BSD invariant)
         f.append(r / 10.0)  # Normalized rank
         f.append(float(N))  # Conductor
@@ -231,12 +231,12 @@ def test_bsd_agt_encoding():
     sv_np = S.cpu().numpy()
     for i in range(min(8, len(sv_np))):
         pct = 100 * sv_np[i]**2 / total_var
-        mark = " ← RANK SUBSPACE" if i == 0 else ""
+        mark = " <- RANK SUBSPACE" if i == 0 else ""
         print(f"    SV{i+1}={sv_np[i]:.4f} ({pct:.1f}% var){mark}")
     
     k90 = int((torch.cumsum(S**2, dim=0) / total_var > 0.90).float().argmax().item()) + 1
     
-    # Project curves onto first PC — should separate by rank
+    # Project curves onto first PC --- should separate by rank
     first_pc = Vh[0, :]  # First right singular vector
     projections = (F.float() @ first_pc).cpu().numpy()
     
@@ -274,9 +274,9 @@ def test_bsd_agt_encoding():
     return result, Vh
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 2: BSD ACM — Functional Equation Involution ι(s) = 2-s
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 2: BSD ACM --- Functional Equation Involution ι(s) = 2-s
+# ===========================================================================
 
 def test_bsd_acm_involution():
     """ACM for BSD: The functional equation Λ(E,s) = ±Λ(E,2-s).
@@ -285,7 +285,7 @@ def test_bsd_acm_involution():
     This is exactly analogous to ι(s) = 1-s for ζ(s) with fixed point s=1/2.
     """
     print("\n" + "=" * 70)
-    print("  TEST 2: BSD ACM — Functional Equation Involution ι(s)=2-s")
+    print("  TEST 2: BSD ACM --- Functional Equation Involution ι(s)=2-s")
     print("=" * 70)
     
     D = 12
@@ -293,7 +293,7 @@ def test_bsd_acm_involution():
     def bsd_features(s_re, s_im, conductor_N=37):
         """Feature vector for a point s in the complex plane, BSD-aware."""
         f = []
-        f.append(s_re)  # Coordinate 0: Re(s) — the ALGEBRAIC invariant
+        f.append(s_re)  # Coordinate 0: Re(s) --- the ALGEBRAIC invariant
         f.append(abs(s_re - 1.0))  # Distance from critical point s=1
         f.append(math.log(abs(s_im) + 1) / 10.0)
         f.append(math.log(conductor_N + 1) / 10.0)
@@ -306,9 +306,9 @@ def test_bsd_acm_involution():
         return torch.tensor(f[:D], dtype=torch.float64)
     
     def iota_bsd(f):
-        """Z_2 involution: s → 2-s. Changes Re(s) to 2-Re(s)."""
+        """Z_2 involution: s -> 2-s. Changes Re(s) to 2-Re(s)."""
         g = f.clone()
-        g[0] = 2.0 - f[0]  # Re(s) → 2 - Re(s)
+        g[0] = 2.0 - f[0]  # Re(s) -> 2 - Re(s)
         g[1] = abs(2.0 - f[0] - 1.0)  # |(2-s_re) - 1| = |1 - s_re| = |s_re - 1|
         # All other features are symmetric or depend on |s_im|, unchanged
         return g
@@ -357,7 +357,7 @@ def test_bsd_acm_involution():
     print(f"    Off-critical (s_re≠1.0): mean error = {fp_off_mean:.4f}")
     print(f"    Separation:              {separation:.0f}x")
     
-    # D(s) = f(s) - f(ι(s)) — the difference operator
+    # D(s) = f(s) - f(ι(s)) --- the difference operator
     D_rows = []
     for s_im in [0, 5, 10, 14.1, 25, 50, 100]:
         for s_re in [0.5, 0.75, 1.0, 1.25, 1.5]:
@@ -370,10 +370,10 @@ def test_bsd_acm_involution():
     total_var_d = (Sd**2).sum().item()
     svd_np = Sd.cpu().numpy()
     
-    print(f"\n  D(s) = f(s) - f(ι(s)) — SVD analysis:")
+    print(f"\n  D(s) = f(s) - f(ι(s)) --- SVD analysis:")
     for i in range(min(6, len(svd_np))):
         pct = 100 * svd_np[i]**2 / total_var_d if total_var_d > 0 else 0
-        mark = " ← Z_2-VARIANT" if i == 0 else " ← Z_2-INVARIANT (s=1)"
+        mark = " <- Z_2-VARIANT" if i == 0 else " <- Z_2-INVARIANT (s=1)"
         print(f"    SV{i+1}={svd_np[i]:.10f} ({pct:.1f}% var){mark}")
     
     effective_rank = int((svd_np > 1e-10).sum())
@@ -395,18 +395,18 @@ def test_bsd_acm_involution():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 3: BSD Bridge — Ord_{s=1} L(E,s) vs rank(E(Q))
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 3: BSD Bridge --- Ord_{s=1} L(E,s) vs rank(E(Q))
+# ===========================================================================
 
 def test_bsd_bridge():
     """Bridge protocol for BSD: verify correlation between analytic and algebraic rank."""
     print("\n" + "=" * 70)
-    print("  TEST 3: BSD Bridge — ord_{s=1} L(E,s) vs rank(E(Q))")
+    print("  TEST 3: BSD Bridge --- ord_{s=1} L(E,s) vs rank(E(Q))")
     print("=" * 70)
     
     # For each curve, estimate the order of vanishing from a_p data
-    # Heuristic: vanishing order ≈ behavior of sum a_p/p as p→∞
+    # Heuristic: vanishing order ≈ behavior of sum a_p/p as p->∞
     
     estimates = []
     for idx, (label, a, b, N, r, reg, tam, sha) in enumerate(ELLIPTIC_CURVES):
@@ -471,16 +471,16 @@ def test_bsd_bridge():
     # BSD bridge: the key insight
     # ord_{s=1} L(E,s) = rank(E(Q))
     # We detect this geometrically:
-    # 1. AGT encodes curve data → SVD separates by rank
-    # 2. ACM encodes functional equation ι(s)=2-s → fixed point at s=1
-    # 3. L(1)=0 detected from a_p data → rank>0
+    # 1. AGT encodes curve data -> SVD separates by rank
+    # 2. ACM encodes functional equation ι(s)=2-s -> fixed point at s=1
+    # 3. L(1)=0 detected from a_p data -> rank>0
     # 4. The combination confirms the BSD relationship
     
     print(f"\n  BSD Bridge Architecture:")
-    print(f"    Step 1: AGT encodes curve → SVD rank separation ✓")
-    print(f"    Step 2: ACM encodes ι(s)=2-s → fixed point s=1 ✓")
-    print(f"    Step 3: L(1)≈0 detection from a_p → rank>0 classification ✓")
-    print(f"    Step 4: ord_{{s=1}} L(E,s) = rank(E(Q)) — computational evidence ✓")
+    print(f"    Step 1: AGT encodes curve -> SVD rank separation [ok]")
+    print(f"    Step 2: ACM encodes ι(s)=2-s -> fixed point s=1 [ok]")
+    print(f"    Step 3: L(1)≈0 detection from a_p -> rank>0 classification [ok]")
+    print(f"    Step 4: ord_{{s=1}} L(E,s) = rank(E(Q)) --- computational evidence [ok]")
     
     result = {
         "test": "BSD Bridge",
@@ -495,14 +495,14 @@ def test_bsd_bridge():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 4: Cross-Problem Transfer — RH→BSD
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 4: Cross-Problem Transfer --- RH->BSD
+# ===========================================================================
 
 def test_rh_bsd_transfer():
     """Demonstrate the structural isomorphism between RH and BSD approaches."""
     print("\n" + "=" * 70)
-    print("  TEST 4: Cross-Problem Transfer — RH ↔ BSD Structural Isomorphism")
+    print("  TEST 4: Cross-Problem Transfer --- RH ↔ BSD Structural Isomorphism")
     print("=" * 70)
     
     isomorphism = {
@@ -550,13 +550,13 @@ def test_rh_bsd_transfer():
     
     print(f"\n  Shared proof architecture elements:")
     for elem in shared_elements:
-        print(f"    ✓ {elem}")
+        print(f"    [ok] {elem}")
     
     print(f"\n  The HyperTensor Z_2 + SVD method TRANSFERS between Millennium Problems.")
     print(f"  This is evidence for a UNIFIED geometric attack on L-function problems.")
     
     result = {
-        "test": "RH→BSD Transfer",
+        "test": "RH->BSD Transfer",
         "shared_elements": len(shared_elements),
         "structural_isomorphism": True,
         "status": "PASS (unified framework validated)",
@@ -565,16 +565,16 @@ def test_rh_bsd_transfer():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # TEST 5: Generalized Riemann Hypothesis (Dirichlet L-functions)
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def test_generalized_rh():
     """GRH: All non-trivial zeros of Dirichlet L-functions have Re(s)=1/2.
     
     Dirichlet L-functions L(s,χ) for a Dirichlet character χ mod q
     satisfy a functional equation relating s ↔ 1-s.
-    The Z_2 symmetry is IDENTICAL to ζ(s) — same involution ι(s)=1-s.
+    The Z_2 symmetry is IDENTICAL to ζ(s) --- same involution ι(s)=1-s.
     """
     print("\n" + "=" * 70)
     print("  TEST 5: Generalized Riemann Hypothesis (Dirichlet L-functions)")
@@ -657,9 +657,9 @@ def test_generalized_rh():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # MAIN
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def main():
     t0 = time.time()
@@ -676,7 +676,7 @@ def main():
     # Test 3: BSD Bridge
     r3 = test_bsd_bridge()
     
-    # Test 4: RH→BSD Transfer
+    # Test 4: RH->BSD Transfer
     r4 = test_rh_bsd_transfer()
     
     # Test 5: Generalized RH
@@ -687,9 +687,9 @@ def main():
     all_statuses = [r["status"] for r in RESULTS["tests"].values()]
     n_pass = sum(1 for s in all_statuses if "PASS" in s)
     
-    print("\n" + "█" * 70)
+    print("\n" + "#" * 70)
     print("  BSD + GRH ARCHITECTURE REPORT")
-    print("█" * 70)
+    print("#" * 70)
     print(f"\n  Tests: {len(all_statuses)} | Passed: {n_pass} | Time: {elapsed:.0f}s")
     
     for test_name, test_result in RESULTS["tests"].items():
@@ -715,26 +715,26 @@ def main():
     
     print(f"\n  Results: {output_path}")
     
-    print(f"\n  ╔══════════════════════════════════════════════════════════╗")
-    print(f"  ║  BSD + GRH COMPUTATIONAL ARCHITECTURE                    ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  The Z_2 + SVD method transfers from RH to:             ║")
-    print(f"  ║  - BSD Conjecture (ι(s)=2-s, fixed point s=1)           ║")
-    print(f"  ║  - Generalized RH (ι(s)=1-s, SAME fixed point s=1/2)    ║")
-    print(f"  ║  - All L-functions with functional equations            ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  The framework is UNIFIED: encode invariant explicitly,  ║")
-    print(f"  ║  construct D(s), SVD → rank-1 → read answer.            ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  Remaining Millennium Problems for this framework:      ║")
-    print(f"  ║  ✓ Riemann Hypothesis (Papers XVI-XVIII)                ║")
-    print(f"  ║  ✓ BSD Conjecture (Paper XIX)                           ║")
-    print(f"  ║  → Yang-Mills Mass Gap (Paper XXI) — gauge geometry     ║")
-    print(f"  ║  → Navier-Stokes (Paper XXII) — spectral regularity     ║")
-    print(f"  ║  ⚠ P vs NP — different class (complexity theory)        ║")
-    print(f"  ║  ⚠ Hodge Conjecture — different class (algebraic geom)  ║")
-    print(f"  ║  ✓ Poincaré Conjecture — already solved (Perelman 2002) ║")
-    print(f"  ╚══════════════════════════════════════════════════════════╝")
+    print(f"\n  +==========================================================+")
+    print(f"  |  BSD + GRH COMPUTATIONAL ARCHITECTURE                    |")
+    print(f"  |                                                        |")
+    print(f"  |  The Z_2 + SVD method transfers from RH to:             |")
+    print(f"  |  - BSD Conjecture (ι(s)=2-s, fixed point s=1)           |")
+    print(f"  |  - Generalized RH (ι(s)=1-s, SAME fixed point s=1/2)    |")
+    print(f"  |  - All L-functions with functional equations            |")
+    print(f"  |                                                        |")
+    print(f"  |  The framework is UNIFIED: encode invariant explicitly,  |")
+    print(f"  |  construct D(s), SVD -> rank-1 -> read answer.            |")
+    print(f"  |                                                        |")
+    print(f"  |  Remaining Millennium Problems for this framework:      |")
+    print(f"  |  [ok] Riemann Hypothesis (Papers XVI-XVIII)                |")
+    print(f"  |  [ok] BSD Conjecture (Paper XIX)                           |")
+    print(f"  |  -> Yang-Mills Mass Gap (Paper XXI) --- gauge geometry     |")
+    print(f"  |  -> Navier-Stokes (Paper XXII) --- spectral regularity     |")
+    print(f"  |  WARNING: P vs NP --- different class (complexity theory)        |")
+    print(f"  |  WARNING: Hodge Conjecture --- different class (algebraic geom)  |")
+    print(f"  |  [ok] Poincaré Conjecture --- already solved (Perelman 2002) |")
+    print(f"  +==========================================================+")
     
     return n_pass == len(all_statuses)
 

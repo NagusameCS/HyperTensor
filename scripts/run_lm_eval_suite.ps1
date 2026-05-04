@@ -73,7 +73,7 @@ function Start-GeodServer {
                     $resp = Invoke-WebRequest -Uri "http://$ServerHost`:$ServerPort/v1/models" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
                     if ($resp.StatusCode -eq 200) { $httpReady = $true; break }
                 } catch {
-                    # HTTP not yet serving — keep polling
+                    # HTTP not yet serving --- keep polling
                 }
             } else {
                 $tcp.Close()

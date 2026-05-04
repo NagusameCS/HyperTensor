@@ -34,7 +34,7 @@ body {
   line-height: 1.75; -webkit-font-smoothing: antialiased;
 }
 
-/* ── Nav (matches docs/papers/*.html) ─────────────────── */
+/* -- Nav (matches docs/papers/*.html) ------------------- */
 nav.site-nav {
   position: sticky; top: 0; z-index: 100;
   background: rgba(255,255,255,0.92);
@@ -54,7 +54,7 @@ nav.site-nav {
 }
 .nav-links a:hover { color: var(--text); }
 
-/* ── Header card (mimics .hero) ───────────────────────── */
+/* -- Header card (mimics .hero) ------------------------- */
 .paper-header {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -85,7 +85,7 @@ nav.site-nav {
 .paper-header .meta a { color: var(--blue); text-decoration: none; }
 .paper-header .meta a:hover { text-decoration: underline; }
 
-/* ── Article body ─────────────────────────────────────── */
+/* -- Article body --------------------------------------- */
 article.paper-body {
   max-width: var(--max-w); margin: 0 auto;
   padding: 2.5rem 1.5rem 5rem;
@@ -150,7 +150,7 @@ article.paper-body blockquote {
 }
 article.paper-body blockquote p:last-child { margin-bottom: 0; }
 
-/* ── Tables ───────────────────────────────────────────── */
+/* -- Tables --------------------------------------------- */
 article.paper-body table {
   border-collapse: collapse;
   width: 100%;
@@ -171,14 +171,14 @@ article.paper-body table th {
 }
 article.paper-body table tr:hover td { background: var(--bg-soft); }
 
-/* ── Math display ─────────────────────────────────────── */
+/* -- Math display --------------------------------------- */
 article.paper-body mjx-container[display="true"] {
   margin: 1.2rem 0 !important;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
-/* ── Figure captions ──────────────────────────────────── */
+/* -- Figure captions ------------------------------------ */
 article.paper-body figure {
   margin: 1.6rem 0;
   text-align: center;
@@ -240,7 +240,7 @@ article.paper-body figcaption {
   margin-top: 0.6rem;
 }
 
-/* ── Pandoc-emitted environments ──────────────────────── */
+/* -- Pandoc-emitted environments ------------------------ */
 article.paper-body .htnote,
 article.paper-body div.htnote,
 article.paper-body div[role="note"] {
@@ -255,7 +255,7 @@ article.paper-body div[role="note"] {
 article.paper-body .htwarn { background: var(--yellow-bg); border-left-color: #d4a017; }
 article.paper-body .htgood { background: var(--green-bg); border-left-color: var(--green); }
 
-/* ── Footer ───────────────────────────────────────────── */
+/* -- Footer --------------------------------------------- */
 footer.paper-footer {
   max-width: var(--max-w); margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
@@ -264,7 +264,7 @@ footer.paper-footer {
 }
 footer.paper-footer a { color: var(--blue); text-decoration: none; }
 
-/* ── References list ──────────────────────────────────── */
+/* -- References list ------------------------------------ */
 article.paper-body #refs,
 article.paper-body div.csl-entry {
   font-size: 0.9rem;

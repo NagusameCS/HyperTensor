@@ -3,7 +3,7 @@ gtc/record_store.py
 ====================
 
 Compressed on-disk geodesic record store with two-stage lookup
-(Euclidean ANN screen → g-norm geodesic refine), implementing
+(Euclidean ANN screen -> g-norm geodesic refine), implementing
 Algorithm 1 of Paper 5 §4.4.2.
 
 Record fields per Paper 5 Definition 4.1:
@@ -16,7 +16,7 @@ We compress as follows:
     (paper claims rank ≈ 5 is sufficient).
   - rho: float32 scalar.
   - l_inf: omitted in this prototype (we operate at the manifold
-    level, not the logit level — the runtime owns the LM head).
+    level, not the logit level --- the runtime owns the LM head).
 
 The whole record is dumped via numpy.savez_compressed (zlib).
 
@@ -186,7 +186,7 @@ def build_library_from_manifold(M, points: np.ndarray, T: int = 16,
                                   rho: float = 3.0, max_records: Optional[int] = None) -> Library:
     """Anchor a record at every cached point. Uses unit-speed
     geodesics in a random tangent direction (the paper's "contextual
-    velocity v_0" — we don't have a real downstream task here, just a
+    velocity v_0" --- we don't have a real downstream task here, just a
     representative direction). The Jacobi propagator along the path is
     what GTC actually uses at lookup time.
     """
@@ -290,8 +290,8 @@ def main():
     print(f"[record-store] model={args.model} dim={args.dim}")
     for k, v in summary.items():
         print(f"  {k}: {v}")
-    print(f"  → {out_json}")
-    print(f"  → {save_path}  ({nbytes/1024:.1f} KB total)")
+    print(f"  -> {out_json}")
+    print(f"  -> {save_path}  ({nbytes/1024:.1f} KB total)")
 
 
 if __name__ == "__main__":

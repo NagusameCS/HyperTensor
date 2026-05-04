@@ -25,8 +25,8 @@
 #   gpu_query.csv
 #   paperA_baseline_<GPU>.txt
 #   paperA_grc_<GPU>.txt
-#   paperA_baseline_<GPU>_run<i>.log     (full per-run logs)
-#   paperA_grc_<GPU>_run<i>.log
+#   paperA_baseline_<GPU>_run.log     (full per-run logs)
+#   paperA_grc_<GPU>_run.log
 #   paperA_ncu_baseline_<GPU>.ncu-rep    (if ncu present)
 #   paperA_ncu_grc_<GPU>.ncu-rep
 #   paperA_ncu_baseline_<GPU>.csv
@@ -117,7 +117,7 @@ GREP_THROUGHPUT='decode.*tok/?s|eval time|prompt eval|tokens?/sec|tok/s|axex-pca
 # common flags (model is positional first arg; no --seed in CLI, --temp 0 is deterministic)
 COMMON_ARGS=("$MODEL_PATH" -p "$PROMPT" -n "$N_DECODE" --temp 0)
 
-# GRC arms — using actual flags (see host/main.c):
+# GRC arms --- using actual flags (see host/main.c):
 #   --axex-compress              enable
 #   --axex-weight-pca            calibration-free path (memory note: actaware path crashes)
 #   --axex-compress-rank N       rank
@@ -215,7 +215,7 @@ fi
 # 4. Summary
 # --------------------------------------------------------------------------
 {
-  echo "===== Paper-A cache-fit results — $GPU_NAME ====="
+  echo "===== Paper-A cache-fit results --- $GPU_NAME ====="
   date -u
   echo
   echo "----- baseline tok/s extract -----"

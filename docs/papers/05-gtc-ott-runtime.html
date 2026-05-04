@@ -38,7 +38,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </nav>
 
 <div style="background:#eef4ff;border:1px solid #2d6be4;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
-<strong>HyperTensor Framework Update (May 3, 2026):</strong> This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
+HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
 </div>
 
 
@@ -122,9 +122,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       the geodesic ODE, compute the Riemann tensor and Magnus-3 Jacobi propagator
       $\Phi(\lambda)$, and benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
       and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
-      90.4–91.5% across all three scales (scale-invariant within
-      $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
-      and $60\times$ at $B=10{,}000$</strong> with reconstruction error sitting at
+      90.4--91.5% across all three scales (scale-invariant within
+      $\pm 0.5\%$). Batch Jacobi correction reaches $97\times$ at $B=10$
+      and $60\times$ at $B=10{,}000$ with reconstruction error sitting at
       the float64 roundoff floor. The compressed record store persists at
       5.96&nbsp;KB/record, with rank-5 propagator truncation
       exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
@@ -154,10 +154,10 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     a Paper&nbsp;5 existing. This paper is that document.
   </p>
   <p>
-    The specific question this paper closes: <em>given the Paper&nbsp;4 framework,
+    The specific question this paper closes: given the Paper&nbsp;4 framework,
     do the local-geometry primitives behave the way the framework predicts when
     fitted on real LM clouds, and does the runtime that uses them produce a
-    measurable acceleration?</em> Both answers are now yes, with
+    measurable acceleration? Both answers are now yes, with
     the qualifications below.
   </p>
 </section>
@@ -407,8 +407,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     </table>
   </div>
   <p>
-    The honest summary: the runtime is <strong>functionally complete for the
-    SmolLM2-135M-Instruct configuration</strong>. The gap to "perfect by
+    The honest summary: the runtime is functionally complete for the
+    SmolLM2-135M-Instruct configuration. The gap to "perfect by
     construction" is two named bugs (<code>--ott-perfect</code> hang,
     <code>--ott-swarm-k</code> non-zero exit) and the EC2 sweep. Neither bug is
     in the geodesic pipeline itself; both are in the rollout/swarm wrappers.
@@ -435,7 +435,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
         <tr><td>Batch $B$=10/100/1000 speedups (Tests 4a&ndash;4c)</td><td>$97\times$, $27\times$, $44\times$</td><td>§<a href="#resonance">4</a></td></tr>
         <tr><td>Two-stage FAISS+geodesic lookup (Algorithm 1)</td><td>30.9 µs/q</td><td>§<a href="#store">5</a></td></tr>
         <tr><td>Compressed record store (~50&ndash;80 KB target)</td><td>5.96 KB at $k{=}8$</td><td>§<a href="#store">5</a></td></tr>
-        <tr><td>Scaling: SmolLM2 → Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
+        <tr><td>Scaling: SmolLM2 -> Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
         <tr><td>Validity / injectivity radius $\rho$ scaling</td><td>$&lt; 0.1\%$ err to $\varepsilon=5.0$</td><td><code>smollm2-135m_validity_radius.json</code></td></tr>
         <tr><td>OTT locality of curvature warp (Test 5a)</td><td>ratio $7\!\times\!10^{11}$, decays to 0 at 20$\sigma$</td><td>implicit in <code>manifold.py</code> smoothing</td></tr>
         <tr><td>OTT runtime end-to-end (live decode replacement)</td><td>partial: $\alpha = 0.385$, $1.53\times$, density-gated for direct correction</td><td>§<a href="#ott-runtime">6</a></td></tr>
@@ -544,7 +544,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   <ol>
     <li>
       Intrinsic dimension of LM activations. The
-      $k\approx30$–$50$ fits in §<a href="#coverage">3</a> are consistent
+      $k\approx30$--$50$ fits in §<a href="#coverage">3</a> are consistent
       with TwoNN/PCA intrinsic-dim estimates on transformers
       (Razzhigaev&nbsp;et&nbsp;al. 2023; Cai&nbsp;et&nbsp;al. 2021) and the
       linear-representation hypothesis (Park&nbsp;et&nbsp;al. 2023). What

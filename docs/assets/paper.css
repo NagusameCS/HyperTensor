@@ -5,7 +5,7 @@
  * cards, polished table chrome, accent section numbers.
  */
 
-/* ── Hero polish ───────────────────────────────────────── */
+/* -- Hero polish ----------------------------------------- */
 #hero {
   padding: 6rem 1.5rem 4rem;
 }
@@ -100,7 +100,7 @@
 }
 .btn-secondary:hover { background: var(--border); }
 
-/* ── Section number → accent uppercase ─────────────────── */
+/* -- Section number -> accent uppercase ------------------- */
 .section-num {
   font-size: 0.78rem;
   font-weight: 700;
@@ -111,7 +111,7 @@
   display: block;
 }
 
-/* ── Abstract box ──────────────────────────────────────── */
+/* -- Abstract box ---------------------------------------- */
 .abstract-box {
   background: var(--bg-soft);
   border: 1px solid var(--border);
@@ -122,7 +122,7 @@
 .abstract-box p { font-size: 0.97rem; line-height: 1.78; }
 .abstract-box p:last-child { margin-bottom: 0; }
 
-/* ── Tables: bordered chrome ───────────────────────────── */
+/* -- Tables: bordered chrome ----------------------------- */
 .table-wrap {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -148,7 +148,7 @@ table tr:hover td { background: var(--bg-soft); }
 .warn { color: var(--accent); font-weight: 600; }
 td.good { color: var(--green); font-weight: 600; }
 
-/* ── Callout polish ────────────────────────────────────── */
+/* -- Callout polish -------------------------------------- */
 .callout {
   border-radius: 0 8px 8px 0;
   padding: 1.05rem 1.3rem;
@@ -165,7 +165,7 @@ td.good { color: var(--green); font-weight: 600; }
   text-transform: uppercase;
 }
 
-/* ── Gate cards ────────────────────────────────────────── */
+/* -- Gate cards ------------------------------------------ */
 .gates {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -195,7 +195,7 @@ td.good { color: var(--green); font-weight: 600; }
 .gate-label { font-weight: 600; display: block; }
 .gate-value { color: var(--text-soft); }
 
-/* ── Two-column grid of cards ──────────────────────────── */
+/* -- Two-column grid of cards ---------------------------- */
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

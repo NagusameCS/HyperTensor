@@ -74,7 +74,7 @@ def snipe_category(cat):
     wte_s=P_null.float()@wte_f.T
     model.model.embed_tokens.weight.data.copy_(wte_s.T.to(model.dtype))
 
-# ── Incremental snipe ──
+# -- Incremental snipe --
 print("\n[2] Incremental sniping (by impact rank)...")
 
 # First pass: measure per-category impact
@@ -96,7 +96,7 @@ for cat in harmful:
 # Sort by specificity (best ROI first)
 per_cat_impact.sort(key=lambda x:x["specificity"],reverse=True)
 
-# ── Incremental accumulation ──
+# -- Incremental accumulation --
 print("\n[3] Incremental accumulation (best-ROI first)...")
 all_coords_ordered=[]
 incremental_results=[]

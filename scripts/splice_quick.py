@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast chimeric splice measurement — Phase 2+4 only."""
+"""Fast chimeric splice measurement --- Phase 2+4 only."""
 import sys, json, time, numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -53,4 +53,4 @@ out = Path("benchmarks/chimeric_splice")
 out.mkdir(parents=True, exist_ok=True)
 with open(out / "splice_residual.json", "w") as f:
     json.dump({"config": {"model": model, "k": k, "sink_T": T}, "results": results}, f, indent=2)
-print(f"\nDone — {out / 'splice_residual.json'}")
+print(f"\nDone --- {out / 'splice_residual.json'}")

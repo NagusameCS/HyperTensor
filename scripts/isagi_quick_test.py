@@ -1,4 +1,4 @@
-"""Quick single-turn ISAGI test — SCP to EC2 and run."""
+"""Quick single-turn ISAGI test --- SCP to EC2 and run."""
 import sys, os, torch
 
 # Add /tmp to path so we can import isagi_chat

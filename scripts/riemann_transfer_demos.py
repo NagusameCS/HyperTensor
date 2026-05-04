@@ -8,7 +8,7 @@ Demonstrations:
   3. Paper X: CECI compatibility as shared subspace dimension
   4. Paper VII: alpha ~ 0.7 universal SVD exponent
 
-No model loading needed — pure mathematical demonstrations.
+No model loading needed --- pure mathematical demonstrations.
 """
 import torch, json, math, numpy as np, os
 
@@ -117,7 +117,7 @@ def prove_kstar_invariant():
     For any GPU, the throughput ratio T_GRC(k)/T_standard has a
     single peak at k*. The shape of the curve is universal.
     D(g1, g2) = throughput_curve(g1) - throughput_curve(g2) has
-    rank 1 (only k* shifts — the three-regime structure is universal).
+    rank 1 (only k* shifts --- the three-regime structure is universal).
     """
     print("\n" + "=" * 70)
     print("  DEMO 2: k* INVARIANT (Papers I + IX)")
@@ -331,7 +331,7 @@ def prove_universal_alpha():
     
     print(f"\n  CONCLUSION: alpha ~ 0.7 is a universal invariant of transformer FFN layers.")
     print(f"  The optimal SVD rank r* = d/4 follows algebraically from alpha.")
-    print(f"  Analogous to k* = L2_MB x 42.7 — another algebraic invariant.")
+    print(f"  Analogous to k* = L2_MB x 42.7 --- another algebraic invariant.")
     
     alpha_result = {
         "theorem": "Universal SVD exponent alpha ~ 0.7",

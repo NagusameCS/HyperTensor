@@ -270,7 +270,7 @@ catch {
 }
 finally {
     if ($KeepInstance) {
-        Warn "KeepInstance — instance $instanceId still running."
+        Warn "KeepInstance --- instance $instanceId still running."
     } else {
         Log "Terminating $instanceId..."
         aws ec2 terminate-instances --region $Region --instance-ids $instanceId --output text | Out-Null

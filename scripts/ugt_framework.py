@@ -36,7 +36,7 @@ from dataclasses import dataclass
 class UGTSubspace:
     """Designated semantic subspace in the UGT coordinate system."""
     name: str           # e.g., "Syntax", "Routing", "Factual"
-    dims: tuple         # (start, end) — inclusive-exclusive
+    dims: tuple         # (start, end) --- inclusive-exclusive
     projection_weight: float = 1.0  # Weight for TOP loss
 
 
@@ -260,7 +260,7 @@ def compute_hotswap_gd(model_a, model_b, layer_idx: int, k: int = 32) -> float:
     """After UGT training, compute Grassmann distance for hot-swap test.
     
     This is the key experiment for Paper XI: if UGT works, two independently
-    trained UGT models should have GD < 0.10 at the same layer — meaning
+    trained UGT models should have GD < 0.10 at the same layer --- meaning
     their attention heads can be swapped without gauge alignment.
     """
     layer_a = model_a.base.model.layers[layer_idx].self_attn
@@ -291,7 +291,7 @@ def compute_hotswap_gd(model_a, model_b, layer_idx: int, k: int = 32) -> float:
 # ===========================================================================
 
 if __name__ == '__main__':
-    print("UGT Framework — Paper XI Infrastructure")
+    print("UGT Framework --- Paper XI Infrastructure")
     print("=" * 50)
     
     # Quick sanity check
@@ -307,4 +307,4 @@ if __name__ == '__main__':
     print(f"\n  To use:")
     print(f"    from ugt_framework import UGTAdapter, TOPLoss, UGT_SUBSPACES")
     print(f"    adapter = UGTAdapter(model, UGT_SUBSPACES, d=576, lambda_top=0.01)")
-    print(f"    # Train as normal — TOP loss is computed internally")
+    print(f"    # Train as normal --- TOP loss is computed internally")

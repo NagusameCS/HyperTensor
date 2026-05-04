@@ -14,7 +14,7 @@ print("  ACM PROTOTYPE: ζ(s) Involution Manifold")
 print("  Paper XVII validation")
 print("="*60)
 
-# ── ζ(s) zero data ──
+# -- ζ(s) zero data --
 zeta_zeros_imag=[14.134725,21.022040,25.010857,30.424876,32.935061,37.586178,40.918719,43.327073,48.005150,49.773832,52.970321,56.446248,59.347044,60.831779,65.112543,67.079811,69.546401,72.067158,75.704691,77.144840,79.337375,82.910381,84.735493,87.425273,88.809112,92.491899,94.651344,95.870634,98.831194,101.317851]
 
 def zeta_features(t,real_part):
@@ -35,7 +35,7 @@ off_z=torch.stack([zeta_features(t,rp) for t,rp in off_cases])  # [15,6]
 
 print(f"Critical zeros: {len(crit_z)}, Off-critical: {len(off_z)}")
 
-# ── Build manifold + involution ──
+# -- Build manifold + involution --
 encoder=torch.nn.Sequential(torch.nn.Linear(6,128),torch.nn.GELU(),torch.nn.Linear(128,D)).to(DEVICE)
 # Involution ι: D -> D, must satisfy ι²≈id
 involution=torch.nn.Sequential(torch.nn.Linear(D,256),torch.nn.GELU(),torch.nn.Linear(256,256),torch.nn.GELU(),torch.nn.Linear(256,D)).to(DEVICE)
@@ -84,7 +84,7 @@ for step in range(steps):
             off_err=torch.norm(iota_o-e_o,dim=-1).mean().item()
         print(f"  Step {step+1}: loss={loss.item():.4f} fp={fp_err:.3f} off={off_err:.3f} inv={inv_loss.item():.3f}")
 
-# ── Validation ──
+# -- Validation --
 print("\n[Validation]")
 with torch.no_grad():
     # All embeddings
@@ -122,7 +122,7 @@ with torch.no_grad():
     # Fixed-point dim = rank of I-J at fixed points
     I_minus_J=torch.eye(D,device=DEVICE)-J
     S=torch.linalg.svdvals(I_minus_J)
-    # Count singular values above threshold → dimension of nullspace
+    # Count singular values above threshold -> dimension of nullspace
     thresh=0.1
     fp_dim=(S<thresh).sum().item()
     print(f"  Fixed-point subspace dim: {fp_dim} (expected ≈{D//2}={D//2})")
@@ -152,7 +152,7 @@ with torch.no_grad():
     print(f"  Mean off-critical act: {sum(off_act)/len(off_act):.1f}%")
     print(f"  Mean critical act: {sum(crit_act)/len(crit_act):.1f}%")
 
-# ── Save ──
+# -- Save --
 results={
     "fp_error_mean":round(fp_errors.mean().item(),4),
     "fp_error_max":round(fp_errors.max().item(),4),

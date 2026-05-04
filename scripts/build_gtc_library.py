@@ -30,12 +30,12 @@ CONFIG = {
 # ===========================================================================
 # | Field          | Bytes | Description                         |
 # |----------------|-------|-------------------------------------|
-# | embedding      | 2304  | float32[576] — query embedding       |
-# | trajectory     | 80    | uint32[20] — token IDs               |
-# | propagator     | 180   | float32[5,9] — Magnus-3 Jacobi       |
-# | validity_radius| 4     | float32 — injectivity radius ρ̂       |
-# | logits         | 196608| float32[49152] — terminal logits     |
-# | checksum       | 4     | uint32 — CRC32                       |
+# | embedding      | 2304  | float32[576] --- query embedding       |
+# | trajectory     | 80    | uint32[20] --- token IDs               |
+# | propagator     | 180   | float32[5,9] --- Magnus-3 Jacobi       |
+# | validity_radius| 4     | float32 --- injectivity radius ρ̂       |
+# | logits         | 196608| float32[49152] --- terminal logits     |
+# | checksum       | 4     | uint32 --- CRC32                       |
 # | padding        | varies | zero-pad to 6103 bytes              |
 # ===========================================================================
 
@@ -96,7 +96,7 @@ def build_library(num_records, output_dir):
     # Pre-allocate embeddings (normalized random for simulation)
     rng = np.random.default_rng(42)
     
-    # Actually store records efficiently — for simulation we'd use real model data
+    # Actually store records efficiently --- for simulation we'd use real model data
     # Here we build the metadata and sizing, with option to populate from real runs
     
     # Index file (for fast lookup)

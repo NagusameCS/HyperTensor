@@ -112,7 +112,7 @@ question,A,B,C,D,answer
 "The change of cross sectional area of conductor in magnetic field will affect","reluctance of conductor.","resistance of conductor.","(A) and (B) both in the same way.","none of above.",2
 "Which of the following is used in SCR to protect from high dV / dt?","Snubber circuit.","Fuse.","Equalizing circuit.","Circuit breaker.",0
 "What are the sets of commands in a program which are not translated into machine instructions during assembly process, called?","Mnemonics","Directives","Identifiers","Operands",1
-"Speed of data transmission in 4-G network of telecom is","386 kbps - 2 mbps.","2 mbps.","2 mbps – 1 gbps.","100 mbps - 1 gbps.",3
+"Speed of data transmission in 4-G network of telecom is","386 kbps - 2 mbps.","2 mbps.","2 mbps -- 1 gbps.","100 mbps - 1 gbps.",3
 "Which of the followings is/are active element?","Voltage source","Current source","Both","None of these.",2
 "Electrical analogous quantity for spring element (K) in force-voltage analogy is","L","R","1/C","C",2
 "A quartz crystal oscillator consists of","only series resonant frequency.","only parallel resonant frequency.","both series and parallel frequencies.","neither series nor parallel frequency.",2

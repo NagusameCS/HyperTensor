@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MASTER EXPERIMENT REGISTRY — Every unproven prediction across HyperTensor Papers I-XV.
+MASTER EXPERIMENT REGISTRY --- Every unproven prediction across HyperTensor Papers I-XV.
 Persistent record of claims, experiments, and verification status.
 """
 import json, os
@@ -34,7 +34,7 @@ EXPERIMENTS = [
     # PAPER J: CECI Chimeric Splicing
     {"id":"J1","paper":"X (J)","claim":"Within-model within-band splicing viable","status":"done","result":"FALSIFIED: 0/120 pairs viable at k=32","needs_gpu":False},
     {"id":"J2","paper":"X (J)","claim":"Cross-model shared-init splice viable","status":"running","needs_gpu":True,"runtime_hrs":3},
-    # FUTURE PAPERS (XI-XV) — structural predictions, not yet measured
+    # FUTURE PAPERS (XI-XV) --- structural predictions, not yet measured
     {"id":"K1","paper":"XI","claim":"UGT taxonomic orthogonality penalty converges","status":"blueprint","needs_gpu":True,"runtime_hrs":"24-72"},
     {"id":"K2","paper":"XI","claim":"UGT models hot-swap attention heads seamlessly","status":"blueprint","needs_gpu":True},
     {"id":"L1","paper":"XII","claim":"Native k-space training matches ambient quality","status":"blueprint","needs_gpu":True,"runtime_hrs":"48-168"},

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║              ISAGI Web Chat Interface (Gradio)                  ║
-║                                                                 ║
-║  Simple web UI for chatting with ISAGI.                         ║
-║  Opens in your browser at http://127.0.0.1:7860                 ║
-║                                                                 ║
-║  Usage:                                                         ║
-║    python isagi_web.py --model Qwen/Qwen2.5-7B-Instruct --4bit  ║
-║    python isagi_web.py --share  (public link via Gradio)        ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|              ISAGI Web Chat Interface (Gradio)                  |
+|                                                                 |
+|  Simple web UI for chatting with ISAGI.                         |
+|  Opens in your browser at http://127.0.0.1:7860                 |
+|                                                                 |
+|  Usage:                                                         |
+|    python isagi_web.py --model Qwen/Qwen2.5-7B-Instruct --4bit  |
+|    python isagi_web.py --share  (public link via Gradio)        |
++==================================================================+
 """
 import sys, os, argparse, time
 
@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gradio as gr
 import torch
 
-# Lazy import — ISAGI loads when first message arrives
+# Lazy import --- ISAGI loads when first message arrives
 isagi_system = None
 
 def build_isagi_once(model_id, use_4bit, cpu_offload):
@@ -94,15 +94,15 @@ def save_state():
     save_isagi_state(path, isagi_system)
     return f"State saved to {path}"
 
-# ── Gradio UI ──
+# -- Gradio UI --
 def create_ui(model_id, use_4bit, cpu_offload, share):
     """Build the Gradio chat interface."""
     
-    with gr.Blocks(title="ISAGI — The Adaptive Living Model", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="ISAGI --- The Adaptive Living Model", theme=gr.themes.Soft()) as demo:
         gr.Markdown("""
-        #  ISAGI — The Adaptive Living Model
+        #  ISAGI --- The Adaptive Living Model
         
-        *"No problem is unsolvable — only a question of time and depth."*
+        *"No problem is unsolvable --- only a question of time and depth."*
         
         **Stack:** GTC + OTT + GRC + UGT + Safe OGD + Snipe + COG+TEH
         """)
@@ -131,18 +131,18 @@ def create_ui(model_id, use_4bit, cpu_offload, share):
                 ### About ISAGI
                 
                 ISAGI integrates all HyperTensor research:
-                - **GTC** — Trajectory caching (15.5× vs RAG)
-                - **OTT** — Speculative decoding
-                - **GRC** — Attention compression
-                - **UGT** — Taxonomic knowledge basis
-                - **Safe OGD** — Geometric safety (0% TEH)
-                - **Snipe** — Behavioral precision
-                - **COG** — Living manifold (grows with you)
+                - **GTC** --- Trajectory caching (15.5× vs RAG)
+                - **OTT** --- Speculative decoding
+                - **GRC** --- Attention compression
+                - **UGT** --- Taxonomic knowledge basis
+                - **Safe OGD** --- Geometric safety (0% TEH)
+                - **Snipe** --- Behavioral precision
+                - **COG** --- Living manifold (grows with you)
                 
                 ### Commands
                 Type in chat:
-                - `/status` — System stats
-                - `/save` — Save .miku state
+                - `/status` --- System stats
+                - `/save` --- Save .miku state
                 """)
         
         # State variables

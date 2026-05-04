@@ -71,7 +71,7 @@ Write-Host ("[release] Original: {0:N0} KB   Compressed: {1:N0} KB   Ratio: {2:N
     -f ($origBytes/1KB), ($compBytes/1KB), ($compBytes/$origBytes*100))
 
 if ($DryRun) {
-    Write-Host "[release] DryRun: archive at $Archive — skipping GH upload."
+    Write-Host "[release] DryRun: archive at $Archive --- skipping GH upload."
     exit 0
 }
 
@@ -86,13 +86,13 @@ Losslessly compressed (7z LZMA2 -mx=9) NCU measurement data and sweep
 summaries for reproducing Paper A (GRC) and Paper E (GRC-Light) results.
 
 ### Contents
-- ``docs/figures/paper-a/ncu_sweep/`` — multi-k NCU sweep (Paper A §sec:cachefit-ncu)
-- ``docs/figures/paper-a/expB_thrash/`` — Exp B L2 thrash sweep (Paper A §sec:falsification P2)
-- ``docs/figures/paper-e/rho_sweep/`` — rho measurement (Paper E §sec:gapbound)
+- ``docs/figures/paper-a/ncu_sweep/`` --- multi-k NCU sweep (Paper A §sec:cachefit-ncu)
+- ``docs/figures/paper-a/expB_thrash/`` --- Exp B L2 thrash sweep (Paper A §sec:falsification P2)
+- ``docs/figures/paper-e/rho_sweep/`` --- rho measurement (Paper E §sec:gapbound)
 
 ### Key results
-- **Exp A (multi-k):** GRC L2 hit-rate +3.9 pp above baseline (7.5% → 11.5%), flat in k
-- **Exp B (thrash):** DRAM speedup proxy = 1.194 across Delta = 0/8/16/22 MB (flat — structural)
+- **Exp A (multi-k):** GRC L2 hit-rate +3.9 pp above baseline (7.5% -> 11.5%), flat in k
+- **Exp B (thrash):** DRAM speedup proxy = 1.194 across Delta = 0/8/16/22 MB (flat --- structural)
 - **L2 verdict:** CONSISTENT-OR-FUSION (kernel fusion, not L2 residency)
 - **rho (Paper E):** mean_rho = 0.1340 at k=1024, r=8 (Llama-3.1-8B Q4_K_M, 32 layers)
 

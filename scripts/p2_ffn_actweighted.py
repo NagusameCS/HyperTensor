@@ -43,7 +43,7 @@ def collect_activations(model, tokenizer, texts, n_samples=500):
     for layer_idx in range(n_layers):
         ml = model.model.layers[layer_idx]
         
-        # Gate: (d_ffn, d) — column norms along input dim
+        # Gate: (d_ffn, d) --- column norms along input dim
         W_gate = ml.mlp.gate_proj.weight.data.float().numpy()
         act_sums['gate'].append(np.linalg.norm(W_gate, axis=1))  # (d_ffn,)
         
@@ -51,7 +51,7 @@ def collect_activations(model, tokenizer, texts, n_samples=500):
         W_up = ml.mlp.up_proj.weight.data.float().numpy()
         act_sums['up'].append(np.linalg.norm(W_up, axis=1))  # (d_ffn,)
         
-        # Down: (d, d_ffn) — column norms along output dim
+        # Down: (d, d_ffn) --- column norms along output dim
         W_down = ml.mlp.down_proj.weight.data.float().numpy()
         act_sums['down'].append(np.linalg.norm(W_down, axis=0))  # (d_ffn,)
         

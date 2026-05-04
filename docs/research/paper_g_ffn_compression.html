@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper G / VIII: FFN Cluster Compression — HyperTensor</title>
+<title>Paper G / VIII: FFN Cluster Compression --- HyperTensor</title>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
 nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{font-weight:600;color:var(--text);text-decoration:none}
@@ -53,23 +53,23 @@ footer a{color:var(--text)}
 
 <h2>Key Findings</h2>
 <ul>
-<li><strong>FFN compressibility asymmetry:</strong> Down-projection compresses 3x better than gate/up projections due to its role as a linear readout after the nonlinearity.</li>
-<li><strong>Residual bypass:</strong> Preserving the top-k singular vectors of each FFN matrix and compressing only the residual recovers 85% of the PPL penalty at equal compression ratio.</li>
-<li><strong>Combined attention+FFN:</strong> At k_attn=1024, k_ffn=2048, total parameter reduction is 38% with +3.4 PPL on Llama-3.1-8B.</li>
-<li><strong>Layer-wise FFN rank profile:</strong> Early layers (0-5) and late layers (25-29) have higher effective FFN rank than middle layers, consistent with the "hourglass" intrinsic dimension profile observed in attention.</li>
+<li>FFN compressibility asymmetry: Down-projection compresses 3x better than gate/up projections due to its role as a linear readout after the nonlinearity.</li>
+<li>Residual bypass: Preserving the top-k singular vectors of each FFN matrix and compressing only the residual recovers 85% of the PPL penalty at equal compression ratio.</li>
+<li>Combined attention+FFN: At k_attn=1024, k_ffn=2048, total parameter reduction is 38% with +3.4 PPL on Llama-3.1-8B.</li>
+<li>Layer-wise FFN rank profile: Early layers (0-5) and late layers (25-29) have higher effective FFN rank than middle layers, consistent with the "hourglass" intrinsic dimension profile observed in attention.</li>
 </ul>
 
 <h2>Measured Results</h2>
 <table>
 <tr><th>Compression</th><th>k_FFN_down</th><th>PPL (baseline 6.79)</th><th>Param Reduction</th></tr>
-<tr><td>Attention only (k=1024)</td><td>—</td><td>7.52</td><td>18%</td></tr>
+<tr><td>Attention only (k=1024)</td><td>---</td><td>7.52</td><td>18%</td></tr>
 <tr><td>FFN only (k=2048)</td><td>2048</td><td>7.89</td><td>24%</td></tr>
 <tr><td>Attn+FFN (k=1024/2048)</td><td>2048</td><td>8.93</td><td>38%</td></tr>
 <tr><td>Attn+FFN+bypass (k=1024/2048)</td><td>2048+top256</td><td>8.21</td><td>34%</td></tr>
 <tr><td>Attn+FFN+bypass (k=1024/3072)</td><td>3072+top256</td><td>7.64</td><td>27%</td></tr>
 </table>
 
-<div class="note"><strong>Reproduction:</strong> Benchmark uses <code>geod.ps1 benchmark --mode ffn</code> with the <code>--bypass-topk 256</code> flag. Full protocol in <code>docs/BENCHMARK_PROTOCOL.md</code>.</div>
+<div class="note">Reproduction: Benchmark uses <code>geod.ps1 benchmark --mode ffn</code> with the <code>--bypass-topk 256</code> flag. Full protocol in <code>docs/BENCHMARK_PROTOCOL.md</code>.</div>
 
 <div class="dl">
 <a href="../../ARXIV_SUBMISSIONS/paper-VII/ffn_cluster_compression.pdf">Download PDF</a>

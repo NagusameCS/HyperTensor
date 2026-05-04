@@ -15,7 +15,7 @@ Concretely:
     convex hull of the cloud and assigning each a metric tensor that is the
     (smoothed) outer product of local PCA directions. This is a faithful
     Riemannian object even though it is not the same one the runtime caches.
-    For the GTC validity experiment that is enough — we are measuring whether
+    For the GTC validity experiment that is enough --- we are measuring whether
     Jacobi linearisation is valid on a non-trivially-curved manifold, not
     whether the manifold is *the* one inside Llama.
 
@@ -25,7 +25,7 @@ Concretely:
 
 Public API:
 
-    Manifold(g, gamma, sample_points, dim) — frozen dataclass
+    Manifold(g, gamma, sample_points, dim) --- frozen dataclass
     fit_phase3_manifold(model, n_intrinsic, sigma, n_grid)
     build_sphere_manifold(n_intrinsic, n_grid, radius=1.0)
 """
@@ -204,14 +204,14 @@ def fit_phase3_manifold(model: str, n_intrinsic: Optional[int] = None,
     """Construct an intrinsic-dim manifold from the Phase-1/3 exports.
 
     The Phase-3 export is in 3-D vis space and the runtime emits only a
-    diagonal of g per point with one global Γ — too thin to give a
+    diagonal of g per point with one global Γ --- too thin to give a
     non-trivial manifold directly. We rebuild a faithful Riemannian object
     in three steps:
 
       1. Lift the Phase-1 cloud to ``n_intrinsic`` dimensions, padding with
          coordinates drawn from the tail of the PCA eigenvalue spectrum.
       2. At each lifted seed point, estimate the metric tensor from the
-         **local k-nearest-neighbour covariance** of the cloud — i.e.
+         **local k-nearest-neighbour covariance** of the cloud --- i.e.
          ``g(x) = Cov_local(x)^{-1}``. This is the classical Mahalanobis
          metric on the embedded data, which is a Fisher-information proxy
          when the data are model activations.
@@ -220,7 +220,7 @@ def fit_phase3_manifold(model: str, n_intrinsic: Optional[int] = None,
 
     The resulting manifold is *not identical* to the one the runtime caches,
     but it is non-trivially curved and constructed only from the Phase-1
-    cloud — which the runtime *does* emit faithfully. This is what makes the
+    cloud --- which the runtime *does* emit faithfully. This is what makes the
     GTC validity-radius experiment meaningful.
     """
     p1 = load_phase1(model)
@@ -240,7 +240,7 @@ def fit_phase3_manifold(model: str, n_intrinsic: Optional[int] = None,
     extra = rng.normal(size=(Nc, n - 3)) * extra_scale[None, :]
     seeds = np.concatenate([base, extra], axis=1)  # (Nc, n)
 
-    # Local k-NN covariance → metric.
+    # Local k-NN covariance -> metric.
     seed_g = np.zeros((Nc, n, n))
     k_nn = min(k_neighbours, Nc - 1)
     for i in range(Nc):
@@ -308,7 +308,7 @@ def build_sphere_manifold(n_intrinsic: int = 3, n_grid: int = 64,
     rng = np.random.default_rng(seed)
     n = int(n_intrinsic)
     # Sample points in a ball of radius 0.6 r in stereographic chart (avoids the
-    # north-pole singularity at |x| → ∞).
+    # north-pole singularity at |x| -> ∞).
     pts = rng.normal(size=(n_grid, n))
     pts /= np.linalg.norm(pts, axis=1, keepdims=True)
     pts *= rng.uniform(0.0, 0.6 * radius, size=(n_grid, 1))

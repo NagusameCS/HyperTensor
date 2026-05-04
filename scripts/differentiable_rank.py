@@ -52,8 +52,8 @@ def gumbel_softmax_sample(logits: np.ndarray, temperature: float = 1.0,
     """
     Sample from Gumbel-Softmax distribution over discrete k values.
 
-    logits: (n_options,) — unnormalized log-probabilities for each k
-    temperature: controls sharpness (τ→0 gives argmax)
+    logits: (n_options,) --- unnormalized log-probabilities for each k
+    temperature: controls sharpness (τ->0 gives argmax)
     hard: if True, return one-hot; if False, return soft probabilities
 
     Returns: (n_options,) probability vector
@@ -111,7 +111,7 @@ def reconstruction_quality(Wq: np.ndarray, Wk: np.ndarray, Wv: np.ndarray,
     """
     Estimate reconstruction quality at rank k.
     Returns fraction of Frobenius energy retained.
-    Higher is better — this is what the optimizer maximizes.
+    Higher is better --- this is what the optimizer maximizes.
     """
     P = build_shared_basis(Wq, Wk, Wv)
     P_k = P[:, :k]

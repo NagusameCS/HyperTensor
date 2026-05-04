@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper H / IX: GTC as RAG Alternative — HyperTensor</title>
+<title>Paper H / IX: GTC as RAG Alternative --- HyperTensor</title>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
 nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{font-weight:600;color:var(--text);text-decoration:none}
@@ -49,18 +49,18 @@ footer a{color:var(--text)}
 </div>
 
 <h2>Abstract</h2>
-<p>Retrieval-Augmented Generation (RAG) pipelines add latency, index maintenance, and external dependency costs to language model inference. Paper IX proposes Geodesic Trajectory Caching (GTC) as a manifold-native alternative: instead of retrieving documents from an external vector database, the model retrieves previously-computed geodesic paths through its own intrinsic k-manifold. Each cached trajectory stores the input embedding, the sequence of geodesic segments traversed during decoding, and the Jacobi correction field—requiring only 5.96 KB per record. At inference time, a cosine-similarity lookup (30.9 microseconds) finds the closest cached trajectory, and the Jacobi field is parallel-transported to the current query position via Magnus-3 expansion, providing a manifold-consistent prior for the next token distribution. On SmolLM2-135M-Instruct, GTC achieves comparable factuality to a 50-document DPR retriever with 340x lower latency and zero external infrastructure.</p>
+<p>Retrieval-Augmented Generation (RAG) pipelines add latency, index maintenance, and external dependency costs to language model inference. Paper IX proposes Geodesic Trajectory Caching (GTC) as a manifold-native alternative: instead of retrieving documents from an external vector database, the model retrieves previously-computed geodesic paths through its own intrinsic k-manifold. Each cached trajectory stores the input embedding, the sequence of geodesic segments traversed during decoding, and the Jacobi correction field---requiring only 5.96 KB per record. At inference time, a cosine-similarity lookup (30.9 microseconds) finds the closest cached trajectory, and the Jacobi field is parallel-transported to the current query position via Magnus-3 expansion, providing a manifold-consistent prior for the next token distribution. On SmolLM2-135M-Instruct, GTC achieves comparable factuality to a 50-document DPR retriever with 340x lower latency and zero external infrastructure.</p>
 
 <h2>Key Findings</h2>
 <ul>
-<li><strong>340x latency advantage:</strong> GTC lookup at 30.9 us vs typical vector DB retrieval at ~10 ms.</li>
-<li><strong>Zero external infrastructure:</strong> No embedding database, no index refresh, no separate retriever model.</li>
-<li><strong>97x batched Jacobi gain:</strong> At batch size B=10, Magnus-3 parallel transport across cached trajectories is 97x faster than sequential Jacobi integration.</li>
-<li><strong>Cross-model transfer:</strong> Caches trained on SmolLM2-135M transfer partially to Phi-3.5-mini (34% hit rate) and Gemma-4-E2B (28%), suggesting manifold universality.</li>
-<li><strong>Storage efficiency:</strong> 5.96 KB/record means 1M trajectories fit in 5.8 GB, comparable to a mid-size vector index.</li>
+<li>340x latency advantage: GTC lookup at 30.9 us vs typical vector DB retrieval at ~10 ms.</li>
+<li>Zero external infrastructure: No embedding database, no index refresh, no separate retriever model.</li>
+<li>97x batched Jacobi gain: At batch size B=10, Magnus-3 parallel transport across cached trajectories is 97x faster than sequential Jacobi integration.</li>
+<li>Cross-model transfer: Caches trained on SmolLM2-135M transfer partially to Phi-3.5-mini (34% hit rate) and Gemma-4-E2B (28%), suggesting manifold universality.</li>
+<li>Storage efficiency: 5.96 KB/record means 1M trajectories fit in 5.8 GB, comparable to a mid-size vector index.</li>
 </ul>
 
-<div class="note"><strong>Reproduction:</strong> The OTT runtime is exercised via <code>geod.ps1 benchmark --mode ott --batch 10</code>. The 97x batched-Jacobi measurement requires the full GTC cache (included in the Models tab).</div>
+<div class="note">Reproduction: The OTT runtime is exercised via <code>geod.ps1 benchmark --mode ott --batch 10</code>. The 97x batched-Jacobi measurement requires the full GTC cache (included in the Models tab).</div>
 
 <div class="dl">
 <a href="../../ARXIV_SUBMISSIONS/paper-VIII/gtc_as_rag.pdf">Download PDF</a>

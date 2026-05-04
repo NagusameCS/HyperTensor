@@ -1,5 +1,5 @@
 #!/bin/bash
-# EC2 AUTO-PIPELINE: Math → Language → CECI
+# EC2 AUTO-PIPELINE: Math -> Language -> CECI
 # Run on EC2: bash ~/pipeline.sh
 
 set -e

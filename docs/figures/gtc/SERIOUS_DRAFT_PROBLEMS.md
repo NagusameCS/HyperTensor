@@ -231,11 +231,11 @@ This draft is intentionally problem-first and complete enough to drive an implem
 
 ---
 
-## Implementation Status (P1 Track — D2 / C3 / C2)
+## Implementation Status (P1 Track --- D2 / C3 / C2)
 
-**Implemented:** Session ending 2026-04-27
+Implemented: Session ending 2026-04-27
 
-### D2 — Rejection Taxonomy 
+### D2 --- Rejection Taxonomy 
 - Runtime: `--ott-rejection-log <path>` flag added to `host/main.c`
   - Writes `geodessical_rejection_log_v1` TSV on every speculative verification
   - Columns: `step`, `draft_pos`, `draft_tok`, `draft_piece`, `verifier_tok`,
@@ -245,11 +245,11 @@ This draft is intentionally problem-first and complete enough to drive an implem
     divergence), Type III (early-turn context collapse)
   - Outputs console table + optional JSON report
 - Smoke-run result on "What is the capital of France?" (24 tokens):
-  - 1 rejection: Type II (draft "its" → verifier "working", pos=0, source=od)
-  - Primary driver: **Type II** → Manifold Divergence
+  - 1 rejection: Type II (draft "its" -> verifier "working", pos=0, source=od)
+  - Primary driver: Type II -> Manifold Divergence
   - Action: GRC correction budget / C3 calibration sweep
 
-### C3 — Calibration Sweep 
+### C3 --- Calibration Sweep 
 - Script: `scripts/ott/calibration_sweep.ps1`
   - Grid: `--ott-spec-thresh` ∈ {0.25, 0.35, 0.45, 0.55, 0.65, 0.75}
     × `--ott-spec-batch` ∈ {1, 2, 3, 4}
@@ -261,7 +261,7 @@ This draft is intentionally problem-first and complete enough to drive an implem
   .\scripts\ott\calibration_sweep.ps1 -MaxTokens 32 -Reps 2
   ```
 
-### C2 — Cloud Density Bridge Analysis 
+### C2 --- Cloud Density Bridge Analysis 
 - Script: `scripts/ott/cloud_density.py`
   - Reads `test_live.tsv` (online cloud) + `axiom_beta_report.json` (offline)
   - Computes consecutive distances, nearest-neighbour distribution, offline-to-online
@@ -269,8 +269,8 @@ This draft is intentionally problem-first and complete enough to drive an implem
   - Optional matplotlib chart: `cloud_density_chart.png`
 - Smoke-run result (24 online states, dim=576):
   - Consecutive cosine distance: mean=0.275, p90=0.477, max=0.801
-  - NN distance: mean=0.132, p90=0.348 → moderate spread, manageable divergence
-  - Offline axiom report had no `coverage_radius` field → bridge gap skipped
+  - NN distance: mean=0.132, p90=0.348 -> moderate spread, manageable divergence
+  - Offline axiom report had no `coverage_radius` field -> bridge gap skipped
     (run `--ott-full` on a richer prompt set to populate axiom report)
 - Run with:
   ```powershell

@@ -1,6 +1,6 @@
 """COG with Integrated Safe OGD: Every trajectory is safe by construction.
 Projects out forbidden components BEFORE caching/expanding.
-No threshold needed — TEH is enforced geometrically, not heuristically.
+No threshold needed --- TEH is enforced geometrically, not heuristically.
 Deploy to EC2."""
 import torch, json, time, os
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -61,7 +61,7 @@ def is_novel(h):
     hk=to_k(h); dists=[torch.norm(hk-tp["proj"].to(DEVICE)).item() for tp in trajectories]
     md=min(dists); return md>delta_novel, md
 
-# ── Seed Phase (all safe-projected) ──
+# -- Seed Phase (all safe-projected) --
 print("\n[2] Seeding (safe-projected)...")
 seeds=["quantum computing superposition qubits","neural network backpropagation learning",
        "general relativity spacetime curvature gravity","DNA replication polymerase enzyme",
@@ -73,7 +73,7 @@ for s in seeds:
     trajectories.append({"proj":to_k(hs).cpu(),"label":s,"expanded":False})
 print(f"  Seeded: {len(trajectories)} concepts")
 
-# ── Expansion Phase ──
+# -- Expansion Phase --
 novel=["quantum error correction decoherence","attention mechanism transformer tokens",
        "gravitational waves LIGO detection","CRISPR gene editing Cas9","Ricci flow Poincare",
        "black hole information paradox","neural plasticity synaptic pruning","Higgs boson CERN",
@@ -112,7 +112,7 @@ for i,concept in enumerate(novel):
 
 elapsed=time.time()-t0; mc=torch.norm(metric-torch.eye(k,device=DEVICE)).item()
 
-# ── Query Test ──
+# -- Query Test --
 print(f"\n[4] Query test...")
 queries=["How does quantum error correction work?","What detected gravitational waves?",
          "What is CRISPR gene editing?","How does AlphaFold predict structures?",
@@ -133,7 +133,7 @@ for q in queries:
 
 mean_sim=sum(sims)/len(sims)
 
-# ── Summary ──
+# -- Summary --
 print(f"\n{'='*60}")
 print(f"  COG + SAFE OGD INTEGRATED RESULTS")
 print(f"{'='*60}")

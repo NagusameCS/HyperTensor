@@ -54,7 +54,7 @@ def main():
                         encoding="utf-8")
     oks = [r for r in rows if r["ok"]]
     print(f"\n[curvature_warp/sweep] {len(oks)}/{len(rows)} configs pass; "
-          f"total wall {wall:.1f}s → {out_path}")
+          f"total wall {wall:.1f}s -> {out_path}")
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def teh_act(h):
 def to_k(h): return h.float()@basis.float()
 def from_k(p): return p@basis.float().T
 
-# ── Safe OGD ──
+# -- Safe OGD --
 def safe_ogd(h_base,alpha=0.15):
     h_safe=P_safe@h_base
     rand_dir=torch.randn(k_basis,device=DEVICE)
@@ -68,7 +68,7 @@ def safe_ogd(h_base,alpha=0.15):
     new_h_safe=new_h_safe/torch.norm(new_h_safe)*torch.norm(h_base)
     return new_h_safe
 
-# ── Living Manifold (from cog_expansion) ──
+# -- Living Manifold (from cog_expansion) --
 class LivingManifold:
     def __init__(self,metric,k,eta=0.03,delta_novel=0.4):
         self.metric=metric; self.k=k; self.eta=eta; self.delta_novel=delta_novel
@@ -96,7 +96,7 @@ class LivingManifold:
 
 manifold=LivingManifold(metric,k_basis,eta=0.03,delta_novel=0.4)
 
-# ── Seed knowledge ──
+# -- Seed knowledge --
 seeds=[
     "Quantum computing uses qubits for parallel computation",
     "Neural networks learn patterns through backpropagation",
@@ -106,7 +106,7 @@ seeds=[
 ]
 for s in seeds: manifold.store(get_hidden(s),s)
 
-# ── Creative loop ──
+# -- Creative loop --
 print("\n[2] Safe OGD + COG creative loop...")
 alphas=[0.05,0.10,0.15,0.20,0.25,0.30]
 iterations=30
@@ -145,7 +145,7 @@ for i in range(iterations):
     if i<15 or action!="BLOCKED":
         print(f"  [{i+1:>2}] α={alpha:.2f} act={act:.1f}% dist={min_dist:.3f} -> {action}")
 
-# ── Summary ──
+# -- Summary --
 expanded=sum(1 for r in results if r["action"]=="EXPANDED")
 cached=sum(1 for r in results if r["action"]=="CACHED")
 blocked=sum(1 for r in results if r["action"]=="BLOCKED")

@@ -57,7 +57,7 @@
 
 #!/usr/bin/env bash
 # ==============================================================================
-# TensorOS — QEMU Run Script
+# TensorOS --- QEMU Run Script
 # ==============================================================================
 # Usage:
 #   ./scripts/run-qemu.sh              Normal boot
@@ -97,10 +97,10 @@ fi
 # KVM detection
 KVM_FLAGS=""
 if [ -e /dev/kvm ]; then
-    echo "[*] KVM available — hardware acceleration enabled"
+    echo "[*] KVM available --- hardware acceleration enabled"
     KVM_FLAGS="-enable-kvm -cpu host"
 else
-    echo "[*] KVM not available — using software emulation"
+    echo "[*] KVM not available --- using software emulation"
     KVM_FLAGS="-cpu qemu64,+sse2,+sse4.1,+sse4.2,+avx"
 fi
 
@@ -114,7 +114,7 @@ COMMON_FLAGS="$COMMON_FLAGS -D $LOG"
 case "${1:-}" in
     --debug)
         echo "================================================================"
-        echo "  TensorOS — DEBUG MODE"
+        echo "  TensorOS --- DEBUG MODE"
         echo "  GDB stub listening on localhost:1234"
         echo "  Connect with: gdb -ex 'target remote :1234' $KERNEL"
         echo "================================================================"
@@ -135,10 +135,10 @@ case "${1:-}" in
         ;;
     ""|--run)
         echo "================================================================"
-        echo "  TensorOS — Booting in QEMU"
+        echo "  TensorOS --- Booting in QEMU"
         echo "  Memory: $MEM | CPUs: $CPUS"
         echo "  Serial console on stdio"
-        echo "  HTTP port forwarded: host:8080 → guest:8080"
+        echo "  HTTP port forwarded: host:8080 -> guest:8080"
         echo "================================================================"
         $QEMU $COMMON_FLAGS $KVM_FLAGS -kernel "$KERNEL"
         ;;

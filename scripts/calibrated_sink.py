@@ -3,7 +3,7 @@
 Calibrated Sink-Channel Detection (Tier 2).
 
 Paper A's sink-channel pilot (Table 6) uses weight-only L2 magnitude to
-identify sink columns — calibration-free, but limited (~1-3% relative
+identify sink columns --- calibration-free, but limited (~1-3% relative
 reconstruction improvement).  The literature (Sun et al. 2024, Xiao et al.
 2023) shows that massive activations are a *runtime* phenomenon: specific
 hidden-state dimensions at specific positions hoard disproportionate

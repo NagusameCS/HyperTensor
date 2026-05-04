@@ -63,7 +63,7 @@ def is_novel(h):
     hk=to_k(h); dists=[torch.norm(hk-tp["proj"].to(DEVICE)).item() for tp in trajectories]
     md=min(dists); return md>delta_novel, md
 
-# ── Seed Phase ──
+# -- Seed Phase --
 print(f"\n[2] Seeding manifold (τ={THRESHOLD:.0f}%)...")
 base_knowledge=["quantum computing superposition","neural network backpropagation","relativity spacetime curvature",
                 "DNA replication polymerase","carbon cycle photosynthesis","machine learning gradient descent",
@@ -76,7 +76,7 @@ for s in base_knowledge:
     else: blocked_seed+=1
 print(f"  Seeded: {seeded}/10 (blocked: {blocked_seed})")
 
-# ── Expansion Phase ──
+# -- Expansion Phase --
 print(f"\n[3] Expanding manifold (40 interactions)...")
 novel_concepts=["quantum error correction decoherence","attention mechanism transformer tokens",
                 "gravitational waves LIGO detection","CRISPR gene editing Cas9","Ricci flow Poincare conjecture",
@@ -122,7 +122,7 @@ for i,concept in enumerate(novel_concepts):
 elapsed=time.time()-t0
 mc=torch.norm(metric-torch.eye(k,device=DEVICE)).item()
 
-# ── Query Test ──
+# -- Query Test --
 print(f"\n[4] Query test...")
 queries=["How does quantum error correction work?","What detected gravitational waves?",
          "What is CRISPR?","How does AlphaFold predict structure?","What is quantum entanglement?",
@@ -139,7 +139,7 @@ for q in queries:
     if not novel: known_q+=1
     print(f"  {'KNOWN' if not novel else 'NEW'}: {q[:50]}... -> {best_l[:30]} (sim={best_sim:.2f})")
 
-# ── Summary ──
+# -- Summary --
 print(f"\n{'='*60}")
 print(f"  COG LIVING MANIFOLD RESULTS (τ={THRESHOLD:.0f}%)")
 print(f"{'='*60}")

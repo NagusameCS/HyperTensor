@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start_rerun.sh — launch compress arm rerun detached
+# start_rerun.sh --- launch compress arm rerun detached
 export GPU_NAME=A10G
 export MODEL_PATH=/opt/hypertensor/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
 export OUT_DIR=/opt/hypertensor/results_paperB_A10G

@@ -1,8 +1,8 @@
 # legacy/
 
 This directory holds the freestanding-OS code that the project started life as
-(originally TensorOS). It is **not** part of the HyperTensor inference runtime
-and is **not** built by [build_host.ps1](../build_host.ps1).
+(originally TensorOS). It is not part of the HyperTensor inference runtime
+and is not built by [build_host.ps1](../build_host.ps1).
 
 It is kept here because:
 

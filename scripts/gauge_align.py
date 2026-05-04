@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gauge Alignment Simulation — Per-Band Axiom Gauge for Chimeric Splicing.
+Gauge Alignment Simulation --- Per-Band Axiom Gauge for Chimeric Splicing.
 
 Tests the core geometric question: if you have two different sets of
 weights (e.g., Math attention vs Language attention), can you find a
@@ -84,7 +84,7 @@ def optimal_gauge(Wq_a: np.ndarray, Wk_a: np.ndarray, Wv_a: np.ndarray,
     # Pre-compute A's column norms (fixed)
     cols_a = np.sqrt(
         np.sum(Wq_a**2, axis=0) + np.sum(Wk_a**2, axis=0) + np.sum(Wv_a**2, axis=0)
-    )  # (d,) — combined column magnitude of A
+    )  # (d,) --- combined column magnitude of A
 
     for iteration in range(n_iter):
         # Apply gauge to B
@@ -159,8 +159,8 @@ def main():
     # Load weights for representative layers from each phase band
     layer_pairs = [
         (0, 1, "Adjacent (ΔL=1)"),
-        (0, 10, "Cross-band Mix→Compress (ΔL=10)"),
-        (10, 20, "Cross-band Compress→Refine (ΔL=10)"),
+        (0, 10, "Cross-band Mix->Compress (ΔL=10)"),
+        (10, 20, "Cross-band Compress->Refine (ΔL=10)"),
         (0, 29, "Full span (ΔL=29)"),
     ]
 
@@ -180,7 +180,7 @@ def main():
         pre_gd = grassmann_distance(P_a, P_b)
         pre_ov = subspace_overlap(P_a, P_b)
 
-        print(f"  {label} (layers {li}→{lj}):")
+        print(f"  {label} (layers {li}->{lj}):")
         print(f"    Pre-alignment:  Grassmann={pre_gd:.4f}, Overlap={pre_ov:.4f}")
 
         # Run gauge alignment

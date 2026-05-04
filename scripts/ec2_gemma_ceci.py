@@ -210,7 +210,7 @@ import torch
 
 MATH_MODEL = "outputs/pure_models/gemma4-2b-math-pure/final"
 LANG_MODEL = "outputs/pure_models/gemma4-2b-language-pure/final"
-K = 768  # k/d = 0.33 — super-baseline compression
+K = 768  # k/d = 0.33 --- super-baseline compression
 SINK_T = 32
 OUT = Path("benchmarks/ceci_gemma4_2b_k768")
 OUT.mkdir(parents=True, exist_ok=True)
@@ -326,8 +326,8 @@ def main():
     # Verdict
     if gd_mean < 0.05 and overlap_mean > 0.99:
         print(f"\n  SHARED SCAFFOLD CONFIRMED at Gemma-4-2B scale!")
-        print(f"  GD={gd_mean:.4f} — cross-model subspace alignment is nearly perfect.")
-    print(f"  At k=768 (k/d=0.33): {n_viable}/{n_layers} viable — REAL compression test.")
+        print(f"  GD={gd_mean:.4f} --- cross-model subspace alignment is nearly perfect.")
+    print(f"  At k=768 (k/d=0.33): {n_viable}/{n_layers} viable --- REAL compression test.")
     
     # Save
     summary = {
@@ -360,12 +360,12 @@ def print_plan():
     print(f"  Spot price: ~$0.45/hr")
     print("=" * 70)
     print()
-    print("STEP 1: Setup (10 min) — launch instance, install deps")
-    print("STEP 2: Math LoRA (4 hrs) — train on GSM8K + MATH")
-    print("STEP 3: Lang LoRA (4 hrs) — train on WikiText + books")
-    print("STEP 4: CECI splice (30 min) — k=768 crossover")
-    print("STEP 5: Benchmark (2 hrs) — compare all models")
-    print("STEP 6: Publish (15 min) — Ollama + paper update")
+    print("STEP 1: Setup (10 min) --- launch instance, install deps")
+    print("STEP 2: Math LoRA (4 hrs) --- train on GSM8K + MATH")
+    print("STEP 3: Lang LoRA (4 hrs) --- train on WikiText + books")
+    print("STEP 4: CECI splice (30 min) --- k=768 crossover")
+    print("STEP 5: Benchmark (2 hrs) --- compare all models")
+    print("STEP 6: Publish (15 min) --- Ollama + paper update")
     print()
     print("ESTIMATED TOTAL: ~11 hrs = ~$5.00 on spot")
     print()

@@ -5,7 +5,7 @@ CLOSE PAPER XVI (AGT) to 90%: Scale to larger prime sets + Subspace Convergence 
 What remains:
 - Scale from 9,592 primes to 10^6 primes (compute-bound)
 - Prove that 1D critical subspace persists at scale
-- Demonstrate convergence of singular value gap as N→∞
+- Demonstrate convergence of singular value gap as N->∞
 
 Key finding (already): All 105 tested ζ(s) zeros lie on a SINGLE geometric line
 (critical subspace collapsed to 1D, k90=1, k95=1). This script validates the
@@ -154,13 +154,13 @@ def close_agt(model_id=None, output_path="benchmarks/xvi_agt_scaled.json"):
     
     print(f"\n  Convergence trend: slope={trend['slope']:.2f}/log(N), R²={trend['r2']:.3f}")
     if trend['slope'] > 0 and trend['r2'] > 0.8:
-        print(f"  [OK] Gap GROWS with N — 1D subspace is NOT a small-N artifact")
+        print(f"  [OK] Gap GROWS with N --- 1D subspace is NOT a small-N artifact")
     elif trend['slope'] > 0:
-        print(f"  ↗️  Gap trends upward — consistent with 1D subspace at scale")
+        print(f"  ↗️  Gap trends upward --- consistent with 1D subspace at scale")
     else:
         print(f"  [!!]  Need larger N to confirm trend")
     
-    # ── Detection at scale ──
+    # -- Detection at scale --
     print(f"\n[3/4] Detection analysis at N={len(primes)}...")
     
     # Project zeta zero features into the prime-derived basis
@@ -204,16 +204,16 @@ def close_agt(model_id=None, output_path="benchmarks/xvi_agt_scaled.json"):
     print(f"  Off-critical mean activation: {off_proj:.4f}")
     print(f"  Separation ratio: {separation:.0f}×")
     
-    # ── Final Assessment ──
+    # -- Final Assessment --
     print(f"\n[4/4] PAPER XVI STATUS:")
     final_k90 = convergence_results[-1]["k90"]
     final_k95 = convergence_results[-1]["k95"]
     
     if final_k90 <= 2 and separation > 100:
         print(f"  [OK] 1D critical subspace CONFIRMED at N={len(primes)}")
-        print(f"     k90={final_k90}, k95={final_k95} — zeros occupy a single geometric line")
-        print(f"     Separation: {separation:.0f}× — detection is trivial at any threshold")
-        print(f"  [OK] PAPER XVI: 90% — 10K scaling validated")
+        print(f"     k90={final_k90}, k95={final_k95} --- zeros occupy a single geometric line")
+        print(f"     Separation: {separation:.0f}× --- detection is trivial at any threshold")
+        print(f"  [OK] PAPER XVI: 90% --- 10K scaling validated")
         print(f"     Remaining: 10^6 prime scaling (compute-bound, mechanism proven)")
         status = "90%_CLOSED"
     else:
@@ -235,7 +235,7 @@ def close_agt(model_id=None, output_path="benchmarks/xvi_agt_scaled.json"):
             "results": convergence_results,
         },
         "remaining": "10^6 prime scaling (compute-bound, mechanism proven)",
-        "significance": "All ζ(s) zeros tested occupy a 1D critical subspace of the prime-derived feature manifold. This is a geometric FACT about the zeta function — not a learned approximation.",
+        "significance": "All ζ(s) zeros tested occupy a 1D critical subspace of the prime-derived feature manifold. This is a geometric FACT about the zeta function --- not a learned approximation.",
     }
     with open(output_path, "w") as f:
         json.dump(report, f, indent=2, default=str)

@@ -128,7 +128,7 @@ Write-Host "`nTesting k=2048 (auto-capped to k=1536)..."
 $k2048_128 = Run-Test -k 2048 -tokens 128
 if ($k2048_128 -and $b1024_128) {
     $pct2048 = 100.0 * $k2048_128 / $b1024_128
-    Write-Host "  128 tokens: $k2048_128 tok/s ($pct2048% of baseline) - GATE: $([math]::Round($pct2048, 1))% $(if($pct2048 -ge 75) {' PASS (request k=2048 → k=1536 capped)'} else {' FAIL (needs 75%)'})"
+    Write-Host "  128 tokens: $k2048_128 tok/s ($pct2048% of baseline) - GATE: $([math]::Round($pct2048, 1))% $(if($pct2048 -ge 75) {' PASS (request k=2048 -> k=1536 capped)'} else {' FAIL (needs 75%)'})"
 }
 
 Write-Host "`nNote: k=2048 requests are auto-capped to k=1536 to avoid Q8_0 regression."

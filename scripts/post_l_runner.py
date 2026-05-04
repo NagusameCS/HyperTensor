@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-POST-L SEQUENTIAL RUNNER — Automatically executes after Model L completes.
+POST-L SEQUENTIAL RUNNER --- Automatically executes after Model L completes.
 1. Export Model L to Ollama as HORI
 2. Run CECI cross-model splice at k=128
 3. Run remaining GPU experiments (A1 if not done, etc.)
@@ -11,13 +11,13 @@ from pathlib import Path
 
 STEPS = [
     {
-        "name": "Export Model L → Ollama (HORI)",
+        "name": "Export Model L -> Ollama (HORI)",
         "cmd": [sys.executable, "scripts/export_to_ollama.py",
                 "--model", "outputs/pure_models/smollm2-135m-language-pure/final",
                 "--name", "HORI", "--skill", "language",
                 "--output", "outputs/ollama/language-pure"],
         "timeout_min": 15,
-        "critical": False,  # Non-critical — CECI splice can proceed without Ollama
+        "critical": False,  # Non-critical --- CECI splice can proceed without Ollama
     },
     {
         "name": "CECI Cross-Model Splice (k=128)",
@@ -29,7 +29,7 @@ STEPS = [
         "critical": True,
     },
     {
-        "name": "CECI Cross-Model Splice (k=256) — verification",
+        "name": "CECI Cross-Model Splice (k=256) --- verification",
         "cmd": [sys.executable, "scripts/ceci_cross_model.py",
                 "--math", "outputs/pure_models/smollm2-135m-math-pure/final",
                 "--language", "outputs/pure_models/smollm2-135m-language-pure/final",
@@ -71,7 +71,7 @@ def main():
             print(f"  {status} in {elapsed/60:.1f} min")
             
             if not ok and step["critical"]:
-                print(f"  CRITICAL STEP FAILED — stopping pipeline")
+                print(f"  CRITICAL STEP FAILED --- stopping pipeline")
                 break
         except subprocess.TimeoutExpired:
             results.append({"step": step["name"], "success": False, "error": "timeout"})

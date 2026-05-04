@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FULL CHIMERIC SPLICE EXPERIMENT — Paper X Protocol Execution.
+FULL CHIMERIC SPLICE EXPERIMENT --- Paper X Protocol Execution.
 
 Simulates the complete 5-phase protocol on a single model by:
   Phase 1 (simulated): Treat Mix band layers as "Math attention,"
@@ -9,7 +9,7 @@ Simulates the complete 5-phase protocol on a single model by:
            + FFN column clustering for language memory extraction
   Phase 3: Per-band gauge alignment (Mix, Compress, Refine)
   Phase 4: Chimeric merge + splice residual measurement
-  Phase 5: Coherence evaluation — does the spliced model produce
+  Phase 5: Coherence evaluation --- does the spliced model produce
            recognizable output vs gibberish?
 
 Output: A COMPLETE experiment report with all measurements.
@@ -126,7 +126,7 @@ def main():
     bands = compute_mcr_bands(n_layers)
 
     print("=" * 60)
-    print("PAPER X — FULL CHIMERIC SPLICE EXPERIMENT")
+    print("PAPER X --- FULL CHIMERIC SPLICE EXPERIMENT")
     print("=" * 60)
     print(f"Model: {Path(args.model).name}")
     print(f"Layers: {n_layers}, k={k}, sink_T={T}")
@@ -140,8 +140,8 @@ def main():
     t0 = time.time()
 
     # Load representative layers from each band
-    math_attn_layer = bands["Mix"][5]    # Layer 5 — "Math attention"
-    lang_ffn_layer = bands["Refine"][-5]  # Layer 25 — "Language FFN"
+    math_attn_layer = bands["Mix"][5]    # Layer 5 --- "Math attention"
+    lang_ffn_layer = bands["Refine"][-5]  # Layer 25 --- "Language FFN"
 
     Wq_m, Wk_m, Wv_m = _load_attn_weights_gguf(args.model, math_attn_layer)
     Wq_l, Wk_l, Wv_l = _load_attn_weights_gguf(args.model, lang_ffn_layer)
@@ -160,7 +160,7 @@ def main():
     # Pre-alignment subspace comparison
     pre_gd = grassmann_distance(P_m, P_l)
     print(f"  Pre-alignment Grassmann distance: {pre_gd:.4f}")
-    print(f"  (0=identical, 1=orthogonal — {pre_gd:.4f} means {1-pre_gd:.1%} overlap)")
+    print(f"  (0=identical, 1=orthogonal --- {pre_gd:.4f} means {1-pre_gd:.1%} overlap)")
     print(f"  Elapsed: {time.time()-t0:.1f}s\n")
 
     # ---- Phase 3: Gauge Alignment ----
@@ -253,28 +253,28 @@ def main():
               f"{comp_result.get('word_count', 0)} words, "
               f"coherent={comp_result.get('coherent', 'N/A')}")
     else:
-        print("  (skipped — run with --eval to test with binary)")
+        print("  (skipped --- run with --eval to test with binary)")
 
     # ---- Final Report ----
     print("\n" + "=" * 60)
-    print("EXPERIMENT REPORT — CHIMERIC SPLICE FEASIBILITY")
+    print("EXPERIMENT REPORT --- CHIMERIC SPLICE FEASIBILITY")
     print("=" * 60)
     print(f"""
   Model:              {Path(args.model).name}
   Intrinsic dim k:    {k}
   Sink channels T:    {T}
 
-  PHASE 2 — GEOMETRIC EXTRACTION:
+  PHASE 2 --- GEOMETRIC EXTRACTION:
     Math attention:   layer {math_attn_layer} (Mix band)
     Language FFN:     layer {lang_ffn_layer} (Refine band)
     Sinks protected:  {len(sinks_m)} (Math), {len(sinks_l)} (Language)
 
-  PHASE 3 — GAUGE ALIGNMENT:
+  PHASE 3 --- GAUGE ALIGNMENT:
     Pre-alignment GD: {pre_gd:.4f}
     Post-alignment GD:{post_gd:.4f} (Δ={pre_gd-post_gd:+.4f})
     Gauge strength:   σ={np.std(g_mix):.4f}
 
-  PHASE 4 — CHIMERIC MERGE:
+  PHASE 4 --- CHIMERIC MERGE:
     Mean splice err:  {mean_splice_err:.4f}
     ρ_splice (LoRA):  {rho_splice:.4f} ({rho_splice*100:.1f}% recoverable)
     Post-LoRA err:    {(1-rho_splice)*mean_splice_err:.4f}
@@ -283,7 +283,7 @@ def main():
     The splice residual ({mean_splice_err:.1%}) is {'HIGH' if mean_splice_err > 0.5 else 'MODERATE' if mean_splice_err > 0.2 else 'LOW'}.
     LoRA rank-8 can recover {rho_splice*100:.1f}% of this residual.
     Estimated post-LoRA reconstruction error: {(1-rho_splice)*mean_splice_err:.1%}.
-    {' SPLICE FEASIBLE — error within LoRA recovery range' if rho_splice > 0.3 else ' SPLICE MARGINAL — LoRA recovers limited fraction' if rho_splice > 0.1 else ' SPLICE CHALLENGING — residual exceeds LoRA capacity at this k'}.
+    {' SPLICE FEASIBLE --- error within LoRA recovery range' if rho_splice > 0.3 else ' SPLICE MARGINAL --- LoRA recovers limited fraction' if rho_splice > 0.1 else ' SPLICE CHALLENGING --- residual exceeds LoRA capacity at this k'}.
 """)
 
     report = {
@@ -309,11 +309,11 @@ def main():
             "splice_feasible": bool(rho_splice > 0.3),
             "splice_marginal": bool(0.1 < rho_splice <= 0.3),
             "recommendation": (
-                "FEASIBLE — proceed with dedicated model training"
+                "FEASIBLE --- proceed with dedicated model training"
                 if rho_splice > 0.3
-                else "MARGINAL — increase k or use per-band gauge"
+                else "MARGINAL --- increase k or use per-band gauge"
                 if rho_splice > 0.1
-                else "CHALLENGING — need higher k and dedicated models"
+                else "CHALLENGING --- need higher k and dedicated models"
             ),
         },
     }

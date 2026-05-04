@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UGT FROM SCRATCH — Train SmolLM2-135M with TOP loss active from initialization.
+UGT FROM SCRATCH --- Train SmolLM2-135M with TOP loss active from initialization.
 Runs on EC2 L40S (24GB VRAM). Expected runtime: 4-8 hours for 20K steps.
 
 The key difference from post-hoc UGT: the model learns to organize its
@@ -21,7 +21,7 @@ from datasets import load_dataset
 OUT = Path("benchmarks/ugt_scratch")
 OUT.mkdir(parents=True, exist_ok=True)
 
-# UGT imports — SCP the infrastructure file too
+# UGT imports --- SCP the infrastructure file too
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ugt_infrastructure import TOPLoss, UGTAdapter, TOPMonitor
 
@@ -65,7 +65,7 @@ def main():
     ugt = UGTAdapter(model, k=args.k, zones=zones, top_lambda=args.top_lambda)
     ugt = ugt.to(device)
     
-    # Initialize taxonomic basis randomly (not orthogonal — let TOP push it)
+    # Initialize taxonomic basis randomly (not orthogonal --- let TOP push it)
     with torch.no_grad():
         random_basis = torch.randn(ugt.d, args.k, device=device) * 0.1
         ugt.taxonomic_basis.data = random_basis / (torch.norm(random_basis, dim=0, keepdim=True) + 1e-10)

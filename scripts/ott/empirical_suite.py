@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-scripts/ott/empirical_suite.py  —  Comprehensive OTT Empirical Evidence Suite
+scripts/ott/empirical_suite.py  ---  Comprehensive OTT Empirical Evidence Suite
 ==============================================================================
 Papers C + D empirical anchor generator.
 
 Runs geodessical.exe in three modes across all available models and collects:
 
-  Mode A  — Baseline autoregressive (no OTT)
-  Mode B  — OTT speculative (--ott-full --ott-speculative)
-  Mode C  — OTT speculative + GRC compression (--axex-compress + spec)
+  Mode A  --- Baseline autoregressive (no OTT)
+  Mode B  --- OTT speculative (--ott-full --ott-speculative)
+  Mode C  --- OTT speculative + GRC compression (--axex-compress + spec)
 
 Measures per prompt:
   - tok/s (verifier throughput)
   - acceptance_rate (α)
-  - geo_accepted vs xfmr_accepted counts  ← geodesic hit rate
+  - geo_accepted vs xfmr_accepted counts  <- geodesic hit rate
   - od_drafts count
   - speedup vs autoregressive baseline
 
@@ -21,10 +21,10 @@ Grid: thresholds  batch sizes (same as calibration_sweep but for all models).
 
 Outputs:
   benchmarks/ott_empirical/<model_tag>/
-    raw.csv           — one row per (mode, thresh, batch, prompt, rep)
-    summary.json      — per-mode aggregate: mean α, mean tok/s, CI
-    speedup_table.md  — human-readable for Paper C §results
-    rejection_log.tsv — Type I/II/III breakdown (requires --ott-rejection-log)
+    raw.csv           --- one row per (mode, thresh, batch, prompt, rep)
+    summary.json      --- per-mode aggregate: mean α, mean tok/s, CI
+    speedup_table.md  --- human-readable for Paper C §results
+    rejection_log.tsv --- Type I/II/III breakdown (requires --ott-rejection-log)
 
 Usage:
     python scripts/ott/empirical_suite.py [--models smollm2 8b] [--reps 3]
@@ -310,7 +310,7 @@ def build_summary(results: list[RunResult]) -> dict:
 
 def build_speedup_md(summary: dict, baseline_by_model: dict[str, float]) -> str:
     lines = [
-        "# OTT Speculative Decode — Empirical Speedup Table",
+        "# OTT Speculative Decode --- Empirical Speedup Table",
         "",
         "Paper C empirical anchor data
         "Rows show mean tok/s ± 95% CI and acceptance rate α across 10 locked prompts.",
@@ -324,10 +324,10 @@ def build_speedup_md(summary: dict, baseline_by_model: dict[str, float]) -> str:
         model   = e["model"]
         mode    = e["mode"]
         base    = baseline_by_model.get(model, 1.0)
-        speedup = round(e["mean_tok_s"] / base, 3) if base > 0 else "—"
-        alpha   = f"{e['mean_alpha_pct']:.1f}" if e["mean_alpha_pct"] else "—"
-        ci_a    = f"{e['ci95_alpha_pct']:.1f}" if e["ci95_alpha_pct"] else "—"
-        geo     = f"{e['mean_geo_frac']*100:.1f}%" if e["mean_geo_frac"] else "—"
+        speedup = round(e["mean_tok_s"] / base, 3) if base > 0 else "---"
+        alpha   = f"{e['mean_alpha_pct']:.1f}" if e["mean_alpha_pct"] else "---"
+        ci_a    = f"{e['ci95_alpha_pct']:.1f}" if e["ci95_alpha_pct"] else "---"
+        geo     = f"{e['mean_geo_frac']*100:.1f}%" if e["mean_geo_frac"] else "---"
         lines.append(
             f"| {model} | {mode} | {e['thresh']} | {e['batch']} "
             f"| {e['mean_tok_s']} | ±{e['ci95_tok_s']} "

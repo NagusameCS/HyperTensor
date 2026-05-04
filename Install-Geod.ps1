@@ -56,7 +56,7 @@
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # ================================================================
-#  Install-Geod.ps1 — Install Geodessical CLI globally as 'geod'
+#  Install-Geod.ps1 --- Install Geodessical CLI globally as 'geod'
 #
 #  Run once (as user, no admin required for per-user install):
 #    .\Install-Geod.ps1
@@ -87,7 +87,7 @@ if (-not (Test-Path $ExeSrc)) {
     .\build_host.ps1
     Pop-Location
     if (-not (Test-Path $ExeSrc)) {
-        Write-Host "[install] Build failed — cannot install." -ForegroundColor Red
+        Write-Host "[install] Build failed --- cannot install." -ForegroundColor Red
         exit 1
     }
     Write-Host "[install] Build succeeded." -ForegroundColor Green

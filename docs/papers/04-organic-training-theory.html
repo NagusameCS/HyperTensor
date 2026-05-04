@@ -37,7 +37,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </nav>
 
 <div style="background:#eef4ff;border:1px solid #2d6be4;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
-<strong>HyperTensor Framework Update (May 3, 2026):</strong> This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
+HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
 </div>
 
 
@@ -121,7 +121,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   <div class="abstract-box">
     <p>
       We treat the trained latent space of a transformer as a Riemannian
-      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$,
+      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30--50$,
       equipped with a Fisher-information metric. Under that view, inference is
       approximately the solution of the geodesic equation, with cost
       $\mathcal{O}(nk^2)$ rather than the standard $\mathcal{O}(n^2 d L)$. We then
@@ -165,14 +165,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
   </div>
   <p>
     with metric approximated by the Fisher Information matrix. Empirical intrinsic
-    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30–50$
+    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30--50$
     for current LLMs despite $d \in \{4096, 8192\}$. Inference under this view solves
     the geodesic equation with cost $\mathcal{O}(nk^2)$.
   </p>
   <p>
-    <em>This section will reproduce the OTT material from the original PDF, with
+    This section will reproduce the OTT material from the original PDF, with
     citations to the linear-representation-probing literature that supports the
-    low-dimensional structure claim.</em>
+    low-dimensional structure claim.
   </p>
 </section>
 
@@ -406,7 +406,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     </li>
     <li>
       Speedup figures are conditional. Numerical speedups in
-      §§1–3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
+      §§1--3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
       $4800\times$ figure at $n{=}32{,}768$) are derived from the geodesic
       cost model assuming GTC fully replaces standard attention in the
       decode path. The repository does not yet ship that runtime; the
@@ -416,7 +416,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     </li>
     <li>
       Manifold dimension claim is empirical. The intrinsic
-      dimension $k\approx30$–$50$ is supported by the Phase-1 fits on
+      dimension $k\approx30$--$50$ is supported by the Phase-1 fits on
       SmolLM2-135M, Phi-3.5-mini, and Gemma-4-E2B in Paper&nbsp;5 §3. It is
       not a theorem about transformers in general; cross-architecture
       generalisation past these three fits is open.
@@ -491,7 +491,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 
 <footer>
   <p>
-    <a href="../index.html">← Back to all papers</a> &middot;
+    <a href="../index.html"><- Back to all papers</a> &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
   </p>
 </footer>

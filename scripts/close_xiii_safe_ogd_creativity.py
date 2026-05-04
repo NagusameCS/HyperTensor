@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  CLOSE PAPER XIII GAP: Safe OGD + MCB Creativity Integration   ║
-║                                                                 ║
-║  Gap: "Missing automated creativity metric"                     ║
-║  Fix: Run Safe OGD concept generation at α=0.05-0.30,           ║
-║       score each batch with the 5-dimension MCB creativity       ║
-║       benchmark, produce per-α creativity profiles.             ║
-║                                                                 ║
-║  This closes XIII from 75% → 90%.                               ║
-║  Remaining for 100%: multi-step OGD chains, human eval.         ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  CLOSE PAPER XIII GAP: Safe OGD + MCB Creativity Integration   |
+|                                                                 |
+|  Gap: "Missing automated creativity metric"                     |
+|  Fix: Run Safe OGD concept generation at α=0.05-0.30,           |
+|       score each batch with the 5-dimension MCB creativity       |
+|       benchmark, produce per-α creativity profiles.             |
+|                                                                 |
+|  This closes XIII from 75% -> 90%.                               |
+|  Remaining for 100%: multi-step OGD chains, human eval.         |
++==================================================================+
 """
 import torch, json, time, os, sys, math, random
 import torch.nn.functional as F
 import numpy as np
 
-# ── Safe OGD Concept Generation ──
+# -- Safe OGD Concept Generation --
 def generate_ogd_concepts(h_base, basis, P_safe, alpha, n_concepts=10):
     """Generate n_concepts via Safe OGD: push h_base along random safe directions."""
     d = h_base.shape[0]
@@ -32,7 +32,7 @@ def generate_ogd_concepts(h_base, basis, P_safe, alpha, n_concepts=10):
         concepts.append(h_new)
     return concepts
 
-# ── MCB-lite: Embedding-based creativity scoring ──
+# -- MCB-lite: Embedding-based creativity scoring --
 def score_creativity(embeddings):
     """Score a batch of concept embeddings for creativity.
     
@@ -69,7 +69,7 @@ def score_creativity(embeddings):
         "cci": round(cci, 1),
     }
 
-# ── Main ──
+# -- Main --
 def close_xiii_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/xiii_creativity_closed.json"):
     """Run Safe OGD + MCB creativity profile and prove the gap is closed."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -139,7 +139,7 @@ def close_xiii_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmark
         out = model(**enc, output_hidden_states=True)
     h_base = out.hidden_states[-1][0, -1, :].float()
     
-    # ── Run OGD + MCB sweep ──
+    # -- Run OGD + MCB sweep --
     print("[3/4] Running Safe OGD creativity sweep (α=0.05 to 0.30)...")
     alphas = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
     results = []
@@ -163,7 +163,7 @@ def close_xiii_gap(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmark
         print(f"  α={alpha:.2f} | safe={'[OK]' if safe else '[XX]'} | "
               f"TEH_act={forbidden_act:.4f} | CCI={creativity['cci']:.1f}")
     
-    # ── Best α ──
+    # -- Best α --
     best = max(results, key=lambda r: r["creativity"]["cci"] if r["safe"] else 0)
     
     print(f"\n[4/4] RESULTS:")

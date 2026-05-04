@@ -1,4 +1,4 @@
-# add_logo_header.ps1 — Prepend HyperTensor logo to all project source files
+# add_logo_header.ps1 --- Prepend HyperTensor logo to all project source files
 
 $logoLines = @(
     "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::",

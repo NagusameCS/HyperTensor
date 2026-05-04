@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MINSKAT — CECI chimeric model: SmolLM2-135M base attention + SmolLM2-135M-Instruct FFN.
+MINSKAT --- CECI chimeric model: SmolLM2-135M base attention + SmolLM2-135M-Instruct FFN.
 Danish "minsk" (mine) + "skat" (treasure/darling) = "ones partner" = "matching pair".
 
 Uploads to Ollama locally and creates modelfile for ollama.com publication.
@@ -106,7 +106,7 @@ def main():
     print(f"    {n_viable}/30 layers spliced")
     
     if n_viable < 25:
-        print(f"    WARNING: Only {n_viable}/30 viable — chimera may be degraded")
+        print(f"    WARNING: Only {n_viable}/30 viable --- chimera may be degraded")
     
     # Test generation before saving
     print("\n[4] Functional test...")
@@ -146,7 +146,7 @@ def main():
     print(f"    Size: {total_size/1e6:.0f}MB")
     
     # Create Ollama modelfile
-    modelfile_content = f"""# MINSKAT — CECI Chimeric Model
+    modelfile_content = f"""# MINSKAT --- CECI Chimeric Model
 # Base attention (SmolLM2-135M) + Instruct FFN (SmolLM2-135M-Instruct)
 # Danish "minsk" (mine) + "skat" (treasure) = "ones matching partner"
 # Built via CECI protocol, k={K} (full rank)

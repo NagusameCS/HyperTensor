@@ -4,7 +4,7 @@ EXPERIMENTS F1-F4: Task-Level Asymmetric Degradation (Paper VI).
 Proves: MMLU survives compression, GSM8K collapses, HumanEval bimodal, safe frontier at k=1024.
 
 Uses HF evaluate on GRC-compressed SmolLM2-135M. Each task tested at k={256,512,1024,1536,full}.
-WARNING: SmolLM2-135M is small — absolute scores will be low, but RELATIVE degradation
+WARNING: SmolLM2-135M is small --- absolute scores will be low, but RELATIVE degradation
 patterns should match Paper VI structural predictions.
 """
 
@@ -191,7 +191,7 @@ def main():
         
         del model; torch.cuda.empty_cache()
     
-    # Paper VI verification — use closest k to d for "compressed" comparison
+    # Paper VI verification --- use closest k to d for "compressed" comparison
     baseline = results["compressed"]["full"]
     # d=576, use 512 as the largest compressed rank
     compare_key = "512" if "512" in results["compressed"] else "full"

@@ -87,7 +87,7 @@ def analyze_kernel(gpu_name, model_d=576, model_ffn=1536, k=1024, lora_r=8,
     # But fused: LoRA weights are pre-merged with projection
     
     lora_flops = B * model_d * lora_r * 2 * 3     # A @ B for 3 projections
-    lora_bytes = model_d * lora_r * 2 * 3 * 2    # Tiny: r=8, d=576 → ~55KB
+    lora_bytes = model_d * lora_r * 2 * 3 * 2    # Tiny: r=8, d=576 -> ~55KB
     
     # Fused execution: if projection + LoRA weights fit in L2 cache together
     total_proj_bytes = ffn_bytes_grc + lora_bytes

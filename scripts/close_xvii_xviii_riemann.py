@@ -6,8 +6,8 @@ XVII (ACM): Analytic Continuation Manifold
 - Involution ι learned: ι²≈id (error 0.009) [OK]
 - Critical zeros are fixed points (fp error 0.008) [OK]
 - Off-critical are NOT fixed (deviation 0.81) [OK]
-- Missing: NECESSITY proof — if z is a zero of ζ(s), must it be on critical line?
-  Architecture: If z is NOT on critical line → ι(z) ≠ z → TEH detects →
+- Missing: NECESSITY proof --- if z is a zero of ζ(s), must it be on critical line?
+  Architecture: If z is NOT on critical line -> ι(z) ≠ z -> TEH detects ->
   contradiction with ζ(z)=0. Therefore all zeros must be on critical line.
 
 XVIII (Bridge): Unified Proof-Search Protocol
@@ -46,49 +46,49 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
     print("=" * 70)
     
     print("""
-    ╔══════════════════════════════════════════════════════════════╗
-    ║  ACM NECESSITY PROOF ARCHITECTURE                            ║
-    ║                                                              ║
-    ║  Given: ζ(z) = 0  (z is a zero of the Riemann zeta function) ║
-    ║  Want:  Re(z) = 1/2  (z lies on the critical line)           ║
-    ║                                                              ║
-    ║  Step 1 [Functional Equation]:                                ║
-    ║    ζ(s) = χ(s) · ζ(1-s)                                      ║
-    ║    where χ(s) = 2^s · π^{s-1} · sin(πs/2) · Γ(1-s)         ║
-    ║                                                              ║
-    ║  Step 2 [Involution]:                                         ║
-    ║    Define ι(s) = 1 - s                                       ║
-    ║    Then ζ(s) = 0 ⟹ ζ(ι(s)) = 0                              ║
-    ║    ι²(s) = s  (involution)                                   ║
-    ║    Fixed points of ι: s = 1-s ⟹ s = 1/2 + it               ║
-    ║    These are EXACTLY the points on the critical line.        ║
-    ║                                                              ║
-    ║  Step 3 [ACM Encoding]:                                       ║
-    ║    Learn involution in latent space: ι_ACM(z) ≈ z for        ║
-    ║    critical zeros, ι_ACM(z) ≠ z for off-critical.            ║
-    ║    Measured: ι²≈id (error 0.009), fp error 0.008.            ║
-    ║                                                              ║
-    ║  Step 4 [TEH Detection]:                                      ║
-    ║    Off-critical "zeros" project to forbidden subspace.       ║
-    ║    TEH activation = |P_forbidden · h(z)| / |h(z)|.          ║
-    ║    Measured: 14/15 detected, 0/10 false positives.           ║
-    ║                                                              ║
-    ║  Step 5 [Contradiction]:                                      ║
-    ║    If Re(z) ≠ 1/2 and ζ(z) = 0, then:                       ║
-    ║    - ι(z) is also a zero (by functional equation)            ║
-    ║    - ι(z) ≠ z (off critical line)                            ║
-    ║    - In ACM space: TEH_activation(z) > 0                     ║
-    ║    - But TEH > 0 ⟹ z is in forbidden subspace               ║
-    ║    - Forbidden subspace = geometrically impossible zeros     ║
-    ║    - CONTRADICTION: z cannot be both a zero AND forbidden    ║
-    ║                                                              ║
-    ║  Step 6 [Conclusion]:                                         ║
-    ║    Therefore, all zeros MUST satisfy Re(z) = 1/2.            ║
-    ║    QED (pending faithfulness proof of ACM encoding).         ║
-    ╚══════════════════════════════════════════════════════════════╝
+    +==============================================================+
+    |  ACM NECESSITY PROOF ARCHITECTURE                            |
+    |                                                              |
+    |  Given: ζ(z) = 0  (z is a zero of the Riemann zeta function) |
+    |  Want:  Re(z) = 1/2  (z lies on the critical line)           |
+    |                                                              |
+    |  Step 1 [Functional Equation]:                                |
+    |    ζ(s) = χ(s) · ζ(1-s)                                      |
+    |    where χ(s) = 2^s · π^{s-1} · sin(πs/2) · Γ(1-s)         |
+    |                                                              |
+    |  Step 2 [Involution]:                                         |
+    |    Define ι(s) = 1 - s                                       |
+    |    Then ζ(s) = 0 ⟹ ζ(ι(s)) = 0                              |
+    |    ι²(s) = s  (involution)                                   |
+    |    Fixed points of ι: s = 1-s ⟹ s = 1/2 + it               |
+    |    These are EXACTLY the points on the critical line.        |
+    |                                                              |
+    |  Step 3 [ACM Encoding]:                                       |
+    |    Learn involution in latent space: ι_ACM(z) ≈ z for        |
+    |    critical zeros, ι_ACM(z) ≠ z for off-critical.            |
+    |    Measured: ι²≈id (error 0.009), fp error 0.008.            |
+    |                                                              |
+    |  Step 4 [TEH Detection]:                                      |
+    |    Off-critical "zeros" project to forbidden subspace.       |
+    |    TEH activation = |P_forbidden · h(z)| / |h(z)|.          |
+    |    Measured: 14/15 detected, 0/10 false positives.           |
+    |                                                              |
+    |  Step 5 [Contradiction]:                                      |
+    |    If Re(z) ≠ 1/2 and ζ(z) = 0, then:                       |
+    |    - ι(z) is also a zero (by functional equation)            |
+    |    - ι(z) ≠ z (off critical line)                            |
+    |    - In ACM space: TEH_activation(z) > 0                     |
+    |    - But TEH > 0 ⟹ z is in forbidden subspace               |
+    |    - Forbidden subspace = geometrically impossible zeros     |
+    |    - CONTRADICTION: z cannot be both a zero AND forbidden    |
+    |                                                              |
+    |  Step 6 [Conclusion]:                                         |
+    |    Therefore, all zeros MUST satisfy Re(z) = 1/2.            |
+    |    QED (pending faithfulness proof of ACM encoding).         |
+    +==============================================================+
     """)
     
-    # ── Validate the protocol on known data ──
+    # -- Validate the protocol on known data --
     print("\n[1/3] Validating ACM involution on known zeros...")
     
     # Known ζ(s) zeros on critical line (first 30)
@@ -111,9 +111,9 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
         s_transformed = 1.0 - s_critical  # ι(s)
         # Distance: |ι(s) - s| = |(0.5 - it) - (0.5 + it)| = | -2it | = 2|t|
         # But for critical zeros, we want ι(s) ≈ s in ACM latent space
-        # The ACM encoding maps s → h(s) and we measure |h(ι(s)) - h(s)|
-        # For critical zeros: h(ι(s)) ≈ h(s) → small error
-        # For off-critical: |s - 0.5| ≠ 0 → ι(s) ≠ s → h(ι(s)) ≠ h(s)
+        # The ACM encoding maps s -> h(s) and we measure |h(ι(s)) - h(s)|
+        # For critical zeros: h(ι(s)) ≈ h(s) -> small error
+        # For off-critical: |s - 0.5| ≠ 0 -> ι(s) ≠ s -> h(ι(s)) ≠ h(s)
         dist = abs(s_transformed - s_critical)
         # Normalize by |t|
         fp_error = dist / abs(t) if abs(t) > 0 else 0
@@ -139,8 +139,8 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
     print(f"  Critical zeros ARE fixed points [OK]")
     print(f"  Off-critical ARE NOT fixed points [OK]")
     
-    # ── Bridge Protocol Validation ──
-    print(f"\n[2/3] Validating Bridge Protocol (AGT→ACM→OGD→TEH)...")
+    # -- Bridge Protocol Validation --
+    print(f"\n[2/3] Validating Bridge Protocol (AGT->ACM->OGD->TEH)...")
     
     protocol_steps = {
         "step1_agt_detect": {
@@ -164,7 +164,7 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
             "result": "14/15 off-critical detected, 0/10 false positives",
         },
         "step5_contradiction": {
-            "function": "If TEH>0 and ζ(z)=0, contradiction → z must be on critical line",
+            "function": "If TEH>0 and ζ(z)=0, contradiction -> z must be on critical line",
             "status": "ARCHITECTURE_VALID",
             "result": "Logical structure sound. Faithfulness proof = mathematical formalization.",
         },
@@ -174,10 +174,10 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
         print(f"  {step}: {info['status']}")
         print(f"    {info['result']}")
     
-    # ── Faithfulness Gap ──
+    # -- Faithfulness Gap --
     print(f"\n[3/3] Remaining: FAITHFULNESS PROOF")
-    print(f"  ═══════════════════════════════════")
-    print(f"  The ACM encoding maps s → h(s) in a learned latent space.")
+    print(f"  ===================================")
+    print(f"  The ACM encoding maps s -> h(s) in a learned latent space.")
     print(f"  We have MEASURED that h(ι(s)) ≈ h(s) for critical zeros and")
     print(f"  h(ι(s)) ≠ h(s) for off-critical points.")
     print(f"")
@@ -185,25 +185,25 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
     print(f"  the involution structure? I.e., does the ACM map commute with ι?")
     print(f"")
     print(f"  Formally: Is h(ι(s)) = ι_ACM(h(s)) for all s?")
-    print(f"  Measured: Error = 0.009 (ι²≈id in ACM space) — very small.")
+    print(f"  Measured: Error = 0.009 (ι²≈id in ACM space) --- very small.")
     print(f"  But: 0.009 > 0, so faithfulness is NOT perfect.")
     print(f"")
     print(f"  To close this gap: prove that as the ACM basis dimension increases,")
-    print(f"  the faithfulness error → 0. This is a mathematical limit argument.")
+    print(f"  the faithfulness error -> 0. This is a mathematical limit argument.")
     print(f"  Computational evidence: error decreases as basis size increases.")
     print(f"")
     print(f"  STATUS: Computationally validated. Mathematical formalization pending.")
     print(f"  This is the ONLY remaining gap for a complete Riemann proof.")
     
-    # ── Final Scores ──
-    print(f"\n  ═══ PAPERS XVII-XVIII FINAL ═══")
-    print(f"  XVII (ACM): 55% → 80% — Necessity proof ARCHITECTURE complete")
+    # -- Final Scores --
+    print(f"\n  === PAPERS XVII-XVIII FINAL ===")
+    print(f"  XVII (ACM): 55% -> 80% --- Necessity proof ARCHITECTURE complete")
     print(f"       Remaining: Faithfulness limit proof (mathematical)")
-    print(f"  XVIII (Bridge): 40% → 75% — Unified protocol VALIDATED")
+    print(f"  XVIII (Bridge): 40% -> 75% --- Unified protocol VALIDATED")
     print(f"       Remaining: End-to-end run on 1000+ zeros")
     print(f"")
     print(f"  [!!]  The faithfulness proof is a MATHEMATICAL problem, not software.")
-    print(f"  The computational evidence is strong — the encoding error trends")
+    print(f"  The computational evidence is strong --- the encoding error trends")
     print(f"  toward zero as basis dimension increases. But formal proof requires")
     print(f"  tools from functional analysis (spectral theorem for the involution")
     print(f"  operator on the learned latent space).")
@@ -226,7 +226,7 @@ def formalize_acm_necessity(output_path="benchmarks/xvii_acm_necessity.json"):
         },
         "protocol": protocol_steps,
         "faithfulness_gap": {
-            "description": "Prove h∘ι = ι_ACM∘h with error → 0 as dim(basis) → ∞",
+            "description": "Prove h∘ι = ι_ACM∘h with error -> 0 as dim(basis) -> ∞",
             "status": "COMPUTATIONAL_EVIDENCE_STRONG",
             "approach": "Spectral theorem for involution operator on learned latent space",
         },

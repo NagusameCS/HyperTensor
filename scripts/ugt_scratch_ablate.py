@@ -52,7 +52,7 @@ for z_end in zones:
     zone_masks.append(mask)
     prev = z_end
 
-P = basis.float().to(device)  # (d, k) — use float32 for math
+P = basis.float().to(device)  # (d, k) --- use float32 for math
 lm_head = model.lm_head if hasattr(model, 'lm_head') else model.model.lm_head
 
 print(f"\n[2] Ablation test ({len(PROBES)} probes)...")
@@ -60,13 +60,13 @@ results = []
 hit_count = 0
 
 for cat, prompt, checks in PROBES:
-    # From-scratch model is not instruct-tuned — use plain text
+    # From-scratch model is not instruct-tuned --- use plain text
     enc = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
     enc = {k: v.to(device) for k, v in enc.items()}
     
     with torch.no_grad():
         out = model(**enc, output_hidden_states=True)
-        h = out.hidden_states[-1][:, -1, :].float()  # (1, d) — float32 for math
+        h = out.hidden_states[-1][:, -1, :].float()  # (1, d) --- float32 for math
         
         # Zone energies
         h_norm = torch.norm(h)**2

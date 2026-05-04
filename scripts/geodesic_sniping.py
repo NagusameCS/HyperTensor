@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PAPER XIV INFRASTRUCTURE: Geodesic Sniping — Structural Behavior Removal.
+PAPER XIV INFRASTRUCTURE: Geodesic Sniping --- Structural Behavior Removal.
 
 Implements Manifold Ablation via null-space projection:
   1. Identify behavioral sub-manifold via activation PCA
@@ -21,7 +21,7 @@ Usage:
   ablator = NullSpaceAblator(model)
   ablator.ablate(B, layers=[5, 10, 15])
   
-  # Step 3: Verify — model is now structurally incapable of the behavior
+  # Step 3: Verify --- model is now structurally incapable of the behavior
 """
 
 import torch
@@ -39,7 +39,7 @@ from dataclasses import dataclass
 class BehavioralSubspace:
     """Identified behavioral subspace for ablation."""
     name: str                    # e.g., "sycophancy", "toxicity", "refusal"
-    basis: torch.Tensor          # (k, b) — b principal behavioral directions
+    basis: torch.Tensor          # (k, b) --- b principal behavioral directions
     layer_activations: Dict[int, torch.Tensor]  # layer_idx -> activation patterns
     explained_variance: float    # fraction of behavioral variance captured
     affected_dimensions: List[int]  # which UGT dimensions are affected
@@ -78,7 +78,7 @@ class BehaviorIdentifier:
         
         def hook_fn(layer_idx):
             def hook(module, input, output):
-                # output is (batch, seq_len, d) — take mean over seq_len
+                # output is (batch, seq_len, d) --- take mean over seq_len
                 act = output[0].mean(dim=0)  # (d,)
                 all_activations[layer_idx].append(act.cpu())
             return hook
@@ -291,7 +291,7 @@ class NullSpaceAblator:
         return {
             'reversed': entry['subspace'].name,
             'layers': entry['layers'],
-            'note': 'Original weights not stored — full reversibility requires snapshot'
+            'note': 'Original weights not stored --- full reversibility requires snapshot'
         }
     
     def compute_alignment_tax(self, baseline_metrics: dict, 
@@ -388,7 +388,7 @@ JAILBREAK_TEMPLATES = [
 
 
 if __name__ == '__main__':
-    print("Geodesic Sniping — Paper XIV Infrastructure")
+    print("Geodesic Sniping --- Paper XIV Infrastructure")
     print("=" * 50)
     
     # Sanity check

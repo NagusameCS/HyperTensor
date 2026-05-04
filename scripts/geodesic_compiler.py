@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PAPER XII INFRASTRUCTURE: Geodesic Compiler — Native k-Space Training.
+PAPER XII INFRASTRUCTURE: Geodesic Compiler --- Native k-Space Training.
 
 Implements the three key innovations from Paper XII:
   1. Native k-space weight matrices (dk basis + kk compressed weights)
@@ -75,13 +75,13 @@ class NativeLinear(nn.Module):
         U_k = self.U[:, :k]
         W_k = self.W_tilde[:k, :k]
         
-        # Project input to k-space: x_k = x @ U_k  (batch, d) @ (d, k) → (batch, k)
+        # Project input to k-space: x_k = x @ U_k  (batch, d) @ (d, k) -> (batch, k)
         x_k = x @ U_k
         
-        # Transform in k-space: y_k = x_k @ W_k  (batch, k) @ (k, k) → (batch, k)
+        # Transform in k-space: y_k = x_k @ W_k  (batch, k) @ (k, k) -> (batch, k)
         y_k = x_k @ W_k
         
-        # Project back to d-space: y = y_k @ U_k^T  (batch, k) @ (k, d) → (batch, d)
+        # Project back to d-space: y = y_k @ U_k^T  (batch, k) @ (k, d) -> (batch, d)
         y = y_k @ U_k.T
         
         if self.bias is not None:
@@ -318,7 +318,7 @@ def verify_native_claims(model, baseline_ppl: float, k: int, d: int) -> dict:
 
 
 if __name__ == '__main__':
-    print("Geodesic Compiler — Paper XII Infrastructure")
+    print("Geodesic Compiler --- Paper XII Infrastructure")
     print("=" * 50)
     
     # Quick sanity check

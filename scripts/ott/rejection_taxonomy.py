@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-D2 — Rejection Taxonomy Analyser
+D2 --- Rejection Taxonomy Analyser
 =================================
 Parses geodessical rejection_log.tsv (written by --ott-rejection-log) and
 classifies each rejected draft into one of three types from the paper:
 
-  Type I  — Vocabulary / Tokenisation Mismatch
+  Type I  --- Vocabulary / Tokenisation Mismatch
              The draft token decodes to a piece with non-printable bytes,
              multi-byte boundary artefacts, or a token ID outside the model
              vocab.  Root cause: geodesic operates in embedding space and
              can land on tokens that form syntactically invalid pieces.
 
-  Type II — Manifold Divergence
+  Type II --- Manifold Divergence
              The draft token is a valid piece but the verifier chose a
              *different* token.  Root cause: the geodesic trajectory has
              drifted off the linguistic manifold (curvature / GRC has not
              corrected the geodesic back onto the verifier's probability
              simplex).
 
-  Type III — Early-Turn Context Collapse
+  Type III --- Early-Turn Context Collapse
              The rejection occurred within the first WARMUP_STEPS (default 4)
              of a new generation turn.  Root cause: geodesic embeddings are
              position-independent, so predictions made before sufficient
@@ -40,7 +40,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-WARMUP_STEPS = 4          # steps still in warmup window → Type III candidate
+WARMUP_STEPS = 4          # steps still in warmup window -> Type III candidate
 MIN_PIECE_LEN = 1         # valid piece must have at least 1 printable char
 
 
@@ -51,12 +51,12 @@ def classify_rejection(row: dict) -> str:
     verifier_tok = int(row["verifier_tok"])
     warmup     = int(row["warmup"])
 
-    # Type III — early-turn context collapse (checked first so warmup rejections
+    # Type III --- early-turn context collapse (checked first so warmup rejections
     # are not mis-attributed to manifold divergence even if piece is valid)
     if warmup == 1:
         return "Type III"
 
-    # Type I — vocabulary / tokenisation mismatch
+    # Type I --- vocabulary / tokenisation mismatch
     # Conditions: empty piece, piece with only non-printable chars, or draft == verifier
     # (the verifier would have accepted if piece were the right token; if draft_tok < 0
     # or decode produced nothing, it is definitely a vocab boundary issue)
@@ -69,11 +69,11 @@ def classify_rejection(row: dict) -> str:
     non_printable = sum(1 for c in draft_piece if ord(c) < 32 and c not in ("\t", "\n", "\r"))
     if non_printable > len(draft_piece) * 0.5:
         return "Type I"
-    # Check for lone UTF-8 continuation bytes (byte pattern ?\x80–\xBF alone)
+    # Check for lone UTF-8 continuation bytes (byte pattern ?\x80--\xBF alone)
     if re.search(r'[\x80-\xbf]', draft_piece) and not re.search(r'[\xc0-\xff]', draft_piece):
         return "Type I"
 
-    # Type II — manifold divergence: valid piece, verifier chose differently
+    # Type II --- manifold divergence: valid piece, verifier chose differently
     return "Type II"
 
 
@@ -145,7 +145,7 @@ def print_report(report: dict):
             "Type II":  "Manifold Divergence",
             "Type III": "Early-Turn Context Collapse",
         }[t]
-        print(f"  {t}: {c:4d}  ({p:5.1f}%)  — {label}")
+        print(f"  {t}: {c:4d}  ({p:5.1f}%)  --- {label}")
         if t == "Type II" and "pos_p50" in s[t]:
             print(f"           Rejection position p50={s[t]['pos_p50']}  p90={s[t]['pos_p90']}")
     print(f"{'='*60}\n")
@@ -154,11 +154,11 @@ def print_report(report: dict):
     dominant = max(("Type I", "Type II", "Type III"), key=lambda t: s[t]["count"])
     print(f"  Primary driver: {dominant}")
     guidance = {
-        "Type I":  ("  → Harden geodesic piece-quality filter (geodesic_piece_quality_ok).\n"
+        "Type I":  ("  -> Harden geodesic piece-quality filter (geodesic_piece_quality_ok).\n"
                     "    Enforce vocab boundary checks before draft is proposed."),
-        "Type II": ("  → Increase GRC correction budget or tighten verifier margin.\n"
+        "Type II": ("  -> Increase GRC correction budget or tighten verifier margin.\n"
                     "    Consider raising --ott-spec-thresh or running C3 calibration sweep."),
-        "Type III":("  → Increase SPEC_WARMUP_N in host/main.c (currently 4).\n"
+        "Type III":("  -> Increase SPEC_WARMUP_N in host/main.c (currently 4).\n"
                     "    Delay geodesic drafting until more causal context is available."),
     }
     print(guidance[dominant])

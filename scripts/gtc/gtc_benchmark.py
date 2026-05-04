@@ -17,7 +17,7 @@ activations and ask:
   Q3.  How does coverage scale with k?
 
 This is the empirical realisation of the GTC contract: at the cache size
-where coverage clears 10–20 %, the lookup-and-correct path replaces full
+where coverage clears 10--20 %, the lookup-and-correct path replaces full
 decode for that fraction of steps. The GTC v0.2 validity-radius experiment
 already established that within-ε⋆ Jacobi correction is below the τ-error
 threshold; this script measures **coverage**, the other half of the
@@ -127,7 +127,7 @@ def main():
     out_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
     print(f"[gtc/benchmark] model={args.model} dim={args.dim} "
-          f"Nc={out['Nc']} wall={out['wall_s']}s → {out_path}")
+          f"Nc={out['Nc']} wall={out['wall_s']}s -> {out_path}")
     print(f"  cache_frac  k   ε=0.1  ε=0.4  ε=1.0  ε=2.0  ε=3.0  ε=4.0  ε=6.0  ε=8.0   mean_err")
     for r in out["results"]:
         rates = " ".join(f"{r['hit_rates'][f'{e:.4f}']['hit_rate_mean']:>5.1%}"

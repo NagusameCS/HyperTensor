@@ -1,14 +1,14 @@
-# GTC v0.3 — Geodesic Trajectory Cache: Validity, Coverage, Resonance, Scaling
+# GTC v0.3 --- Geodesic Trajectory Cache: Validity, Coverage, Resonance, Scaling
 
-**Date:** 2026-04-27 · **Status:** Code-complete v0.3. Three-model coverage scaling, batch resonance verified, compressed record store on disk. Runtime OTT speculative decode E2E verified (see Runtime Integration below).
+Date: 2026-04-27 · Status: Code-complete v0.3. Three-model coverage scaling, batch resonance verified, compressed record store on disk. Runtime OTT speculative decode E2E verified (see Runtime Integration below).
 
 ## TL;DR (v0.3 headline)
 
-> Across **SmolLM2-135M (135M)**, **Phi-3.5-mini (3.8B)**, and **Gemma-4-E2B (4.5B)**, a 25 %-fraction cache (k=16 of 64) yields **90.4 % – 91.5 % coverage** at ε=3.0. The result is **scale-invariant within ±0.5 %** — the "flag flip" scaling claim from Paper 5 is now empirically anchored on real LM activation clouds at three different scales.
+> Across SmolLM2-135M (135M), Phi-3.5-mini (3.8B), and Gemma-4-E2B (4.5B), a 25 %-fraction cache (k=16 of 64) yields 90.4 % -- 91.5 % coverage at ε=3.0. The result is scale-invariant within ±0.5 % --- the "flag flip" scaling claim from Paper 5 is now empirically anchored on real LM activation clouds at three different scales.
 
-> Batch Jacobi correction on the SmolLM2 manifold reaches **97× speedup at B=10**, **44× at B=1000**, **60× at B=10000**, with reconstruction error at the float64 roundoff floor (1e-16). Paper 5 §4.5 "Resonance" claim: **empirically validated on real data.**
+> Batch Jacobi correction on the SmolLM2 manifold reaches 97× speedup at B=10, 44× at B=1000, 60× at B=10000, with reconstruction error at the float64 roundoff floor (1e-16). Paper 5 §4.5 "Resonance" claim: empirically validated on real data.
 
-> Compressed record store: **5.96 KB/record** at k=8 (paper target ~50–80 KB at k=40), rank-5 Φ truncation is exact (0.0 reconstruction error on smooth small-cloud Phi), **two-stage Euclidean→g-norm lookup runs at 30.9 μs/query** (paper target <5 ms — ~160× under budget).
+> Compressed record store: 5.96 KB/record at k=8 (paper target ~50--80 KB at k=40), rank-5 Φ truncation is exact (0.0 reconstruction error on smooth small-cloud Phi), two-stage Euclidean->g-norm lookup runs at 30.9 μs/query (paper target <5 ms --- ~160× under budget).
 
 ## Three-model coverage scaling (NEW)
 
@@ -17,16 +17,16 @@ distance ε of the nearest cached point.
 
 | Model        | Params | k=6 (10 %) | k=16 (25 %) | k=32 (50 %) | k=48 (75 %) |
 |--------------|-------:|-----------:|------------:|------------:|------------:|
-| SmolLM2-135M | 135M   | 58.6 %     | **91.0 %**  | 99.8 %      | 100.0 %     |
-| Phi-3.5-mini | 3.8B   | 55.5 %     | **90.4 %**  | 98.2 %      | 100.0 %     |
-| Gemma-4-E2B  | 4.5B   | 58.7 %     | **91.5 %**  | 99.6 %      | 100.0 %     |
+| SmolLM2-135M | 135M   | 58.6 %     | 91.0 %  | 99.8 %      | 100.0 %     |
+| Phi-3.5-mini | 3.8B   | 55.5 %     | 90.4 %  | 98.2 %      | 100.0 %     |
+| Gemma-4-E2B  | 4.5B   | 58.7 %     | 91.5 %  | 99.6 %      | 100.0 %     |
 
 All values at ε = 3.0, n_intrinsic = 8, n_repeats = 16. Sources:
 [`smollm2-135m_coverage.json`](smollm2-135m_coverage.json),
 [`phi-3.5-mini_coverage.json`](phi-3.5-mini_coverage.json),
 [`gemma-4-e2b_coverage.json`](gemma-4-e2b_coverage.json).
 
-## Batch Jacobi resonance (Paper 5 §4.5 / Tests 4a–4c, NEW)
+## Batch Jacobi resonance (Paper 5 §4.5 / Tests 4a--4c, NEW)
 
 Single Φ matmul over the SmolLM2-135M manifold's first geodesic propagator,
 batched against sequential matvecs.
@@ -34,32 +34,32 @@ batched against sequential matvecs.
 | Batch B | Sequential | Batched | Speedup | µs/query (batched) | rel. error |
 |--------:|-----------:|--------:|--------:|-------------------:|-----------:|
 | 1       | 0.015 ms   | 0.001 ms | 14.6× | 1.000 µs | 0.0e+00 |
-| 10      | 0.411 ms   | 0.004 ms | **97.9×** | 0.420 µs | 1.1e-16 |
+| 10      | 0.411 ms   | 0.004 ms | 97.9× | 0.420 µs | 1.1e-16 |
 | 100     | 0.167 ms   | 0.006 ms | 27.4×  | 0.061 µs | 1.2e-16 |
 | 1 000   | 1.143 ms   | 0.026 ms | 44.5×  | 0.026 µs | 1.2e-16 |
-| 10 000  | 11.100 ms  | 0.185 ms | **60.0×** | 0.0185 µs | 1.2e-16 |
+| 10 000  | 11.100 ms  | 0.185 ms | 60.0× | 0.0185 µs | 1.2e-16 |
 
 Source: [`smollm2-135m_batch_jacobi.json`](smollm2-135m_batch_jacobi.json).
 
-Paper 5 Test 4a (B=10) target: 2.7× — **measured 97.9×.**
-Paper 5 Test 4b (B=100) target: 12.5× — **measured 27.4×.**
-Paper 5 Test 4c (B=1000) target: 7.0× — **measured 44.5×.**
+Paper 5 Test 4a (B=10) target: 2.7× --- measured 97.9×.
+Paper 5 Test 4b (B=100) target: 12.5× --- measured 27.4×.
+Paper 5 Test 4c (B=1000) target: 7.0× --- measured 44.5×.
 
 The paper's analytical estimate was a placeholder; numpy BLAS on a real
-manifold beats it by 4–14×. The "resonance — system improves under
+manifold beats it by 4--14×. The "resonance --- system improves under
 pressure" property (Paper 5 §4.5) is empirically real.
 
 ## Compressed record store (NEW)
 
 | Quantity | Value | Paper 5 target |
 |---|---:|---:|
-| Records persisted | 24 | — |
-| Total `.npz` size | 143.0 KB | — |
-| Per-record size | **5.96 KB** | 50–80 KB |
+| Records persisted | 24 | --- |
+| Total `.npz` size | 143.0 KB | --- |
+| Per-record size | 5.96 KB | 50--80 KB |
 | Rank-5 Φ reconstruction error | 0.0 | "rank ≈ 5 is sufficient" |
-| Build wall-clock (24 records, k=8) | 6.087 s | — |
+| Build wall-clock (24 records, k=8) | 6.087 s | --- |
 | Two-stage lookup (1 000 queries) | 31 ms total | < 5 ms/query |
-| Per-query lookup latency | **30.9 µs** | < 5 ms |
+| Per-query lookup latency | 30.9 µs | < 5 ms |
 
 Source: [`smollm2-135m_record_store.json`](smollm2-135m_record_store.json),
 binary: [`smollm2-135m_library.npz`](smollm2-135m_library.npz).
@@ -85,7 +85,7 @@ the measured local validity radius. Lookup coverage is high, but the points
 are too far apart for direct Jacobi correction at `rho=0.4`.
 
 To test the actual correction contract, we ran a dense local benchmark with
-synthetic queries sampled *inside* `rho` around anchors
+synthetic queries sampled inside `rho` around anchors
 ([`smollm2-135m_decode_substitution_dense.json`](smollm2-135m_decode_substitution_dense.json)):
 
 | rho | mean rel err | p95 rel err | Jacobi us | geodesic us | speedup vs geodesic |
@@ -95,17 +95,17 @@ synthetic queries sampled *inside* `rho` around anchors
 | 0.20 | 8.08e-8 | 5.35e-7 | 2.19 | 350.6 | 159.9x |
 | 0.40 | 1.43e-7 | 1.35e-6 | 2.27 | 360.9 | 158.7x |
 
-So the mechanism is valid and very fast *inside* its regime; the blocker is
+So the mechanism is valid and very fast inside its regime; the blocker is
 cloud density, not Jacobi quality.
 
 ## Original v0.2 numbers (preserved)
 
-> At cache size **k=16** (25 % of the runtime's already-exported 64-point Phase-1 cloud), GTC achieves a **91 % hit rate** at ε = 3.0 (manifold-induced norm), and the Jacobi linearisation is exact within 0.1 % out to ε = 5.0. **Decode steps in this regime can be replaced by an O(k²) cache lookup plus a linear correction, instead of the O(d × layers) full forward.**
+> At cache size k=16 (25 % of the runtime's already-exported 64-point Phase-1 cloud), GTC achieves a 91 % hit rate at ε = 3.0 (manifold-induced norm), and the Jacobi linearisation is exact within 0.1 % out to ε = 5.0. Decode steps in this regime can be replaced by an O(k²) cache lookup plus a linear correction, instead of the O(d × layers) full forward.
 
 | Cache size | Coverage at ε=3.0 | Coverage at ε=4.0 | Mean lookup error (g-norm) |
 |---:|---:|---:|---:|
 | k = 6  (10 %) | 58.6 % | 60.5 % | 8.52 |
-| k = 16 (25 %) | **91.0 %** | 91.4 % | 3.79 |
+| k = 16 (25 %) | 91.0 % | 91.4 % | 3.79 |
 | k = 32 (50 %) | 99.8 % | 99.8 % | 2.64 |
 | k = 48 (75 %) | 100  % | 100  % | 2.60 |
 
@@ -119,7 +119,7 @@ remains below the τ-threshold across the entire ε grid):
 | 3.0 | 0.000 | 0.000 |
 | 5.0 | 0.000 | 0.001 |
 
-`ε⋆(τ=5%) ≥ 5.0` for all τ ∈ {5%, 10%, 20%}. The validity radius is **not**
+`ε⋆(τ=5%) ≥ 5.0` for all τ ∈ {5%, 10%, 20%}. The validity radius is not
 the bottleneck.
 
 ## Sphere sanity (closed-form K=1, n=4, 256 samples)
@@ -133,7 +133,7 @@ the bottleneck.
 
 `ε⋆(τ=5%) = 0.05`, `ε⋆(τ=10%) = 0.10`, `ε⋆(τ=20%) = 0.20`. Quadratic-in-ε
 scaling exactly matches the theoretical Jacobi bound on a constant-K
-manifold. **Harness validated** — the SmolLM2 numbers above are not
+manifold. Harness validated --- the SmolLM2 numbers above are not
 artefacts of a broken propagator.
 
 ## What the GTC pipeline does
@@ -155,7 +155,7 @@ The runtime emits one global Christoffel tensor and a per-point diagonal
 of the metric (`n_points = 1` in `axgeo_christoffel_t`). Patching
 `runtime/nn/axiom_vis.c` to emit per-point Γ + rebuilding zig+CUDA + re-running
 Phase 3 is several hours of risky terrain. Instead, GTC v0.2 fits the
-metric tensor and Christoffel field **entirely in Python** from the
+metric tensor and Christoffel field entirely in Python from the
 Phase-1 cloud. Faster iteration, no rebuild risk, full numerical control.
 The result above shows the Python-side construction gives a Riemannian
 object with publication-quality validity-radius scaling (sphere) and
@@ -169,28 +169,28 @@ that a generative model's decode-time activation manifold is
 1. coherently fittable as a Riemannian object from cheap (Phase-1) telemetry,
 2. so weakly curved at decode-relevant scales that first-order Jacobi
    correction is exact within instrumentation error,
-3. covered by a **k=16 cache** at the 91 % level on the already-exported
-   activation cloud — i.e. ~91 % of decode steps in this regime are
+3. covered by a k=16 cache at the 91 % level on the already-exported
+   activation cloud --- i.e. ~91 % of decode steps in this regime are
    amenable to lookup-and-correct.
 
-Combined with the GRC k=1024 → 106.27 % decode result already in Paper 1,
+Combined with the GRC k=1024 -> 106.27 % decode result already in Paper 1,
 GTC is the "gas tank" complement to the GRC parameter-compression lever:
 
-* **GRC** compresses parameters → smaller flops per step.
-* **GTC** compresses *trajectories* → fewer steps need flops at all.
+* GRC compresses parameters -> smaller flops per step.
+* GTC compresses trajectories -> fewer steps need flops at all.
 
 The two are composable. The 7-orders-of-magnitude flop reduction promised
 by Paper 4 §2 (≈ 625 ops per cache hit vs ≈ 5 GFLOPs per full-forward step
-on 135 M) requires a denser cache than the runtime currently exports — but
+on 135 M) requires a denser cache than the runtime currently exports --- but
 the Python-side construction makes that densification a pure offline-job
 question, not a runtime-engineering one.
 
 ## Runtime Integration (OTT speculative decode, NEW)
 
-The C host runtime (`host/main.c`) speculative decode loop is now **E2E verified**
+The C host runtime (`host/main.c`) speculative decode loop is now E2E verified
 on SmolLM2-135M with the full OTT stack (`--ott-full` + `--ott-speculative`).
 
-**Latest verified run (2026-04-27, post-fix, commit `d57162d`):**
+Latest verified run (2026-04-27, post-fix, commit `d57162d`):
 ```
 [SPEC] Chat template applied (ChatML, 88 chars)
 [OTT-CTX] Context snapshot set: 20 tokens, snap_len=20
@@ -201,10 +201,10 @@ on SmolLM2-135M with the full OTT stack (`--ott-full` + `--ott-speculative`).
 
 `ott_readiness_report.json`: `status=geodesic_ready, ready=true, hybrid_ready=true,
 runtime_share=1.0, consistency=1.0`. Greedy-only baseline on the same prompt
-measures ≈50 tok/s, so the empirical speedup is **1.53×** — within the
+measures ≈50 tok/s, so the empirical speedup is 1.53× --- within the
 Paper 3 §3 closed-form prediction of ~1.6× at α=0.385, γ=4.
 
-**Earlier run (pre-fix, kept for history):**
+Earlier run (pre-fix, kept for history):
 ```
 [SPEC] Done: 24 tokens (geo_accepted=2 xfmr=22 od_drafts=3, acceptance_rate=8.3%, final_batch=1)
 [SPEC] Verifier decode: 16.0 tok/s (22 calls in 1371 ms)
@@ -213,15 +213,15 @@ Paper 3 §3 closed-form prediction of ~1.6× at α=0.385, γ=4.
 
 `test_live.tsv` populated with 12 data rows (hidden-state telemetry per `--ott-live-every 2`).
 
-**Root causes fixed this session:**
-1. `llm_kv_restore_and_prime` set `llm_logits_pos` but not `llm_primed_greedy` — `llm_prime_logits_fast` early-returned without caching the argmax; fixed by computing greedy in the early-return path.
+Root causes fixed this session:
+1. `llm_kv_restore_and_prime` set `llm_logits_pos` but not `llm_primed_greedy` --- `llm_prime_logits_fast` early-returned without caching the argmax; fixed by computing greedy in the early-return path.
 2. Raw prompt tokenization (no chat template) caused greedy EOS at token 0; fixed by applying ChatML template for SmolLM2 in `geodesic_speculative_generate_text` (mirrors `llm_prompt_n` logic).
-3. **Instruct-greedy-EOS pathology** (Paper 5 §6.1): SmolLM2-Instruct's greedy argmax at position 0 is EOS, causing 0-token responses. Fixed by `llm_topk_excluding(exclude, n_exclude)` + `SPEC_MIN_RESP_N=4` guard at four sites in the speculative loop.
-4. Geometry-cache consistency-equivalence: `reused_geometry_cache → axiom_consistency=1.0` (Phase 4 skipped on cache hit; was tripping ready-gate).
-5. `enable_max_performance_host`: `NORMAL_PRIORITY_CLASS` (was `HIGH_PRIORITY_CLASS` — caused EC/eDP starvation freeze).
+3. Instruct-greedy-EOS pathology (Paper 5 §6.1): SmolLM2-Instruct's greedy argmax at position 0 is EOS, causing 0-token responses. Fixed by `llm_topk_excluding(exclude, n_exclude)` + `SPEC_MIN_RESP_N=4` guard at four sites in the speculative loop.
+4. Geometry-cache consistency-equivalence: `reused_geometry_cache -> axiom_consistency=1.0` (Phase 4 skipped on cache hit; was tripping ready-gate).
+5. `enable_max_performance_host`: `NORMAL_PRIORITY_CLASS` (was `HIGH_PRIORITY_CLASS` --- caused EC/eDP starvation freeze).
 6. `axiom_beta_one_decode_bake`: `AXIOM_YIELD()` every 256 iter; `p_src` buffer alloc with `full_k=phase1_pca.n_components` (fixes STATUS_STACK_BUFFER_OVERRUN).
 
-**Current spec path status:** `od_drafts=5` at 38.5% acceptance, 76.5 tok/s
+Current spec path status: `od_drafts=5` at 38.5% acceptance, 76.5 tok/s
 end-to-end. The acceptance ceiling on this revision is gated on two named
 bugs: `--ott-perfect` (transformer-exact rollout) currently hangs in the
 retry path, and `--ott-swarm-k` exits non-zero. Fixing either lifts α
@@ -245,8 +245,8 @@ Outputs land at `docs/figures/gtc/<case>_{validity_radius,coverage}.json`.
    sub-sampled k:Nc-k. A live decode-time stream may have a different
    coverage profile; verifying that requires runtime instrumentation that
    logs per-step hidden states (currently not exported).
-2. The "true next-step" baseline in coverage is *the held-out cloud
-   point*, not a fully-reconstructed transformer forward pass. The
+2. The "true next-step" baseline in coverage is the held-out cloud
+   point, not a fully-reconstructed transformer forward pass. The
    coverage number is therefore "how often a cached neighbour is within
    ε⋆", not "how often a cached neighbour produces the same logits".
    Closing that loop requires a runtime patch we explicitly chose not to
@@ -261,14 +261,14 @@ Outputs land at `docs/figures/gtc/<case>_{validity_radius,coverage}.json`.
 1. Runtime hook in `geodessical.exe` that dumps per-decode-step
    intrinsic-lifted activations to a binary tape; rerun coverage on a
    real decode trace.
-2. Curvature-warp injection prototype (`scripts/curvature_warp/`) —
+2. Curvature-warp injection prototype (`scripts/curvature_warp/`) ---
    see companion `CURVATURE_WARP_v0.md`.
-3. Compose: run `--axex-compress --axex-compress-rank 1024` (GRC) **and**
+3. Compose: run `--axex-compress --axex-compress-rank 1024` (GRC) and
    GTC cache lookups in the same decode loop; report combined tok/s.
 
 ---
 
-## Paper-5 (OTT + GRC + AttnRes) status — gap analysis
+## Paper-5 (OTT + GRC + AttnRes) status --- gap analysis
 
 Mapping each Paper-5 testable claim to the current measurement state.
 This is the canonical answer to "how done is GTC?".
@@ -278,26 +278,26 @@ This is the canonical answer to "how done is GTC?".
 | Christoffel field Γ from g (§3.2) |  done | [`scripts/gtc/manifold.py`](../../../scripts/gtc/manifold.py) |
 | Geodesic ODE integrator (§3.2) |  done | [`scripts/gtc/geodesic.py`](../../../scripts/gtc/geodesic.py) |
 | Riemann tensor + Jacobi propagator (§4.2) |  done | [`scripts/gtc/jacobi.py`](../../../scripts/gtc/jacobi.py) |
-| Sphere sanity, quadratic ε scaling (Tests 2a–2c) |  exact | this doc |
-| Hit rate ≥ 65 % on clustered distribution (Test 3a) |  90.4 – 91.5 % across 3 LMs | this doc |
+| Sphere sanity, quadratic ε scaling (Tests 2a--2c) |  exact | this doc |
+| Hit rate ≥ 65 % on clustered distribution (Test 3a) |  90.4 -- 91.5 % across 3 LMs | this doc |
 | Library size sublinear (Test 3c) |  k=16 covers 91 % of 64-pt cloud | this doc |
 | Batch matmul ≡ sequential (Test 1c) |  1.2e-16 reconstruction error | this doc |
-| Batch B=10 / 100 / 1000 speedups (Tests 4a–4c) |  97×, 27×, 44× — exceed paper's analytic estimate | this doc |
-| **Two-stage FAISS+geodesic lookup (Algorithm 1)** |  implemented (Euclidean ANN→g-norm), 30.9 µs/q | [`scripts/gtc/record_store.py`](../../../scripts/gtc/record_store.py) |
-| **Compressed record store (~50–80 KB target)** |  on-disk at **5.96 KB/record** at k=8, rank-5 Φ exact | [`smollm2-135m_library.npz`](smollm2-135m_library.npz) |
-| **Scaling: SmolLM2 → Phi-3.5-mini "flag flip"** |  scale-invariant within ±0.5 % across SmolLM2-135M / Phi-3.5-mini / Gemma-4-E2B | this doc |
+| Batch B=10 / 100 / 1000 speedups (Tests 4a--4c) |  97×, 27×, 44× --- exceed paper's analytic estimate | this doc |
+| Two-stage FAISS+geodesic lookup (Algorithm 1) |  implemented (Euclidean ANN->g-norm), 30.9 µs/q | [`scripts/gtc/record_store.py`](../../../scripts/gtc/record_store.py) |
+| Compressed record store (~50--80 KB target) |  on-disk at 5.96 KB/record at k=8, rank-5 Φ exact | [`smollm2-135m_library.npz`](smollm2-135m_library.npz) |
+| Scaling: SmolLM2 -> Phi-3.5-mini "flag flip" |  scale-invariant within ±0.5 % across SmolLM2-135M / Phi-3.5-mini / Gemma-4-E2B | this doc |
 | Validity radius / injectivity radius ρ scaling |  <0.1 % error to ε=5.0 | `smollm2-135m_validity_radius.json` |
 | OTT locality of curvature warp (Test 5a) |  ratio 7e11×, decays to 0 at 20σ | implicit in `manifold.py` smoothing |
-| Knowledge-injection curvature warp delivers redirection |  **still negative**: v2 reduces spillover to ~0.01% but best redirection gain is 2.24% (0/32 pass) | [`docs/figures/curvature_warp/smollm2-135m_v2_grid.json`](../curvature_warp/smollm2-135m_v2_grid.json) |
-| **Live decode-step replacement inside `geodessical.exe`** |  Runtime hook is now integrated (`host/main.c` speculative loop + live telemetry + GRC feedback), but deployment quality is still gated by draft coverage/acceptance calibration and cloud density (especially on smaller models where OD drafts can be sparse). | [`smollm2-135m_decode_substitution.json`](smollm2-135m_decode_substitution.json) |
+| Knowledge-injection curvature warp delivers redirection |  still negative: v2 reduces spillover to ~0.01% but best redirection gain is 2.24% (0/32 pass) | [`docs/figures/curvature_warp/smollm2-135m_v2_grid.json`](../curvature_warp/smollm2-135m_v2_grid.json) |
+| Live decode-step replacement inside `geodessical.exe` |  Runtime hook is now integrated (`host/main.c` speculative loop + live telemetry + GRC feedback), but deployment quality is still gated by draft coverage/acceptance calibration and cloud density (especially on smaller models where OD drafts can be sparse). | [`smollm2-135m_decode_substitution.json`](smollm2-135m_decode_substitution.json) |
 | AttnRes block-summary integration (§6) |  prototype measured: block-end Jacobi err 1.29%, simplex blend underperforms (11.4%) | [`smollm2-135m_attnres_integration.json`](smollm2-135m_attnres_integration.json) |
 | Diffeomorphism ϕ construction (§11.1) |  resolved for OTT deployment manifold family via certificates (`k=11,17,25` self-cases + dim-4 inherited-structure theorem) | [`data/decisions.json`](../../../data/decisions.json) |
 | Geodesic initial velocity v₀ (§11.2) |  universal closed form still open; deployable Christoffel-guided runtime surrogate already implemented | [`runtime/nn/axiom_beta.c`](../../../runtime/nn/axiom_beta.c) |
 
 ### Reading
 
-What was *theory* in Paper 5 §4 has been built and measured. What was
-*deployment* is now split more cleanly:
+What was theory in Paper 5 §4 has been built and measured. What was
+deployment is now split more cleanly:
 
 - live decode replacement is gated on runtime cloud density plus speculative
    draft coverage/acceptance calibration,
@@ -318,8 +318,8 @@ Quantitatively, the work-units we own that the paper proposed:
    current deployment family in the same way.
   natural v0.4 milestone.
 
-GTC is **theoretically and statically empirically complete** at the
-135M–4.5B regime. It is **not yet a live decode replacement**. The gap
+GTC is theoretically and statically empirically complete at the
+135M--4.5B regime. It is not yet a live decode replacement. The gap
 between those two states is one runtime hook (per-step activation dump)
 and one decode-loop modification (substitute Jacobi-corrected next-state
 on cache hit).
@@ -336,10 +336,10 @@ To move beyond wording updates, we implemented and executed a direct
 
 Two variants were tested on the fitted SmolLM2 manifold (`dim=8`):
 
-- **Finite-difference gradient proxy**
+- Finite-difference gradient proxy
    $v_0 \propto -\nabla_x \log \mathrm{Attn}(x,y)$:
    mean cosine to local target direction `0.178`, rollout error `117%` mean.
-- **Local-metric closed-form proxy**
+- Local-metric closed-form proxy
    (assumes local constant metric and applies $g^{-1}$):
    cosine `1.000`, rollout error `0.000%`.
 
@@ -357,7 +357,7 @@ $$
 $$
 
 with calibration on strict local Jacobi-threshold sweeps gave weak predictive
-power in this run (`corr(raw,true)=0.002`, high MAPE), i.e. **not production-ready**.
+power in this run (`corr(raw,true)=0.002`, high MAPE), i.e. not production-ready.
 
 Interpretation: this proxy is currently a research direction, not an OTT
 deployment primitive.
@@ -366,18 +366,18 @@ deployment primitive.
 
 We continued from the above by implementing three concrete follow-ups:
 
-1. **Smooth metric lookup** in the manifold object
+1. Smooth metric lookup in the manifold object
     - File: `scripts/gtc/manifold.py`
     - `Manifold.g_at(x)` now uses a log-Euclidean RBF interpolant over sampled SPD
        tensors (`interp_sigma`) rather than nearest-sample snapping.
 
-2. **Decode-loop gating ablation with local-metric $v_0$ surrogate**
+2. Decode-loop gating ablation with local-metric $v_0$ surrogate
     - File: `scripts/gtc/decode_substitution.py`
     - Added local-metric $v_0$ gate (`cos(v0_hat, v_record) >= threshold`) and
        token-level rows with per-step gate decisions.
     - Added explicit baseline-vs-v0-gated projected latency/TPS deltas.
 
-3. **Refit $\rho$ on strict-local unsaturated anchors only**
+3. Refit $\rho$ on strict-local unsaturated anchors only
     - File: `scripts/gtc/formal_hypothesis_eval.py`
     - Neighbour set constrained by `rho_local_max_g` and calibration/correlation
        computed on anchors where strict `rho_true` is not floor/ceiling saturated.
@@ -402,9 +402,9 @@ We continued from the above by implementing three concrete follow-ups:
 
 ### Practical interpretation
 
-- The **local-metric $v_0$ surrogate is now wired into decode ablation logic**,
+- The local-metric $v_0$ surrogate is now wired into decode ablation logic,
    but with current thresholds it admits a small fraction of steps; latency
    benefit depends strongly on gating policy and the chosen `rho` regime.
 - Smooth metric interpolation + strict-local unsaturated calibration materially
    improves rho correlation diagnostics, but high relative error means
-   **do not runtime-integrate rho control yet**.
+   do not runtime-integrate rho control yet.

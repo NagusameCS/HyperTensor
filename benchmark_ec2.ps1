@@ -117,8 +117,8 @@ $methodDefs = [ordered]@{
 }
 
 # Which methods to run per model key
-# NOTE: GRC is only viable for small models (SmolLM2) — for larger models the
-# GRC is now viable for Phi too — axpca_compute_topk uses Gram-matrix path (nn) when
+# NOTE: GRC is only viable for small models (SmolLM2) --- for larger models the
+# GRC is now viable for Phi too --- axpca_compute_topk uses Gram-matrix path (nn) when
 # n_samples < ff_dim, so even ff_dim=8192 calibration with n=32 samples runs a 3232
 # Jacobi in microseconds.  The prior O(d²) concern predates the Gram-matrix fast path.
 $modelMethods = @{
@@ -175,7 +175,7 @@ function Parse-Run {
         if ($line -match '\[AXEX-COMPRESS\]\s+(\d+) matrices compressed \| mean size (\d+\.?\d*)% of original') {
             $r.ffn_compr_pct = [float]$Matches[2]
         }
-        # FFN-DOWN layerwise: "[AXEX-FFN-DOWN] Total: 30 layers | 45 MB → 20 MB (55.6% reduction)"
+        # FFN-DOWN layerwise: "[AXEX-FFN-DOWN] Total: 30 layers | 45 MB -> 20 MB (55.6% reduction)"
         if ($line -match '\[AXEX-FFN-DOWN\] Total:.*\((\d+\.?\d*)% reduction\)') {
             $r.ffn_lw_pct = [float]$Matches[1]
         }
@@ -201,8 +201,8 @@ function Parse-Run {
 }
 
 #  Formatting helpers 
-function Fmt-Toks($v) { if ($null -eq $v) { return "—" }; return "$v" }
-function Fmt-VRAM($v) { if ($null -eq $v) { return "—" }; return "$v" }
+function Fmt-Toks($v) { if ($null -eq $v) { return "---" }; return "$v" }
+function Fmt-VRAM($v) { if ($null -eq $v) { return "---" }; return "$v" }
 
 function Compress-Label($parsed, $method) {
     # Returns a short compression description for the table
@@ -226,7 +226,7 @@ function Compress-Label($parsed, $method) {
         if ($parts.Count -eq 0) { return "0% (guards)" }
         return $parts -join ", "
     }
-    return "—"
+    return "---"
 }
 
 #  Run a single trial 
@@ -275,7 +275,7 @@ $runDate  = Get-Date -Format "yyyy-MM-dd HH:mm"
 $allRows  = [System.Collections.Generic.List[PSObject]]::new()
 
 Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host " EC2 BENCHMARK  —  $runDate" -ForegroundColor Cyan
+Write-Host " EC2 BENCHMARK  ---  $runDate" -ForegroundColor Cyan
 Write-Host "============================================================`n" -ForegroundColor Cyan
 
 foreach ($modelKey in $Models) {
@@ -314,7 +314,7 @@ foreach ($modelKey in $Models) {
             $txtStr = if ($p.output_text)  { "`"$($p.output_text.Substring(0, [Math]::Min(60,$p.output_text.Length)))`"" } else { "(no text)" }
             $errStr = if ($p.error)        { " [ERR: $($p.error.Substring(0,[Math]::Min(40,$p.error.Length)))]" } else { "" }
 
-            Write-Host " → $decStr  $preStr  $($p.elapsed)s$errStr" -ForegroundColor Green
+            Write-Host " -> $decStr  $preStr  $($p.elapsed)s$errStr" -ForegroundColor Green
             Write-Host "      output: $txtStr" -ForegroundColor Gray
 
             $p.prompt      = $prompt
@@ -361,7 +361,7 @@ $md = [System.Collections.Generic.List[string]]::new()
 $md.Add("")
 $md.Add("---")
 $md.Add("")
-$md.Add("## EC2 Full Benchmark — $runDate")
+$md.Add("## EC2 Full Benchmark --- $runDate")
 $md.Add("")
 $md.Add("geodessical · RTX 3070 8GB (40 TFLOPS) · `--temp 0` · 3 prompts averaged · raw outputs below")
 $md.Add("")
@@ -386,7 +386,7 @@ $md.Add("| Model | Method | T1 (tok/s) | T2 (tok/s) | T3 (tok/s) |")
 $md.Add("|---|---|---:|---:|---:|")
 foreach ($r in $allRows) {
     $t = $r.trials
-    $v = @(0,1,2) | ForEach-Object { if ($_ -lt $t.Count -and $null -ne $t[$_].decode_toks) { $t[$_].decode_toks } else { "—" } }
+    $v = @(0,1,2) | ForEach-Object { if ($_ -lt $t.Count -and $null -ne $t[$_].decode_toks) { $t[$_].decode_toks } else { "---" } }
     $md.Add("| $($r.model) | $($r.method) | $($v[0]) | $($v[1]) | $($v[2]) |")
 }
 $md.Add("")
@@ -398,7 +398,7 @@ $md.Add("All outputs captured at `--temp 0` for deterministic coherence checking
 $md.Add("")
 
 foreach ($r in $allRows) {
-    $md.Add("#### $($r.model) — $($r.method)")
+    $md.Add("#### $($r.model) --- $($r.method)")
     $md.Add("")
     foreach ($t in $r.trials) {
         $output = if ($t.output_text) { $t.output_text } else { "*(no output captured)*" }
@@ -418,7 +418,7 @@ foreach ($r in $allRows) {
 Add-Content -Path $ResultsMd -Value ($md -join "`n") -Encoding UTF8
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " DONE  —  $($allRows.Count) configurations run" -ForegroundColor Cyan
+Write-Host " DONE  ---  $($allRows.Count) configurations run" -ForegroundColor Cyan
 Write-Host " Results appended to: $ResultsMd" -ForegroundColor Cyan
 Write-Host " Raw files in:        $OutDir" -ForegroundColor Cyan
 Write-Host "============================================================`n" -ForegroundColor Cyan

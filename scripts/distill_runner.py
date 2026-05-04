@@ -423,7 +423,7 @@ def _save_checkpoint(student: nn.Module, out_dir: Path, step: int,
             lora_weights[safe_name] = param.detach().cpu()
 
     if not lora_weights:
-        print("[save] no LoRA weights found — nothing to save")
+        print("[save] no LoRA weights found --- nothing to save")
         return
 
     path = out_dir / f"lora_adapters_step{step}.safetensors"
@@ -470,7 +470,7 @@ def evaluate_ppl(model: nn.Module, dataloader, cfg: DistillConfig,
 
 def main():
     ap = argparse.ArgumentParser(
-        description="GRC Light Distillation — Phase 2 PyTorch Runner"
+        description="GRC Light Distillation --- Phase 2 PyTorch Runner"
     )
     # Model paths
     ap.add_argument("--teacher", required=True,

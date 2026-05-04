@@ -67,7 +67,7 @@ if (-not (Test-Path $InputFile)) {
     Write-Host "Firmware not found: $InputFile" -ForegroundColor Yellow
     Write-Host "Generating stub (BT firmware upload will be skipped)" -ForegroundColor Yellow
     $stub = @"
-/* Auto-generated stub — no BT firmware available.
+/* Auto-generated stub --- no BT firmware available.
  * Place BCM4345C0.hcd in firmware/ and rebuild to enable BT. */
 #ifndef BT_FIRMWARE_H
 #define BT_FIRMWARE_H

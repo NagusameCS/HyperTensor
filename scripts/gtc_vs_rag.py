@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GTC as a RAG Replacement — Comparative Analysis (Tier 3).
+GTC as a RAG Replacement --- Comparative Analysis (Tier 3).
 
 Paper D's Geodesic Trajectory Cache stores records of shape:
   R = (x_0, ẋ_0, {x(λ_i)}, Φ(λ), ρ̂, ℓ_T)
@@ -17,7 +17,7 @@ This script compares GTC against vector-DB-based RAG along key axes:
 The core insight: RAG retrieves text chunks and runs full attention over them.
 GTC retrieves geodesic trajectories and applies a single O(k²) matvec.
 If the trajectory is within validity radius ρ̂, the prediction is exact to
-first order — no attention needed.
+first order --- no attention needed.
 
 Usage:
   python scripts/gtc_vs_rag.py --out benchmarks/gtc_vs_rag
@@ -70,7 +70,7 @@ def compare_gtc_rag():
         "coverage_25pct": 0.85,
         "coverage_50pct": 0.95,
         "update_cost": "GTC insertion + vector DB insertion",
-        "semantic_match": "two-stage: ANN → geodesic refinement",
+        "semantic_match": "two-stage: ANN -> geodesic refinement",
         "context_needed": "0 tokens on GTC hit; full attention on miss",
         "scaling": "GTC scale-invariant; RAG degrades",
         "error_floor": "GTC exact on hit; standard LLM on miss",
@@ -87,7 +87,7 @@ def analyze_tradeoffs():
     gtc_hit_rate = 0.90
     rag_hit_rate = 0.70
 
-    # GTC: on hit → 30.9 µs; on miss → full forward (~28 ms for Llama-8B)
+    # GTC: on hit -> 30.9 µs; on miss -> full forward (~28 ms for Llama-8B)
     gtc_time = (
         gtc_hit_rate * 30.9e-6 +
         (1 - gtc_hit_rate) * 28e-3
@@ -217,7 +217,7 @@ def main():
     print(f"    1. Hit rate > 70% (Paper D shows 90%+ at 25% cache fraction)")
     print(f"    2. Full-attention cost dominates (true for all models >1B params)")
     print(f"    3. Update cost is amortized (trajectory library built once)")
-    print(f"  The hybrid approach (ANN → geodesic refinement) combines the best:")
+    print(f"  The hybrid approach (ANN -> geodesic refinement) combines the best:")
     print(f"    RAG's scalability + GTC's precision and speed.")
 
     result = {

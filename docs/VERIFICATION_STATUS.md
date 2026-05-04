@@ -1,7 +1,7 @@
-# HyperTensor Verification Status — Master Catalog
+# HyperTensor Verification Status --- Master Catalog
 
-**Generated:** May 4, 2026  
-**Purpose:** Track every quantitative claim across all papers, with verification status (REAL measurement vs SIMULATED model vs UNVERIFIED).
+Generated: May 4, 2026  
+Purpose: Track every quantitative claim across all papers, with verification status (REAL measurement vs SIMULATED model vs UNVERIFIED).
 
 ---
 
@@ -24,12 +24,12 @@
 | Peak throughput ratio at k=1024 | 106.27% | `REAL` | EC2 L40S `paperA_cachefit_L40S_*/` | Measured via CUDA events |
 | GRC throughput >1.0 at k≥1024 | Various | `REAL` | EC2 L40S paperA runs | Multi-k sweep |
 | L2 cache bonus (k≤L2_MB) | ~6% | `REAL` | EC2 L40S ablation | A/B comparison |
-| Three-regime phase transition (AttnRes) | — | `REAL` | EC2 `attnres_sweep_final/` | Measured alpha vs k/d |
-| k* = L2_MB × 42.7 formula | — | `REAL` | Derived from measured L2 thresholds | Validated on RTX 4070, L40S |
-| Comprehensive verify CSV (paper_i_grcc.csv) | — | `SIM` | `comprehensive_verify.py` | Three-regime model, NOT measured |
-| Comprehensive verify p-values | — | `SIM` | `comprehensive_verify.py` | Modeled from 0.5% CV assumption |
+| Three-regime phase transition (AttnRes) | --- | `REAL` | EC2 `attnres_sweep_final/` | Measured alpha vs k/d |
+| k* = L2_MB × 42.7 formula | --- | `REAL` | Derived from measured L2 thresholds | Validated on RTX 4070, L40S |
+| Comprehensive verify CSV (paper_i_grcc.csv) | --- | `SIM` | `comprehensive_verify.py` | Three-regime model, NOT measured |
+| Comprehensive verify p-values | --- | `SIM` | `comprehensive_verify.py` | Modeled from 0.5% CV assumption |
 
-**Real evidence score:** 7/8 claims backed by real measurements. 1 CSV is simulated.
+Real evidence score: 7/8 claims backed by real measurements. 1 CSV is simulated.
 
 ---
 
@@ -42,10 +42,10 @@
 | FFN alpha | 0.119 | `REAL` | Fresh RTX 4070 run May 4 | hypertensorize.py 1.5B |
 | FFN k90 | 1172 | `REAL` | Fresh RTX 4070 run May 4 | hypertensorize.py 1.5B |
 | k90 per slot | Varies by slot | `REAL` | `per_matrix/` | Real SVD computation |
-| Comprehensive verify slot analysis | — | `SIM` | `comprehensive_verify.py` | Synthetic spectra, NOT measured |
-| Cross-model correlation in verify | — | `SIM` | `comprehensive_verify.py` | Generated with base_corr=0.94 + noise |
+| Comprehensive verify slot analysis | --- | `SIM` | `comprehensive_verify.py` | Synthetic spectra, NOT measured |
+| Cross-model correlation in verify | --- | `SIM` | `comprehensive_verify.py` | Generated with base_corr=0.94 + noise |
 
-**Real evidence score:** 3/5 claims backed by real measurements. 2 simulated.
+Real evidence score: 3/5 claims backed by real measurements. 2 simulated.
 
 ---
 
@@ -56,9 +56,9 @@
 | AttnRes phase transition | Three regimes | `REAL` | `attnres_sweep_final/` | Measured acceptance rates |
 | Best alpha at AttnRes=0.35 | alpha=0.4263 | `REAL` | `paper_c_attres/` EC2 | Draft acceptance measurement |
 | Acceptance rate drop at k>1280 | Observed | `REAL` | `attnres_sweep_v5/` | Compute-bound regime |
-| Comprehensive verify paper_iii_spec.csv | — | `SIM` | `comprehensive_verify.py` | Modeled alpha values |
+| Comprehensive verify paper_iii_spec.csv | --- | `SIM` | `comprehensive_verify.py` | Modeled alpha values |
 
-**Real evidence score:** 3/4 claims backed by real measurements. 1 CSV simulated.
+Real evidence score: 3/4 claims backed by real measurements. 1 CSV simulated.
 
 ---
 
@@ -66,11 +66,11 @@
 
 | Claim | Value | Status | Source | Notes |
 |-------|-------|--------|--------|-------|
-| OTT uniqueness (rank→0 at low noise) | rank=0 at noise=1e-4 | `REAL` | `ott_empirical3/` | Real matrix experiments |
+| OTT uniqueness (rank->0 at low noise) | rank=0 at noise=1e-4 | `REAL` | `ott_empirical3/` | Real matrix experiments |
 | H-function injectivity | Verified | `REAL` | `ott-perfect_*/` | EC2 runs |
-| Comprehensive verify OTT numbers | — | `SIM` | `comprehensive_verify.py` | Simulated noise sweep |
+| Comprehensive verify OTT numbers | --- | `SIM` | `comprehensive_verify.py` | Simulated noise sweep |
 
-**Real evidence score:** 2/3 claims backed by real measurements.
+Real evidence score: 2/3 claims backed by real measurements.
 
 ---
 
@@ -81,7 +81,7 @@
 | Cross-model mapping exists | Verified | `REAL` | `ccm_v4_results.json` | Real model comparisons |
 | Mapping quality at various k | Measured | `REAL` | `ccm_v*/` | Multiple EC2 runs |
 
-**Real evidence score:** 2/2 backed by real measurements.
+Real evidence score: 2/2 backed by real measurements.
 
 ---
 
@@ -92,10 +92,10 @@
 | VI (ECM) | Error correction manifold | `REAL` | `ecm_v2_results.json` |
 | VII (Quant Co-design) | Quant + GRC synergy | `REAL` | `quant_co_design_v2/` |
 | VIII (GTC) | Geometric token cache hit rate | `REAL` | `gtc_50pct_cache/` |
-| IX (Cross-GPU) | Cross-hardware transfer | `REAL` | `cross_hw_local_*/`, `cross_hw_remote_*/` |
+| IX (Cross-GPU) | Cross-hardware transfer | `REAL` | `cross_hw_local_/`, `cross_hw_remote_/` |
 | X (CECI) | Cross-encoder compatibility | `REAL` | `ceci_compatibility/` |
 
-**Real evidence score:** 5/5 backed by real measurements.
+Real evidence score: 5/5 backed by real measurements.
 
 ---
 
@@ -109,9 +109,9 @@
 | Wielandt-Hoffman scale invariance | 1.0000 at both scales | `MATHEMATICAL` | `xi_transfer_proof.py` | Monte Carlo 1000 trials |
 | Zone routing accuracy | 75% | `REAL` | `xi_xii_closed.json` | Measured |
 | Zone separation | 0.2157 | `REAL` | `xi_xii_closed.json` | Measured |
-| 7B bilateral UGT | Not yet measured | `UNVERIFIED` | — | Compute-bound, mechanism proven mathematically |
+| 7B bilateral UGT | Not yet measured | `UNVERIFIED` | --- | Compute-bound, mechanism proven mathematically |
 
-**Real evidence score:** 4/5 backed. 1 unverified (compute-bound).
+Real evidence score: 4/5 backed. 1 unverified (compute-bound).
 
 ### Paper XII: Native Linear k-Manifold
 
@@ -121,20 +121,20 @@
 | Native k=1067, 40K steps, 46.1% variance | Measured | `REAL` | EC2 `close_all_gaps.py` | 7B Q_proj |
 | FFN down_proj k=443, 15% params | 15.4% variance | `REAL` | EC2 `xii_definitive.py` | SVD warm start |
 | k* prediction (L2_MB × 42.7) | 1536 for L40S | `REAL` | `xi_xii_closed.json` | Formula validated |
-| PPL parity at k≥256 | Not yet measured | `UNVERIFIED` | — | Compute-bound |
+| PPL parity at k≥256 | Not yet measured | `UNVERIFIED` | --- | Compute-bound |
 
-**Real evidence score:** 4/5 backed. 1 unverified (compute-bound).
+Real evidence score: 4/5 backed. 1 unverified (compute-bound).
 
 ### Paper XIII: Safe OGD (Online Geodesic Descent)
 
 | Claim | Value | Status | Source | Notes |
 |-------|-------|--------|--------|-------|
-| 0% harmful activation (mathematical guarantee) | — | `MATHEMATICAL` | P_safe = I - Q_f Q_f^T | Orthogonal projection proof |
+| 0% harmful activation (mathematical guarantee) | --- | `MATHEMATICAL` | P_safe = I - Q_f Q_f^T | Orthogonal projection proof |
 | Detection threshold sweep | Various tau | `REAL` | `safe_ogd_results.json` | EC2 measurement |
 | COG integration | Measured | `REAL` | `cog_safe_integrated_results.json` | EC2 |
 | 50 harmful prompts tested | 100% blocked | `REAL` | `ogd_cog_50_results.json` | EC2 |
 
-**Real evidence score:** 4/4 backed (3 measured + 1 mathematical).
+Real evidence score: 4/4 backed (3 measured + 1 mathematical).
 
 ### Paper XIV: Snipe (Semantic Intervention)
 
@@ -143,7 +143,7 @@
 | Intervention specificity | Measured | `REAL` | `snipe_specificity_results.json` | Real model |
 | Multi-snipe results | Measured | `REAL` | `multi_snipe_results.json` | Cross-probe |
 
-**Real evidence score:** 2/2 backed.
+Real evidence score: 2/2 backed.
 
 ### Paper XV: COG + TEH (Cognitive Geometry + Tensor Error Handler)
 
@@ -154,9 +154,9 @@
 | TEH 100% at 1.5B | 100% | `REAL` | `teh_15b_probed_results.json` | Probed |
 | TEH multiclass | Measured | `REAL` | `teh_multicat_results.json` | 3-category |
 | COG query recognition | 0/10 (early) | `REAL` | `cog_optimal_results.json` | Needs more interactions |
-| COG 10K+ interactions | Not tested | `UNVERIFIED` | — | Proposed in new_paper_ideas |
+| COG 10K+ interactions | Not tested | `UNVERIFIED` | --- | Proposed in new_paper_ideas |
 
-**Real evidence score:** 5/6 backed. 1 unverified (long-horizon).
+Real evidence score: 5/6 backed. 1 unverified (long-horizon).
 
 ---
 
@@ -164,18 +164,18 @@
 
 ### Comprehensive Verification (May 4, 2026)
 
-A unified 9-test computational verification was run on RTX 4070 Laptop (CPU mode for exact math). **ALL 9 TESTS PASSED.** Results saved to `benchmarks/riemann_comprehensive/riemann_comprehensive_verification.json`.
+A unified 9-test computational verification was run on RTX 4070 Laptop (CPU mode for exact math). ALL 9 TESTS PASSED. Results saved to `benchmarks/riemann_comprehensive/riemann_comprehensive_verification.json`.
 
 | Test | Result | Key Metric |
 |------|--------|------------|
 | AGT Prime Encoding | PASS | k90=1 (92.7% var in 1D) |
 | AGT Zero Encoding | PASS | Critical zeros are 2D subspace, TEH 100% detection |
 | ACM Involution | PASS | ι²≈id exact (error=0), fp separation 2.6e14x |
-| Faithfulness Rank-1 | PASS | **SV1=5.43, SV2..SV12=0.0000000000 (exact zeros)** |
+| Faithfulness Rank-1 | PASS | SV1=5.43, SV2..SV12=0.0000000000 (exact zeros) |
 | No Pathological t | PASS | ||D(s)||=0.4 constant for all t up to 1,000,000 |
-| Edge Cases | PASS | Near-critical σ down to 1e-6 — exact match to |2σ-1| |
-| Bridge Protocol | PASS | **200/200 correct (100.0% accuracy)** |
-| Monte Carlo | PASS (strong) | **4993/5000 correct (99.86% accuracy)** |
+| Edge Cases | PASS | Near-critical σ down to 1e-6 --- exact match to |2σ-1| |
+| Bridge Protocol | PASS | 200/200 correct (100.0% accuracy) |
+| Monte Carlo | PASS (strong) | 4993/5000 correct (99.86% accuracy) |
 | Grid Search | PASS | Error exactly 0 at σ=0.5 for all t, no off-critical zeros |
 
 ### Paper XVI: AGT (Arithmetic Geodesic Taxonomy)
@@ -186,37 +186,37 @@ A unified 9-test computational verification was run on RTX 4070 Laptop (CPU mode
 | Separation ratio | 1619x | `REAL` | `agt_v3_results.json` | Detection 100%, FP 0% |
 | Prime features: k90=1 | 92.7% var in 1D | `REAL` | Fresh RTX 4070 May 4 | riemann_comprehensive_verify.py Test 1 |
 | Critical zeros: 2D subspace | k90=2, k95=2 | `REAL` | Fresh RTX 4070 May 4 | riemann_comprehensive_verify.py Test 2 |
-| 10^6 primes (H100 scale) | Not tested | `UNVERIFIED` | — | Needs H100 |
+| 10^6 primes (H100 scale) | Not tested | `UNVERIFIED` | --- | Needs H100 |
 
-**Real evidence score:** 4/5 backed. 1 unverified (scale).
+Real evidence score: 4/5 backed. 1 unverified (scale).
 
 ### Paper XVII: ACM (Analytic Continuation Manifold)
 
 | Claim | Value | Status | Source | Notes |
 |-------|-------|--------|--------|-------|
 | ι²≈id error | 0.000000 (exact) | `REAL` | Fresh RTX 4070 May 4 | Z_2 is exact algebraic involution |
-| Critical zeros as fixed points | error 0.000000 | `REAL` | Fresh RTX 4070 May 4 | Exact — sigma coordinate is algebraic |
+| Critical zeros as fixed points | error 0.000000 | `REAL` | Fresh RTX 4070 May 4 | Exact --- sigma coordinate is algebraic |
 | Off-critical deviation | 0.26 (2.6e14× larger) | `REAL` | Fresh RTX 4070 May 4 | Computed from simplified features |
 | TEH detection | 525/525 (100%), 0/105 FP | `REAL` | Fresh RTX 4070 May 4 | Perfect detection |
-| 1000+ zeros (scale) | Not tested | `UNVERIFIED` | — | Needs compute |
+| 1000+ zeros (scale) | Not tested | `UNVERIFIED` | --- | Needs compute |
 
-**Real evidence score:** 4/5 backed. 1 unverified (scale).
+Real evidence score: 4/5 backed. 1 unverified (scale).
 
 ### Paper XVIII: Bridge Protocol + Faithfulness
 
 | Claim | Value | Status | Source | Notes |
 |-------|-------|--------|--------|-------|
-| D(s) rank-1 | **SV1=5.43, SV2..12=0.0000000000** | `REAL` | Fresh RTX 4070 May 4 | EXACT zeros, not approximate |
-| Error at k≥2 | **0.0000000000 (exact)** | `REAL` | Fresh RTX 4070 May 4 | Exact convergence, not asymptotic |
+| D(s) rank-1 | SV1=5.43, SV2..12=0.0000000000 | `REAL` | Fresh RTX 4070 May 4 | EXACT zeros, not approximate |
+| Error at k≥2 | 0.0000000000 (exact) | `REAL` | Fresh RTX 4070 May 4 | Exact convergence, not asymptotic |
 | No pathological t (up to 1,000,000) | ||D||=0.4 constant | `REAL` | Fresh RTX 4070 May 4 | Std=0 across all t |
 | Edge: σ=0.499999, σ=0.500001 | Exact match to |2σ-1| | `REAL` | Fresh RTX 4070 May 4 | Down to 1e-6 precision |
 | Edge: t up to 1e10 | ||D||=0.4 constant | `REAL` | Fresh RTX 4070 May 4 | No t-dependence |
-| Bridge protocol: 200 candidates | **100.0% accuracy** | `REAL` | Fresh RTX 4070 May 4 | Test 7 |
-| Monte Carlo: 5000 random s | **99.86% accuracy** | `REAL` | Fresh RTX 4070 May 4 | Test 8, 7 FP (σ≈0.5 discretization) |
+| Bridge protocol: 200 candidates | 100.0% accuracy | `REAL` | Fresh RTX 4070 May 4 | Test 7 |
+| Monte Carlo: 5000 random s | 99.86% accuracy | `REAL` | Fresh RTX 4070 May 4 | Test 8, 7 FP (σ≈0.5 discretization) |
 | Grid: 200σ × 50t | Error=0 at σ=0.5, no off-critical zeros | `REAL` | Fresh RTX 4070 May 4 | Test 9 |
-| Formal proof of Theorem 1-3 | — | `MATHEMATICAL` | Standard linear algebra | Needs formal writeup |
-| Full RH follows logically | — | `COMPUTATIONAL` | Chain proven computationally | Gap: formalize continuity of f(s) |
-| Peer review | Not done | `UNVERIFIED` | — | HANDOFF_TO_PHD.md ready |
+| Formal proof of Theorem 1-3 | --- | `MATHEMATICAL` | Standard linear algebra | Needs formal writeup |
+| Full RH follows logically | --- | `COMPUTATIONAL` | Chain proven computationally | Gap: formalize continuity of f(s) |
+| Peer review | Not done | `UNVERIFIED` | --- | HANDOFF_TO_PHD.md ready |
 
 ---
 
@@ -232,10 +232,10 @@ A unified 9-test computational verification was run on RTX 4070 Laptop (CPU mode
 
 ### Action Items
 
-1. **HIGH PRIORITY**: Re-run comprehensive_verify.py Paper I GRC on actual hardware (1.5B or 7B 4-bit on RTX 4070)
-2. **HIGH PRIORITY**: Re-run comprehensive_verify.py Paper III on actual hardware
-3. **MEDIUM**: Test 7B bilateral UGT (needs EC2 or 4-bit local)
-4. **MEDIUM**: Test PPL parity at k≥256 (needs EC2)
-5. **LOW**: 10K+ COG interactions (needs long-running EC2)
-6. **LOW**: Scale AGT to 10^6 primes (needs H100)
-7. **EXTERNAL**: Formal mathematical writeup + peer review
+1. HIGH PRIORITY: Re-run comprehensive_verify.py Paper I GRC on actual hardware (1.5B or 7B 4-bit on RTX 4070)
+2. HIGH PRIORITY: Re-run comprehensive_verify.py Paper III on actual hardware
+3. MEDIUM: Test 7B bilateral UGT (needs EC2 or 4-bit local)
+4. MEDIUM: Test PPL parity at k≥256 (needs EC2)
+5. LOW: 10K+ COG interactions (needs long-running EC2)
+6. LOW: Scale AGT to 10^6 primes (needs H100)
+7. EXTERNAL: Formal mathematical writeup + peer review

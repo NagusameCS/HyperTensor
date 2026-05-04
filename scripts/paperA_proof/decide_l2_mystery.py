@@ -27,11 +27,11 @@ Output: a markdown fragment + JSON verdict at
     docs/figures/paper-a/ncu_sweep/l2_verdict.{md,json}
 
 Status terminology (per user instruction; honest hedging):
-    REFUTED      — observation contradicts the prediction
-    CONFIRMED    — observation positively matches the prediction
-    CONSISTENT   — observation does not contradict, but does not require
+    REFUTED      --- observation contradicts the prediction
+    CONFIRMED    --- observation positively matches the prediction
+    CONSISTENT   --- observation does not contradict, but does not require
                    the cache-fit explanation either
-    INCONCLUSIVE — not enough data to decide
+    INCONCLUSIVE --- not enough data to decide
 """
 from __future__ import annotations
 import json, sys

@@ -5,11 +5,11 @@ The focus here is code and measured behavior, not release-note marketing.
 
 ---
 
-## [unreleased] — 2026-04-27 — "GTC v0.3: Scaling + Resonance + Record Store"
+## [unreleased] --- 2026-04-27 --- "GTC v0.3: Scaling + Resonance + Record Store"
 
 ### Verified Results (this turn)
 
-#### Three-model scaling — Paper 5 "flag flip" claim verified
+#### Three-model scaling --- Paper 5 "flag flip" claim verified
 | Model        | Params | Coverage @ k=16 (25%), ε=3.0 |
 |--------------|-------:|-----------------------------:|
 | SmolLM2-135M | 135M   | 91.0 %                       |
@@ -17,7 +17,7 @@ The focus here is code and measured behavior, not release-note marketing.
 | Gemma-4-E2B  | 4.5B   | 91.5 %                       |
 Scale-invariant within ±0.5 %.
 
-#### Batch Jacobi resonance (Paper 5 Tests 4a–4c on real LM data)
+#### Batch Jacobi resonance (Paper 5 Tests 4a--4c on real LM data)
 | B     | Speedup | Paper-5 target | rel.err |
 |------:|--------:|---------------:|--------:|
 | 10    | 97.9   | 2.7           | 1.1e-16 |
@@ -27,14 +27,14 @@ Scale-invariant within ±0.5 %.
 Source: `docs/figures/gtc/smollm2-135m_batch_jacobi.json`.
 
 #### Compressed record store + two-stage lookup (Paper 5 Algorithm 1)
-- 5.96 KB/record at k=8 (paper target: 50–80 KB at k=40 — well under budget).
-- Rank-5 Φ SVD truncation: reconstruction error 0.0 (paper: "rank ≈ 5 sufficient" — verified).
-- Two-stage Euclidean→g-norm lookup: 30.9 µs/query (paper target <5 ms — 160 faster).
+- 5.96 KB/record at k=8 (paper target: 50--80 KB at k=40 --- well under budget).
+- Rank-5 Φ SVD truncation: reconstruction error 0.0 (paper: "rank ≈ 5 sufficient" --- verified).
+- Two-stage Euclidean->g-norm lookup: 30.9 µs/query (paper target <5 ms --- 160 faster).
 - Source: `scripts/gtc/record_store.py`, `docs/figures/gtc/smollm2-135m_library.npz`.
 
 ### Code added
-- `scripts/gtc/record_store.py` — compressed Library with two-stage lookup.
-- `scripts/gtc/batch_jacobi.py` — Paper 5 §4.5 resonance benchmark.
+- `scripts/gtc/record_store.py` --- compressed Library with two-stage lookup.
+- `scripts/gtc/batch_jacobi.py` --- Paper 5 §4.5 resonance benchmark.
 
 ### Paper 5 status
 12 of 17 testable Paper 5 claims now have measured replicable results.
@@ -44,25 +44,25 @@ two open problems flagged by the paper itself (ϕ, v₀). See
 
 ---
 
-## [unreleased] — 2026-04-22 — "GTC + PPL Sweep"
+## [unreleased] --- 2026-04-22 --- "GTC + PPL Sweep"
 
 ### Verified Results (this turn)
 
 #### Llama-3.1-8B PPL sweep
 | Case        | Rank | PPL      | % of baseline |
 |-------------|-----:|---------:|--------------:|
-| baseline    |   —  |  6.7902  | 100.00 %      |
+| baseline    |   ---  |  6.7902  | 100.00 %      |
 | GRC k=1024  | 1024 | 10.9585  | 161.39 %      |
-| GRC k=1536  | 1536 |  7.6936  | **113.30 %**  |
+| GRC k=1536  | 1536 |  7.6936  | 113.30 %  |
 | GRC k=2048  | 2048 |  7.6936  | 113.30 %      |
 
 k=1536 ≡ k=2048 (bit-identical PPL) because Llama-3.1 GQA K/V dim is 1024:
 once k ≥ 1024 the K/V matrices are full-rank and only Q is being truncated;
-Q's PCA energy saturates by k=1536. **k=1536 is the Pareto rank** for
+Q's PCA energy saturates by k=1536. k=1536 is the Pareto rank for
 `--axex-attn-only` on Llama-3.1-8B. Source: `docs/figures/ppl_sweep/`.
 
 #### GTC v0.2 coverage on SmolLM2-135M
-- k=16 cached samples (25 % of cloud) → **91.0 %** hit rate at ε=3.0.
+- k=16 cached samples (25 % of cloud) -> 91.0 % hit rate at ε=3.0.
 - Validity radius: errors < 0.1 % out to ε=5.0.
 - Sphere sanity (n=4) matches theoretical Jacobi quadratic scaling.
 - Source: `docs/figures/gtc/GTC_RESULTS.md`.
@@ -76,21 +76,21 @@ Q's PCA energy saturates by k=1536. **k=1536 is the Pareto rank** for
 
 #### Model inventory
 SmolLM2-135M Q8_0 (138 MB), Mistral-7B Q4_K_M (4166 MB), Llama-3.1-8B
-Q4_K_M (4693 MB) — `docs/figures/model_inventory.{json,md}`.
+Q4_K_M (4693 MB) --- `docs/figures/model_inventory.{json,md}`.
 
 ### Code added
-- `scripts/run_ppl_sweep.ps1` — wrapper for the four-case PPL sweep.
-- `scripts/gtc/gtc_benchmark.py` — coverage sweep harness (NEW).
-- `scripts/curvature_warp/{inject.py,sweep.py}` — Paper 4 §3 prototype.
-- `scripts/inventory_models.py` — GGUF inventory generator.
-- `docs/figures/findings/FIVE_FINDINGS.md` — source-of-record for the five
+- `scripts/run_ppl_sweep.ps1` --- wrapper for the four-case PPL sweep.
+- `scripts/gtc/gtc_benchmark.py` --- coverage sweep harness (NEW).
+- `scripts/curvature_warp/{inject.py,sweep.py}` --- Paper 4 §3 prototype.
+- `scripts/inventory_models.py` --- GGUF inventory generator.
+- `docs/figures/findings/FIVE_FINDINGS.md` --- source-of-record for the five
   un-published findings (Phase 3 warm-cache, Phase 4 oracle-budget, Phase 5
   decode-aligned MRR, `axiom_warp_state.dat`, archived
   `WHITEPAPER_DIFFEOMORPHISM.md`).
 
 ---
 
-## [0.6.1] — 2026-04-25 — "GRC 8B Milestone"
+## [0.6.1] --- 2026-04-25 --- "GRC 8B Milestone"
 
 ### Summary
 
@@ -120,14 +120,14 @@ This release records the first single-digit perplexity result for GRC on Llama-3
 
 ---
 
-## [0.6.0] — 2026-04-18 — "Synapse"
+## [0.6.0] --- 2026-04-18 --- "Synapse"
 
 ### Summary
 
-**Production host runtime with geometric inference research integration.** Geodessical
+Production host runtime with geometric inference research integration. Geodessical
 v0.6.0 "Synapse" ships as a fully featured host-mode inference engine while running the
-Axiom Beta-3 OTT survey pipeline in parallel. Peak decode reaches **107.7 tok/s** on
-Gemma 4 E2B (RTX 4070 Laptop), **22.7% ahead of Ollama gemma3:4b** on the same hardware.
+Axiom Beta-3 OTT survey pipeline in parallel. Peak decode reaches 107.7 tok/s on
+Gemma 4 E2B (RTX 4070 Laptop), 22.7% ahead of Ollama gemma3:4b on the same hardware.
 
 ### OTT / Axiom Beta-3
 
@@ -145,9 +145,9 @@ manifold recomputation runs in post-Phase-5 control flow (no Phase-5 coupling).
 
 #### Improved Phase 4 Active Learning
 - Uncertainty-based candidate selection with early stop after sustained low uncertainty
-- Adaptive model-oracle budget in fast mode: 2–4 calls (down from 16)
+- Adaptive model-oracle budget in fast mode: 2--4 calls (down from 16)
 - Stricter fast-mode uncertainty floor for oracle trigger
-- Result: Phase 4 wall time: 909 ms → **669 ms** (−26%)
+- Result: Phase 4 wall time: 909 ms -> 669 ms (−26%)
 
 #### Phase 5 MRR Improvement
 Curvature-informed initial velocity prior in Phase 5 (bounded local acceleration from
@@ -157,12 +157,12 @@ interpolated Christoffel symbols). Adaptive geodesic retry with step/velocity da
 |--------|------------------|---------|
 | Total time | ~1218 ms | ~977 ms |
 | Phase 4 | ~909 ms | ~669 ms |
-| Phase 5 | — | ~43 ms |
-| MRR | ~0.032 | **~0.067** |
+| Phase 5 | --- | ~43 ms |
+| MRR | ~0.032 | ~0.067 |
 
 #### Phase 3 Warm-Cache
 LRU hidden-state cache (keyed by token_id  layer) reduces Phase 3 manifold recomputation
-from **197 s cold → 0.17 s warm** (−99.9%) on SmolLM2. Full Phase 3 + Phase 4 refresh
+from 197 s cold -> 0.17 s warm (−99.9%) on SmolLM2. Full Phase 3 + Phase 4 refresh
 now triggerable without prohibitive cost.
 
 #### Knowledge Injection Prototype
@@ -190,11 +190,11 @@ pending.
 
 | Metric | Value | Context |
 |--------|-------|---------|
-| Decode (Gemma4 E2B, GPU, long/512) | **107.7 tok/s** | RTX 4070 Laptop, decode-only |
-| End-to-end (Gemma4 E2B, GPU) | **92.5 tok/s** | Includes prefill, 256 tokens |
-| vs Ollama gemma3:4b | **+22.7%** | Same prompt, same hardware |
-| vs Ollama gemma4:latest | **+206.2%** | Same prompt, same hardware |
-| SmolLM2-135M GPU (long) | 174–271 tok/s | Q8_0, variable prompt length |
+| Decode (Gemma4 E2B, GPU, long/512) | 107.7 tok/s | RTX 4070 Laptop, decode-only |
+| End-to-end (Gemma4 E2B, GPU) | 92.5 tok/s | Includes prefill, 256 tokens |
+| vs Ollama gemma3:4b | +22.7% | Same prompt, same hardware |
+| vs Ollama gemma4:latest | +206.2% | Same prompt, same hardware |
+| SmolLM2-135M GPU (long) | 174--271 tok/s | Q8_0, variable prompt length |
 
 ### New Features (Inference Engine)
 - Gemma4 architecture: interleaved sliding-window attention (ISWA), dual RoPE bases, doubled FFN layers 15+
@@ -203,8 +203,8 @@ pending.
 - `--ott-perfect`: exact greedy rollout upper bound (100% draft acceptance rate)
 - `--ott-full`: full OTT pipeline (axiom + geodesic-first + AttnRes + OneDecode prep)
 - `--ott-theorem`: adds depth-attn to ott-full for maximum reasoning quality
-- `--one-decode`: bake geodesic flow map once → `ott_one_decode.bin` for instant decode
-- `--ott-od`: OTT-OD protocol — OneDecode map as speculative draft source
+- `--one-decode`: bake geodesic flow map once -> `ott_one_decode.bin` for instant decode
+- `--ott-od`: OTT-OD protocol --- OneDecode map as speculative draft source
 - `--ott-swarm <K>`: OD-SWARM fan-out (K candidates per draft slot)
 - `--attnres` / `--attnres-strength`: attention residual depth stabilization
 - `--depth-attn` / `--depth-attn-strength` / `--depth-attn-window`: depth-wise residual cross-layer attention
@@ -221,11 +221,11 @@ pending.
 
 ---
 
-## [0.4.0] — 2026-03-30
+## [0.4.0] --- 2026-03-30
 
 ### Summary
 
-**Host-mode runtime + CUDA GPU offload + speculative execution.** First release that
+Host-mode runtime + CUDA GPU offload + speculative execution. First release that
 runs on Windows/Linux as a native host application without a bootable kernel image.
 Introduced CUDA GPU dispatch (RTX 4070: 29% decode speedup over CPU), five speculative
 execution techniques, and an HTTP API server for programmatic access.
@@ -246,14 +246,14 @@ Selective dispatch to RTX/Quadro/A-series GPUs via CUDA runtime:
 - `cudaMemcpy` weight staging on first call; cached for subsequent tokens
 - Fallback: CPU AVX2 path for sub-threshold layers
 
-#### Speculative Neural Execution (SNE) — 5 Techniques
+#### Speculative Neural Execution (SNE) --- 5 Techniques
 | Technique | Principle |
 |-----------|-----------|
-| **Adaptive Precision Cascade (APC)** | Low entropy inputs fast-path at INT16; high entropy re-runs at FP32 |
-| **Speculative Layer Fusion (SLF)** | Skip matmul when layer input signature matches cached activation |
-| **Entropy-Aware Neuron Pruning (EANP)** | Zero-entropy neurons pruned at runtime (no retraining) |
-| **Compute DAG Scheduling** | Tomasulo-inspired tensor dependency DAG with resource ordering |
-| **Confidence-Gated Early Exit** | Execution depth proportional to input difficulty |
+| Adaptive Precision Cascade (APC) | Low entropy inputs fast-path at INT16; high entropy re-runs at FP32 |
+| Speculative Layer Fusion (SLF) | Skip matmul when layer input signature matches cached activation |
+| Entropy-Aware Neuron Pruning (EANP) | Zero-entropy neurons pruned at runtime (no retraining) |
+| Compute DAG Scheduling | Tomasulo-inspired tensor dependency DAG with resource ordering |
+| Confidence-Gated Early Exit | Execution depth proportional to input difficulty |
 
 These techniques operate within the SNE engine (`runtime/nn/speculative.c`) as
 microarchitecture-level acceleration of neural inference, independent of the
@@ -261,13 +261,13 @@ OTT speculative decode path.
 
 #### HTTP API Server
 REST API on `localhost:8080`:
-- `POST /v1/generate` — single-turn text completion
-- `POST /v1/chat` — multi-turn conversation (OpenAI-compatible)
-- `GET /v1/models` — list loaded models
-- `GET /v1/version` — runtime version string
+- `POST /v1/generate` --- single-turn text completion
+- `POST /v1/chat` --- multi-turn conversation (OpenAI-compatible)
+- `GET /v1/models` --- list loaded models
+- `GET /v1/version` --- runtime version string
 
 #### Additional Architectures
-Added GGUF loaders for: **Qwen2.5**, **LLaMA 3**, **Gemma 2**, **SmolLM 2**, **Mistral**
+Added GGUF loaders for: Qwen2.5, LLaMA 3, Gemma 2, SmolLM 2, Mistral
 
 #### Axiom Beta-1 (Initial Research Build)
 Placeholder geometry survey with architecture-heuristic manifold ID and surrogate
@@ -289,7 +289,7 @@ Beta-2 real-geometry implementation.
 
 ### Summary
 
-**2.8 performance improvement.** Decode speed improved from 454 ms/tok to 162 ms/tok
+2.8 performance improvement. Decode speed improved from 454 ms/tok to 162 ms/tok
 through SMP parallel GEMV, JIT-compiled forward kernels, and critical bug fixes in
 both the JIT loop counters and the SMP trampoline.
 
@@ -313,12 +313,12 @@ required by the System V ABI. Misalignment caused SSE2 `movaps` faults on APs.
 
 #### JIT Forward Kernels
 Six native x86_64 kernels lazy-compiled on first LLM inference:
-- `vadd` (dim=3072) — residual connections
-- `dot` (head_dim=96) — attention score computation
-- `axpy` (head_dim=96) — attention value accumulation
-- `fused_silu_mul` (ff_dim=8192) — FFN gate ⊙ up projection
-- `rope` (head_dim=96) — rotary position encoding
-- `rmsnorm` (dim=3072) — RMS normalization
+- `vadd` (dim=3072) --- residual connections
+- `dot` (head_dim=96) --- attention score computation
+- `axpy` (head_dim=96) --- attention value accumulation
+- `fused_silu_mul` (ff_dim=8192) --- FFN gate ⊙ up projection
+- `rope` (head_dim=96) --- rotary position encoding
+- `rmsnorm` (dim=3072) --- RMS normalization
 
 Emitted into a 2 MB W^X code pool (max 64 concurrent buffers).
 
@@ -343,11 +343,11 @@ Integer Q4Q8 GEMV compiler implemented (disabled pending correctness verificatio
 
 ---
 
-## [0.2.0] — 2026-03-23
+## [0.2.0] --- 2026-03-23
 
 ### Summary
 
-**First coherent LLM inference achieved.** Phi-3.5 Mini Instruct (3.8B params, Q4_0)
+First coherent LLM inference achieved. Phi-3.5 Mini Instruct (3.8B params, Q4_0)
 now generates correct English text on bare-metal x86_64, running under QEMU WHPX at
 ~800 ms/tok (454 ms/tok decode, 5.5s prefill for 12 tokens).
 
@@ -360,32 +360,32 @@ garbage output since the initial LLM integration.
 ### Critical Fixes
 
 #### Q4_0 Dequantization Layout (Root Cause of Garbage Output)
-All Q4_0 (4-bit quantized) dequantization code used an **interleaved nibble layout**
+All Q4_0 (4-bit quantized) dequantization code used an interleaved nibble layout
 instead of the GGML standard layout. For each 32-element block packed into 16 bytes:
 
-- **Wrong (interleaved):** `out[2*j] = lo_nibble, out[2*j+1] = hi_nibble`
-- **Correct (GGML standard):** `out[j] = lo_nibble, out[j+16] = hi_nibble`
+- Wrong (interleaved): `out[2j] = lo_nibble, out[2j+1] = hi_nibble`
+- Correct (GGML standard): `out[j] = lo_nibble, out[j+16] = hi_nibble`
 
 This caused element-order corruption at every F32 boundary (RMSNorm multiply,
 residual connections), compounding through all 32 transformer layers. Aggregate
 statistics (min/max/sum) were identical since values were just permuted within
 blocks, making the bug invisible to earlier verification.
 
-**Files fixed:**
-- `runtime/nn/llm.c` — `llm_embed()` Q4_0 case
-- `runtime/nn/llm.c` — `q4_0_dot32()` (SSE2 + aarch64 paths)
-- `runtime/nn/llm.c` — `q4_1_dot32()` (SSE2 + aarch64 paths)
-- `runtime/nn/llm.c` — `q4_0_dot32_avx2()` (AVX2 8-wide path)
-- `runtime/nn/llm.c` — `llm_gemv_q4_fused_avx2()` (4-row batched GEMV)
-- `runtime/nn/llm.c` — `llm_gemv_q4_fused_range_avx2()` (parallel worker GEMV)
-- `runtime/nn/llm.c` — AVX2 helper replaced: `q4_unpack_v8f` → `q4_unpack_lo_v8f` + `q4_unpack_hi_v8f`
+Files fixed:
+- `runtime/nn/llm.c` --- `llm_embed()` Q4_0 case
+- `runtime/nn/llm.c` --- `q4_0_dot32()` (SSE2 + aarch64 paths)
+- `runtime/nn/llm.c` --- `q4_1_dot32()` (SSE2 + aarch64 paths)
+- `runtime/nn/llm.c` --- `q4_0_dot32_avx2()` (AVX2 8-wide path)
+- `runtime/nn/llm.c` --- `llm_gemv_q4_fused_avx2()` (4-row batched GEMV)
+- `runtime/nn/llm.c` --- `llm_gemv_q4_fused_range_avx2()` (parallel worker GEMV)
+- `runtime/nn/llm.c` --- AVX2 helper replaced: `q4_unpack_v8f` -> `q4_unpack_lo_v8f` + `q4_unpack_hi_v8f`
 
 #### RMSNorm Epsilon Mismatch
 Hardcoded `1e-6f` replaced with model-specific epsilon loaded from GGUF metadata
 (`general.rms_norm_eps`). Phi-3.5 uses `1e-5`.
 
 #### Math Library Precision (Prior Session)
-Complete rewrites of `sinf`, `cosf`, `expf`, `logf`, `sqrtf` — custom bare-metal
+Complete rewrites of `sinf`, `cosf`, `expf`, `logf`, `sqrtf` --- custom bare-metal
 implementations had catastrophic precision errors affecting RoPE frequency computation
 and softmax normalization.
 
@@ -398,15 +398,15 @@ and softmax normalization.
 - Enables correct positional encoding for extended-context models
 
 #### New Subsystems (Scaffolding)
-- `runtime/nn/flash_attn.c` — Flash Attention kernel interface
-- `runtime/nn/paged_attn.c` — PagedAttention (vLLM-style) interface
-- `runtime/nn/safetensors.c` — Safetensors format loader
-- `runtime/nn/onnx.c` — ONNX Runtime integration interface
-- `runtime/compute/vulkan_compute.c` — Vulkan/WebGPU compute backend interface
-- `runtime/pseudocode/pseudo_stdlib.c` — Pseudocode standard library
-- `kernel/drivers/dma/pcie_dma.c` — PCIe DMA engine
-- `kernel/net/distributed.c` — Distributed inference networking
-- `boot/uefi_stub.c` — UEFI boot support
+- `runtime/nn/flash_attn.c` --- Flash Attention kernel interface
+- `runtime/nn/paged_attn.c` --- PagedAttention (vLLM-style) interface
+- `runtime/nn/safetensors.c` --- Safetensors format loader
+- `runtime/nn/onnx.c` --- ONNX Runtime integration interface
+- `runtime/compute/vulkan_compute.c` --- Vulkan/WebGPU compute backend interface
+- `runtime/pseudocode/pseudo_stdlib.c` --- Pseudocode standard library
+- `kernel/drivers/dma/pcie_dma.c` --- PCIe DMA engine
+- `kernel/net/distributed.c` --- Distributed inference networking
+- `boot/uefi_stub.c` --- UEFI boot support
 
 ### Performance
 
@@ -432,11 +432,11 @@ All values now match a Python/NumPy reference implementation exactly:
 | L0 output abssum | 135.21 | 135.21 |  |
 
 Previously, Q[0] was -0.014042 (30 too small) and L0 output range was
-[-0.37, 0.37] instead of [-3.60, 2.51] — a 10 dynamic range loss.
+[-0.37, 0.37] instead of [-3.60, 2.51] --- a 10 dynamic range loss.
 
 ---
 
-## [0.1.0] — 2025 (Initial Release)
+## [0.1.0] --- 2025 (Initial Release)
 
 ### Features
 - Multiboot1 bootloader with x86_64 long mode + SSE2

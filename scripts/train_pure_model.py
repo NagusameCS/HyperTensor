@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Phase 3: Twin Training — continued pretraining of SmolLM2-135M on pure data.
+Phase 3: Twin Training --- continued pretraining of SmolLM2-135M on pure data.
 
 CRITICAL DESIGN FOR CECI:
 1. Both models start from the EXACT SAME base weights (SmolLM2-135M)
-   → This is STRONGER than "same seed" — the weights are literally identical
+   -> This is STRONGER than "same seed" --- the weights are literally identical
 2. SHARED tokenizer (SmolLM2/Llama-3) for splice compatibility
 3. CONTINUED PRETRAINING (not from scratch) on pure skill-specific data
-   → Each model diverges from the shared base, specializing in its domain
-   → Needs ~100M tokens per model (vs 3.3B from scratch)
+   -> Each model diverges from the shared base, specializing in its domain
+   -> Needs ~100M tokens per model (vs 3.3B from scratch)
 4. Saves in safetensors format for CECI protocol loading
 5. Optimized for RTX 4070 8GB VRAM (SmolLM2-135M ~270MB in bf16)
 
@@ -58,7 +58,7 @@ OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 # Training hyperparams optimized for continued pretraining on RTX 4070 8GB
 TRAINING_ARGS = {
-    "per_device_train_batch_size": 8,        # Bumped — 39% VRAM used at batch=4
+    "per_device_train_batch_size": 8,        # Bumped --- 39% VRAM used at batch=4
     "gradient_accumulation_steps": 2,        # Effective batch = 16 (enough for 135M)
     "learning_rate": 1e-5,                  # Lower LR for continued pretraining
     "warmup_steps": 200,
@@ -225,7 +225,7 @@ def train_pure_model(
     # === Step 2: Load pretrained model (continued pretraining) ===
     print("\n[2/4] Loading pretrained SmolLM2-135M base model...")
     
-    # Load the PRETRAINED model — both Model M and Model L start from
+    # Load the PRETRAINED model --- both Model M and Model L start from
     # the exact same weights, guaranteeing identical initialization
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
@@ -434,7 +434,7 @@ def main():
     
     # Verify CUDA
     if not torch.cuda.is_available():
-        print("\n[WARNING] CUDA not available — training on CPU will be SLOW.")
+        print("\n[WARNING] CUDA not available --- training on CPU will be SLOW.")
         print("  SmolLM2-135M on CPU: ~2-5 steps/sec (expect ~7 hours for 50K steps)")
         print("  Consider installing CUDA PyTorch: pip install torch --index-url https://download.pytorch.org/whl/cu126")
         response = input("  Continue on CPU? [y/N]: ")

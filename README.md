@@ -1,8 +1,8 @@
 # HyperTensor
 
-> ** Read the full research paper:** [nagusamecs.github.io/HyperTensor](https://nagusamecs.github.io/HyperTensor)
-> &nbsp;&nbsp;·&nbsp;&nbsp; ** Whitepaper:** [docs/WHITEPAPER.md](docs/WHITEPAPER.md)
-> &nbsp;&nbsp;·&nbsp;&nbsp; ** Reproduce:** [repro/REPRODUCE.md](repro/REPRODUCE.md)
+>  Read the full research paper: [nagusamecs.github.io/HyperTensor](https://nagusamecs.github.io/HyperTensor)
+> &nbsp;&nbsp;·&nbsp;&nbsp;  Whitepaper: [docs/WHITEPAPER.md](docs/WHITEPAPER.md)
+> &nbsp;&nbsp;·&nbsp;&nbsp;  Reproduce: [repro/REPRODUCE.md](repro/REPRODUCE.md)
 
 HyperTensor is a C11 inference runtime and compression research codebase centered on one practical question:
 
@@ -18,26 +18,26 @@ This repository currently has a working proof of concept for the 8B regime.
 
 ## Current Validated Status (8B, April 2026)
 
-Reference model: **Meta-Llama-3.1-8B-Instruct-Q4_K_M**
+Reference model: Meta-Llama-3.1-8B-Instruct-Q4_K_M
 
-**Throughput** (vs uncompressed baseline, locked 30-second cooldown protocol):
+Throughput (vs uncompressed baseline, locked 30-second cooldown protocol):
 
-- k=1024: **106.27%** decode — *above baseline* (GPU L2 cache-fit effect)
-- k=1536: **97.55%** decode — near-lossless throughput
+- k=1024: 106.27% decode --- above baseline (GPU L2 cache-fit effect)
+- k=1536: 97.55% decode --- near-lossless throughput
 - k=2048† decode: 101.04% (capped to k=1536 by `AXEX_MANIFOLD_K_MAX`)
 
-> Quality (perplexity) is measured at **k=1536**, not at the throughput-optimal
+> Quality (perplexity) is measured at k=1536, not at the throughput-optimal
 > k=1024. PPL at k=1024 has not been measured in this cycle.
 
-**Quality** (WikiText-2, 512-token eval, deterministic across 5 runs):
+Quality (WikiText-2, 512-token eval, deterministic across 5 runs):
 
 - Baseline PPL: 6.7902
-- GRC PPL k=1536: 7.6936  →  **+13.30%**
+- GRC PPL k=1536: 7.6936  ->  +13.30%
 
-**Validation:** all 7 automated gates pass under the locked protocol.
+Validation: all 7 automated gates pass under the locked protocol.
 Pack: `benchmarks/whitepaper_pack_20260427_121815/`.
 
-**Compression** (attention Q/K/V only):
+Compression (attention Q/K/V only):
 
 - Disk W_proj cache: 1,093 MB (k=1536)
 - VRAM delta during decode: +36 MiB peak
@@ -89,13 +89,13 @@ What is still research:
 
 ## Repository Layout
 
-- `host/`, `runtime/` — the C11 inference runtime that `build_host.ps1` builds.
-- `docs/` — research papers, whitepaper, readiness notes.
-- `scripts/`, `repro/`, `tests/`, `tools/` — benchmarks, reproduction recipe, tests, helpers.
-- `runtime/nn/axiom_*.c`, `runtime/nn/axiom_*.h` — the manifold / axiom-discovery code
+- `host/`, `runtime/` --- the C11 inference runtime that `build_host.ps1` builds.
+- `docs/` --- research papers, whitepaper, readiness notes.
+- `scripts/`, `repro/`, `tests/`, `tools/` --- benchmarks, reproduction recipe, tests, helpers.
+- `runtime/nn/axiom_.c`, `runtime/nn/axiom_.h` --- the manifold / axiom-discovery code
   (PCA, Christoffel symbols, geodesic projection bases). These are part of the runtime;
   they implement the compression pipeline described in the whitepaper.
-- `legacy/` — freestanding-OS code (boot, kernel, virt, userland, axiom_vis dumps,
+- `legacy/` --- freestanding-OS code (boot, kernel, virt, userland, axiom_vis dumps,
   kernel Makefile) preserved from the project's TensorOS origin. Not built by
   `build_host.ps1` and not required at runtime. See [legacy/README.md](legacy/README.md).
 

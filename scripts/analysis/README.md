@@ -1,7 +1,7 @@
 # hypertensor-analysis
 
 Reproducibility scripts for the HyperTensor / Geodesic Runtime Compression (GRC) report
-by **William Ken Ohara Stewart** (NagusameCS).
+by William Ken Ohara Stewart (NagusameCS).
 
 This is a small companion package that bundles the three analysis scripts used to produce
 the spectral, statistical, and Eckart\u2013Young figures in the report.

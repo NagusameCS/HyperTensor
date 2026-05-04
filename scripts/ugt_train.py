@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UGT (Universal Geodesic Taxonomy) — TRAINING SCRIPT.
+UGT (Universal Geodesic Taxonomy) --- TRAINING SCRIPT.
 Paper XI: Enforces standardized geometric basis across latent space.
 
 Trains SmolLM2-135M with TOP (Taxonomic Orthogonality Penalty) loss,

@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper I / IX: The Super-Baseline Anomaly — HyperTensor</title>
+<title>Paper I / IX: The Super-Baseline Anomaly --- HyperTensor</title>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
 nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{font-weight:600;color:var(--text);text-decoration:none}
@@ -49,18 +49,18 @@ footer a{color:var(--text)}
 </div>
 
 <h2>Abstract</h2>
-<p>The headline measurement of Paper I—that a PCA-compressed attention mechanism decodes at 106.27% of baseline throughput—appears to violate the conservation of computation: how can doing strictly more work (PCA projection + attention) be faster than doing less (attention alone)? Paper IX systematically investigates this "super-baseline anomaly" across four GPU architectures, three model sizes, and six quantization levels. We identify the root cause as L2 cache residency: at specific rank values (k_int), the Q/K/V working set falls entirely within the GPU's L2 cache, eliminating the L2-to-SMEM round-trip that dominates baseline decode latency. A Roofline model derived from the GPU memory hierarchy correctly predicts the k_int values at which super-baseline throughput is observed on each architecture. The anomaly is not a measurement error but a cache-residency threshold effect, and it establishes a principled design rule for low-rank attention compression: compress to the largest k that fits in L2.</p>
+<p>The headline measurement of Paper I---that a PCA-compressed attention mechanism decodes at 106.27% of baseline throughput---appears to violate the conservation of computation: how can doing strictly more work (PCA projection + attention) be faster than doing less (attention alone)? Paper IX systematically investigates this "super-baseline anomaly" across four GPU architectures, three model sizes, and six quantization levels. We identify the root cause as L2 cache residency: at specific rank values (k_int), the Q/K/V working set falls entirely within the GPU's L2 cache, eliminating the L2-to-SMEM round-trip that dominates baseline decode latency. A Roofline model derived from the GPU memory hierarchy correctly predicts the k_int values at which super-baseline throughput is observed on each architecture. The anomaly is not a measurement error but a cache-residency threshold effect, and it establishes a principled design rule for low-rank attention compression: compress to the largest k that fits in L2.</p>
 
 <h2>Key Findings</h2>
 <ul>
-<li><strong>L2 residency is the mechanism:</strong> NCU profiling confirms that at k=1024, the attention working set for Llama-3.1-8B Q4_K_M is 28.7 MB, fitting in the 32 MB L2 cache of the RTX 4070.</li>
-<li><strong>Cross-architecture invariance:</strong> The ratio k_int(d) is consistent across architectures: k_int / d_model = 0.25 for MHA models, independent of GPU vendor or generation.</li>
-<li><strong>Not an algorithmic speedup:</strong> The throughput gain disappears when L2 is saturated (k > k_int). The effect is purely a memory-hierarchy phenomenon.</li>
-<li><strong>Quantization independence:</strong> The k_int value depends on d_model, not on the quantization level, because the PCA basis is stored in fp32 regardless of the model's weight dtype.</li>
-<li><strong>Roofline model validated:</strong> A simple arithmetic-intensity model correctly predicts super-baseline throughput within 2% on all tested configurations.</li>
+<li>L2 residency is the mechanism: NCU profiling confirms that at k=1024, the attention working set for Llama-3.1-8B Q4_K_M is 28.7 MB, fitting in the 32 MB L2 cache of the RTX 4070.</li>
+<li>Cross-architecture invariance: The ratio k_int(d) is consistent across architectures: k_int / d_model = 0.25 for MHA models, independent of GPU vendor or generation.</li>
+<li>Not an algorithmic speedup: The throughput gain disappears when L2 is saturated (k > k_int). The effect is purely a memory-hierarchy phenomenon.</li>
+<li>Quantization independence: The k_int value depends on d_model, not on the quantization level, because the PCA basis is stored in fp32 regardless of the model's weight dtype.</li>
+<li>Roofline model validated: A simple arithmetic-intensity model correctly predicts super-baseline throughput within 2% on all tested configurations.</li>
 </ul>
 
-<div class="note"><strong>Reproduction:</strong> The 12-repetition CI pack uses <code>geod.ps1 benchmark --mode super-baseline --gpu l2</code>. Requires NCU (NVIDIA Compute Utility) for the L2 trace. Full protocol at <code>docs/BENCHMARK_PROTOCOL.md</code> sec.4.</div>
+<div class="note">Reproduction: The 12-repetition CI pack uses <code>geod.ps1 benchmark --mode super-baseline --gpu l2</code>. Requires NCU (NVIDIA Compute Utility) for the L2 trace. Full protocol at <code>docs/BENCHMARK_PROTOCOL.md</code> sec.4.</div>
 
 <div class="dl">
 <a href="../../ARXIV_SUBMISSIONS/paper-IX/super_baseline_general.pdf">Download PDF</a>

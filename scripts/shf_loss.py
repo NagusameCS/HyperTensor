@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SHF (Spectral Hamiltonian Flow) Loss Module — Tier 3 / OTT-Native Architecture.
+SHF (Spectral Hamiltonian Flow) Loss Module --- Tier 3 / OTT-Native Architecture.
 
 Paper D §HJB proposes a joint training objective that adds a geodesic-consistency
 regulariser to the standard LM loss:
@@ -235,7 +235,7 @@ class SHFLoss(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """
-        hidden_states: (L, B, d) — residual stream at each layer
+        hidden_states: (L, B, d) --- residual stream at each layer
         Returns: scalar SHF loss
         """
         L = hidden_states.shape[0]
@@ -272,7 +272,7 @@ class SHFLoss(nn.Module):
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(description="SHF Loss Module — OTT-Native Architecture")
+    ap = argparse.ArgumentParser(description="SHF Loss Module --- OTT-Native Architecture")
     ap.add_argument("--out", default="benchmarks/shf_loss")
     ap.add_argument("--demo", action="store_true", default=True)
     ap.add_argument("--spec", action="store_true", help="Print PyTorch module spec")

@@ -1,6 +1,6 @@
-# Paper B — Geodesic Projection + Adaptive Extensions
+# Paper B --- Geodesic Projection + Adaptive Extensions
 
-**Source:** web Paper 2 (Geodesic Projection: production pipeline) merged
+Source: web Paper 2 (Geodesic Projection: production pipeline) merged
 with web Paper 6 (Adaptive Compression). Two-part structure: Part I covers
 the static GP pipeline; Part II covers the four adaptive layers (MCR Phase-
 aware, Axiom Gauge, Thermal Rank, Online Basis).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick compressed throughput sweep for AttnRes — minimal and robust."""
+"""Quick compressed throughput sweep for AttnRes --- minimal and robust."""
 import subprocess, re, sys, time, json
 from pathlib import Path
 

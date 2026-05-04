@@ -7,7 +7,7 @@ RK4 integrator for the full geodesic ODE
     ddot x^k + Γ^k_ij(x) dot x^i dot x^j = 0
 
 on a sampled ``Manifold`` with per-point Christoffel symbols. We evaluate
-Γ at the nearest sample point — the fields are smooth so this is acceptable
+Γ at the nearest sample point --- the fields are smooth so this is acceptable
 for short trajectories at the validity-radius scale (we measure the error
 introduced by *that* approximation in ``validity_radius.py``).
 

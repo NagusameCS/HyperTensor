@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║  PAPERS XXI-XXII: Yang-Mills Mass Gap + Navier-Stokes Regularity         ║
-║  Computational Proof Architectures via HyperTensor Spectral Methods      ║
-║                                                                          ║
-║  PAPER XXI: Yang-Mills Existence and Mass Gap                            ║
-║  - Encode gauge field configurations geometrically                       ║
-║  - SVD of field correlation matrix → detect spectral gap                 ║
-║  - Verify Δ > 0 (mass gap exists) via eigenvalue analysis                ║
-║                                                                          ║
-║  PAPER XXII: Navier-Stokes Existence and Smoothness                      ║
-║  - Encode velocity field snapshots                                       ║
-║  - Track SVD spectrum over time → detect singularity formation            ║
-║  - Verify regularity via spectral decay rate                             ║
-║                                                                          ║
-║  DISCLAIMER: Computational proof architectures, NOT peer-reviewed        ║
-║  mathematical proofs. All numbers are real computations.                 ║
-╚══════════════════════════════════════════════════════════════════════════╝
++==========================================================================+
+|  PAPERS XXI-XXII: Yang-Mills Mass Gap + Navier-Stokes Regularity         |
+|  Computational Proof Architectures via HyperTensor Spectral Methods      |
+|                                                                          |
+|  PAPER XXI: Yang-Mills Existence and Mass Gap                            |
+|  - Encode gauge field configurations geometrically                       |
+|  - SVD of field correlation matrix -> detect spectral gap                 |
+|  - Verify Δ > 0 (mass gap exists) via eigenvalue analysis                |
+|                                                                          |
+|  PAPER XXII: Navier-Stokes Existence and Smoothness                      |
+|  - Encode velocity field snapshots                                       |
+|  - Track SVD spectrum over time -> detect singularity formation            |
+|  - Verify regularity via spectral decay rate                             |
+|                                                                          |
+|  DISCLAIMER: Computational proof architectures, NOT peer-reviewed        |
+|  mathematical proofs. All numbers are real computations.                 |
++==========================================================================+
 """
 import torch, json, math, numpy as np, os, sys, time, random
 
@@ -24,7 +24,7 @@ OUT = "benchmarks/ym_ns_architecture"
 os.makedirs(OUT, exist_ok=True)
 
 RESULTS = {
-    "_verification_status": "REAL — computational YM+NS architectures",
+    "_verification_status": "REAL --- computational YM+NS architectures",
     "_date": "May 4, 2026",
     "_disclaimer": "Computational proof architectures, NOT peer-reviewed mathematical proofs.",
     "tests": {}
@@ -35,15 +35,15 @@ print("  PAPERS XXI-XXII: Yang-Mills + Navier-Stokes")
 print("  Computational Proof Architectures")
 print("=" * 70)
 print()
-print("  ⚠️  DISCLAIMER: Computational proof architectures, NOT")
+print("  WARNING:  DISCLAIMER: Computational proof architectures, NOT")
 print("  peer-reviewed mathematical proofs. All numbers are real")
 print("  computations. These problems require different methods than")
 print("  the Z_2+SVD approach used for RH/BSD (L-function problems).")
 print("=" * 70)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 1: Yang-Mills — Spectral Gap Detection via Lattice Gauge Theory
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 1: Yang-Mills --- Spectral Gap Detection via Lattice Gauge Theory
+# ===========================================================================
 
 def test_yang_mills_mass_gap():
     """Yang-Mills Mass Gap: Encode gauge field configurations on a lattice.
@@ -55,7 +55,7 @@ def test_yang_mills_mass_gap():
     compute the correlation matrix, and use SVD to detect the spectral gap.
     """
     print("\n" + "=" * 70)
-    print("  TEST 1: Yang-Mills Mass Gap — Spectral Gap Detection")
+    print("  TEST 1: Yang-Mills Mass Gap --- Spectral Gap Detection")
     print("=" * 70)
     
     # Simulate a 4D lattice gauge theory (SU(2) or SU(3))
@@ -69,8 +69,8 @@ def test_yang_mills_mass_gap():
     def generate_gauge_config(beta=2.2):
         """Generate a gauge field configuration at coupling beta.
         
-        beta small → strong coupling → large fluctuations → gap present
-        beta large → weak coupling → small fluctuations → continuum limit
+        beta small -> strong coupling -> large fluctuations -> gap present
+        beta large -> weak coupling -> small fluctuations -> continuum limit
         """
         # Wilson action: S = beta * sum_P (1 - Re(Tr(U_P)))
         # U_P = product of link variables around a plaquette
@@ -145,7 +145,7 @@ def test_yang_mills_mass_gap():
     
     # The key insight for YM: the existence of a gap in the eigenvalue spectrum
     # of the gauge field correlation matrix is the lattice analogue of the mass gap.
-    # As the lattice spacing → 0 (beta → ∞), the gap should remain positive.
+    # As the lattice spacing -> 0 (beta -> ∞), the gap should remain positive.
     
     result = {
         "test": "Yang-Mills Mass Gap",
@@ -161,14 +161,14 @@ def test_yang_mills_mass_gap():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 2: Yang-Mills — Continuum Limit Gap Persistence
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 2: Yang-Mills --- Continuum Limit Gap Persistence
+# ===========================================================================
 
 def test_ym_continuum_limit():
-    """Verify the spectral gap persists as lattice spacing → 0."""
+    """Verify the spectral gap persists as lattice spacing -> 0."""
     print("\n" + "=" * 70)
-    print("  TEST 2: YM Continuum Limit — Gap Persistence")
+    print("  TEST 2: YM Continuum Limit --- Gap Persistence")
     print("=" * 70)
     
     lattice_sizes = [4, 6, 8, 10, 12, 16]
@@ -218,9 +218,9 @@ def test_ym_continuum_limit():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 3: Navier-Stokes — Spectral Regularity Analysis
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 3: Navier-Stokes --- Spectral Regularity Analysis
+# ===========================================================================
 
 def test_navier_stokes_regularity():
     """Navier-Stokes: Encode velocity fields, track SVD spectrum over time.
@@ -232,7 +232,7 @@ def test_navier_stokes_regularity():
     the SVD spectrum to detect singularity formation.
     """
     print("\n" + "=" * 70)
-    print("  TEST 3: Navier-Stokes — Spectral Regularity Analysis")
+    print("  TEST 3: Navier-Stokes --- Spectral Regularity Analysis")
     print("=" * 70)
     
     # Simulate a 2D/3D turbulent velocity field
@@ -313,8 +313,8 @@ def test_navier_stokes_regularity():
         print(f"  {nu:8.4f} {final_enstrophy:18.2e} {max_velocity:12.2e} {'YES' if regular else 'NO':>10s}")
     
     # The key insight: for sufficiently large viscosity, the SVD spectrum
-    # remains bounded → solution exists and is smooth.
-    # For small viscosity, high-frequency modes grow → potential singularity.
+    # remains bounded -> solution exists and is smooth.
+    # For small viscosity, high-frequency modes grow -> potential singularity.
     
     result = {
         "test": "Navier-Stokes Regularity",
@@ -327,18 +327,18 @@ def test_navier_stokes_regularity():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 4: Navier-Stokes — Blowup Detection via Spectral Divergence
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 4: Navier-Stokes --- Blowup Detection via Spectral Divergence
+# ===========================================================================
 
 def test_ns_blowup_detection():
     """Detect potential blowup: track max SVD over time.
     
-    If max singular value grows without bound → blowup.
-    If max SV saturates → regular.
+    If max singular value grows without bound -> blowup.
+    If max SV saturates -> regular.
     """
     print("\n" + "=" * 70)
-    print("  TEST 4: Navier-Stokes — Blowup Detection via SV Tracking")
+    print("  TEST 4: Navier-Stokes --- Blowup Detection via SV Tracking")
     print("=" * 70)
     
     N_shells = 32
@@ -392,8 +392,8 @@ def test_ns_blowup_detection():
                   f"growth={growth_ratio:.1f}x, blowup={'YES' if blowup_detected else 'no'}")
     
     print(f"\n  The spectral approach detects blowup via SV divergence.")
-    print(f"  For ν ≥ 0.01: SVs remain bounded → solution regular.")
-    print(f"  For ν < 0.005: SVs grow unbounded → potential singularity.")
+    print(f"  For ν ≥ 0.01: SVs remain bounded -> solution regular.")
+    print(f"  For ν < 0.005: SVs grow unbounded -> potential singularity.")
     
     result = {
         "test": "NS Blowup Detection",
@@ -404,9 +404,9 @@ def test_ns_blowup_detection():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # TEST 5: Unified Millennium Problem Map
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def test_unified_map():
     """Complete map of all 7 Millennium Problems and HyperTensor approach."""
@@ -418,7 +418,7 @@ def test_unified_map():
         {
             "problem": "1. Riemann Hypothesis",
             "class": "L-function / Z_2 symmetry",
-            "method": "Z_2 + SVD: D(s) rank-1 → critical line",
+            "method": "Z_2 + SVD: D(s) rank-1 -> critical line",
             "papers": "XVI-XVIII",
             "status": "Computational architecture complete. 19/19 verification tests passed.",
             "amenable": True,
@@ -426,7 +426,7 @@ def test_unified_map():
         {
             "problem": "2. BSD Conjecture",
             "class": "L-function / Z_2 symmetry",
-            "method": "Z_2 + SVD: D(s) rank-1 → ord L(E,1) = rank(E)",
+            "method": "Z_2 + SVD: D(s) rank-1 -> ord L(E,1) = rank(E)",
             "papers": "XIX",
             "status": "Computational architecture complete. 5/5 tests passed.",
             "amenable": True,
@@ -434,7 +434,7 @@ def test_unified_map():
         {
             "problem": "3. Yang-Mills Mass Gap",
             "class": "Spectral gap / gauge theory",
-            "method": "Correlation matrix eigenvalues → spectral gap Δ > 0",
+            "method": "Correlation matrix eigenvalues -> spectral gap Δ > 0",
             "papers": "XXI",
             "status": "Architecture validated. Gap detection demonstrated.",
             "amenable": True,
@@ -442,7 +442,7 @@ def test_unified_map():
         {
             "problem": "4. Navier-Stokes Regularity",
             "class": "Spectral regularity / PDE",
-            "method": "SVD spectrum tracking → blowup detection",
+            "method": "SVD spectrum tracking -> blowup detection",
             "papers": "XXII",
             "status": "Architecture validated. Blowup detection demonstrated.",
             "amenable": True,
@@ -451,7 +451,7 @@ def test_unified_map():
             "problem": "5. Poincaré Conjecture",
             "class": "Topology / Ricci flow",
             "method": "N/A",
-            "papers": "—",
+            "papers": "---",
             "status": "SOLVED by Perelman (2002-2003). Not applicable.",
             "amenable": False,
         },
@@ -476,7 +476,7 @@ def test_unified_map():
     print(f"\n  {'Problem':<30s} {'Class':<25s} {'HyperTensor?':<15s}")
     print(f"  {'-'*70}")
     for p in problems:
-        amenable_str = "✓ YES" if p["amenable"] else ("✗ SOLVED" if "Perelman" in p["status"] else "⚫ DIFFERENT")
+        amenable_str = "[ok] YES" if p["amenable"] else ("[fail] SOLVED" if "Perelman" in p["status"] else "[*] DIFFERENT")
         print(f"  {p['problem']:<30s} {p['class']:<25s} {amenable_str:<15s}")
     
     amenable_count = sum(1 for p in problems if p["amenable"])
@@ -496,9 +496,9 @@ def test_unified_map():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # MAIN
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def main():
     t0 = time.time()
@@ -518,9 +518,9 @@ def main():
     all_statuses = [r["status"] for r in RESULTS["tests"].values()]
     n_pass = sum(1 for s in all_statuses if "PASS" in s or "COMPLETE" in s)
     
-    print("\n" + "█" * 70)
+    print("\n" + "#" * 70)
     print("  YANG-MILLS + NAVIER-STOKES + UNIFIED MAP REPORT")
-    print("█" * 70)
+    print("#" * 70)
     print(f"\n  Tests: {len(all_statuses)} | Passed: {n_pass} | Time: {elapsed:.0f}s")
     
     for test_name, test_result in RESULTS["tests"].items():
@@ -545,23 +545,23 @@ def main():
     
     print(f"\n  Results: {output_path}")
     
-    print(f"\n  ╔══════════════════════════════════════════════════════════╗")
-    print(f"  ║  MILLENNIUM PROBLEMS — HYPER TENSOR STATUS               ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  ✓ RH (XVI-XVIII): Z_2+SVD rank-1, 19/19 tests         ║")
-    print(f"  ║  ✓ BSD (XIX): Z_2+SVD rank-1, 5/5 tests                ║")
-    print(f"  ║  ✓ GRH (XX): Z_2+SVD rank-1, structurally identical    ║")
-    print(f"  ║  ✓ YM Mass Gap (XXI): Spectral gap, 2/2 tests          ║")
-    print(f"  ║  ✓ NS Regularity (XXII): Spectral divergence, 2/2 tests║")
-    print(f"  ║  ✓ Poincaré: SOLVED (Perelman 2002)                    ║")
-    print(f"  ║  ⚫ P vs NP: Different class (complexity theory)        ║")
-    print(f"  ║  ⚫ Hodge: Different class (algebraic geometry)        ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  5/7 problems have computational architectures.        ║")
-    print(f"  ║  1/7 already solved. 2/7 require different methods.    ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  ALL amenable Millennium Problems addressed.           ║")
-    print(f"  ╚══════════════════════════════════════════════════════════╝")
+    print(f"\n  +==========================================================+")
+    print(f"  |  MILLENNIUM PROBLEMS --- HYPER TENSOR STATUS               |")
+    print(f"  |                                                        |")
+    print(f"  |  [ok] RH (XVI-XVIII): Z_2+SVD rank-1, 19/19 tests         |")
+    print(f"  |  [ok] BSD (XIX): Z_2+SVD rank-1, 5/5 tests                |")
+    print(f"  |  [ok] GRH (XX): Z_2+SVD rank-1, structurally identical    |")
+    print(f"  |  [ok] YM Mass Gap (XXI): Spectral gap, 2/2 tests          |")
+    print(f"  |  [ok] NS Regularity (XXII): Spectral divergence, 2/2 tests|")
+    print(f"  |  [ok] Poincaré: SOLVED (Perelman 2002)                    |")
+    print(f"  |  [*] P vs NP: Different class (complexity theory)        |")
+    print(f"  |  [*] Hodge: Different class (algebraic geometry)        |")
+    print(f"  |                                                        |")
+    print(f"  |  5/7 problems have computational architectures.        |")
+    print(f"  |  1/7 already solved. 2/7 require different methods.    |")
+    print(f"  |                                                        |")
+    print(f"  |  ALL amenable Millennium Problems addressed.           |")
+    print(f"  +==========================================================+")
     
     return True
 

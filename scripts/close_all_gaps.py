@@ -21,7 +21,7 @@ print("="*60)
 print("  CLOSING ALL REMAINING SOFTWARE GAPS")
 print("="*60)
 
-# ── XII: Find intrinsic rank + train at optimal k ──
+# -- XII: Find intrinsic rank + train at optimal k --
 print("\n[1/3] Analyzing 7B Q_proj SVD spectrum...")
 from transformers import AutoModelForCausalLM
 m = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-7B-Instruct", dtype=torch.float16, device_map="auto", trust_remote_code=True)
@@ -90,7 +90,7 @@ print(f"  PPL parity threshold: 90%")
 print(f"  PPL parity: {'ACHIEVED' if final_var >= 90 else 'PARTIAL'}")
 print(f"  Time: {elapsed:.0f}s, Cost: ~$0.08")
 
-# ── Save ──
+# -- Save --
 report = {
     "xii": {
         "k_opt": k_opt, "d": d,

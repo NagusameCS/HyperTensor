@@ -100,7 +100,7 @@ for step in range(4000):
     s_vals=stretch_t[idx].to(DEVICE)
     s_norm=(s_vals-s_vals.min())/(s_vals.max()-s_vals.min()+1e-8)
     # Curvature proxy: local Laplacian eigenvalue variation
-    # Higher stretch → more curvature variation
+    # Higher stretch -> more curvature variation
     curv_proxy=torch.norm(emb-emb.mean(0),dim=-1)
     curv_n=(curv_proxy-curv_proxy.min())/(curv_proxy.max()-curv_proxy.min()+1e-8)
     curv_loss=F.mse_loss(curv_n,s_norm)

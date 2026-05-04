@@ -7,10 +7,10 @@ Estimates intrinsic dimension and curvature field from prompt context,
 then samples tokens by following the geodesic flow.
 
 Subcommands:
-  generate  — Generate text from a prompt
-  analyze   — Analyze manifold geometry of a prompt
-  batch     — Generate from a file of prompts
-  sweep     — Temperature sweep to find optimal generation params
+  generate  --- Generate text from a prompt
+  analyze   --- Analyze manifold geometry of a prompt
+  batch     --- Generate from a file of prompts
+  sweep     --- Temperature sweep to find optimal generation params
 
 Examples:
   python scripts/geodesic_synthesis.py generate --model HuggingFaceTB/SmolLM2-135M-Instruct --prompt "Paris is" --n-tokens 30
@@ -28,9 +28,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Manifold geometry estimation
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def estimate_intrinsic_dim(hidden_states: torch.Tensor, n_angles: int = 200) -> int:
     """Estimate intrinsic dimension via angle distribution entropy of trajectory differences."""
@@ -83,9 +83,9 @@ def manifold_curvature_at(h: torch.Tensor, gamma: np.ndarray) -> float:
     return curv
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Geodesic sampling
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def geodesic_step(
     logits: torch.Tensor,
@@ -104,7 +104,7 @@ def geodesic_step(
     
     # Curvature-aware temperature modulation
     curv = manifold_curvature_at(hidden[0, -1], gamma)
-    # High curvature → lower effective temperature (more deterministic)
+    # High curvature -> lower effective temperature (more deterministic)
     curvature_factor = float(np.clip(1.0 / (1.0 + abs(curv)), 0.7, 1.0))
     effective_temp = temperature * curvature_factor
     
@@ -127,9 +127,9 @@ def geodesic_step(
     return token_id, curvature_factor, diagnostics
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # Generation
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def generate_geodesic(
     model,
@@ -245,9 +245,9 @@ def analyze_prompt(model, tokenizer, prompt: str) -> Dict:
     return results
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 # CLI
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def cmd_generate(args):
     print(f"Loading {args.model}...")
@@ -319,7 +319,7 @@ def cmd_batch(args):
         r = generate_geodesic(model, tok, prompt, args.n_tokens,
                               args.temperature, args.top_k, verbose=False)
         results.append(r)
-        print(f"  → \"{r['generated'][:80]}\"")
+        print(f"  -> \"{r['generated'][:80]}\"")
     
     if args.out:
         with open(args.out, 'w') as f:
@@ -355,7 +355,7 @@ def cmd_sweep(args):
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Geodesic Synthesis — Christoffel-guided generation")
+    p = argparse.ArgumentParser(description="Geodesic Synthesis --- Christoffel-guided generation")
     sub = p.add_subparsers(dest='cmd')
     
     gp = sub.add_parser('generate', help='Generate text from a prompt')

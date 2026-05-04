@@ -3,7 +3,7 @@
 # PPL + throughput rerun with correct flags:
 #   - --axex-weight-pca-only alone (sets compress=1, skips Axiom survey, uses weight-gram PCA)
 #   - NO --axex-compress (which would trigger the full Axiom beta survey)
-#   - Default axex_attn_only=1 preserved → FFN not compressed
+#   - Default axex_attn_only=1 preserved -> FFN not compressed
 #
 # Arms: baseline + compress + compress_gauge + compress_online + compress_spec
 set -uo pipefail
@@ -28,8 +28,8 @@ EXE="$SRC_DIR/geodessical"
 [ -x "$EXE" ] || { echo "ERROR: $EXE not found"; exit 2; }
 
 # --axex-weight-pca-only: sets compress=1, weight_pca_only=1, axiom_skip_geodesic=1
-# Does NOT set axiom_beta_run → no Axiom survey → direct per-layer weight-PCA (~1-2 min)
-# Default axex_attn_only=1 → only Q/K/V compressed, FFN preserved → no NaN PPL
+# Does NOT set axiom_beta_run -> no Axiom survey -> direct per-layer weight-PCA (~1-2 min)
+# Default axex_attn_only=1 -> only Q/K/V compressed, FFN preserved -> no NaN PPL
 COMMON=("$MODEL_PATH" --temp 0)
 ARM_BASELINE=()
 ARM_COMPRESS=(  --axex-weight-pca-only --axex-compress-rank "$RANK" --axex-attn-only --axex-skip-o )

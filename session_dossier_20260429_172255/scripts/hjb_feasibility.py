@@ -24,16 +24,16 @@ specification from "pure theory" to "empirically grounded" by:
        models (smollm2-135m, gemma-4-e2b, phi-3.5-mini).
     2. Constructing three classes of L-step trajectories through the
        fitted manifold of intrinsic dimension n:
-         (a) baked geodesics (Magnus-3 propagator)  → SHF "floor"
-         (b) nearest-neighbour walks on the cloud   → "manifold-conformant"
-         (c) random straight-line paths             → "off-manifold ceiling"
+         (a) baked geodesics (Magnus-3 propagator)  -> SHF "floor"
+         (b) nearest-neighbour walks on the cloud   -> "manifold-conformant"
+         (c) random straight-line paths             -> "off-manifold ceiling"
     3. Computing |J_l|^2 along each trajectory using the same Riemann
        tensor estimator (riemann_tensor) used by the Jacobi propagator.
     4. Reporting per-class mean SHF penalty + per-residual FLOP cost.
 
 This gives the HJB future-work paragraph a concrete order of magnitude:
   - the *floor* is what training would converge to (zero if perfectly
-    geodesic — measures finite-difference truncation),
+    geodesic --- measures finite-difference truncation),
   - the "conformant" magnitude is what an untrained-on-this-loss network
     already achieves geometrically,
   - the "off-manifold" magnitude is the worst-case if no curvature
@@ -316,7 +316,7 @@ def main():
     print(f"\nWrote {out_json}")
 
     # Markdown summary
-    md = ["# HJB / SHF Loss — Empirical Feasibility Stub", "",
+    md = ["# HJB / SHF Loss --- Empirical Feasibility Stub", "",
           "Computed per `scripts/hjb_feasibility.py` from the discrete "
           "Jacobi residual",
           "",
@@ -334,7 +334,7 @@ def main():
           "|---|---:|---:|---:|---:|---:|"]
     for m, v in verdict.items():
         if v == "error":
-            md.append(f"| {m} | — | — | — | — | — |")
+            md.append(f"| {m} | --- | --- | --- | --- | --- |")
             continue
         md.append(
             f"| {m} | {v['shf_floor (baked geodesic)']:.3e} "
@@ -362,7 +362,7 @@ def main():
         "## Kinetic vs curvature decomposition (mean per node)",
         "",
         "$\\mathcal{J}_\\ell = \\Delta^2 s_\\ell + \\hat R(s_\\ell)\\,"
-        "\\Delta s_\\ell$ — we report the squared magnitudes of the two "
+        "\\Delta s_\\ell$ --- we report the squared magnitudes of the two "
         "summands separately so the dominant component is visible.",
         "",
         "| Model | class | kinetic mean $\\|\\Delta^2 s\\|^2$ | curvature mean "
@@ -410,7 +410,7 @@ def main():
         "for n=8 intrinsic, L=32 layers), the dynamic range "
         "(off/floor ratio) determines a meaningful $\\lambda$ "
         "schedule, and per-token training cost is $O(n^5)$ in "
-        "intrinsic dim — affordable when the runtime caches the "
+        "intrinsic dim --- affordable when the runtime caches the "
         "Riemann tensor at sample points (which it already does for "
         "the Jacobi propagator). However the empirical kinetic/curvature "
         "ratio shows that on the manifolds currently exported from "

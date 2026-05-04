@@ -243,7 +243,7 @@ def main():
             for k_frac in k_fracs:
                 per_cluster_k_gate = max(1, int((d_ffn / n_clusters) * k_frac))
                 per_cluster_k_up = max(1, int((d_ffn / n_clusters) * k_frac))
-                # W_down: cluster rows, not columns. W_down maps d_ffn → d_model.
+                # W_down: cluster rows, not columns. W_down maps d_ffn -> d_model.
                 # Cluster the d_ffn output dimensions of gate/up, which are
                 # the input dimensions of down. Same labels, applied to rows.
                 per_cluster_k_down = max(1, int((d_ffn / n_clusters) * k_frac))

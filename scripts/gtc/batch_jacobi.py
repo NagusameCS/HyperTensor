@@ -6,7 +6,7 @@ Replicates Paper 5 §4.5 "Resonance" Tests 4a-4c on the real SmolLM2-135M
 manifold. The claim is that the Jacobi correction over a batch of B
 queries is
 
-    [δx_1 | … | δx_B] = J · [δq_1 | … | δq_B]
+    [δx_1 | ... | δx_B] = J · [δq_1 | ... | δq_B]
 
 a single (n  n) by (n  B) matmul of cost O(n² B), which on a vectorised
 backend should equal the cost of B sequential matvecs but with much better
@@ -128,7 +128,7 @@ def main():
               f"{r['t_batched_s']*1e3:>10.3f} {r['speedup']:>8.2f} "
               f"{r['us_per_query_seq']:>10.3f} {r['us_per_query_bat']:>10.4f} "
               f"{r['matmul_relerr']:>10.2e}")
-    print(f"  → {out}")
+    print(f"  -> {out}")
 
 
 if __name__ == "__main__":

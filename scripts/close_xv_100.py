@@ -8,13 +8,13 @@ What's missing:
 - AttnRes phase transition significance: why k/d≈0.45 matters
 
 The AttnRes Phase Transition (New Discovery):
-  TPS peaks at k/d≈0.45 (199 TPS) — 3.8× above k=0.25d and 6.8× above k=0.65d.
+  TPS peaks at k/d≈0.45 (199 TPS) --- 3.8× above k=0.25d and 6.8× above k=0.65d.
   This confirms Paper C's "wash at moderate compression" prior.
   
   Significance:
   - At k/d<0.3: compression is too aggressive. Attention degraded, TPS lost
     to softmax noise. AttnRes partially rescues.
-  - At k/d≈0.45: SWEET SPOT. Compression is just right — attention basis
+  - At k/d≈0.45: SWEET SPOT. Compression is just right --- attention basis
     captures essential structure, L2 cache fully utilized, no quality loss.
     AttnRes is neutral (wash).
   - At k/d>0.6: compression too light. Projection overhead exceeds savings.
@@ -57,13 +57,13 @@ def build_query_recognizer(trajectories, basis, model_device):
         
         # Action determination
         if geo_dist < 0.05:
-            action = "RETRIEVE"  # Very similar — use cached response
+            action = "RETRIEVE"  # Very similar --- use cached response
         elif geo_dist < 0.20:
-            action = "AUGMENT"   # Somewhat similar — expand on existing knowledge
+            action = "AUGMENT"   # Somewhat similar --- expand on existing knowledge
         elif geo_dist < 0.50:
-            action = "EXPAND"    # Novel topic — full COG expansion
+            action = "EXPAND"    # Novel topic --- full COG expansion
         else:
-            action = "EXPLORE"   # Completely new domain — seed new cluster
+            action = "EXPLORE"   # Completely new domain --- seed new cluster
         
         return {
             "closest_label": labels[best_idx][:80],
@@ -127,21 +127,21 @@ def close_xv_final(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     # Build recognizer
     recognizer = build_query_recognizer(trajectories, basis, model.device)
     
-    # ── Test query recognition ──
+    # -- Test query recognition --
     print("[3/4] Testing query recognition across domains...")
     
     test_queries = [
-        # Same domain → should RETRIEVE
+        # Same domain -> should RETRIEVE
         ("Explain quantum superposition in simple terms.", "quantum", "RETRIEVE"),
-        # Related domain → should AUGMENT
+        # Related domain -> should AUGMENT
         ("How does general relativity relate to quantum mechanics?", "physics_crossover", "AUGMENT"),
-        # Different domain → should EXPAND
+        # Different domain -> should EXPAND
         ("What were the main causes of World War I?", "history", "EXPAND"),
-        # Completely new → should EXPLORE
+        # Completely new -> should EXPLORE
         ("Design a musical instrument based on Fibonacci sequences.", "creative_design", "EXPLORE"),
-        # Very similar to cached → RETRIEVE
+        # Very similar to cached -> RETRIEVE
         ("Tell me about the discovery of natural selection.", "evolution", "RETRIEVE"),
-        # Slight variation → AUGMENT
+        # Slight variation -> AUGMENT
         ("How does natural selection apply to modern bacteria?", "evolution_modern", "AUGMENT"),
     ]
     
@@ -172,50 +172,50 @@ def close_xv_final(model_id="Qwen/Qwen2.5-1.5B-Instruct",
         })
         
         marker = "[OK]" if action_correct else "[!!]"
-        print(f"  {marker} [{domain:20s}] → {result['action']:10s} (sim={result['similarity']:.3f}, nearest: {result['closest_label'][:40]})")
+        print(f"  {marker} [{domain:20s}] -> {result['action']:10s} (sim={result['similarity']:.3f}, nearest: {result['closest_label'][:40]})")
     
     accuracy = correct_actions / len(test_queries) * 100
     
-    # ── AttnRes Phase Transition Significance ──
+    # -- AttnRes Phase Transition Significance --
     print(f"\n[4/4] AttnRes Phase Transition Analysis")
-    print(f"  ═══════════════════════════════════════")
+    print(f"  =======================================")
     print(f"  DISCOVERY: TPS peaks at k/d≈0.45 (199 TPS)")
     print(f"  - 3.8× above k/d=0.25 (aggressive compression)")
     print(f"  - 6.8× above k/d=0.65 (light compression)")
     print(f"")
     print(f"  THREE REGIMES (Physical Phase Transition):")
-    print(f"  ┌─────────────────────────────────────────────┐")
-    print(f"  │ k/d < 0.30  → BANDWIDTH-STARVED            │")
-    print(f"  │   Attention degraded, softmax noisy         │")
-    print(f"  │   AttnRes PARTIALLY rescues (+15% TPS)      │")
-    print(f"  │                                             │")
-    print(f"  │ k/d ≈ 0.45  → CACHE-OPTIMAL ★ SWEET SPOT   │")
-    print(f"  │   Attention basis fits L2 perfectly          │")
-    print(f"  │   TPS = 199 (peak), no quality loss          │")
-    print(f"  │   AttnRes is NEUTRAL (wash)                  │")
-    print(f"  │   k* predicted: L2_MB × 42.7                │")
-    print(f"  │   For L40S (48MB L2): k* ≈ 2048             │")
-    print(f"  │   For RTX 4070 (36MB L2): k* ≈ 1536         │")
-    print(f"  │                                             │")
-    print(f"  │ k/d > 0.60  → COMPUTE-BOUND                 │")
-    print(f"  │   Projection overhead exceeds savings        │")
-    print(f"  │   L2 thrashing, TPS falls below baseline     │")
-    print(f"  │   AttnRes adds overhead (no benefit)         │")
-    print(f"  └─────────────────────────────────────────────┘")
+    print(f"  +---------------------------------------------+")
+    print(f"  | k/d < 0.30  -> BANDWIDTH-STARVED            |")
+    print(f"  |   Attention degraded, softmax noisy         |")
+    print(f"  |   AttnRes PARTIALLY rescues (+15% TPS)      |")
+    print(f"  |                                             |")
+    print(f"  | k/d ≈ 0.45  -> CACHE-OPTIMAL * SWEET SPOT   |")
+    print(f"  |   Attention basis fits L2 perfectly          |")
+    print(f"  |   TPS = 199 (peak), no quality loss          |")
+    print(f"  |   AttnRes is NEUTRAL (wash)                  |")
+    print(f"  |   k* predicted: L2_MB × 42.7                |")
+    print(f"  |   For L40S (48MB L2): k* ≈ 2048             |")
+    print(f"  |   For RTX 4070 (36MB L2): k* ≈ 1536         |")
+    print(f"  |                                             |")
+    print(f"  | k/d > 0.60  -> COMPUTE-BOUND                 |")
+    print(f"  |   Projection overhead exceeds savings        |")
+    print(f"  |   L2 thrashing, TPS falls below baseline     |")
+    print(f"  |   AttnRes adds overhead (no benefit)         |")
+    print(f"  +---------------------------------------------+")
     
-    # ── Final assessment ──
-    print(f"\n  ═══ PAPER XV FINAL ═══")
+    # -- Final assessment --
+    print(f"\n  === PAPER XV FINAL ===")
     print(f"  Query recognition accuracy: {accuracy:.1f}%")
     print(f"  Actions correct: {correct_actions}/{len(test_queries)}")
     print(f"  AttnRes sweet spot: k/d≈0.45, TPS=199 (3.8-6.8× improvement)")
-    print(f"  COG pipeline: RETRIEVE→AUGMENT→EXPAND→EXPLORE (4-tier)")
+    print(f"  COG pipeline: RETRIEVE->AUGMENT->EXPAND->EXPLORE (4-tier)")
     
     if accuracy >= 80 and len(trajectories) >= 8:
         print(f"\n  [OK] PAPER XV: 100% CLOSED")
         print(f"  Query recognition works. AttnRes sweet spot validated.")
         print(f"  COG living manifold has 4-tier action model.")
     else:
-        print(f"\n  [!!] PAPER XV: 90% — query recognition needs calibration")
+        print(f"\n  [!!] PAPER XV: 90% --- query recognition needs calibration")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

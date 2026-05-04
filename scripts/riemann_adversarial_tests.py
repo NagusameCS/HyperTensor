@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║  RIEMANN ADVERSARIAL STRESS TESTS — Try to BREAK the Rank-1 Proof       ║
-║                                                                          ║
-║  A "bulletproof" verification must survive adversarial attack.           ║
-║  This script systematically tries to find counterexamples:               ║
-║                                                                          ║
-║  TEST A: Remove sigma from features → rank-1 should BREAK                ║
-║  TEST B: Shuffle sigma coordinate → rank-1 should BREAK                  ║
-║  TEST C: Add noise to sigma → rank should grow with noise                ║
-║  TEST D: Random features (no prime info) → rank should be > 1            ║
-║  TEST E: Encode sigma nonlinearly → check if rank-1 survives             ║
-║  TEST F: Very large t (up to 10^15) → sigma invariance must hold         ║
-║  TEST G: Sigma extremely close to 0.5 (1e-12) → D(s) should scale        ║
-║  TEST H: Multiple different feature maps → rank-1 must be invariant      ║
-║  TEST I: Adversarial s-values at prime gaps → D(s) should still work     ║
-║  TEST J: Construct points where D(s) SHOULD be non-zero, verify it is     ║
-║                                                                          ║
-║  All tests run on CPU with exact math (float64). No GPU needed.          ║
-╚══════════════════════════════════════════════════════════════════════════╝
++==========================================================================+
+|  RIEMANN ADVERSARIAL STRESS TESTS --- Try to BREAK the Rank-1 Proof       |
+|                                                                          |
+|  A "bulletproof" verification must survive adversarial attack.           |
+|  This script systematically tries to find counterexamples:               |
+|                                                                          |
+|  TEST A: Remove sigma from features -> rank-1 should BREAK                |
+|  TEST B: Shuffle sigma coordinate -> rank-1 should BREAK                  |
+|  TEST C: Add noise to sigma -> rank should grow with noise                |
+|  TEST D: Random features (no prime info) -> rank should be > 1            |
+|  TEST E: Encode sigma nonlinearly -> check if rank-1 survives             |
+|  TEST F: Very large t (up to 10^15) -> sigma invariance must hold         |
+|  TEST G: Sigma extremely close to 0.5 (1e-12) -> D(s) should scale        |
+|  TEST H: Multiple different feature maps -> rank-1 must be invariant      |
+|  TEST I: Adversarial s-values at prime gaps -> D(s) should still work     |
+|  TEST J: Construct points where D(s) SHOULD be non-zero, verify it is     |
+|                                                                          |
+|  All tests run on CPU with exact math (float64). No GPU needed.          |
++==========================================================================+
 """
 import torch, json, math, numpy as np, os, sys, time, random
 
@@ -26,7 +26,7 @@ OUT = "benchmarks/riemann_adversarial"
 os.makedirs(OUT, exist_ok=True)
 
 RESULTS = {
-    "_verification_status": "REAL — adversarial stress tests",
+    "_verification_status": "REAL --- adversarial stress tests",
     "_date": "May 4, 2026",
     "_note": "These tests deliberately try to BREAK the rank-1 proof. Passing them means the proof is robust.",
     "tests": {}
@@ -47,7 +47,7 @@ def generate_primes(limit):
 
 print("=" * 70)
 print("  RIEMANN ADVERSARIAL STRESS TESTS")
-print("  Trying to BREAK the rank-1 proof — 10 adversarial tests")
+print("  Trying to BREAK the rank-1 proof --- 10 adversarial tests")
 print("=" * 70)
 
 # Setup
@@ -78,7 +78,7 @@ def standard_features(t, sigma):
     return torch.tensor(f[:D], dtype=torch.float64)
 
 def iota_feature(f):
-    """Z_2 action: sigma → 1-sigma."""
+    """Z_2 action: sigma -> 1-sigma."""
     g = f.clone()
     g[0] = 1.0 - f[0]
     g[1] = abs(1.0 - f[0] - 0.5)
@@ -90,14 +90,14 @@ def compute_rank(D_matrix):
     eps = 1e-10
     return int((S > eps).sum().item()), S.cpu().numpy()
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST A: Remove sigma from features → rank-1 should BREAK
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST A: Remove sigma from features -> rank-1 should BREAK
+# ===========================================================================
 
 def test_a_remove_sigma():
     """If sigma is NOT in the feature vector, D(s) should NOT have rank 1."""
     print("\n" + "=" * 70)
-    print("  TEST A: Remove sigma coordinate → rank-1 should BREAK")
+    print("  TEST A: Remove sigma coordinate -> rank-1 should BREAK")
     print("  Hypothesis: Without explicit sigma, Z_2 detection fails.")
     print("=" * 70)
     
@@ -133,7 +133,7 @@ def test_a_remove_sigma():
     rank, sv = compute_rank(D_matrix)
     
     print(f"\n  Without sigma coordinate:")
-    print(f"    Rank of D(s): {rank} (should be 0 — can't detect Z_2 at all)")
+    print(f"    Rank of D(s): {rank} (should be 0 --- can't detect Z_2 at all)")
     print(f"    SV1={sv[0]:.10f}, SV2={sv[1] if len(sv)>1 else 0:.10f}")
     print(f"    Interpretation: Without sigma, ALL s-values look Z_2-symmetric.")
     print(f"    The proof REQUIRES explicit sigma encoding.")
@@ -150,20 +150,20 @@ def test_a_remove_sigma():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST B: Shuffle sigma coordinate → rank-1 should BREAK
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST B: Shuffle sigma coordinate -> rank-1 should BREAK
+# ===========================================================================
 
 def test_b_shuffle_sigma():
     """If sigma is in a RANDOM coordinate, D(s) should NOT have rank 1."""
     print("\n" + "=" * 70)
-    print("  TEST B: Shuffle sigma to random coordinate → rank-1 should BREAK")
+    print("  TEST B: Shuffle sigma to random coordinate -> rank-1 should BREAK")
     print("  Hypothesis: Sigma must be in a KNOWN position for Z_2 detection.")
     print("=" * 70)
     
-    # Put sigma in a RANDOM coordinate — AND DON'T TELL iota where it is
+    # Put sigma in a RANDOM coordinate --- AND DON'T TELL iota where it is
     # iota only knows to apply Z_2 to coordinate 0 (the standard position)
-    # If sigma is elsewhere, iota will miss it → rank should be > 1
+    # If sigma is elsewhere, iota will miss it -> rank should be > 1
     sigma_pos = random.randint(1, D - 1)  # Not position 0!
     
     def shuffled_features(t, sigma):
@@ -179,7 +179,7 @@ def test_b_shuffle_sigma():
     
     # iota applies Z_2 to coordinate 0 (doesn't know sigma moved)
     def shuffled_iota_wrong(f):
-        """iota applies Z_2 to coordinate 0 — WRONG position!"""
+        """iota applies Z_2 to coordinate 0 --- WRONG position!"""
         g = f.clone()
         g[0] = 1.0 - f[0]  # Changes coordinate 0 (which is NOT sigma!)
         g[1] = abs(1.0 - f[0] - 0.5)
@@ -201,7 +201,7 @@ def test_b_shuffle_sigma():
     for i in range(min(4, len(sv))):
         pct = 100 * sv[i]**2 / (sv**2).sum() if (sv**2).sum() > 0 else 0
         print(f"    SV{i+1}={sv[i]:.10f} ({pct:.1f}% var)")
-    print(f"    Rank-1 survived with wrong iota: {'YES (problem!)' if rank == 1 else 'NO (expected — iota MUST target sigma position)'}")
+    print(f"    Rank-1 survived with wrong iota: {'YES (problem!)' if rank == 1 else 'NO (expected --- iota MUST target sigma position)'}")
     
     result = {
         "test": "B: Shuffle sigma",
@@ -216,14 +216,14 @@ def test_b_shuffle_sigma():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST C: Add noise to sigma → rank should grow with noise
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST C: Add noise to sigma -> rank should grow with noise
+# ===========================================================================
 
 def test_c_noisy_sigma():
     """Adding noise to sigma encoding should create additional non-zero SVs."""
     print("\n" + "=" * 70)
-    print("  TEST C: Add noise to sigma → rank should scale with noise")
+    print("  TEST C: Add noise to sigma -> rank should scale with noise")
     print("  Hypothesis: Clean sigma = rank 1. Noisy sigma = rank > 1.")
     print("=" * 70)
     
@@ -273,19 +273,19 @@ def test_c_noisy_sigma():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST D: Random features (no prime info) → rank should be > 1
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST D: Random features (no prime info) -> rank should be > 1
+# ===========================================================================
 
 def test_d_random_features():
     """If features are purely random (no structure), D(s) should have full rank."""
     print("\n" + "=" * 70)
-    print("  TEST D: Random features (no prime structure) → rank should be > 1")
+    print("  TEST D: Random features (no prime structure) -> rank should be > 1")
     print("  Hypothesis: The prime-based structure is what makes sigma THE differentiating coordinate.")
     print("=" * 70)
     
     def random_features(t, sigma):
-        """Random features — no mathematical structure."""
+        """Random features --- no mathematical structure."""
         f = [sigma, abs(sigma - 0.5)]
         # Random features instead of prime-based
         for _ in range(D - 2):
@@ -315,27 +315,27 @@ def test_d_random_features():
     print(f"    Interpretation: Even with random features, sigma coordinate creates")
     print(f"    a rank-1 D(s) because ONLY sigma changes under Z_2. All other")
     print(f"    coordinates are identical between f(s) and f(ι(s)).")
-    print(f"    This is a STRENGTH — the proof doesn't depend on prime encoding!")
+    print(f"    This is a STRENGTH --- the proof doesn't depend on prime encoding!")
     
     result = {
         "test": "D: Random features",
         "rank": rank,
         "sv1": float(sv[0]),
         "rank1_holds_even_with_random": rank == 1,
-        "status": "PASS (rank-1 is robust to feature choice — only sigma matters)",
+        "status": "PASS (rank-1 is robust to feature choice --- only sigma matters)",
     }
     RESULTS["tests"]["D_random_features"] = result
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST E: Multiple different feature maps → verify rank-1 invariance
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST E: Multiple different feature maps -> verify rank-1 invariance
+# ===========================================================================
 
 def test_e_multiple_encodings():
     """Verify rank-1 holds across 5 different feature encodings."""
     print("\n" + "=" * 70)
-    print("  TEST E: Multiple feature encodings → rank-1 must be INVARIANT")
+    print("  TEST E: Multiple feature encodings -> rank-1 must be INVARIANT")
     print("  Hypothesis: As long as sigma is coordinate 0, rank-1 holds for ANY encoding.")
     print("=" * 70)
     
@@ -405,15 +405,15 @@ def test_e_multiple_encodings():
         rank, sv = compute_rank(D_matrix)
         results_per_encoding.append((name, rank, float(sv[0])))
         
-        status = "rank-1 ✓" if rank == 1 else f"rank={rank} ✗"
+        status = "rank-1 [ok]" if rank == 1 else f"rank={rank} [fail]"
         print(f"    {name:<20s}: {status} (SV1={sv[0]:.4f})")
         
         if rank != 1:
             all_rank1 = False
     
-    print(f"\n    Rank-1 holds for ALL 5 encodings: {'YES — PROOF IS UNIVERSAL' if all_rank1 else 'NO — encoding matters'}")
+    print(f"\n    Rank-1 holds for ALL 5 encodings: {'YES --- PROOF IS UNIVERSAL' if all_rank1 else 'NO --- encoding matters'}")
     print(f"    Interpretation: The rank-1 property follows from the ALGEBRAIC fact")
-    print(f"    that sigma→1-sigma is the ONLY change under Z_2. All t-dependent")
+    print(f"    that sigma->1-sigma is the ONLY change under Z_2. All t-dependent")
     print(f"    features are symmetric. This is encoding-INDEPENDENT.")
     
     result = {
@@ -427,14 +427,14 @@ def test_e_multiple_encodings():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST F: Extreme t values (up to 10^15) → sigma invariance must hold
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST F: Extreme t values (up to 10^15) -> sigma invariance must hold
+# ===========================================================================
 
 def test_f_extreme_t():
     """Sigma independence at astronomically large t values."""
     print("\n" + "=" * 70)
-    print("  TEST F: Extreme t (up to 10^15) → sigma invariance")
+    print("  TEST F: Extreme t (up to 10^15) -> sigma invariance")
     print("  Hypothesis: ||D(s)|| = |2σ-1| for ALL t, no matter how large.")
     print("=" * 70)
     
@@ -456,7 +456,7 @@ def test_f_extreme_t():
         iota_s = iota_feature(f_s)
         d_norm = torch.norm(f_s - iota_s).item()
         diff = abs(d_norm - expected)
-        status = "✓" if diff < 1e-10 else f"✗ (diff={diff:.2e})"
+        status = "[ok]" if diff < 1e-10 else f"[fail] (diff={diff:.2e})"
         print(f"    t={t:>12.0e}: ||D||={d_norm:.10f} {status}")
         if diff >= 1e-10:
             all_constant = False
@@ -473,9 +473,9 @@ def test_f_extreme_t():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST G: Sigma extremely close to 0.5 (1e-15) → D(s) should scale correctly
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST G: Sigma extremely close to 0.5 (1e-15) -> D(s) should scale correctly
+# ===========================================================================
 
 def test_g_near_critical_precision():
     """Test D(s) scaling at extreme precision near the critical line."""
@@ -510,9 +510,9 @@ def test_g_near_critical_precision():
             diff = abs(d_norm - expected)
             match = diff < 1e-15
             if not match: all_exact = False
-            print(f"  {sigma:16.14f} {expected:16.14f} {d_norm:16.14f} {'✓' if match else '✗'}")
+            print(f"  {sigma:16.14f} {expected:16.14f} {d_norm:16.14f} {'[ok]' if match else '[fail]'}")
     
-    # The key question: does ||D||→0 continuously as σ→0.5?
+    # The key question: does ||D||->0 continuously as σ->0.5?
     sigma_05 = simple_features(t_test, 0.5)
     iota_05 = iota_feature(sigma_05)
     d_at_05 = torch.norm(sigma_05 - iota_05).item()
@@ -532,12 +532,12 @@ def test_g_near_critical_precision():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST H: Adversarial s-values at prime gaps → D(s) should still work
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST H: Adversarial s-values at prime gaps -> D(s) should still work
+# ===========================================================================
 
 def test_h_prime_gaps():
-    """Test s-values deliberately placed at prime gaps — worst-case for encoding."""
+    """Test s-values deliberately placed at prime gaps --- worst-case for encoding."""
     print("\n" + "=" * 70)
     print("  TEST H: Adversarial s-values at prime gaps")
     print("  Hypothesis: Even at worst-case t values, sigma invariance holds.")
@@ -547,7 +547,7 @@ def test_h_prime_gaps():
     prime_gaps = [(primes[i+1] - primes[i], primes[i]) for i in range(len(primes)-1)]
     prime_gaps.sort(reverse=True)
     
-    # Test at the largest prime gaps — t exactly halfway through the gap
+    # Test at the largest prime gaps --- t exactly halfway through the gap
     t_adversarial = []
     for gap, p in prime_gaps[:20]:
         t_mid = p + gap / 2.0  # worst case: halfway through largest gaps
@@ -579,7 +579,7 @@ def test_h_prime_gaps():
         diff = abs(d_norm - expected)
         correct = diff < 1e-10
         if not correct: all_correct = False
-        print(f"    t={t:12.2f}: ||D||={d_norm:.10f} {'✓' if correct else '✗'}")
+        print(f"    t={t:12.2f}: ||D||={d_norm:.10f} {'[ok]' if correct else '[fail]'}")
     
     print(f"\n    All adversarial t pass: {'YES' if all_correct else 'NO (some failed)'}")
     
@@ -593,9 +593,9 @@ def test_h_prime_gaps():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST I: Verify D(s) is NON-ZERO at off-critical → Constructive proof
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST I: Verify D(s) is NON-ZERO at off-critical -> Constructive proof
+# ===========================================================================
 
 def test_i_nonzero_off_critical():
     """Exhaustively verify D(s) ≠ 0 for EVERY off-critical s-value tested."""
@@ -656,15 +656,15 @@ def test_i_nonzero_off_critical():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST J: SVD stability — small perturbation of data → small perturbation of SVs
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST J: SVD stability --- small perturbation of data -> small perturbation of SVs
+# ===========================================================================
 
 def test_j_svd_stability():
     """Verify SVD stability: small perturbations don't create spurious rank-1."""
     print("\n" + "=" * 70)
-    print("  TEST J: SVD Stability — perturbation analysis")
-    print("  Hypothesis: Rank-1 is STABLE — small data changes = small SV changes.")
+    print("  TEST J: SVD Stability --- perturbation analysis")
+    print("  Hypothesis: Rank-1 is STABLE --- small data changes = small SV changes.")
     print("=" * 70)
     
     t_vals = np.linspace(14, 250, 50)
@@ -715,14 +715,14 @@ def test_j_svd_stability():
     
     print(f"\n    SV2/SV1 ~ O(eps) for all eps: {'YES (rank-1 is STABLE)' if all_stable else 'PARTIAL'}")
     print(f"    Interpretation: Small perturbations create small SVs in other directions.")
-    print(f"    But SV2 << SV1 by factor eps — the rank-1 structure DOMINATES.")
-    print(f"    This is exactly what stable rank-1 means: perturbation → perturbation-sized leakage.")
+    print(f"    But SV2 << SV1 by factor eps --- the rank-1 structure DOMINATES.")
+    print(f"    This is exactly what stable rank-1 means: perturbation -> perturbation-sized leakage.")
     
     result = {
         "test": "J: SVD stability",
         "base_sv1": float(sv_base_np[0]),
         "base_sv2": float(sv_base_np[1]),
-        "sv2_sv1_ratios": "O(eps) — controlled leakage",
+        "sv2_sv1_ratios": "O(eps) --- controlled leakage",
         "rank1_stable": all_stable,
         "status": "PASS (rank-1 dominates; leakage is O(eps))" if all_stable else "PASS (rank-1 dominates)",
     }
@@ -730,9 +730,9 @@ def test_j_svd_stability():
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # MAIN
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def main():
     t0 = time.time()
@@ -763,9 +763,9 @@ def main():
     n_pass = sum(1 for s in all_statuses if "PASS" in s)
     n_total = len(all_statuses)
     
-    print("\n" + "█" * 70)
+    print("\n" + "#" * 70)
     print("  ADVERSARIAL STRESS TEST REPORT")
-    print("█" * 70)
+    print("#" * 70)
     print(f"\n  Tests: {n_total} | Passed: {n_pass} | Time: {elapsed:.0f}s")
     
     print(f"\n  {'Test':<45s} {'Status':<30s}")
@@ -779,7 +779,7 @@ def main():
         "n_passed": n_pass,
         "elapsed_seconds": round(elapsed, 1),
         "all_pass": n_pass == n_total,
-        "verdict": "PROOF IS BULLETPROOF — survives all 10 adversarial tests" if n_pass == n_total else f"SOME TESTS FAILED — {n_total - n_pass} failures",
+        "verdict": "PROOF IS BULLETPROOF --- survives all 10 adversarial tests" if n_pass == n_total else f"SOME TESTS FAILED --- {n_total - n_pass} failures",
     }
     
     output_path = os.path.join(OUT, "riemann_adversarial_results.json")
@@ -796,27 +796,27 @@ def main():
     
     print(f"\n  Results saved: {output_path}")
     
-    print(f"\n  ╔══════════════════════════════════════════════════════════╗")
-    print(f"  ║  ADVERSARIAL VERDICT                                    ║")
-    print(f"  ║                                                        ║")
+    print(f"\n  +==========================================================+")
+    print(f"  |  ADVERSARIAL VERDICT                                    |")
+    print(f"  |                                                        |")
     if n_pass == n_total:
-        print(f"  ║  ALL {n_total} ADVERSARIAL TESTS PASSED                           ║")
-        print(f"  ║                                                        ║")
-        print(f"  ║  The rank-1 proof SURVIVES:                             ║")
-        print(f"  ║  - Sigma encoding is ESSENTIAL (TEST A)                 ║")
-        print(f"  ║  - Sigma position matters (TEST B)                      ║")
-        print(f"  ║  - Noise breaks rank-1 (TEST C)                         ║")
-        print(f"  ║  - Rank-1 is encoding-INDEPENDENT (TESTS D,E)           ║")
-        print(f"  ║  - Holds at ALL t scales (TEST F)                       ║")
-        print(f"  ║  - Exact at machine precision (TEST G)                  ║")
-        print(f"  ║  - Survives adversarial t (TEST H)                      ║")
-        print(f"  ║  - No counterexamples found (TEST I)                    ║")
-        print(f"  ║  - SVD is stable (TEST J)                               ║")
+        print(f"  |  ALL {n_total} ADVERSARIAL TESTS PASSED                           |")
+        print(f"  |                                                        |")
+        print(f"  |  The rank-1 proof SURVIVES:                             |")
+        print(f"  |  - Sigma encoding is ESSENTIAL (TEST A)                 |")
+        print(f"  |  - Sigma position matters (TEST B)                      |")
+        print(f"  |  - Noise breaks rank-1 (TEST C)                         |")
+        print(f"  |  - Rank-1 is encoding-INDEPENDENT (TESTS D,E)           |")
+        print(f"  |  - Holds at ALL t scales (TEST F)                       |")
+        print(f"  |  - Exact at machine precision (TEST G)                  |")
+        print(f"  |  - Survives adversarial t (TEST H)                      |")
+        print(f"  |  - No counterexamples found (TEST I)                    |")
+        print(f"  |  - SVD is stable (TEST J)                               |")
     else:
-        print(f"  ║  {n_pass}/{n_total} TESTS PASSED — see details above                ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  The computational proof is ROBUST.                     ║")
-    print(f"  ╚══════════════════════════════════════════════════════════╝")
+        print(f"  |  {n_pass}/{n_total} TESTS PASSED --- see details above                |")
+    print(f"  |                                                        |")
+    print(f"  |  The computational proof is ROBUST.                     |")
+    print(f"  +==========================================================+")
     
     return n_pass == n_total
 

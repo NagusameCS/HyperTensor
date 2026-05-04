@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NATIVE PPL PARITY — Long training run on EC2.
+NATIVE PPL PARITY --- Long training run on EC2.
 Train NativeLinear(reconstruction of Q_proj weight) at k=768, 20K steps.
 Goal: >90% variance preserved proving PPL parity is achievable.
 Cost: ~$0.10 on L40S (no model loaded, just one weight matrix).
@@ -23,7 +23,7 @@ class NativeLinear(nn.Module):
         with torch.no_grad(): Q, _ = torch.linalg.qr(self.basis.data); self.basis.data = Q
 
 print("="*60)
-print("  NATIVE PPL PARITY — 20K steps on Q_proj")
+print("  NATIVE PPL PARITY --- 20K steps on Q_proj")
 print("="*60)
 
 # Load model just to extract one weight

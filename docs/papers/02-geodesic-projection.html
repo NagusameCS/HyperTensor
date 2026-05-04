@@ -38,7 +38,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
 </nav>
 
 <div style="background:#eef4ff;border:1px solid #2d6be4;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
-<strong>HyperTensor Framework Update (May 3, 2026):</strong> This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
+HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
 </div>
 
 
@@ -131,7 +131,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
       shortcut that lets the cache be probed without re-running the full
       axiom-discovery pass. The cross-architecture observation that motivates the
       whole pipeline, that the local activation manifold of a trained transformer
-      is roughly $11–25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$, reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
+      is roughly $11--25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$, reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
       Phi-3.5-mini) using the manifold-extraction pipeline checked in under
       <a class="repo-link"
       href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>.
@@ -243,7 +243,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$
     <p>
       What it is: three independent reproductions of the
       "low-intrinsic-dimensionality of LLM activations" finding [refs&nbsp;1,&nbsp;2,&nbsp;7] on
-      models that span an order of magnitude in $d$ (576 → 3,072) and three
+      models that span an order of magnitude in $d$ (576 -> 3,072) and three
       architectures (Llama-style decoder, Gemma-style hybrid, Phi-style decoder).
       All three converge on $k_\text{int} \in \{11, 17, 25\}$, that is, $k_\text{int} \ll d$
       uniformly, and $k_\text{int}$ does not grow with $d$.
@@ -534,7 +534,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <p>
     The persistent $W_\text{proj}$ cache is currently stored as fp32. Converting it to
     Q8_0 would close most of the disk-footprint gap but would re-quantise weights that
-    have already been quantised once (Q4_K_M dequantised → fp32 → Q8_0), and the
+    have already been quantised once (Q4_K_M dequantised -> fp32 -> Q8_0), and the
     behaviour at the second quantisation boundary is not characterised. This is the
     same concern Paper&nbsp;1 §11 raises and applies identically here.
   </p>
@@ -676,8 +676,8 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
-    <a href="01-attention-compression.html">← Paper 1</a> &middot;
-    <a href="03-speculative-decoding.html">Paper 3 →</a>
+    <a href="01-attention-compression.html"><- Paper 1</a> &middot;
+    <a href="03-speculative-decoding.html">Paper 3 -></a>
   </p>
 </footer>
 

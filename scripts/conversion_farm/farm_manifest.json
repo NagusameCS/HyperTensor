@@ -240,7 +240,7 @@
     {
       "id": "A_kint_llama31_70b",
       "paper": "A",
-      "description": "k_int sweep for Llama-3.1-70B — the 70B proof of universality",
+      "description": "k_int sweep for Llama-3.1-70B --- the 70B proof of universality",
       "mode": "compute_kint",
       "enabled": false,
       "model": "llama3.1:70b",
@@ -303,7 +303,7 @@
     {
       "id": "B_loadonly_llama31_70b",
       "paper": "B",
-      "description": "Load-only VRAM stats for Llama-3.1-70B — 70B on 8GB proof",
+      "description": "Load-only VRAM stats for Llama-3.1-70B --- 70B on 8GB proof",
       "mode": "run_local",
       "enabled": false,
       "model": "llama3.1:70b",
@@ -335,7 +335,7 @@
     {
       "id": "C_decode_llama31_70b_r128",
       "paper": "C",
-      "description": "Decode with GRC rank 128 for Llama-3.1-70B — 70B inference on 8GB GPU",
+      "description": "Decode with GRC rank 128 for Llama-3.1-70B --- 70B inference on 8GB GPU",
       "mode": "run_local",
       "enabled": false,
       "model": "llama3.1:70b",
@@ -433,7 +433,7 @@
     {
       "id": "C_ott_empirical_llama8b",
       "paper": "C",
-      "description": "OTT speculative empirical suite on Llama-3.1-8B — baseline vs spec vs spec+GRC",
+      "description": "OTT speculative empirical suite on Llama-3.1-8B --- baseline vs spec vs spec+GRC",
       "mode": "script",
       "enabled": true,
       "file": "C:\\Users\\legom\\HyperTensor\\.venv\\Scripts\\python.exe",

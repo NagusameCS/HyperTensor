@@ -74,7 +74,7 @@ for mass_frac in [0.01, 0.03, 0.05, 0.10]:
     for t in thresholds:
         n_needed = np.searchsorted(cumsum, t) + 1
         pct_cols = n_needed / 1536 * 100
-        print(f"      {t:.0%} of norm mass → {n_needed:>4} columns ({pct_cols:.1f}%)")
+        print(f"      {t:.0%} of norm mass -> {n_needed:>4} columns ({pct_cols:.1f}%)")
     print()
 
 # ---------------------------------------------------------------------------
@@ -124,12 +124,12 @@ for total_rank_budget in [384, 768, 1152]:  # 0.25, 0.50, 0.75 of d_ffn
     
     # Predict reconstruction error improvement
     # Uniform: error concentrated in massive columns
-    # Act-weighted: massive columns preserved → error in low-norm columns
-    # Low-norm columns contribute less to output → less PPL impact
+    # Act-weighted: massive columns preserved -> error in low-norm columns
+    # Low-norm columns contribute less to output -> less PPL impact
     
     # Simple model: PPL impact ∝ Σ (column_error_i  column_importance_i)
-    # Uniform: high importance columns get same error as low → high PPL impact
-    # Act-weighted: high importance columns get less error → lower PPL impact
+    # Uniform: high importance columns get same error as low -> high PPL impact
+    # Act-weighted: high importance columns get less error -> lower PPL impact
     
     print()
 

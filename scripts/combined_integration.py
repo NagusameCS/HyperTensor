@@ -86,7 +86,7 @@ def expand(h,label):
     if ev.min()<0.01: metric=metric+0.01*torch.eye(k,device=DEVICE)
     trajectories.append({"proj":hk.cpu(),"label":label})
 
-# ── Compare projectors ──
+# -- Compare projectors --
 print("\n[2] Projector comparison...")
 test_texts=["quantum computing uses qubits","neural networks learn patterns",
             "CRISPR gene editing technology","gravitational waves LIGO detection",
@@ -97,7 +97,7 @@ for text in test_texts:
     act_opt=teh(h,projector=P_safe_opt)
     print(f"  {text[:50]}... -> old={act_old:.1f}% opt={act_opt:.1f}%")
 
-# ── COG loop with optimal projector ──
+# -- COG loop with optimal projector --
 print(f"\n[3] COG loop (30 iterations, optimal projector)...")
 seeds=["quantum computing","neural networks","relativity","DNA replication","carbon cycle"]
 for s in seeds:
@@ -130,7 +130,7 @@ for i,concept in enumerate(novel):
     results.append({"i":i,"concept":concept[:40],"act":round(act,2),
                     "novel":novel_flag,"dist":round(md,4),"action":action})
 
-# ── Query test ──
+# -- Query test --
 queries=["How does quantum error correction work?","What detected gravitational waves?",
          "What is CRISPR?","How does AlphaFold predict structure?","What is quantum entanglement?",
          "What is epigenetic modification?","How do anyons enable topological computing?",
@@ -149,7 +149,7 @@ for q in queries:
     if known: query_known+=1
     print(f"  {'KNOWN' if known else 'NEW'}: {q[:45]}... -> {best_l[:30]} (sim={best_sim:.2f})")
 
-# ── Summary ──
+# -- Summary --
 expanded=sum(1 for r in results if r["action"]=="EXPANDED")
 cached=sum(1 for r in results if r["action"]=="CACHED")
 blocked=sum(1 for r in results if r["action"]=="BLOCKED")

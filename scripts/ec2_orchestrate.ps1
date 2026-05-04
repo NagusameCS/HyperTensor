@@ -14,9 +14,9 @@
       1. Launch EC2 GPU instance (g6e.xlarge = L40S, or p4d = A100)
       2. Upload repo snapshot + model
       3. Build geodessical binary
-      4. Run P3 benchmark → pull CSV
-      5. Run distill runner → pull safetensors
-      6. Run per-matrix bases → pull JSON
+      4. Run P3 benchmark -> pull CSV
+      5. Run distill runner -> pull safetensors
+      6. Run per-matrix bases -> pull JSON
       7. Terminate instance (or keep for inspection)
 
 .PARAMETER InstanceType

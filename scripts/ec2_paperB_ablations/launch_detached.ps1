@@ -259,7 +259,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
             Log "  scp OK: $src"
             return $true
         }
-        Warn "  scp FAILED ($LASTEXITCODE): $src — $($out -join ' ')"
+        Warn "  scp FAILED ($LASTEXITCODE): $src --- $($out -join ' ')"
         $script:artifactPullOk = $false
         return $false
     }
@@ -279,7 +279,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
         # Tail the remote log into our session log (append)
         $tail = & ssh @sshOpts "ubuntu@$publicIp" "tail -n 60 /tmp/paperB_remote.log 2>/dev/null; echo ---ENDLOG---; ls -la /opt/hypertensor/paperB_*.tar.gz 2>/dev/null; echo ---ENDTAR---" 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Warn "  poll ${iter}: ssh failed (transient?) — retry next cycle"
+            Warn "  poll ${iter}: ssh failed (transient?) --- retry next cycle"
             continue
         }
         Add-Content -Path $sessionLog -Value "===== poll $iter @ $(Get-Date -Format HH:mm:ss) ====="
@@ -313,7 +313,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
     Log "Pulling artifacts..."
     ScpGet "ubuntu@${publicIp}:/tmp/paperB_remote.log"            "$LocalOutDir\paperB_remote.log"
     ScpGet "ubuntu@${publicIp}:/tmp/paperB_nohup.log"             "$LocalOutDir\paperB_nohup.log"
-    # tarball — get remote path first so we can scp by exact name (avoids glob issues)
+    # tarball --- get remote path first so we can scp by exact name (avoids glob issues)
     $tarballs = & ssh @sshOpts "ubuntu@$publicIp" "ls /opt/hypertensor/paperB_*.tar.gz 2>/dev/null" 2>$null
     if ($tarballs) {
         foreach ($tb in ($tarballs | Where-Object { $_.Trim() })) {
@@ -321,7 +321,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
             ScpGet "ubuntu@${publicIp}:$($tb.Trim())" "$LocalOutDir\$fname"
         }
     } else {
-        Warn "  No tarball found on remote — benchmark may not have finished."
+        Warn "  No tarball found on remote --- benchmark may not have finished."
     }
     # full results dir (individual arm logs)
     ScpGet "ubuntu@${publicIp}:/opt/hypertensor/results_paperB_$gpuName" "$LocalOutDir\" -recurse $true
@@ -334,7 +334,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
     # Verify tarball
     $localTar = Get-ChildItem "$LocalOutDir\paperB_*.tar.gz" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($localTar) { Ok "Tarball downloaded: $($localTar.Name) ($($localTar.Length) bytes)" }
-    else            { Warn "No tarball in $LocalOutDir — check scp errors above." }
+    else            { Warn "No tarball in $LocalOutDir --- check scp errors above." }
 
     $localRemoteLogOk = Test-Path (Join-Path $LocalOutDir "paperB_remote.log")
     $localResultsOk = $null -ne (Get-ChildItem $localResultsDir -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1)
@@ -353,7 +353,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
 
     # Terminate ONLY after strict local artifact verification succeeds.
     if ($KeepInstance) {
-        Warn "KeepInstance — $instanceId still running."
+        Warn "KeepInstance --- $instanceId still running."
     } elseif (-not $safeToTerminate) {
         Warn "Safety gate tripped: skipping terminate for $instanceId (artifacts not fully verified locally)."
     } else {
@@ -365,7 +365,7 @@ echo "[remote] === Paper-B end `$(date -u) ==="
 catch {
     Err "ERROR: $_"
     Err $_.ScriptStackTrace
-    Warn "Instance $instanceId NOT terminated (error path) — artifacts may still be retrievable."
+    Warn "Instance $instanceId NOT terminated (error path) --- artifacts may still be retrievable."
 }
 finally {
     # NOTE: termination moved into try body above so crashes do NOT kill a running instance.

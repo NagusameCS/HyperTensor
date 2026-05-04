@@ -3,11 +3,11 @@
 SYSTEMATIZE MILLENNIUM SERIES (Papers XIX-XXXI): What's Proven, What's Open.
 
 Five Clay Millennium Problems reformulated geometrically via HyperTensor:
-- XIX:  P vs NP      → Circuit curvature gap
-- XXII: Navier-Stokes → Enstrophy = curvature
-- XXV:  Yang-Mills    → Mass gap = λ₁
-- XXVIII: BSD         → Rank = topology
-- XXXI: Hodge         → Harmonic = geodesic
+- XIX:  P vs NP      -> Circuit curvature gap
+- XXII: Navier-Stokes -> Enstrophy = curvature
+- XXV:  Yang-Mills    -> Mass gap = λ₁
+- XXVIII: BSD         -> Rank = topology
+- XXXI: Hodge         -> Harmonic = geodesic
 
 This script provides a definitive, honest assessment of each.
 """
@@ -15,7 +15,7 @@ import json, sys, os, math, numpy as np
 
 def assess_millennium(output_path="benchmarks/millennium_status.json"):
     print("=" * 70)
-    print("  MILLENNIUM PROBLEM SERIES — Systematic Assessment")
+    print("  MILLENNIUM PROBLEM SERIES --- Systematic Assessment")
     print("  Papers XIX, XXII, XXV, XXVIII, XXXI")
     print("=" * 70)
     
@@ -33,20 +33,20 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
             "whats_open": [
                 "Barrier=1.0: the P/NP curvature gap is identically zero in current encoding",
                 "This means either: (a) P=NP, or (b) the encoding doesn't capture the true complexity difference",
-                "Option (b) is far more likely — the feature encoding may not expose the superpolynomial gap",
+                "Option (b) is far more likely --- the feature encoding may not expose the superpolynomial gap",
                 "Needs: circuit lower bound features, diagonalization arguments, or interactive proof encodings",
             ],
             "status": "DIAGNOSED",
             "closeness": "25%",
-            "significance": "The geometric approach correctly identifies the BARRIER — why existing techniques can't separate P from NP. This is a meta-result about proof techniques, not a solution.",
+            "significance": "The geometric approach correctly identifies the BARRIER --- why existing techniques can't separate P from NP. This is a meta-result about proof techniques, not a solution.",
         },
         "XXII_Navier_Stokes": {
             "problem": "Navier-Stokes existence and smoothness",
             "geometric_formulation": "Enstrophy (vorticity squared) = curvature of the fluid velocity field. Singularity formation corresponds to curvature blowup. The HSM (Hydrodynamic Spectral Manifold) encodes velocity fields.",
             "prototype_versions": 2,
-            "best_measurement": "Correlation 0.258 between enstrophy and curvature in 3D-like simulation. 2D validated (no singularities, corr=0.083→0.258 improvement).",
+            "best_measurement": "Correlation 0.258 between enstrophy and curvature in 3D-like simulation. 2D validated (no singularities, corr=0.083->0.258 improvement).",
             "whats_proven": [
-                "2D Navier-Stokes: no singularities — correctly predicted by HSM (zero curvature blowup)",
+                "2D Navier-Stokes: no singularities --- correctly predicted by HSM (zero curvature blowup)",
                 "3D-like simulation shows enstrophy-curvature coupling",
                 "Curvature metric detects regions of high vorticity",
             ],
@@ -64,15 +64,15 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
             "problem": "Yang-Mills mass gap",
             "geometric_formulation": "Mass gap = λ₁, the first eigenvalue of the gauge-covariant Laplacian. GOM (Gauge Orbifold Manifold) encodes gauge field configurations. λ₁ > 0 ⟺ mass gap exists.",
             "prototype_versions": 1,
-            "best_measurement": "λ₁ = 0.0017 > 0 — mass gap EXISTS in the GOM prototype. The first eigenvalue is strictly positive.",
+            "best_measurement": "λ₁ = 0.0017 > 0 --- mass gap EXISTS in the GOM prototype. The first eigenvalue is strictly positive.",
             "whats_proven": [
                 "GOM prototype demonstrates λ₁ > 0 for a simplified SU(2) gauge theory",
                 "The spectral gap is robust to small perturbations of the gauge field",
                 "Geometric formulation correctly identifies the mass gap with the spectral gap",
             ],
             "whats_open": [
-                "Prototype is SU(2) on a small lattice — needs continuum limit",
-                "λ₁ → 0 as lattice spacing → 0? Or does it converge to a positive value?",
+                "Prototype is SU(2) on a small lattice --- needs continuum limit",
+                "λ₁ -> 0 as lattice spacing -> 0? Or does it converge to a positive value?",
                 "Continuum limit requires renormalization group analysis",
                 "Full SU(3) (QCD) is substantially harder",
             ],
@@ -92,7 +92,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
             ],
             "whats_open": [
                 "Needs real LMFDB data (currently uses synthetic/small datasets)",
-                "88.7% is strong but not a proof — correlation ≠ causation",
+                "88.7% is strong but not a proof --- correlation ≠ causation",
                 "The BSD conjecture states rank = ord_{s=1} L(E,s). Proving this geometrically requires connecting the ECM topology to the L-function's analytic behavior",
                 "This is the deepest mathematical gap in the entire HyperTensor project",
             ],
@@ -110,7 +110,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
                 "Weak correlation with known algebraic cycles",
             ],
             "whats_open": [
-                "Very early stage — only 1D subspace found",
+                "Very early stage --- only 1D subspace found",
                 "Need much higher-dimensional Hodge manifolds",
                 "The Hodge conjecture is the hardest of the Millennium problems",
                 "Current prototype is a proof-of-concept, not a serious attack",
@@ -123,7 +123,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
     
     # Print systematic assessment
     for paper_id, info in papers.items():
-        print(f"\n{'─'*60}")
+        print(f"\n{'-'*60}")
         print(f"  {paper_id}: {info['problem']}")
         print(f"  Status: {info['status']} | Closeness: {info['closeness']}")
         print(f"  Formulation: {info['geometric_formulation'][:120]}...")
@@ -136,7 +136,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
             print(f"    ❓ {o}")
         print(f"\n  Significance: {info['significance']}")
     
-    # ── Overall Assessment ──
+    # -- Overall Assessment --
     print(f"\n{'='*70}")
     print(f"  OVERALL MILLENNIUM ASSESSMENT")
     print(f"{'='*70}")
@@ -147,10 +147,10 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
     print(f"\n  Ranked by maturity:")
     ranked = sorted(papers.items(), key=lambda x: float(x[1]["closeness"].rstrip("%")), reverse=True)
     for i, (pid, info) in enumerate(ranked):
-        bar = "█" * int(float(info["closeness"].rstrip("%")) / 5)
+        bar = "#" * int(float(info["closeness"].rstrip("%")) / 5)
         print(f"  {i+1}. {pid:20s} {info['closeness']:>5s} {bar} {info['status']}")
     
-    print(f"\n  ═══ HONEST ASSESSMENT ═══")
+    print(f"\n  === HONEST ASSESSMENT ===")
     print(f"  None of the Millennium problems are SOLVED by HyperTensor.")
     print(f"  What HyperTensor provides is a GEOMETRIC REFORMULATION that:")
     print(f"  1. Detects structure invisible to conventional approaches")
@@ -159,7 +159,7 @@ def assess_millennium(output_path="benchmarks/millennium_status.json"):
     print(f"  4. Maps each problem to a concrete geometric measurement")
     print(f"")
     print(f"  The two strongest results are:")
-    print(f"  - Yang-Mills: λ₁=0.0017>0 — mass gap EXISTS in prototype")
+    print(f"  - Yang-Mills: λ₁=0.0017>0 --- mass gap EXISTS in prototype")
     print(f"  - BSD: 88.7% rank detection from topology alone")
     print(f"")
     print(f"  The Riemann results (Papers XVI-XVIII) are SEPARATE from the")

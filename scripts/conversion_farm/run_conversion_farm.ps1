@@ -141,7 +141,7 @@ function Build-Cmd {
     }
 }
 
-#  Checkpoint I/O (only primitives — no nested hashtable deserialisation) 
+#  Checkpoint I/O (only primitives --- no nested hashtable deserialisation) 
 function Read-Checkpoint {
     param([string]$Path)
     $done  = @{}

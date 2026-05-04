@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-CECI CROSS-MODEL SPLICE — Dedicated single-skill models with shared init.
+CECI CROSS-MODEL SPLICE --- Dedicated single-skill models with shared init.
 
 KEY DIFFERENCES from within-model sweep (which FAILED at k=32):
-1. Cross-model: Model M (math) vs Model L (language) — shared base, different skills
-2. Higher k: 128 (proven boundary) — k=32 was insufficient for any pair
+1. Cross-model: Model M (math) vs Model L (language) --- shared base, different skills
+2. Higher k: 128 (proven boundary) --- k=32 was insufficient for any pair
 3. Full GL(d) gauge: non-diagonal transformation (not just diagonal rescaling)
 4. LoRA adapter merge: base identical, only adapters differ
 
@@ -63,7 +63,7 @@ def load_model_weights(model_path: str) -> dict[str, np.ndarray]:
     # Try loading LoRA adapter
     is_lora = (Path(model_path) / "adapter_config.json").exists()
     if is_lora:
-        print(f"    LoRA adapter detected — merging...")
+        print(f"    LoRA adapter detected --- merging...")
         model = PeftModel.from_pretrained(base, model_path)
         model = model.merge_and_unload()
         print(f"    Merged LoRA into base weights")
@@ -287,7 +287,7 @@ def ceci_splice(weights_m, weights_l, k=128, sink_T=32, gauge_method='least_squa
         layer_res['k_err'] = splice_metrics.get('K_rel_err', 1.0)
         layer_res['v_err'] = splice_metrics.get('V_rel_err', 1.0)
         layer_res['rho_mean'] = round(rho_sum / max(n_slots, 1), 4)
-        # Viability: at full rank (Q_err≈0) → trivially viable
+        # Viability: at full rank (Q_err≈0) -> trivially viable
         # At k < d: ρ>0.30 AND GD<0.90
         is_full_rank = (k_eff >= d_model)
         if is_full_rank or layer_res['q_err'] < 0.01:
@@ -328,7 +328,7 @@ def ceci_splice(weights_m, weights_l, k=128, sink_T=32, gauge_method='least_squa
 # ===========================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="CECI Cross-Model Splice — dedicated skill models")
+    parser = argparse.ArgumentParser(description="CECI Cross-Model Splice --- dedicated skill models")
     parser.add_argument('--math', type=str, required=True, help='Path to Model M (math)')
     parser.add_argument('--language', type=str, required=True, help='Path to Model L (language)')
     parser.add_argument('--k', type=int, default=128, help='Intrinsic dimension (default: 128)')
@@ -342,7 +342,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     
     print("=" * 70)
-    print("CECI CROSS-MODEL SPLICE — Dedicated Single-Skill Models")
+    print("CECI CROSS-MODEL SPLICE --- Dedicated Single-Skill Models")
     print(f"  Math: {args.math}")
     print(f"  Language: {args.language}")
     print(f"  k={args.k}, sink_T={args.sink_T}, gauge={args.gauge}")
@@ -381,10 +381,10 @@ def main():
     n_total = agg['n_total']
     if is_full_rank:
         print(f"  FULL RANK (k_eff={k_eff}=d): NO COMPRESSION.")
-        print(f"  GD=0, overlap=100%, Q_err=0 — all {agg['n_total']} layers trivially viable.")
+        print(f"  GD=0, overlap=100%, Q_err=0 --- all {agg['n_total']} layers trivially viable.")
         print(f"  CECI at full dimension: PERFECT splice geometry.")
         print(f"  The challenge is COMPRESSION: how low can k go?")
-        print(f"  Paper I safe frontier: k≥512 (k/d=0.89) — 13/30 viable")
+        print(f"  Paper I safe frontier: k≥512 (k/d=0.89) --- 13/30 viable")
         print(f"  At k=576 (full): 30/30 viable")
     elif agg['gd_mean'] < 0.05 and agg['overlap_mean'] > 99.0:
         print(f"   SHARED SCAFFOLD CONFIRMED at k={args.k}!")
@@ -394,26 +394,26 @@ def main():
                            if lr['rho_mean'] > 0.10)
         print(f"  ρ>0.30: {agg['n_viable']}/{agg['n_total']} | ρ>0.10: {relaxed_viable}/{agg['n_total']}")
         if agg['n_viable'] >= 9:  # 30% of 30 layers
-            print(f"   CECI VIABLE — {agg['viable_pct']}% pass strict ρ>0.30")
+            print(f"   CECI VIABLE --- {agg['viable_pct']}% pass strict ρ>0.30")
         elif relaxed_viable >= 9:
             print(f"   CECI needs relaxed ρ threshold (GD≈0 regime).")
             print(f"  {relaxed_viable}/{agg['n_total']} layers pass ρ>0.10")
             print(f"  Run at k≥512 for full viability (Paper I safe frontier).")
         else:
-            print(f"   Rank too low — need k≥512 for SmolLM2-135M (d=576).")
+            print(f"   Rank too low --- need k≥512 for SmolLM2-135M (d=576).")
     elif agg['viable_pct'] >= 30:
         print(f"   CECI WORKS at k={args.k}! {agg['viable_pct']}% of layers viable.")
         print(f"  Cross-model splicing with dedicated single-skill models is FEASIBLE.")
     elif agg['viable_pct'] >= 5:
-        print(f"   CECI MARGINAL at k={args.k} — {agg['viable_pct']}% viable.")
+        print(f"   CECI MARGINAL at k={args.k} --- {agg['viable_pct']}% viable.")
         print(f"  Higher k or full GL(d) gauge may push over threshold.")
     else:
-        print(f"   CECI INFEASIBLE at k={args.k} — {agg['viable_pct']}% viable.")
+        print(f"   CECI INFEASIBLE at k={args.k} --- {agg['viable_pct']}% viable.")
         if agg['gd_min'] > 0.85:
             print(f"  Even best GD={agg['gd_min']:.4f} is too high for viable splice.")
         print(f"  Consider: k≥256, full GL(d) gauge, or shared-init training from scratch.")
     
-    # Save — convert numpy types to Python native for JSON
+    # Save --- convert numpy types to Python native for JSON
     def _to_native(obj):
         if isinstance(obj, dict):
             return {k: _to_native(v) for k, v in obj.items()}

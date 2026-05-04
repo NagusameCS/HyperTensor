@@ -1,4 +1,4 @@
-## Paper E — Rho / Distillation Spectrum
+## Paper E --- Rho / Distillation Spectrum
 
 | Model | Rank | LoRA rank | Layers | Mean ρ | Source |
 |-------|------|-----------|--------|--------|--------|

@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paper F / VII: Task-Level Impact Analysis — HyperTensor</title>
+<title>Paper F / VII: Task-Level Impact Analysis --- HyperTensor</title>
 <link rel="stylesheet" href="../assets/reader.css">
 <script src="../assets/reader.js"></script>
 <style>:root{--bg:#fff;--bg-soft:#f9f9f8;--border:#e5e5e5;--text:#1a1a1a;--text-soft:#5c5c5c;--accent:#c0392b;--max-w:860px}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
 nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{font-weight:600;color:var(--text);text-decoration:none}
@@ -54,10 +54,10 @@ footer a{color:var(--text)}
 
 <h2>Key Findings</h2>
 <ul>
-<li><strong>Power-law degradation:</strong> Task accuracy follows <code>acc(k) = acc(inf) - c * k^{-alpha}</code> with task-specific alpha (0.3 to 1.1).</li>
-<li><strong>PIQA immunity:</strong> PIQA accuracy is within 0.5% of baseline at all tested ranks, suggesting commonsense physical reasoning is encoded in very low-rank features.</li>
-<li><strong>GSM8K vulnerability:</strong> Mathematical reasoning degrades fastest (alpha ≈ 1.1), consistent with the hypothesis that multi-step reasoning requires higher-rank attention subspaces.</li>
-<li><strong>Task impact matrix:</strong> A lookup table mapping (task, rank) to expected accuracy, usable as a design tool for deployment trade-offs.</li>
+<li>Power-law degradation: Task accuracy follows <code>acc(k) = acc(inf) - c * k^{-alpha}</code> with task-specific alpha (0.3 to 1.1).</li>
+<li>PIQA immunity: PIQA accuracy is within 0.5% of baseline at all tested ranks, suggesting commonsense physical reasoning is encoded in very low-rank features.</li>
+<li>GSM8K vulnerability: Mathematical reasoning degrades fastest (alpha ≈ 1.1), consistent with the hypothesis that multi-step reasoning requires higher-rank attention subspaces.</li>
+<li>Task impact matrix: A lookup table mapping (task, rank) to expected accuracy, usable as a design tool for deployment trade-offs.</li>
 </ul>
 
 <h2>Measured Results</h2>

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-GRC for Vision/Diffusion Transformers — Applicability Analysis (Tier 3).
+GRC for Vision/Diffusion Transformers --- Applicability Analysis (Tier 3).
 
 Paper A establishes that LLM attention weights have low-rank structure
-(k_int/d ≈ 0.03–0.05 for intrinsic dimension, k95/d ≈ 0.4–0.7 for
+(k_int/d ≈ 0.03--0.05 for intrinsic dimension, k95/d ≈ 0.4--0.7 for
 Gram-based rank).  Does the same geometry hold for vision transformers?
 
 Key architectural differences:
   - ViT: Same self-attention as LLM but over image patches. No causal mask.
   - DiT: Cross-attention between noise timestep embeddings and patch latents.
-         Runs T≈50–1000 forward passes per image (vs 1 for LLM).
+         Runs T≈50--1000 forward passes per image (vs 1 for LLM).
   - Multi-modal: Cross-attention between text and image modalities.
 
 This script analyzes the theoretical transfer:
   1. ViT self-attention should have similar low-rank structure (routing patches
-     instead of tokens — same linear algebra, different semantics).
+     instead of tokens --- same linear algebra, different semantics).
   2. DiT cross-attention may NOT be low-rank because the conditioning signal
      (timestep) needs full-rank mixing with the latent representation.
-  3. Multi-modal cross-attention is an open question — the text→image and
-     image→text subspaces may have different intrinsic dimensions.
+  3. Multi-modal cross-attention is an open question --- the text->image and
+     image->text subspaces may have different intrinsic dimensions.
 
 Usage:
   python scripts/grc_vision_analysis.py --out benchmarks/grc_vision
@@ -46,33 +46,33 @@ def analyze_architecture_transfer():
             "attention_type": "Self-attention over patches",
             "causal": False,
             "forward_passes_per_input": 1,
-            "expected_k_int_d": "0.03–0.05 (same as LLM — patches vs tokens is semantic, not algebraic)",
+            "expected_k_int_d": "0.03--0.05 (same as LLM --- patches vs tokens is semantic, not algebraic)",
             "key_question": "Do image patches have the same low-rank routing structure as text tokens?",
-            "expected_answer": "YES — routing is routing. The attention mechanism is identical.",
+            "expected_answer": "YES --- routing is routing. The attention mechanism is identical.",
             "caveat": "Positional encoding is learned (not RoPE), may affect Gram spectrum slightly",
             "transfer_likelihood": "HIGH",
-            "expected_gain": "Same 6–15% throughput improvement if attention is bandwidth-bound",
+            "expected_gain": "Same 6--15% throughput improvement if attention is bandwidth-bound",
         },
         {
             "name": "DiT (Diffusion Transformer)",
             "attention_type": "Self-attention over latents + cross-attention with timestep",
             "causal": False,
-            "forward_passes_per_input": "50–1000 (DDIM/DDPM sampling loop)",
-            "expected_k_int_d": "Self-attn: 0.03–0.05. Cross-attn: UNKNOWN — timestep is 1D, may need full rank",
+            "forward_passes_per_input": "50--1000 (DDIM/DDPM sampling loop)",
+            "expected_k_int_d": "Self-attn: 0.03--0.05. Cross-attn: UNKNOWN --- timestep is 1D, may need full rank",
             "key_question": "Does compressing cross-attention degrade the conditioning signal?",
             "expected_answer": "Cross-attention may need FULL rank. Self-attention can be compressed.",
             "caveat": "Multiplicative effect: even 6% per step  100 steps = massive wall-clock savings",
             "transfer_likelihood": "MEDIUM (self-attn only; cross-attn needs investigation)",
-            "expected_gain": "Up to 6% per step  50–1000 steps = 3–60 cumulative if self-attn is the bottleneck",
+            "expected_gain": "Up to 6% per step  50--1000 steps = 3--60 cumulative if self-attn is the bottleneck",
         },
         {
             "name": "LLaVA-style Multi-modal",
             "attention_type": "Self-attention + cross-attention between modalities",
             "causal": True,
             "forward_passes_per_input": 1,
-            "expected_k_int_d": "Self-attn: 0.03–0.05. Cross-attn: depends on modality gap",
-            "key_question": "Do text→image and image→text subspaces share the same low-rank basis?",
-            "expected_answer": "Likely NO — modalities project into different subspaces. Per-modality bases needed.",
+            "expected_k_int_d": "Self-attn: 0.03--0.05. Cross-attn: depends on modality gap",
+            "key_question": "Do text->image and image->text subspaces share the same low-rank basis?",
+            "expected_answer": "Likely NO --- modalities project into different subspaces. Per-modality bases needed.",
             "caveat": "3 more basis storage if using per-modality bases. Storage cost may dominate.",
             "transfer_likelihood": "LOW (needs per-modality compression, not joint)",
             "expected_gain": "Marginal unless per-modality basis sharing is discovered",
@@ -81,13 +81,13 @@ def analyze_architecture_transfer():
             "name": "SORA-style Video DiT",
             "attention_type": "Spatiotemporal self-attention over video patches",
             "causal": False,
-            "forward_passes_per_input": "100–1000 (denoising loop)",
-            "expected_k_int_d": "Likely lower than text — spatiotemporal patches are more correlated than text tokens",
+            "forward_passes_per_input": "100--1000 (denoising loop)",
+            "expected_k_int_d": "Likely lower than text --- spatiotemporal patches are more correlated than text tokens",
             "key_question": "Is spatiotemporal attention MORE compressible than text attention?",
-            "expected_answer": "Likely YES — correlations across frames add redundancy, lowering effective rank",
-            "caveat": "Very large models (billions of params) — compression win scales with model size",
+            "expected_answer": "Likely YES --- correlations across frames add redundancy, lowering effective rank",
+            "caveat": "Very large models (billions of params) --- compression win scales with model size",
             "transfer_likelihood": "HIGH (potentially larger win than text)",
-            "expected_gain": "Could be 10–20% per step if spatiotemporal redundancy is high",
+            "expected_gain": "Could be 10--20% per step if spatiotemporal redundancy is high",
         },
     ]
 

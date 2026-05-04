@@ -247,7 +247,7 @@
     buildPanel();
   }
 
-  // ─── Broken multi-target anchor repair ──────
+  // --- Broken multi-target anchor repair ------
   // Pandoc renders \Cref{a,b,c} as a single anchor href="#a,b,c" which
   // resolves to nothing. We split such anchors into individual links at
   // load time so the rendered papers always navigate correctly even if

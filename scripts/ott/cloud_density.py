@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C2 — Cloud Density Bridge Analysis
+C2 --- Cloud Density Bridge Analysis
 ====================================
 Measures the offline-to-online density gap and estimates how cloud density
 affects acceptance rate.
@@ -13,7 +13,7 @@ Background (from paper):
 
   This script:
     1. Reads the live telemetry TSV (hidden-state activations for every
-       emitted token — the "online" cloud)
+       emitted token --- the "online" cloud)
     2. Reads the axiom beta report JSON (offline manifold stats: n_anchors,
        coverage radius, mean nearest-neighbour distance)
     3. Computes pairwise distances among online states and compares them
@@ -178,7 +178,7 @@ def compute_bridge_gap(online_stats: dict, offline_stats: dict) -> dict:
 
     if offline_radius and online_nn_p90:
         # Density ratio: how many more online states fall outside the offline
-        # coverage radius than inside it → proxy for acceptance gap
+        # coverage radius than inside it -> proxy for acceptance gap
         gap["density_ratio"] = online_nn_p90 / offline_radius
         if gap["density_ratio"] > 1.5:
             enrichment_factor = math.ceil(gap["density_ratio"] ** 2)
@@ -194,7 +194,7 @@ def compute_bridge_gap(online_stats: dict, offline_stats: dict) -> dict:
             gap["recommendation"] = (
                 "Online cloud is within offline coverage radius.  "
                 "Acceptance rate is limited by manifold divergence (Type II), "
-                "not by density mismatch — focus on GRC calibration (C3) instead."
+                "not by density mismatch --- focus on GRC calibration (C3) instead."
             )
 
     return gap
@@ -208,7 +208,7 @@ def try_plot(records: list, online_stats: dict, out_dir: Path):
         import matplotlib.pyplot as plt
         import numpy as np
     except ImportError:
-        print("[C2] matplotlib not available — skipping chart. "
+        print("[C2] matplotlib not available --- skipping chart. "
               "Install with: pip install matplotlib", file=sys.stderr)
         return None
 
@@ -299,7 +299,7 @@ def main():
         offline_stats = load_axiom_report(axiom_path)
         print(f"[C2] Offline axiom stats: {offline_stats}")
     else:
-        print(f"[C2] axiom report not found at {axiom_path} — skipping offline comparison",
+        print(f"[C2] axiom report not found at {axiom_path} --- skipping offline comparison",
               file=sys.stderr)
 
     bridge_gap = compute_bridge_gap(online_stats, offline_stats)

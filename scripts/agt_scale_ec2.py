@@ -50,7 +50,7 @@ print("[3/5] Computing SVD...")
 U, S, Vh = torch.linalg.svd(pv.float(), full_matrices=False)
 # U: [50000, 10] (left singular vectors in sample space)
 # Vh: [10, 10] (right singular vectors in feature space)
-# Basis = Vh.T: [10, 10] — projects features to k-space
+# Basis = Vh.T: [10, 10] --- projects features to k-space
 total_var = (S**2).sum().item()
 cumsum = torch.cumsum(S**2, dim=0)
 k90 = int((cumsum / total_var > 0.90).float().argmax().item()) + 1
@@ -117,7 +117,7 @@ off_stack = torch.stack(off_features)
 
 # Project into AGT basis (V = right singular vectors, shape [10, k])
 K_CRIT = min(10, len(S))
-basis = Vh.T[:, :K_CRIT]  # [10, K_CRIT] — projects 10-dim features to K_CRIT-dim space
+basis = Vh.T[:, :K_CRIT]  # [10, K_CRIT] --- projects 10-dim features to K_CRIT-dim space
 
 crit_proj = (crit_stack @ basis).norm(dim=1)
 off_proj = (off_stack @ basis).norm(dim=1)

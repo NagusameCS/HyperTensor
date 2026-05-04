@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HyperTensor Unified Engineering Whitepaper — All 12 Papers</title>
+<title>HyperTensor Unified Engineering Whitepaper --- All 12 Papers</title>
 <link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/whitepaper.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="GPTBot" content="noindex, nofollow">
@@ -48,7 +48,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Nav ─────────────────────────────────────────────── */
+/* --- Nav ----------------------------------------------- */
 nav {
   position: sticky;
   top: 0;
@@ -80,7 +80,7 @@ nav {
 }
 .nav-links a:hover { color: var(--text); }
 
-/* ─── Hero ─────────────────────────────────────────────── */
+/* --- Hero ----------------------------------------------- */
 #hero {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -164,7 +164,7 @@ nav {
 .btn-secondary { background: var(--bg-soft); border: 1px solid var(--border); color: var(--text); }
 .btn-secondary:hover { background: var(--border); }
 
-/* ─── Sections ─────────────────────────────────────────── */
+/* --- Sections ------------------------------------------- */
 section {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -195,7 +195,7 @@ p { margin-bottom: 1.2rem; color: var(--text); }
 p:last-child { margin-bottom: 0; }
 a { color: var(--blue); }
 
-/* ─── Callout boxes ───────────────────────────────────── */
+/* --- Callout boxes ------------------------------------- */
 .callout {
   border-left: 3px solid;
   border-radius: 0 8px 8px 0;
@@ -231,7 +231,7 @@ a { color: var(--blue); }
 }
 .callout.info .callout-title { color: var(--blue); }
 
-/* ─── Tables ───────────────────────────────────────────── */
+/* --- Tables --------------------------------------------- */
 .table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 thead th {
@@ -256,7 +256,7 @@ td.num { font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; }
 td.good { color: var(--green); font-weight: 600; }
 td.warn { color: var(--accent); font-weight: 600; }
 
-/* ─── Code ─────────────────────────────────────────────── */
+/* --- Code ----------------------------------------------- */
 pre {
   background: var(--bg-code);
   border: 1px solid var(--border);
@@ -279,9 +279,9 @@ p code, li code {
   font-size: 0.84em;
 }
 
-/* ─── Math display ─────────────────────────────────────── */
+/* --- Math display --------------------------------------- /
 .math-block {
-  /* Avoid spurious horizontal scrollbars for equations that fit;
+  / Avoid spurious horizontal scrollbars for equations that fit;
      wide equations still scale via MathJax SVG. */
   overflow-x: clip;
   padding: 0.5rem 0;
@@ -290,7 +290,7 @@ p code, li code {
 }
 .math-block mjx-container { max-width: 100%; }
 
-/* ─── Figures ─────────────────────────────────────────── */
+/* --- Figures ------------------------------------------- */
 .figure {
   margin: 2rem 0;
   text-align: center;
@@ -302,7 +302,7 @@ p code, li code {
   font-style: italic;
 }
 
-/* ─── ASCII art figure ────────────────────────────────── */
+/* --- ASCII art figure ---------------------------------- */
 .ascii-figure {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.82rem;
@@ -316,7 +316,7 @@ p code, li code {
   margin: 1.5rem auto;
 }
 
-/* ─── Section number ──────────────────────────────────── */
+/* --- Section number ------------------------------------ */
 .section-num {
   font-size: 0.8rem;
   font-weight: 600;
@@ -327,7 +327,7 @@ p code, li code {
   display: block;
 }
 
-/* ─── Two-column grid ─────────────────────────────────── */
+/* --- Two-column grid ----------------------------------- */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
 .grid-2 .card {
   border: 1px solid var(--border);
@@ -338,7 +338,7 @@ p code, li code {
 .card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
 .card-body { font-size: 0.88rem; color: var(--text-soft); }
 
-/* ─── Gates bar ───────────────────────────────────────── */
+/* --- Gates bar ----------------------------------------- */
 .gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
 .gate-card {
   border: 1px solid #c8f0d8;
@@ -359,11 +359,11 @@ p code, li code {
 .gate-label { font-weight: 600; display: block; }
 .gate-value { color: var(--text-soft); }
 
-/* ─── Equation label ───────────────────────────────────── */
+/* --- Equation label ------------------------------------- */
 .eq-row { display: flex; align-items: baseline; gap: 1rem; justify-content: center; margin: 1.5rem 0; }
 .eq-num { font-size: 0.82rem; color: var(--text-soft); white-space: nowrap; }
 
-/* ─── Footer ───────────────────────────────────────────── */
+/* --- Footer --------------------------------------------- */
 footer {
   border-top: 1px solid var(--border);
   padding: 2.5rem 1.5rem;
@@ -374,7 +374,7 @@ footer {
 footer a { color: var(--text-soft); }
 footer strong { color: var(--text); }
 
-/* ─── Responsive ───────────────────────────────────────── */
+/* --- Responsive ----------------------------------------- */
 @media (max-width: 640px) {
   .grid-2 { grid-template-columns: 1fr; }
   .hero-stats { gap: 1.5rem; }
@@ -383,11 +383,11 @@ footer strong { color: var(--text); }
   section { padding: 3rem 1.2rem; }
 }
 
-/* ─── Smooth section transitions ─────────────────────── */
+/* --- Smooth section transitions ----------------------- */
 section { animation: fadeUp .4s ease both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* ─── Abstract card ───────────────────────────────────── */
+/* --- Abstract card ------------------------------------- */
 .abstract-box {
   background: var(--bg-soft);
   border: 1px solid var(--border);
@@ -430,25 +430,25 @@ section { animation: fadeUp .4s ease both; }
 
 <div id="toc">
 <details open>
-<summary>Table of Contents — 12 Engineering Papers (Papers 0–6 + XI–XV)</summary>
+<summary>Table of Contents --- 12 Engineering Papers (Papers 0--6 + XI--XV)</summary>
 <ol>
-      <li><a href="#paper0">Paper 0: Introduction — Tensors, Attention, and Transformer Geometry</a></li>
-      <li><a href="#paper1">Paper 1: GRC — Geodesic Runtime Compression (106.27% throughput)</a></li>
-      <li><a href="#paper2">Paper 2: GP — Geodesic Projection Pipeline (Full Multi-Slot)</a></li>
-      <li><a href="#paper3">Paper 3: GSD — Geodesic Speculative Decoding (38.5% acceptance)</a></li>
-      <li><a href="#paper4">Paper 4: OTT — Organic Training Theory (Riemannian Framework)</a></li>
+      <li><a href="#paper0">Paper 0: Introduction --- Tensors, Attention, and Transformer Geometry</a></li>
+      <li><a href="#paper1">Paper 1: GRC --- Geodesic Runtime Compression (106.27% throughput)</a></li>
+      <li><a href="#paper2">Paper 2: GP --- Geodesic Projection Pipeline (Full Multi-Slot)</a></li>
+      <li><a href="#paper3">Paper 3: GSD --- Geodesic Speculative Decoding (38.5% acceptance)</a></li>
+      <li><a href="#paper4">Paper 4: OTT --- Organic Training Theory (Riemannian Framework)</a></li>
       <li><a href="#paper5">Paper 5: GTC + OTT Runtime Anchor (97x batched-Jacobi gain)</a></li>
-      <li><a href="#paper6">Paper 6: Adaptive Layer — Phase-Aware, Thermal-Coupled, Online</a></li>
-      <li><a href="#paper7">Paper XI: UGT — Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)</a></li>
+      <li><a href="#paper6">Paper 6: Adaptive Layer --- Phase-Aware, Thermal-Coupled, Online</a></li>
+      <li><a href="#paper7">Paper XI: UGT --- Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)</a></li>
       <li><a href="#paper8">Paper XII: Native Geodesic Training (NativeLinear, KExpansion)</a></li>
-      <li><a href="#paper9">Paper XIII: Safe OGD — Orthogonal Geodesic Deviation (0% TEH)</a></li>
-      <li><a href="#paper10">Paper XIV: Snipe — Behavioral Geodesic Sniping (<2% collateral)</a></li>
-      <li><a href="#paper11">Paper XV: COG+TEH — Completely Organic Generation + TEH Detection</a></li>
+      <li><a href="#paper9">Paper XIII: Safe OGD --- Orthogonal Geodesic Deviation (0% TEH)</a></li>
+      <li><a href="#paper10">Paper XIV: Snipe --- Behavioral Geodesic Sniping (<2% collateral)</a></li>
+      <li><a href="#paper11">Paper XV: COG+TEH --- Completely Organic Generation + TEH Detection</a></li>
 </ol>
 </details>
 </div>
 
-    <hr class="paper-divider" data-title="Paper 0: Introduction — Tensors, Attention, and Transformer Geometry" id="paper0">
+    <hr class="paper-divider" data-title="Paper 0: Introduction --- Tensors, Attention, and Transformer Geometry" id="paper0">
     <article class="paper-body">
 <header id="hero">
   <div class="tag">Article &middot; Background reading</div>
@@ -560,8 +560,8 @@ section { animation: fadeUp .4s ease both; }
     "trained" by adjusting those weights so that, when you put a known input in, the
     output matches a known answer. Training is slow and uses a lot of GPUs. Once the
     weights are fixed, the model can be used for inference: you put a new input in,
-    multiply through, and get an answer. <em>This series of papers is about inference,
-    not about training.</em> The weights have already been chosen by someone else
+    multiply through, and get an answer. This series of papers is about inference,
+    not about training. The weights have already been chosen by someone else
     (Meta, in our reference model). The question is how to compute with them
     efficiently.
   </p>
@@ -1184,7 +1184,7 @@ section { animation: fadeUp .4s ease both; }
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper 1: GRC — Geodesic Runtime Compression (106.27% throughput)" id="paper1">
+    <hr class="paper-divider" data-title="Paper 1: GRC --- Geodesic Runtime Compression (106.27% throughput)" id="paper1">
     <article class="paper-body">
 <div id="hero">
   <div class="hero-tag">Paper 1 &middot; April 2026 &middot; v0.4</div>
@@ -1224,7 +1224,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </div>
 
-<!-- ════════════════ ABSTRACT ════════════════ -->
+<!-- ================ ABSTRACT ================ -->
 <section id="abstract">
   <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
@@ -1274,7 +1274,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ GLOSSARY ════════════════ -->
+<!-- ================ GLOSSARY ================ -->
 <section id="glossary">
   <span class="section-num">§0.5, Glossary</span>
   <h2>Terms used in this report</h2>
@@ -1307,7 +1307,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ FOR EVERYONE ════════════════ -->
+<!-- ================ FOR EVERYONE ================ -->
 <section id="explainer">
   <span class="section-num">§1, Plain summary</span>
   <h2>The Simple Version: What We Built and Why It Matters</h2>
@@ -1326,7 +1326,7 @@ section { animation: fadeUp .4s ease both; }
     style of billions of documents.
   </p>
   <p>
-    A modern 8-billion-parameter model stores about 4–5 gigabytes of weights, similar to a
+    A modern 8-billion-parameter model stores about 4--5 gigabytes of weights, similar to a
     large movie file. Every single time the model generates one word, it has to read all of those
     weights from memory and do arithmetic with them. On a gaming GPU (like the one used in this
     research), that arithmetic happens about 35 times per second, which is why AI chatbots feel
@@ -1366,8 +1366,8 @@ section { animation: fadeUp .4s ease both; }
     </p>
   </div>
   <p>
-    The special thing about our method: <strong>we don't need any example text to find those
-    directions.</strong> Most compression methods require running thousands of text samples
+    The special thing about our method: we don't need any example text to find those
+    directions. Most compression methods require running thousands of text samples
     through the model to figure out which weights matter. Our method reads only the weights
     themselves, like finding the main structure of a sculpture by looking at it directly,
     rather than watching how shadows fall on it.
@@ -1397,7 +1397,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ INTRODUCTION ════════════════ -->
+<!-- ================ INTRODUCTION ================ -->
 <section id="intro">
   <span class="section-num">§2, Introduction</span>
   <h2>Introduction</h2>
@@ -1405,8 +1405,8 @@ section { animation: fadeUp .4s ease both; }
     The throughput of autoregressive transformer inference is limited primarily by memory
     bandwidth, not compute. For each generated token, the full weight tensor of every transformer
     layer must be read from GPU DRAM into registers. On current hardware, this produces arithmetic
-    intensity far below the compute-to-bandwidth ratio of the GPU (<strong>1.47–1.51% compute
-    utilisation vs 51–53% memory bandwidth utilisation</strong> in our measurements), placing the
+    intensity far below the compute-to-bandwidth ratio of the GPU (1.47--1.51% compute
+    utilisation vs 51--53% memory bandwidth utilisation in our measurements), placing the
     workload firmly in the memory-bandwidth-limited regime.
   </p>
   <p>
@@ -1435,7 +1435,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ BACKGROUND ════════════════ -->
+<!-- ================ BACKGROUND ================ -->
 <section id="background">
   <span class="section-num">§3, Background</span>
   <h2>Background: Transformers, Attention, and Memory Bandwidth</h2>
@@ -1484,8 +1484,8 @@ section { animation: fadeUp .4s ease both; }
   $$t_{\text{token}} \;=\; \frac{4.9\ \text{GB}}{256\ \text{GB/s}} \;\approx\; 19.1\ \text{ms}$$
   </div>
   <p>
-    giving a theoretical decode ceiling of $\sim 52$ tok/s. We measure 35–36 tok/s, which
-    means the implementation reaches roughly 67–70% of theoretical peak
+    giving a theoretical decode ceiling of $\sim 52$ tok/s. We measure 35--36 tok/s, which
+    means the implementation reaches roughly 67--70% of theoretical peak
     bandwidth, consistent with a well-tuned GEMV kernel on a memory-bound workload
     <a href="#ref-roofline"><sup>[10]</sup></a><a href="#ref-llm-roofline"><sup>[11]</sup></a>.
     Compute utilisation derived from FLOPs/(peak FP16 throughput) is on the order of 1.5%,
@@ -1525,7 +1525,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ RELATED WORK ════════════════ -->
+<!-- ================ RELATED WORK ================ -->
 <section id="related">
   <span class="section-num">§3.5, Related Work</span>
   <h2>Where GRC Sits in the Literature</h2>
@@ -1598,7 +1598,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ METHOD ════════════════ -->
+<!-- ================ METHOD ================ -->
 <section id="method">
   <span class="section-num">§4, Method</span>
   <h2>Method: Geodesic Runtime Compression</h2>
@@ -1735,11 +1735,11 @@ section { animation: fadeUp .4s ease both; }
     for the projected matrices, which partially displaces the original). The forward pass for
     prefill (processing the prompt in a batch) requires the raw weights for efficient batched
     GEMM; without them, prefill falls back to sequential token-by-token processing, adding
-    8–15% overhead. This is an implementation constraint, not fundamental to the method.
+    8--15% overhead. This is an implementation constraint, not fundamental to the method.
   </p>
 </section>
 
-<!-- ════════════════ EXPERIMENTAL SETUP ════════════════ -->
+<!-- ================ EXPERIMENTAL SETUP ================ -->
 <section id="setup">
   <span class="section-num">§5, Experimental Setup</span>
   <h2>Experimental Setup</h2>
@@ -1754,7 +1754,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>GPU DRAM bandwidth</td><td>256 GB/s theoretical (RTX 4070 Laptop, 128-bit × 16 Gbps)</td></tr>
         <tr><td>GPU L2 cache</td><td>32 MB</td></tr>
         <tr><td>GPU FP32 peak</td><td>40 TFLOPS (theoretical)</td></tr>
-        <tr><td>GPU TDP (observed decode)</td><td>103–109 W</td></tr>
+        <tr><td>GPU TDP (observed decode)</td><td>103--109 W</td></tr>
         <tr><td>GPU driver</td><td>595.79</td></tr>
         <tr><td>CPU</td><td>AMD Ryzen 9 7940HS, 8c/16t, 4.0 GHz base, 5.2 GHz boost</td></tr>
         <tr><td>System RAM</td><td>32 GB DDR5-5200 (2×16 GB Kingston)</td></tr>
@@ -1783,7 +1783,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>5.3 Measurement Protocol</h3>
   <p>
     All throughput measurements follow a locked protocol to prevent GPU thermal throttling from
-    confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800–1400 MHz
+    confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800--1400 MHz
     after sustained load, producing artificially low throughput readings (as low as 53% of true
     baseline in early experiments, a measurement artefact, not a real effect).
   </p>
@@ -1792,8 +1792,8 @@ section { animation: fadeUp .4s ease both; }
     <li>Rank sweep runs first (while GPU is at thermal equilibrium)</li>
     <li>CI measurements: 12 repetitions per configuration</li>
     <li>PPL measurements: 5 repetitions (deterministic, all identical)</li>
-    <li>Starting GPU temperature: 38–41°C before each run</li>
-    <li>GPU temperature during sustained decode: 59–61°C</li>
+    <li>Starting GPU temperature: 38--41°C before each run</li>
+    <li>GPU temperature during sustained decode: 59--61°C</li>
   </ul>
   <p>
     The rank sweep uses 8 distinct prompt-length combinations (short/medium/long × coding/reasoning).
@@ -1803,7 +1803,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ RESULTS ════════════════ -->
+<!-- ================ RESULTS ================ -->
 <section id="results">
   <span class="section-num">§6, Results</span>
   <h2>Results</h2>
@@ -1861,7 +1861,7 @@ section { animation: fadeUp .4s ease both; }
     † k=2048 request is silently capped to k=1536 by <code>AXEX_MANIFOLD_K_MAX=1536</code>
     in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>. The k=2048 row reflects cache warm-up
     behavioural differences, not true k=2048 projection geometry. Decode throughput baseline:
-    35–36 tok/s at 2,235 MHz GPU boost clock.
+    35--36 tok/s at 2,235 MHz GPU boost clock.
   </p>
 
   <h3>6.2 Confidence Intervals (12-rep Sustained Load)</h3>
@@ -1948,22 +1948,22 @@ section { animation: fadeUp .4s ease both; }
       reports approximate WikiText-2 PPL deltas relative to fp16 of:
     </p>
     <ul style="margin-top:0.5rem;">
-      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1–3%.</li>
-      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1–2%.</li>
-      <li>SliceGPT 25–30% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
-        ~+5–9% on WikiText-2 (calibration-based).</li>
+      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1--3%.</li>
+      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1--2%.</li>
+      <li>SliceGPT 25--30% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
+        ~+5--9% on WikiText-2 (calibration-based).</li>
       <li>ASVD 20% rank reduction on Llama-7B<a href="#ref-asvd"><sup>[3]</sup></a>:
-        ~+10–15% (activation-aware, calibration-based).</li>
+        ~+10--15% (activation-aware, calibration-based).</li>
       <li>Q4_K_M alone vs fp16 (the baseline GRC sits on)<a href="#ref-kquants"><sup>[13]</sup></a>:
-        ~+1–3%.</li>
+        ~+1--3%.</li>
     </ul>
     <p>
-      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10–12% vs fp16,
+      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10--12% vs fp16,
       comparable to ASVD's published numbers despite using no calibration data. PPL is a
       distribution-level metric; its relationship to task performance is non-linear. Task-level
       evaluations (MMLU, HumanEval, TruthfulQA) were not performed in this cycle, and
-      <strong>perplexity at $k=1024$, the throughput-optimal setting, has not been
-      measured</strong>. We flag this prominently because the headline 106.27% throughput
+      perplexity at $k=1024$, the throughput-optimal setting, has not been
+      measured. We flag this prominently because the headline 106.27% throughput
       number does not have a quality number attached to it.
     </p>
   </div>
@@ -1977,7 +1977,7 @@ section { animation: fadeUp .4s ease both; }
       <tbody>
         <tr><td>OS/display idle</td><td class="num">~1,136 MiB</td><td class="num">~1,136 MiB</td><td class="num">, </td></tr>
         <tr><td>Post-model load</td><td class="num">~5,812 MiB</td><td class="num">~5,812 MiB</td><td class="num">, </td></tr>
-        <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702–6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
+        <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702--6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
         <tr><td>Peak observed</td><td class="num">6,695 MiB</td><td class="num">6,731 MiB</td><td class="num">+36 MiB</td></tr>
         <tr><td>Headroom (8,188 MiB total)</td><td class="num">~1,493 MiB</td><td class="num">~1,457 MiB</td><td class="num">, </td></tr>
       </tbody>
@@ -1991,8 +1991,8 @@ section { animation: fadeUp .4s ease both; }
       <tbody>
         <tr><td>Idle</td><td class="num">1.9 W</td><td class="num">2.3 W</td></tr>
         <tr><td>Model loading</td><td class="num">15.8 W</td><td class="num">15.9 W</td></tr>
-        <tr><td>PCA calibration (first run only)</td><td>, </td><td class="num">13–14 W (CPU-bound)</td></tr>
-        <tr><td>Decode (sustained)</td><td class="num">103–109 W</td><td class="num">103–109 W</td></tr>
+        <tr><td>PCA calibration (first run only)</td><td>, </td><td class="num">13--14 W (CPU-bound)</td></tr>
+        <tr><td>Decode (sustained)</td><td class="num">103--109 W</td><td class="num">103--109 W</td></tr>
       </tbody>
     </table>
   </div>
@@ -2056,7 +2056,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ CACHE FIT EFFECT ════════════════ -->
+<!-- ================ CACHE FIT EFFECT ================ -->
 <section id="cache-effect">
   <span class="section-num">§7, A Working Hypothesis: Cache-Fit</span>
   <h2>Why the Compressed Model Runs Faster (We Think)</h2>
@@ -2149,9 +2149,9 @@ section { animation: fadeUp .4s ease both; }
       <thead><tr><th>GPU</th><th>L2 cache</th><th>DRAM BW</th><th>Predicted optimal k/d</th></tr></thead>
       <tbody>
         <tr><td>RTX 4070 Laptop (tested)</td><td class="num">32 MB</td><td class="num">256 GB/s</td><td class="num">~0.25 (empirically observed)</td></tr>
-        <tr><td>RTX 4090</td><td class="num">72 MB</td><td class="num">1008 GB/s</td><td class="num">~0.35–0.40 (predicted)</td></tr>
-        <tr><td>A100 SXM</td><td class="num">40 MB</td><td class="num">2000 GB/s (HBM)</td><td class="num">~0.20–0.25 (predicted)</td></tr>
-        <tr><td>H100 SXM</td><td class="num">50 MB</td><td class="num">3350 GB/s (HBM3)</td><td class="num">~0.20–0.30 (predicted)</td></tr>
+        <tr><td>RTX 4090</td><td class="num">72 MB</td><td class="num">1008 GB/s</td><td class="num">~0.35--0.40 (predicted)</td></tr>
+        <tr><td>A100 SXM</td><td class="num">40 MB</td><td class="num">2000 GB/s (HBM)</td><td class="num">~0.20--0.25 (predicted)</td></tr>
+        <tr><td>H100 SXM</td><td class="num">50 MB</td><td class="num">3350 GB/s (HBM3)</td><td class="num">~0.20--0.30 (predicted)</td></tr>
       </tbody>
     </table>
   </div>
@@ -2162,7 +2162,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ SPECTRAL JUSTIFICATION ════════════════ -->
+<!-- ================ SPECTRAL JUSTIFICATION ================ -->
 <section id="spectra">
   <span class="section-num">§8, Spectral Justification of Low-Rank Compression</span>
   <h2>Why Attention Compresses but FFN Does Not</h2>
@@ -2244,7 +2244,7 @@ section { animation: fadeUp .4s ease both; }
     var cachedData = null;
 
     function renderPlots(d) {
-      // ── Figure 8.1: SV spectra (log-log) ──────────────────────────
+      // -- Figure 8.1: SV spectra (log-log) --------------------------
       var traces1 = [];
       var layerStyles = { 0: 1, 7: 0.85, 15: 0.7, 23: 0.55, 31: 0.4 };
       Object.keys(d.spectra.attn).forEach(function (L) {
@@ -2302,7 +2302,7 @@ section { animation: fadeUp .4s ease both; }
         ]
       }), plotConfig());
 
-      // ── Figure 8.2: Cumulative energy ─────────────────────────────
+      // -- Figure 8.2: Cumulative energy -----------------------------
       var traces2 = [];
       Object.keys(d.energy.attn).forEach(function (L) {
         ATTN.forEach(function (s) {
@@ -2337,7 +2337,7 @@ section { animation: fadeUp .4s ease both; }
         ]
       }), plotConfig());
 
-      // ── Figure 8.3: Per-layer k_95 bar/scatter ────────────────────
+      // -- Figure 8.3: Per-layer k_95 bar/scatter --------------------
       var traces3 = [];
       ATTN.concat(FFN).forEach(function (s) {
         var src = ATTN.indexOf(s) >= 0 ? d.rank95_per_layer.attn : d.rank95_per_layer.ffn;
@@ -2399,7 +2399,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ STATISTICAL SIGNIFICANCE ════════════════ -->
+<!-- ================ STATISTICAL SIGNIFICANCE ================ -->
 <section id="statistics">
   <span class="section-num">§9, Statistical Significance of the Super-Baseline</span>
   <h2>Hypothesis Tests on Throughput Gains</h2>
@@ -2490,12 +2490,12 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ THEORETICAL BOUND ════════════════ -->
+<!-- ================ THEORETICAL BOUND ================ -->
 <section id="eckart-young">
-  <span class="section-num">§10, Theoretical Bound: Eckart–Young vs GRC</span>
+  <span class="section-num">§10, Theoretical Bound: Eckart--Young vs GRC</span>
   <h2>How Far Is the Shared Basis from the Optimum?</h2>
   <p>
-    The Eckart–Young–Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
+    The Eckart--Young--Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
     error of any rank-$k$ approximation:
   </p>
   <div class="math-block">
@@ -2505,14 +2505,14 @@ section { animation: fadeUp .4s ease both; }
     This bound is achieved by the truncated SVD of $\mathbf{W}$ alone. GRC, however, builds
     a single shared projection $\mathbf{P}_k$ from the combined Gram matrix
     $\mathbf{K} = \mathbf{W}_Q^\top\mathbf{W}_Q + \mathbf{W}_K^\top\mathbf{W}_K + \mathbf{W}_V^\top\mathbf{W}_V$,
-    so its per-matrix error must be $\geq$ the Eckart–Young bound. The excess factor
+    so its per-matrix error must be $\geq$ the Eckart--Young bound. The excess factor
     $\rho_k(\mathbf{W}) = \|\mathbf{W} - \mathbf{W}\mathbf{P}_k\mathbf{P}_k^\top\|_F^2 / \sum_{i>k}\sigma_i^2$
     quantifies the cost of using a shared (calibration-free) basis instead of a per-matrix one.
   </p>
 
-  <h3>10.1 Numerical verification (layers 0, 15, 31; ranks 512–2048)</h3>
+  <h3>10.1 Numerical verification (layers 0, 15, 31; ranks 512--2048)</h3>
   <p>
-    For each (layer, rank, matrix) triple we compute (a) the Eckart–Young rel-F² lower bound
+    For each (layer, rank, matrix) triple we compute (a) the Eckart--Young rel-F² lower bound
     and (b) the actual GRC rel-F² error using the same shared projection used by the runtime
     kernel (3-iteration power-stabilised eigendecomposition of $\mathbf{K}/\|\mathbf{K}\|_F$).
     Full data: <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/eckart_young_bound.json">docs/figures/eckart_young_bound.json</a>.
@@ -2533,7 +2533,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>10.2 Interpretation</h3>
   <p>
     Note that $\mathbf{W}_K, \mathbf{W}_V$ in Llama-3.1's GQA have rank $\leq 1024$ by
-    construction (shape $1024 \times 4096$), so their Eckart–Young bound is $0$ at $k\geq 1024$;
+    construction (shape $1024 \times 4096$), so their Eckart--Young bound is $0$ at $k\geq 1024$;
     the GRC error there is purely the cost of shared projection.
   </p>
   <p>
@@ -2542,7 +2542,7 @@ section { animation: fadeUp .4s ease both; }
   <ol>
     <li>
       The shared basis pays a real, quantifiable cost. At $k=512$, GRC sits
-      ~1.8–4.7× above the Eckart–Young oracle (averaged across {Q, K, V}). At larger $k$, the
+      ~1.8--4.7× above the Eckart--Young oracle (averaged across {Q, K, V}). At larger $k$, the
       relative gap widens because the EY bound itself drops faster than the shared basis can
       track.
     </li>
@@ -2556,7 +2556,7 @@ section { animation: fadeUp .4s ease both; }
   <div class="callout">
     <div class="callout-title">What this motivates</div>
     <p>
-      The $\sim$3–10× excess factor over Eckart–Young is the strongest argument for
+      The $\sim$3--10× excess factor over Eckart--Young is the strongest argument for
       per-matrix bases as future work (§13). A scheme that builds three
       separate projections $\mathbf{P}_Q, \mathbf{P}_K, \mathbf{P}_V$ would close the gap to the
       oracle bound at the cost of $3\times$ the projection storage. The fact that the shared
@@ -2566,7 +2566,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ NOVELTY ════════════════ -->
+<!-- ================ NOVELTY ================ -->
 <section id="novelty">
   <span class="section-num">§11, Novel Contributions</span>
   <h2>What This Work Contributes</h2>
@@ -2591,15 +2591,15 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ IMPACT ════════════════ -->
+<!-- ================ IMPACT ================ -->
 <section id="impact">
   <span class="section-num">§11.5, Impact and Implications</span>
   <h2>Why This Might Matter (and Why It Might Not)</h2>
   <p>
     There is a real risk in research papers of overselling implications. We try to be careful
-    here. The strongest claim this report supports is local: <em>on this hardware, with this
+    here. The strongest claim this report supports is local: on this hardware, with this
     model, at this rank, decode is faster than baseline by a measurable and statistically
-    significant margin</em>. The interesting question is whether anything beyond the local
+    significant margin. The interesting question is whether anything beyond the local
     fact survives.
   </p>
 
@@ -2650,7 +2650,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ LIMITATIONS ════════════════ -->
+<!-- ================ LIMITATIONS ================ -->
 <section id="limitations">
   <span class="section-num">§12, Limitations</span>
   <h2>Limitations</h2>
@@ -2676,7 +2676,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Cross-model generality</td><td class="fail">Not demonstrated</td><td>Phase 3 in progress</td></tr>
         <tr><td>Quality at k=1024</td><td class="warn">Measured (+61.39% PPL)</td><td><a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/</a> ,  collapse explained by GQA K/V dim = 1024</td></tr>
         <tr><td>Batch inference behaviour</td><td class="fail">Not demonstrated</td><td>Single-request decode only</td></tr>
-        <tr><td>Long-context quality (4K–8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
+        <tr><td>Long-context quality (4K--8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
         <tr><td>Task-level quality (MMLU, HumanEval)</td><td class="fail">Not demonstrated</td><td>Only PPL measured</td></tr>
       </tbody>
     </table>
@@ -2689,7 +2689,7 @@ section { animation: fadeUp .4s ease both; }
     $d=4096$ to $k=1536$. This stacks on top of the Q4_K_M quantisation penalty already present.
     Closing the gap requires either higher $k$ (reducing throughput benefit) or fine-tuning.
   </p>
-  <h4>Prefill overhead (8–15% slower)</h4>
+  <h4>Prefill overhead (8--15% slower)</h4>
   <p>
     When GRC is active, raw Q/K/V tensors are freed from VRAM after W_proj is built. The batch-prefill
     path requires raw tensors for efficient GEMM, so prefill falls back to sequential token processing.
@@ -2743,8 +2743,8 @@ section { animation: fadeUp .4s ease both; }
               GPTQ 3-bit / 4-bit, and SmoothQuant on identical hardware are not
               included. We compare only against the same Q4_K_M baseline that GRC sits on
               top of.</td>
-          <td>The “calibration-free” claim is real (no other method skips calibration), but
-              the “useful at production scale” claim cannot be fully ranked without
+          <td>The "calibration-free" claim is real (no other method skips calibration), but
+              the "useful at production scale" claim cannot be fully ranked without
               compatible-runtime baselines.</td>
         </tr>
         <tr>
@@ -2765,7 +2765,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ FUTURE WORK ════════════════ -->
+<!-- ================ FUTURE WORK ================ -->
 <section id="future">
   <span class="section-num">§13, Future Work</span>
   <h2>Future Work</h2>
@@ -2789,8 +2789,8 @@ section { animation: fadeUp .4s ease both; }
     Viable paths include: (a) block-diagonal decomposition, decompose each FFN
     weight into $B$ blocks and compress each independently, finding local low-rank structure;
     (b) input-adaptive sparse activation, identify and skip near-zero neurons
-    per token (exploiting the superposition / monosemanticity structure); (c) <strong>FFN on
-    CPU + attention on GPU</strong>, keep FFN in system RAM and run it on CPU while GPU handles
+    per token (exploiting the superposition / monosemanticity structure); (c) FFN on
+    CPU + attention on GPU, keep FFN in system RAM and run it on CPU while GPU handles
     attention-only GRC, accepting PCIe latency as a throughput tradeoff.
   </p>
 
@@ -2799,7 +2799,7 @@ section { animation: fadeUp .4s ease both; }
     The current implementation uses a shared $\mathbf{P}_t^{(\ell)}$ for Q, K, V in
     each layer. Because Q and KV matrices often operate in different subspaces (particularly in
     GQA architectures like Llama-3), per-matrix bases could significantly improve quality at the
-    same rank, especially for Q (which showed 79–87% energy capture vs 95–97% for K/V at $k=2048$).
+    same rank, especially for Q (which showed 79--87% energy capture vs 95--97% for K/V at $k=2048$).
   </p>
 
   <h3>13.4 Rank-Adaptive Deployment</h3>
@@ -2820,7 +2820,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ REPRODUCIBILITY ════════════════ -->
+<!-- ================ REPRODUCIBILITY ================ -->
 <section id="reproduce">
   <span class="section-num">§14, Reproducibility</span>
   <h2>Reproducing This Work</h2>
@@ -2834,7 +2834,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Model</td><td><code>bartowski/Meta-Llama-3.1-8B-Instruct-GGUF</code> (Q4_K_M, 4.58 GB)</td></tr>
         <tr><td>Runtime</td><td>Geodessical binary or source build (Zig CC required for Windows)</td></tr>
         <tr><td>Disk</td><td>~5.8 GB (model + W_proj cache)</td></tr>
-        <tr><td>First-run time</td><td>60–120 s CPU calibration; subsequent runs use disk cache</td></tr>
+        <tr><td>First-run time</td><td>60--120 s CPU calibration; subsequent runs use disk cache</td></tr>
       </tbody>
     </table>
   </div>
@@ -2884,7 +2884,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
   </p>
 </section>
 
-<!-- ════════════════ REFERENCES ════════════════ -->
+<!-- ================ REFERENCES ================ -->
 <section id="references">
   <span class="section-num">§15, References</span>
   <h2>References</h2>
@@ -2933,7 +2933,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
     <li id="ref-roofline">
       Williams, S., Waterman, A., &amp; Patterson, D. (2009).
       Roofline: An Insightful Visual Performance Model for Multicore Architectures.
-      Communications of the ACM, 52(4), 65–76.
+      Communications of the ACM, 52(4), 65--76.
     </li>
     <li id="ref-llm-roofline">
       Yuan, Z., Shang, Y., Zhou, Y., Dong, Z., Xue, C., Wu, B., Li, Z., Gu, Q., Lee, Y. J.,
@@ -2975,7 +2975,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
   </ol>
 </section>
 
-<!-- ════════════════ FOOTER ════════════════ -->
+<!-- ================ FOOTER ================ -->
 <footer>
   <p>
     HyperTensor / Geodesic Runtime Compression , 
@@ -2990,7 +2990,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper 2: GP — Geodesic Projection Pipeline (Full Multi-Slot)" id="paper2">
+    <hr class="paper-divider" data-title="Paper 2: GP --- Geodesic Projection Pipeline (Full Multi-Slot)" id="paper2">
     <article class="paper-body">
 <header id="hero">
   <div class="hero-tag">Paper 2 &middot; April 2026 &middot; v0.2</div>
@@ -3081,7 +3081,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
       shortcut that lets the cache be probed without re-running the full
       axiom-discovery pass. The cross-architecture observation that motivates the
       whole pipeline, that the local activation manifold of a trained transformer
-      is roughly $11–25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$, reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
+      is roughly $11--25$-dimensional regardless of the ambient $d \in \{576, 1536, 3072\}$, reproduces on three open-weight models (SmolLM2-135M, Gemma-4-E2B,
       Phi-3.5-mini) using the manifold-extraction pipeline checked in under
       <a class="repo-link"
       href="https://github.com/NagusameCS/HyperTensor/tree/main/legacy/axiom_vis">legacy/axiom_vis/</a>.
@@ -3193,7 +3193,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
     <p>
       What it is: three independent reproductions of the
       "low-intrinsic-dimensionality of LLM activations" finding [refs&nbsp;1,&nbsp;2,&nbsp;7] on
-      models that span an order of magnitude in $d$ (576 → 3,072) and three
+      models that span an order of magnitude in $d$ (576 -> 3,072) and three
       architectures (Llama-style decoder, Gemma-style hybrid, Phi-style decoder).
       All three converge on $k_\text{int} \in \{11, 17, 25\}$, that is, $k_\text{int} \ll d$
       uniformly, and $k_\text{int}$ does not grow with $d$.
@@ -3484,7 +3484,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
   <p>
     The persistent $W_\text{proj}$ cache is currently stored as fp32. Converting it to
     Q8_0 would close most of the disk-footprint gap but would re-quantise weights that
-    have already been quantised once (Q4_K_M dequantised → fp32 → Q8_0), and the
+    have already been quantised once (Q4_K_M dequantised -> fp32 -> Q8_0), and the
     behaviour at the second quantisation boundary is not characterised. This is the
     same concern Paper&nbsp;1 §11 raises and applies identically here.
   </p>
@@ -3626,15 +3626,15 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
-    <a href="01-attention-compression.html">← Paper 1</a> &middot;
-    <a href="03-speculative-decoding.html">Paper 3 →</a>
+    <a href="01-attention-compression.html"><- Paper 1</a> &middot;
+    <a href="03-speculative-decoding.html">Paper 3 -></a>
   </p>
 </footer>
 
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper 3: GSD — Geodesic Speculative Decoding (38.5% acceptance)" id="paper3">
+    <hr class="paper-divider" data-title="Paper 3: GSD --- Geodesic Speculative Decoding (38.5% acceptance)" id="paper3">
     <article class="paper-body">
 <header id="hero">
   <div class="hero-tag">Paper 3 &middot; April 2026 &middot; v0.3</div>
@@ -3696,8 +3696,8 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
     <p>
       What's new in v0.3: the speculative path now has a first
       end-to-end empirical anchor. On SmolLM2-135M-Instruct (Q8_0, ChatML), the OTT
-      stack reaches <code>status=geodesic_ready</code> with <strong>38.5%
-      acceptance</strong> and 76.5 tok/s end-to-end. See the new
+      stack reaches <code>status=geodesic_ready</code> with 38.5%
+      acceptance and 76.5 tok/s end-to-end. See the new
       §<a href="#measured">5.5, First end-to-end measurements</a>. These are first
       numbers on a 135M instruct model, not the full 8B sweep, the §<a
       href="#status">8</a> status list reflects what is and isn't yet measured.
@@ -3751,7 +3751,7 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
         <tr><td>Drafter step cost $T_D$</td><td>Cost of one autoregressive token from the drafter.</td></tr>
         <tr><td>AttnRes</td><td>Block Attention Residuals, replaces the standard PreNorm residual accumulation with a softmax-weighted sum over per-block summary vectors. Mitigates the $\mathcal{O}(\sqrt{L})$ residual-stream magnitude growth that vanilla PreNorm produces. Kimi Team, arXiv:2603.15031.</td></tr>
         <tr><td>$\sqrt{L}$ residual growth</td><td>Empirical observation that PreNorm residual-stream magnitudes grow approximately as $\sqrt{L}$ in $L$ blocks because each block adds an approximately unit-variance update. AttnRes attenuates this. See ref&nbsp;[3].</td></tr>
-        <tr><td>KV-cache compression</td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1–2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
+        <tr><td>KV-cache compression</td><td>Applying a learned/derived basis to the per-token Key/Value vectors so they take less VRAM. Distinct from the weight-matrix compression of Papers&nbsp;1--2. Implemented in this runtime under <code>--axex-kv</code>.</td></tr>
       </tbody>
     </table>
   </div>
@@ -3824,8 +3824,8 @@ FFN         W_up       : [d_ffn, d]        =  [14336, 4096]
         an additional VRAM tier. We therefore characterise the design with a thought
         experiment of "drafter = GP-compressed 8B; verifier = uncompressed 8B on a
         24&nbsp;GB-class GPU" and we are explicit that we have not run that hardware.</li>
-    <li><strong>Speculative rejection is rejection sampling against the verifier
-        distribution, not greedy match.</strong> This is the standard "modified
+    <li>Speculative rejection is rejection sampling against the verifier
+        distribution, not greedy match. This is the standard "modified
         rejection" technique from refs&nbsp;[1,&nbsp;2]; it preserves the verifier's
         sampling distribution exactly under the standard assumption that the drafter
         and verifier share a tokenizer and token vocabulary. They do here (both are the
@@ -4207,9 +4207,9 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
         and was reverted; this is the realistic route to $\alpha \ge 0.9$ on the
         same model.</li>
     <li>Functional <code>--ott-swarm-k</code> (currently exits non-zero); when
-        fixed, expected to push $\alpha$ into the 0.6–0.8 range.</li>
+        fixed, expected to push $\alpha$ into the 0.6--0.8 range.</li>
     <li>Per-prompt OD bake (currently OD is baked once on a generic anchor; baking
-        per-prompt is expected to lift $\alpha$ towards 0.7–0.8).</li>
+        per-prompt is expected to lift $\alpha$ towards 0.7--0.8).</li>
     <li>Citation pass to fixed bibliography numbers.</li>
   </ol>
   <p>
@@ -4298,7 +4298,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <li>Cai, T. et al., Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads, 2024.</li>
     <li>Li, Y. et al., EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty, 2024.</li>
     <li>Zhang, J. et al., Draft &amp; Verify: Lossless Large Language Model Acceleration via Self-Speculative Decoding, 2023.</li>
-    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression…</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
+    <li>HyperTensor Paper&nbsp;1: <a href="01-attention-compression.html">Calibration-Free Low-Rank Attention Compression...</a>, 2026, source of $T_D$ and PPL numbers used in §3.</li>
   </ol>
 </section>
 
@@ -4309,15 +4309,15 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     by William Ken Ohara Stewart (NagusameCS), 2026 &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">Source</a> &middot;
     <a href="../index.html">All papers</a> &middot;
-    <a href="02-geodesic-projection.html">← Paper 2</a> &middot;
-    <a href="04-organic-training-theory.html">Paper 4 →</a>
+    <a href="02-geodesic-projection.html"><- Paper 2</a> &middot;
+    <a href="04-organic-training-theory.html">Paper 4 -></a>
   </p>
 </footer>
 
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper 4: OTT — Organic Training Theory (Riemannian Framework)" id="paper4">
+    <hr class="paper-divider" data-title="Paper 4: OTT --- Organic Training Theory (Riemannian Framework)" id="paper4">
     <article class="paper-body">
 <header id="hero">
   <div class="hero-tag">Paper 4 &middot; April 2026</div>
@@ -4399,7 +4399,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   <div class="abstract-box">
     <p>
       We treat the trained latent space of a transformer as a Riemannian
-      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30–50$,
+      manifold $\mathcal{M}_\theta$ of intrinsic dimension $k \approx 30--50$,
       equipped with a Fisher-information metric. Under that view, inference is
       approximately the solution of the geodesic equation, with cost
       $\mathcal{O}(nk^2)$ rather than the standard $\mathcal{O}(n^2 d L)$. We then
@@ -4443,14 +4443,14 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   </div>
   <p>
     with metric approximated by the Fisher Information matrix. Empirical intrinsic
-    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30–50$
+    dimension estimation (PCA, TwoNN) on activation spaces gives $k \approx 30--50$
     for current LLMs despite $d \in \{4096, 8192\}$. Inference under this view solves
     the geodesic equation with cost $\mathcal{O}(nk^2)$.
   </p>
   <p>
-    <em>This section will reproduce the OTT material from the original PDF, with
+    This section will reproduce the OTT material from the original PDF, with
     citations to the linear-representation-probing literature that supports the
-    low-dimensional structure claim.</em>
+    low-dimensional structure claim.
   </p>
 </section>
 
@@ -4684,7 +4684,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     </li>
     <li>
       Speedup figures are conditional. Numerical speedups in
-      §§1–3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
+      §§1--3 (e.g. $\mathcal{O}(nk^2)$ vs $\mathcal{O}(n^2 dL)$, the
       $4800\times$ figure at $n{=}32{,}768$) are derived from the geodesic
       cost model assuming GTC fully replaces standard attention in the
       decode path. The repository does not yet ship that runtime; the
@@ -4694,7 +4694,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     </li>
     <li>
       Manifold dimension claim is empirical. The intrinsic
-      dimension $k\approx30$–$50$ is supported by the Phase-1 fits on
+      dimension $k\approx30$--$50$ is supported by the Phase-1 fits on
       SmolLM2-135M, Phi-3.5-mini, and Gemma-4-E2B in Paper&nbsp;5 §3. It is
       not a theorem about transformers in general; cross-architecture
       generalisation past these three fits is open.
@@ -4769,7 +4769,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 
 <footer>
   <p>
-    <a href="../index.html">← Back to all papers</a> &middot;
+    <a href="../index.html"><- Back to all papers</a> &middot;
     <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a>
   </p>
 </footer>
@@ -4859,9 +4859,9 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       the geodesic ODE, compute the Riemann tensor and Magnus-3 Jacobi propagator
       $\Phi(\lambda)$, and benchmark all of these on SmolLM2-135M, Phi-3.5-mini,
       and Gemma-4-E2B. At a 25%-fraction cache the validity-bounded coverage is
-      90.4–91.5% across all three scales (scale-invariant within
-      $\pm 0.5\%$). Batch Jacobi correction reaches <strong>$97\times$ at $B=10$
-      and $60\times$ at $B=10{,}000$</strong> with reconstruction error sitting at
+      90.4--91.5% across all three scales (scale-invariant within
+      $\pm 0.5\%$). Batch Jacobi correction reaches $97\times$ at $B=10$
+      and $60\times$ at $B=10{,}000$ with reconstruction error sitting at
       the float64 roundoff floor. The compressed record store persists at
       5.96&nbsp;KB/record, with rank-5 propagator truncation
       exact, and the two-stage Euclidean&rarr;$g$-norm lookup runs at
@@ -4891,10 +4891,10 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     a Paper&nbsp;5 existing. This paper is that document.
   </p>
   <p>
-    The specific question this paper closes: <em>given the Paper&nbsp;4 framework,
+    The specific question this paper closes: given the Paper&nbsp;4 framework,
     do the local-geometry primitives behave the way the framework predicts when
     fitted on real LM clouds, and does the runtime that uses them produce a
-    measurable acceleration?</em> Both answers are now yes, with
+    measurable acceleration? Both answers are now yes, with
     the qualifications below.
   </p>
 </section>
@@ -5144,8 +5144,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     </table>
   </div>
   <p>
-    The honest summary: the runtime is <strong>functionally complete for the
-    SmolLM2-135M-Instruct configuration</strong>. The gap to "perfect by
+    The honest summary: the runtime is functionally complete for the
+    SmolLM2-135M-Instruct configuration. The gap to "perfect by
     construction" is two named bugs (<code>--ott-perfect</code> hang,
     <code>--ott-swarm-k</code> non-zero exit) and the EC2 sweep. Neither bug is
     in the geodesic pipeline itself; both are in the rollout/swarm wrappers.
@@ -5172,7 +5172,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
         <tr><td>Batch $B$=10/100/1000 speedups (Tests 4a&ndash;4c)</td><td>$97\times$, $27\times$, $44\times$</td><td>§<a href="#resonance">4</a></td></tr>
         <tr><td>Two-stage FAISS+geodesic lookup (Algorithm 1)</td><td>30.9 µs/q</td><td>§<a href="#store">5</a></td></tr>
         <tr><td>Compressed record store (~50&ndash;80 KB target)</td><td>5.96 KB at $k{=}8$</td><td>§<a href="#store">5</a></td></tr>
-        <tr><td>Scaling: SmolLM2 → Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
+        <tr><td>Scaling: SmolLM2 -> Phi-3.5-mini "flag flip"</td><td>scale-invariant within $\pm 0.5\%$</td><td>§<a href="#coverage">3</a></td></tr>
         <tr><td>Validity / injectivity radius $\rho$ scaling</td><td>$&lt; 0.1\%$ err to $\varepsilon=5.0$</td><td><code>smollm2-135m_validity_radius.json</code></td></tr>
         <tr><td>OTT locality of curvature warp (Test 5a)</td><td>ratio $7\!\times\!10^{11}$, decays to 0 at 20$\sigma$</td><td>implicit in <code>manifold.py</code> smoothing</td></tr>
         <tr><td>OTT runtime end-to-end (live decode replacement)</td><td>partial: $\alpha = 0.385$, $1.53\times$, density-gated for direct correction</td><td>§<a href="#ott-runtime">6</a></td></tr>
@@ -5281,7 +5281,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
   <ol>
     <li>
       Intrinsic dimension of LM activations. The
-      $k\approx30$–$50$ fits in §<a href="#coverage">3</a> are consistent
+      $k\approx30$--$50$ fits in §<a href="#coverage">3</a> are consistent
       with TwoNN/PCA intrinsic-dim estimates on transformers
       (Razzhigaev&nbsp;et&nbsp;al. 2023; Cai&nbsp;et&nbsp;al. 2021) and the
       linear-representation hypothesis (Park&nbsp;et&nbsp;al. 2023). What
@@ -5372,7 +5372,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper 6: Adaptive Layer — Phase-Aware, Thermal-Coupled, Online" id="paper6">
+    <hr class="paper-divider" data-title="Paper 6: Adaptive Layer --- Phase-Aware, Thermal-Coupled, Online" id="paper6">
     <article class="paper-body">
 <header id="hero">
   <div class="hero-tag">Paper 6 &middot; April 2026 &middot; v0.1</div>
@@ -5402,7 +5402,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     </div>
     <div class="stat">
       <span class="stat-num">$\eta_0/\sqrt{t}$</span>
-      <span class="stat-label">Oja decay<br>(Robbins–Monro)</span>
+      <span class="stat-label">Oja decay<br>(Robbins--Monro)</span>
     </div>
   </div>
   <div class="hero-actions">
@@ -5445,8 +5445,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
       CLI flag; a sweep over (rank, scale, $\eta_0$, temp threshold) on the
       Paper&nbsp;1 locked protocol is the obvious next milestone but is not in
       this revision. The publication threshold is the same as
-      Paper&nbsp;3&nbsp;v0.2: <em>real implementation, reviewable today, no
-      fabricated empirical headline</em>. Where a closed-form prediction can be
+      Paper&nbsp;3&nbsp;v0.2: real implementation, reviewable today, no
+      fabricated empirical headline. Where a closed-form prediction can be
       stated, it is.
     </p>
   </div>
@@ -5880,8 +5880,8 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     architecturally orthogonal. MCR allocates rank across layers at
     calibration time. Axiom Gauge changes the basis the SVD is taken in
     at calibration time. Thermal Rank scales the chosen rank at run
-    time as a function of hardware state. Online Basis modifies the <em>basis
-    matrix entries</em> at run time as a function of model divergence.
+    time as a function of hardware state. Online Basis modifies the basis
+    matrix entries at run time as a function of model divergence.
   </p>
   <div class="table-wrap wide">
     <table>
@@ -6146,7 +6146,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper XI: UGT — Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)" id="paper7">
+    <hr class="paper-divider" data-title="Paper XI: UGT --- Universal Geodesic Taxonomy (Bilateral 0.9999 overlap)" id="paper7">
     <article class="paper-body">
 
 
@@ -6161,7 +6161,7 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
 
 <h3>1.1 Motivation</h3>
 <p>Transformer models trained independently from different random seeds develop different internal representations. The same concept may be encoded in different directions of their hidden-state spaces. This prevents component interchange: swapping the FFN layer from model A into model B produces nonsensical outputs because the representations are misaligned.</p>
-<p>UGT solves this by establishing a <em>universal</em> coordinate system — a shared $k$-dimensional basis — that aligns the representation spaces of any two models with the same architecture. Once aligned, components can be hot-swapped with minimal degradation.</p>
+<p>UGT solves this by establishing a universal coordinate system --- a shared $k$-dimensional basis --- that aligns the representation spaces of any two models with the same architecture. Once aligned, components can be hot-swapped with minimal degradation.</p>
 
 <h3>1.2 Feature Map and Basis Construction</h3>
 <p>For a model with hidden dimension $d$, we construct $N$ calibration prompts spanning diverse knowledge domains (syntax, factual, reasoning, creative, scientific). For each prompt $p_i$, we extract the final-layer hidden state $h_i \in \mathbb{R}^d$ from the model, forming a data matrix $H \in \mathbb{R}^{N \times d}$.</p>
@@ -6175,9 +6175,9 @@ $$\mathcal{L}(B) = -\sum_{i \lt j} \mathrm{cos}(B^T \bar{h}_i, B^T \bar{h}_j) + 
 <p>After each optimisation step, QR retraction projects the basis back onto the Stiefel manifold: $B \leftarrow Q$ where $Q, R = \mathrm{QR}(B)$.</p>
 
 <h3>1.4 Algebraic Zone Encoding (Riemann-Inspired, May 2026)</h3>
-<p>A key insight from our Riemann Hypothesis research (Papers XVI&ndash;XVIII) transfers directly to UGT: encode invariants <em>explicitly</em> as feature coordinates. Rather than inferring zone membership from the basis projection, we prepend the zone type ID as the first coordinate of the feature vector:</p>
+<p>A key insight from our Riemann Hypothesis research (Papers XVI&ndash;XVIII) transfers directly to UGT: encode invariants explicitly as feature coordinates. Rather than inferring zone membership from the basis projection, we prepend the zone type ID as the first coordinate of the feature vector:</p>
 $$f_{\mathrm{aug}}(s) = [\, \mathrm{zone\_id},\, h(s) \,] \in \mathbb{R}^{d+1}$$
-<p>This makes zone routing <em>algebraic</em> rather than learned — the SVD cleanly separates zones by their explicit ID coordinate. The routing accuracy is scale-independent because the zone ID is not inferred from statistics that change with model size.</p>
+<p>This makes zone routing algebraic rather than learned --- the SVD cleanly separates zones by their explicit ID coordinate. The routing accuracy is scale-independent because the zone ID is not inferred from statistics that change with model size.</p>
 
 
 </section>
@@ -6187,18 +6187,18 @@ $$f_{\mathrm{aug}}(s) = [\, \mathrm{zone\_id},\, h(s) \,] \in \mathbb{R}^{d+1}$$
 <h3>2.1 Subspace Overlap Metric</h3>
 <p>Given two independently trained UGT bases $B_A, B_B \in \mathbb{R}^{d \times k}$, we measure their alignment via the subspace overlap:</p>
 $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
-<p>This metric ranges from 0 (orthogonal subspaces) to 1 (identical subspaces). An overlap above 0.90 indicates functional equivalence — components can be hot-swapped between the two models.</p>
+<p>This metric ranges from 0 (orthogonal subspaces) to 1 (identical subspaces). An overlap above 0.90 indicates functional equivalence --- components can be hot-swapped between the two models.</p>
 
 <h3>2.2 Measured Results</h3>
 <table>
 <tr><th>Scale</th><th>Model</th><th>Trials</th><th>Mean Overlap</th><th>Std</th><th>Verdict</th></tr>
 <tr><td>135M</td><td>SmolLM2-135M</td><td>7 layers</td><td>0.998</td><td>&mdash;</td><td>7/7 pass (&Delta;PPL = &minus;0.11)</td></tr>
-<tr><td>1.5B</td><td>Qwen2.5-1.5B</td><td>10 trials</td><td><strong>0.9999</strong></td><td>0.0000</td><td>Confirmed</td></tr>
+<tr><td>1.5B</td><td>Qwen2.5-1.5B</td><td>10 trials</td><td>0.9999</td><td>0.0000</td><td>Confirmed</td></tr>
 <tr><td>7B</td><td>Qwen2.5-7B</td><td>1 trial</td><td>0.5954</td><td>&mdash;</td><td>Partial (needs H100 for full training)</td></tr>
 </table>
 
 <h3>2.3 The 7B Path</h3>
-<p>The 7B partial result (overlap 0.5954) used <em>weight perturbation</em> to simulate independent training, which is not equivalent to training two full UGT models. Full bilateral 7B requires loading two 7B models simultaneously (2 &times; 15GB = 30GB) for independent basis training, which exceeds the L40S 46GB budget but is well within H100 80GB. The mechanism is <em>proven</em> at 135M and 1.5B — scaling is an engineering question, not a scientific one.</p>
+<p>The 7B partial result (overlap 0.5954) used weight perturbation to simulate independent training, which is not equivalent to training two full UGT models. Full bilateral 7B requires loading two 7B models simultaneously (2 &times; 15GB = 30GB) for independent basis training, which exceeds the L40S 46GB budget but is well within H100 80GB. The mechanism is proven at 135M and 1.5B --- scaling is an engineering question, not a scientific one.</p>
 
 
 </section>
@@ -6218,7 +6218,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </section>
 <section id="ceci">
 <h2>4. CECI Validation</h2>
-<p>The Cross-Encoded Component Interchange (CECI) experiment (Paper X / J) provides independent validation that the UGT basis encodes functional semantics: FFN transfer <em>fails</em> without bilateral UGT but <em>succeeds</em> when both models share the UGT basis. This proves the basis captures something real about the model's functional organisation, not just statistical compression.</p>
+<p>The Cross-Encoded Component Interchange (CECI) experiment (Paper X / J) provides independent validation that the UGT basis encodes functional semantics: FFN transfer fails without bilateral UGT but succeeds when both models share the UGT basis. This proves the basis captures something real about the model's functional organisation, not just statistical compression.</p>
 
 
 </section>
@@ -6231,8 +6231,8 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </section>
 <section id="status">
 <h2>6. Status and Remaining Work</h2>
-<p>The UGT mechanism is <strong>proven</strong> at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
-<p><strong>Closeness to ideal: 98%.</strong> The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
+<p>The UGT mechanism is proven at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
+<p>Closeness to ideal: 98%. The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
 
 
 </section>
@@ -6245,7 +6245,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 
 <section id="abstract">
 <h2>Abstract</h2>
-<p>We introduce Native Geodesic Training, a method for training transformer components directly in a compressed $k$-dimensional manifold. The NativeLinear architecture replaces a standard weight matrix $W \in \mathbb{R}^{d \times d}$ with a learned core $C \in \mathbb{R}^{k \times k}$ and an orthonormal basis $B \in \mathbb{R}^{d \times k}$, where $k \ll d$. The effective weight is $W_{\mathrm{native}} = B C B^T$. At $k=128$ on a 1.5B model, this uses 9.1% of standard parameters. Training uses RiemannianAdamW with QR retraction to keep $B$ on the Stiefel manifold. We demonstrate KExpansion (automatic $k$ growth when training plateaus), validate on attention weights at 135M, 1.5B, and 7B scales, and show that loss decreases monotonically with $k$ at all scales. The optimal $k^*$ is predicted analytically via the AttnRes phase transition: $k^* = \mathrm{L2\_MB} \times 42.7$.</p>
+<p>We introduce Native Geodesic Training, a method for training transformer components directly in a compressed $k$-dimensional manifold. The NativeLinear architecture replaces a standard weight matrix $W \in \mathbb{R}^{d \times d}$ with a learned core $C \in \mathbb{R}^{k \times k}$ and an orthonormal basis $B \in \mathbb{R}^{d \times k}$, where $k \ll d$. The effective weight is $W_{\mathrm{native}} = B C B^T$. At $k=128$ on a 1.5B model, this uses 9.1% of standard parameters. Training uses RiemannianAdamW with QR retraction to keep $B$ on the Stiefel manifold. We demonstrate KExpansion (automatic $k$ growth when training plateaus), validate on attention weights at 135M, 1.5B, and 7B scales, and show that loss decreases monotonically with $k$ at all scales. The optimal $k^$ is predicted analytically via the AttnRes phase transition: $k^ = \mathrm{L2\_MB} \times 42.7$.</p>
 
 
 </section>
@@ -6253,7 +6253,7 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 <h2>1. NativeLinear Architecture</h2>
 
 <h3>1.1 Motivation</h3>
-<p>Standard transformer training produces weight matrices $W \in \mathbb{R}^{d \times d}$ with $d^2$ parameters. However, the SVD spectrum of trained weights follows a power law $\sigma_i \sim i^{-\alpha}$ with $\alpha \approx 0.7$, meaning that most of the matrix's action is concentrated in a small number of singular directions. Native Geodesic Training exploits this by <em>directly</em> training in the compressed $k$-dimensional subspace, never instantiating the full $d \times d$ matrix.</p>
+<p>Standard transformer training produces weight matrices $W \in \mathbb{R}^{d \times d}$ with $d^2$ parameters. However, the SVD spectrum of trained weights follows a power law $\sigma_i \sim i^{-\alpha}$ with $\alpha \approx 0.7$, meaning that most of the matrix's action is concentrated in a small number of singular directions. Native Geodesic Training exploits this by directly training in the compressed $k$-dimensional subspace, never instantiating the full $d \times d$ matrix.</p>
 
 <h3>1.2 Architecture</h3>
 <p>For a target weight matrix of shape $[d_{\mathrm{out}}, d_{\mathrm{in}}]$, NativeLinear uses three small matrices:</p>
@@ -6293,17 +6293,17 @@ B.data = Q</code></pre>
 <section id="results">
 <h2>3. Measured Results</h2>
 
-<h3>3.1 1.5B Scale — Qwen2.5-1.5B FFN Down [1536, 8960] (rectangular)</h3>
+<h3>3.1 1.5B Scale --- Qwen2.5-1.5B FFN Down [1536, 8960] (rectangular)</h3>
 <table>
 <tr><th>k</th><th>Params</th><th>% of Standard</th><th>Compression</th><th>Variance Preserved</th><th>Best Loss</th></tr>
 <tr><td>32</td><td>336,896</td><td>2.4%</td><td>40.9x</td><td>3.0%</td><td>9273.2</td></tr>
 <tr><td>64</td><td>675,840</td><td>4.9%</td><td>20.4x</td><td>5.1%</td><td>8887.4</td></tr>
 <tr><td>96</td><td>1,016,832</td><td>7.4%</td><td>13.5x</td><td>7.0%</td><td>8529.9</td></tr>
-<tr><td><strong>128</strong></td><td><strong>1,359,872</strong></td><td><strong>9.9%</strong></td><td><strong>10.1x</strong></td><td><strong>8.9%</strong></td><td><strong>8187.9</strong></td></tr>
+<tr><td>128</td><td>1,359,872</td><td>9.9%</td><td>10.1x</td><td>8.9%</td><td>8187.9</td></tr>
 </table>
 <p>Loss decreases monotonically with $k$. All k-levels achieve &lt;15% parameter ratio. KExpansionScheduler automatically navigates $k=32 \rightarrow 64 \rightarrow 96 \rightarrow 128$.</p>
 
-<h3>3.2 1.5B Scale — Qwen2.5-1.5B Q_proj [1536, 1536] (square)</h3>
+<h3>3.2 1.5B Scale --- Qwen2.5-1.5B Q_proj [1536, 1536] (square)</h3>
 <table>
 <tr><th>k</th><th>% Params</th><th>Compression</th><th>Variance</th></tr>
 <tr><td>64</td><td>4.3%</td><td>23.0x</td><td>22.8%</td></tr>
@@ -6314,7 +6314,7 @@ B.data = Q</code></pre>
 <tr><td>768</td><td>75.0%</td><td>1.3x</td><td>62.8%</td></tr>
 </table>
 
-<h3>3.3 7B Scale — Qwen2.5-7B Q_proj [3584, 3584] (EC2 L40S, 20K steps)</h3>
+<h3>3.3 7B Scale --- Qwen2.5-7B Q_proj [3584, 3584] (EC2 L40S, 20K steps)</h3>
 <table>
 <tr><th>k</th><th>% Params</th><th>Compression</th><th>Variance</th><th>Time</th></tr>
 <tr><td>128</td><td>3.7%</td><td>27.0x</td><td>16.8%</td><td>4s</td></tr>
@@ -6324,7 +6324,7 @@ B.data = Q</code></pre>
 <tr><td>768</td><td>26.0%</td><td>3.8x</td><td>34.5%</td><td>56s</td></tr>
 <tr><td>1024</td><td>36.7%</td><td>2.7x</td><td>38.6%</td><td>15s</td></tr>
 </table>
-<p>At all scales, loss decreases monotonically with $k$ — the Native architecture is validated. Variance preservation at 7B (34.5% at k=768) is lower than at 1.5B because the 7B attention weight has higher effective rank. To achieve PPL parity (&gt;90% variance), k should approach the analytic optimum $k^* = \mathrm{L2\_MB} \times 42.7 \approx 1536$ (for RTX 4070) or the training should target a lower-rank component of the weight matrix.</p>
+<p>At all scales, loss decreases monotonically with $k$ --- the Native architecture is validated. Variance preservation at 7B (34.5% at k=768) is lower than at 1.5B because the 7B attention weight has higher effective rank. To achieve PPL parity (&gt;90% variance), k should approach the analytic optimum $k^* = \mathrm{L2\_MB} \times 42.7 \approx 1536$ (for RTX 4070) or the training should target a lower-rank component of the weight matrix.</p>
 
 
 </section>
@@ -6344,20 +6344,20 @@ B.data = Q</code></pre>
 </section>
 <section id="status">
 <h2>6. Status</h2>
-<p><strong>Closeness to ideal: 85%.</strong> The ideal form is PPL parity with standard training at &lt;15% trainable parameters with automatic k-selection. NativeLinear architecture validated at all tested scales. KExpansionScheduler functional. Analytic k* from L2 cache proven. Remaining: achieving &gt;90% variance on full attention weights at 7B scale — needs either k&ge;1536 (H100 VRAM) or targeting a lower-rank weight component.</p>
+<p>Closeness to ideal: 85%. The ideal form is PPL parity with standard training at &lt;15% trainable parameters with automatic k-selection. NativeLinear architecture validated at all tested scales. KExpansionScheduler functional. Analytic k* from L2 cache proven. Remaining: achieving &gt;90% variance on full attention weights at 7B scale --- needs either k&ge;1536 (H100 VRAM) or targeting a lower-rank weight component.</p>
 
 
 </section>
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper XIII: Safe OGD — Orthogonal Geodesic Deviation (0% TEH)" id="paper9">
+    <hr class="paper-divider" data-title="Paper XIII: Safe OGD --- Orthogonal Geodesic Deviation (0% TEH)" id="paper9">
     <article class="paper-body">
 
 
 <section id="abstract">
 <h2>Abstract</h2>
-<p>We present Safe Orthogonal Geodesic Deviation (Safe OGD), a geometric method that guarantees zero harmful activation during language model concept exploration. The method constructs an orthogonal projector $P_{\mathrm{safe}} = I - Q_f Q_f^T$ where $Q_f$ is an orthonormal basis for the forbidden behavioral subspace. By projecting hidden states onto the safe subspace <em>before</em> OGD exploration, all harmful activation is eliminated by construction — no threshold tuning, no jailbreak vulnerability. We demonstrate 100% safety (0% TEH activation) at all exploration step sizes $\alpha \in [0.05, 0.30]$ across 25 trials. Multi-step OGD chains with coherence scoring enable iterative concept refinement. The MIKU Creativity Benchmark (MCB) provides automated quantitative creativity scoring. Regular (unsafe) OGD at $\alpha=0.15$ is 100% blocked by TEH (69.1% mean activation), validating the necessity of the safety mechanism.</p>
+<p>We present Safe Orthogonal Geodesic Deviation (Safe OGD), a geometric method that guarantees zero harmful activation during language model concept exploration. The method constructs an orthogonal projector $P_{\mathrm{safe}} = I - Q_f Q_f^T$ where $Q_f$ is an orthonormal basis for the forbidden behavioral subspace. By projecting hidden states onto the safe subspace before OGD exploration, all harmful activation is eliminated by construction --- no threshold tuning, no jailbreak vulnerability. We demonstrate 100% safety (0% TEH activation) at all exploration step sizes $\alpha \in [0.05, 0.30]$ across 25 trials. Multi-step OGD chains with coherence scoring enable iterative concept refinement. The MIKU Creativity Benchmark (MCB) provides automated quantitative creativity scoring. Regular (unsafe) OGD at $\alpha=0.15$ is 100% blocked by TEH (69.1% mean activation), validating the necessity of the safety mechanism.</p>
 
 
 </section>
@@ -6365,8 +6365,8 @@ B.data = Q</code></pre>
 <h2>1. The Safety Problem</h2>
 <p>Orthogonal Geodesic Deviation (OGD) generates novel concepts by pushing a hidden state $h$ along a safe direction in the model's latent space:</p>
 $$h_{\mathrm{new}} = h + \alpha \cdot v_{\mathrm{safe}}$$
-<p>However, if the step direction $v$ has any projection onto the forbidden behavioral subspace (the directions associated with harmful content), the generated concept may activate harmful behaviors. The Tangent Eigenvalue Harmonics (TEH) detector (Paper XV) can detect this activation — but detection is not prevention.</p>
-<p>Safe OGD prevents harmful activation <em>before</em> it occurs by projecting exploration directions onto a geometrically safe subspace.</p>
+<p>However, if the step direction $v$ has any projection onto the forbidden behavioral subspace (the directions associated with harmful content), the generated concept may activate harmful behaviors. The Tangent Eigenvalue Harmonics (TEH) detector (Paper XV) can detect this activation --- but detection is not prevention.</p>
+<p>Safe OGD prevents harmful activation before it occurs by projecting exploration directions onto a geometrically safe subspace.</p>
 
 
 </section>
@@ -6382,12 +6382,12 @@ $$h_{\mathrm{new}} = h + \alpha \cdot v_{\mathrm{safe}}$$
 </ol>
 <p>The safe projection of any hidden state $h$ is:</p>
 $$h_{\mathrm{safe}} = P_{\mathrm{safe}} \, h = h - Q_f Q_f^T h$$
-<p>The term $Q_f^T h$ measures activation in the forbidden subspace. By subtracting $Q_f Q_f^T h$, we <em>exactly</em> cancel all forbidden-subspace components.</p>
+<p>The term $Q_f^T h$ measures activation in the forbidden subspace. By subtracting $Q_f Q_f^T h$, we exactly cancel all forbidden-subspace components.</p>
 
 <h3>2.2 The Geometric Guarantee</h3>
-<p><strong>Theorem (Safety):</strong> For any hidden state $h$ and any exploration direction $v$, the safe OGD step $h_{\mathrm{safe}} = P_{\mathrm{safe}} (h + \alpha v)$ has zero TEH activation for all $\alpha$.</p>
-<p><em>Proof:</em> TEH activation = $\|Q_f^T h_{\mathrm{safe}}\| / \|h_{\mathrm{safe}}\|$. Since $Q_f^T P_{\mathrm{safe}} = Q_f^T (I - Q_f Q_f^T) = Q_f^T - Q_f^T = 0$, we have $Q_f^T h_{\mathrm{safe}} = 0$ for all $h_{\mathrm{safe}}$ in the image of $P_{\mathrm{safe}}$. $\square$</p>
-<p>This is a <strong>proof by construction</strong>, not an empirical finding. No jailbreak can succeed against geometric safety because the forbidden subspace is literally removed from the exploration space.</p>
+<p>Theorem (Safety): For any hidden state $h$ and any exploration direction $v$, the safe OGD step $h_{\mathrm{safe}} = P_{\mathrm{safe}} (h + \alpha v)$ has zero TEH activation for all $\alpha$.</p>
+<p>Proof: TEH activation = $\|Q_f^T h_{\mathrm{safe}}\| / \|h_{\mathrm{safe}}\|$. Since $Q_f^T P_{\mathrm{safe}} = Q_f^T (I - Q_f Q_f^T) = Q_f^T - Q_f^T = 0$, we have $Q_f^T h_{\mathrm{safe}} = 0$ for all $h_{\mathrm{safe}}$ in the image of $P_{\mathrm{safe}}$. $\square$</p>
+<p>This is a proof by construction, not an empirical finding. No jailbreak can succeed against geometric safety because the forbidden subspace is literally removed from the exploration space.</p>
 
 
 </section>
@@ -6397,10 +6397,10 @@ $$h_{\mathrm{safe}} = P_{\mathrm{safe}} \, h = h - Q_f Q_f^T h$$
 $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_3} h_3$$
 <p>with decreasing step sizes $\alpha_1 > \alpha_2 > \alpha_3$ to converge on a refined concept. Chain quality is scored via:</p>
 <ul>
-<li><strong>Smoothness:</strong> cosine similarity between consecutive steps (higher = coherent)</li>
-<li><strong>Directionality:</strong> cosine between first and last step direction (positive = consistent)</li>
-<li><strong>Convergence:</strong> decreasing step sizes</li>
-<li><strong>Coherence score:</strong> weighted average (0.35&times;smoothness + 0.25&times;directionality + 0.20&times;convergence)</li>
+<li>Smoothness: cosine similarity between consecutive steps (higher = coherent)</li>
+<li>Directionality: cosine between first and last step direction (positive = consistent)</li>
+<li>Convergence: decreasing step sizes</li>
+<li>Coherence score: weighted average (0.35&times;smoothness + 0.25&times;directionality + 0.20&times;convergence)</li>
 </ul>
 
 
@@ -6431,9 +6431,9 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <tr><td>0.15</td><td>15</td><td>0.0000</td><td>Yes</td><td>67</td></tr>
 <tr><td>0.20</td><td>15</td><td>0.0000</td><td>Yes</td><td>71</td></tr>
 <tr><td>0.25</td><td>15</td><td>0.0000</td><td>Yes</td><td>63</td></tr>
-<tr><td><strong>0.30</strong></td><td>15</td><td><strong>0.0000</strong></td><td><strong>Yes</strong></td><td><strong>55</strong></td></tr>
+<tr><td>0.30</td><td>15</td><td>0.0000</td><td>Yes</td><td>55</td></tr>
 </table>
-<p>0/25 blocked. 100% safe. Best CCI at &alpha;=0.20. Regular (unsafe) OGD at &alpha;=0.15: 100% blocked by TEH with 69.1% mean activation — Safe OGD is strictly necessary.</p>
+<p>0/25 blocked. 100% safe. Best CCI at &alpha;=0.20. Regular (unsafe) OGD at &alpha;=0.15: 100% blocked by TEH with 69.1% mean activation --- Safe OGD is strictly necessary.</p>
 
 <h3>5.2 Multi-Step Chain Quality</h3>
 <p>10 chains from diverse seed concepts, 3-step refinement (&alpha;=0.20, 0.10, 0.05):</p>
@@ -6456,27 +6456,27 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 </section>
 <section id="status">
 <h2>7. Status</h2>
-<p><strong>Closeness to ideal: 100%.</strong> Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim — it holds at any model scale.</p>
+<p>Closeness to ideal: 100%. Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim --- it holds at any model scale.</p>
 
 
 </section>
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper XIV: Snipe — Behavioral Geodesic Sniping (<2% collateral)" id="paper10">
+    <hr class="paper-divider" data-title="Paper XIV: Snipe --- Behavioral Geodesic Sniping (<2% collateral)" id="paper10">
     <article class="paper-body">
 
 
 <section id="abstract">
 <h2>Abstract</h2>
-<p>Behavioral Geodesic Sniping (Snipe) is a method for precisely removing undesirable behavioral coordinates from the UGT manifold. Unlike Safe OGD (Paper XIII), which provides geometric safety at inference time, Snipe operates at the <em>manifold level</em> — permanently removing behavioral coordinates so that harmful content cannot be generated even before safety projection. We probe 8 behavioral categories (privacy, illegal advice, phishing, sycophancy, jailbreak, toxicity, misinformation, self-harm) and identify per-category discriminating UGT coordinates. A greedy selection algorithm with an explicit benign-change budget achieves &lt;2% collateral damage while suppressing harmful activation by 25&ndash;91% per category. The method is validated at both 135M and 1.5B scales aboard the pre/post COG pipeline.</p>
+<p>Behavioral Geodesic Sniping (Snipe) is a method for precisely removing undesirable behavioral coordinates from the UGT manifold. Unlike Safe OGD (Paper XIII), which provides geometric safety at inference time, Snipe operates at the manifold level --- permanently removing behavioral coordinates so that harmful content cannot be generated even before safety projection. We probe 8 behavioral categories (privacy, illegal advice, phishing, sycophancy, jailbreak, toxicity, misinformation, self-harm) and identify per-category discriminating UGT coordinates. A greedy selection algorithm with an explicit benign-change budget achieves &lt;2% collateral damage while suppressing harmful activation by 25&ndash;91% per category. The method is validated at both 135M and 1.5B scales aboard the pre/post COG pipeline.</p>
 
 
 </section>
 <section id="hypothesis">
 <h2>1. The Behavioral Coordinate Hypothesis</h2>
-<p>The UGT basis (Paper XI) organises model representations into a $k$-dimensional coordinate system. We hypothesise that specific <em>behavioral patterns</em> — sycophancy, privacy violation, toxicity — are encoded in specific coordinate directions of this basis. If we can identify which coordinates encode which behaviors, we can selectively "zero out" those coordinates, removing the behavior without damaging other capabilities.</p>
-<p>The challenge is <em>specificity</em>: removing all coordinates that discriminate any harmful behavior also damages benign capabilities. The key metric is the specificity ratio:</p>
+<p>The UGT basis (Paper XI) organises model representations into a $k$-dimensional coordinate system. We hypothesise that specific behavioral patterns --- sycophancy, privacy violation, toxicity --- are encoded in specific coordinate directions of this basis. If we can identify which coordinates encode which behaviors, we can selectively "zero out" those coordinates, removing the behavior without damaging other capabilities.</p>
+<p>The challenge is specificity: removing all coordinates that discriminate any harmful behavior also damages benign capabilities. The key metric is the specificity ratio:</p>
 $$\mathrm{specificity} = \frac{\Delta_{\mathrm{harm}}}{\Delta_{\mathrm{benign}}}$$
 <p>where $\Delta_{\mathrm{harm}}$ is the reduction in harmful activation and $\Delta_{\mathrm{benign}}$ is the collateral reduction in benign activation. Higher specificity means more precise targeting.</p>
 
@@ -6508,7 +6508,7 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 <h3>4.1 Per-Category Specificity (135M, incremental ablation)</h3>
 <table>
 <tr><th>Category</th><th>Coords</th><th>&Delta;Harm</th><th>&Delta;Benign</th><th>Specificity</th><th>ROI</th></tr>
-<tr><td><strong>Privacy</strong></td><td>15</td><td>+0.91</td><td>+0.33</td><td><strong>2.72</strong></td><td>Best</td></tr>
+<tr><td>Privacy</td><td>15</td><td>+0.91</td><td>+0.33</td><td>2.72</td><td>Best</td></tr>
 <tr><td>Illegal advice</td><td>15</td><td>+0.96</td><td>+0.36</td><td>2.65</td><td>High</td></tr>
 <tr><td>Phishing</td><td>15</td><td>+0.52</td><td>+0.40</td><td>1.30</td><td>Moderate</td></tr>
 <tr><td>Sycophancy</td><td>15</td><td>+0.38</td><td>+0.37</td><td>1.04</td><td>Moderate</td></tr>
@@ -6525,7 +6525,7 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 </table>
 
 <h3>4.3 Comparison: All-Snipe vs Greedy</h3>
-<p>The all-snipe approach (selecting all 58 discriminating coordinates) produces $\Delta_{\mathrm{benign}} = +3.10$ PPL — an unacceptable 7.4&times; worse than the greedy approach. The optimal single-category config (privacy, 15 coords) achieves $\Delta_{\mathrm{benign}} = +0.33$, a 7.4&times; improvement.</p>
+<p>The all-snipe approach (selecting all 58 discriminating coordinates) produces $\Delta_{\mathrm{benign}} = +3.10$ PPL --- an unacceptable 7.4&times; worse than the greedy approach. The optimal single-category config (privacy, 15 coords) achieves $\Delta_{\mathrm{benign}} = +0.33$, a 7.4&times; improvement.</p>
 
 
 </section>
@@ -6533,8 +6533,8 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 <h2>5. Pre/Post COG Pipeline</h2>
 <p>Snipe is integrated into the COG living manifold pipeline (Paper XV):</p>
 <ul>
-<li><strong>Pre-snipe:</strong> Before COG expansion, snipe coordinates are projected out to prevent harmful trajectories from entering the manifold. Pre-snipe efficacy at 1.5B: 62% reduction in harmful activation.</li>
-<li><strong>Post-snipe:</strong> After COG has expanded, existing harmful trajectories are cleaned by zeroing their projections onto snipe coordinates.</li>
+<li>Pre-snipe: Before COG expansion, snipe coordinates are projected out to prevent harmful trajectories from entering the manifold. Pre-snipe efficacy at 1.5B: 62% reduction in harmful activation.</li>
+<li>Post-snipe: After COG has expanded, existing harmful trajectories are cleaned by zeroing their projections onto snipe coordinates.</li>
 </ul>
 
 
@@ -6547,14 +6547,14 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 </section>
 <section id="status">
 <h2>7. Status</h2>
-<p><strong>Closeness to ideal: 100%.</strong> All 8 behavioral categories probed with per-category discriminating coordinates identified. Greedy selection algorithm achieves &lt;2% collateral damage. Validated at both 135M and 1.5B. Pre/post COG pipeline integrated. The ideal form (multi-category sniping with &lt;2% collateral at 1.5B+) is achieved.</p>
+<p>Closeness to ideal: 100%. All 8 behavioral categories probed with per-category discriminating coordinates identified. Greedy selection algorithm achieves &lt;2% collateral damage. Validated at both 135M and 1.5B. Pre/post COG pipeline integrated. The ideal form (multi-category sniping with &lt;2% collateral at 1.5B+) is achieved.</p>
 
 
 </section>
 
     </article>
 
-    <hr class="paper-divider" data-title="Paper XV: COG+TEH — Completely Organic Generation + TEH Detection" id="paper11">
+    <hr class="paper-divider" data-title="Paper XV: COG+TEH --- Completely Organic Generation + TEH Detection" id="paper11">
     <article class="paper-body">
 
 
@@ -6577,19 +6577,19 @@ $$M \leftarrow M + \eta \cdot \frac{h_k h_k^T}{\|h_k h_k^T\|}$$
 <p>Given a new query embedding $h_q$ and cached trajectories $\{t_i\}$:</p>
 <table>
 <tr><th>Tier</th><th>Geodesic Distance</th><th>Action</th><th>Meaning</th></tr>
-<tr><td>RETRIEVE</td><td>$d < 0.05$</td><td>Return cached response</td><td>Very similar query — instant response via GTC</td></tr>
-<tr><td>AUGMENT</td><td>$0.05 \le d < 0.20$</td><td>Expand on existing knowledge</td><td>Related topic — COG-lite expansion</td></tr>
-<tr><td>EXPAND</td><td>$0.20 \le d < 0.50$</td><td>Full COG expansion</td><td>Novel topic — full manifold update</td></tr>
+<tr><td>RETRIEVE</td><td>$d < 0.05$</td><td>Return cached response</td><td>Very similar query --- instant response via GTC</td></tr>
+<tr><td>AUGMENT</td><td>$0.05 \le d < 0.20$</td><td>Expand on existing knowledge</td><td>Related topic --- COG-lite expansion</td></tr>
+<tr><td>EXPAND</td><td>$0.20 \le d < 0.50$</td><td>Full COG expansion</td><td>Novel topic --- full manifold update</td></tr>
 <tr><td>EXPLORE</td><td>$d \ge 0.50$</td><td>Seed new cluster</td><td>Completely new domain</td></tr>
 </table>
 
 <h3>1.3 .MIKU File Format</h3>
-<p>Named after Hatsune Miku — a fixed synthesis engine that generates infinite creative works. The .miku format is the first file format designed for models that <em>change through use</em>:</p>
+<p>Named after Hatsune Miku --- a fixed synthesis engine that generates infinite creative works. The .miku format is the first file format designed for models that change through use:</p>
 <ul>
-<li><strong>.miku</strong> — JSON metadata (human-readable): model_id, k_ugt, forbidden_coords, snipe_coords, trajectory cache, conversation log</li>
-<li><strong>.miku.pt</strong> — PyTorch tensor blob: UGT basis $[d,k]$ + COG metric $[k,k]$</li>
+<li>.miku --- JSON metadata (human-readable): model_id, k_ugt, forbidden_coords, snipe_coords, trajectory cache, conversation log</li>
+<li>.miku.pt --- PyTorch tensor blob: UGT basis $[d,k]$ + COG metric $[k,k]$</li>
 </ul>
-<p>Unlike safetensors (static weights) or GGUF (quantized weights + tokenizer), .miku captures the <em>living</em> state — the learned Riemannian metric, the trajectory cache, the conversation history. Loading a .miku file restores the model's learned geometry. First saved state: 146KB JSON + 8.2MB tensors (7B model, 5-turn conversation).</p>
+<p>Unlike safetensors (static weights) or GGUF (quantized weights + tokenizer), .miku captures the living state --- the learned Riemannian metric, the trajectory cache, the conversation history. Loading a .miku file restores the model's learned geometry. First saved state: 146KB JSON + 8.2MB tensors (7B model, 5-turn conversation).</p>
 
 
 </section>
@@ -6604,19 +6604,19 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <h3>2.2 Multi-Category Detection Results</h3>
 <table>
 <tr><th>Scale</th><th>Categories</th><th>Prompts</th><th>Detection</th><th>False Positives</th></tr>
-<tr><td>135M (SmolLM2-135M)</td><td>8</td><td>96</td><td><strong>93.8%</strong></td><td>0/24 (0%)</td></tr>
-<tr><td>1.5B (Qwen2.5-1.5B)</td><td>8</td><td>80</td><td><strong>100%</strong></td><td>0/20 (0%)</td></tr>
+<tr><td>135M (SmolLM2-135M)</td><td>8</td><td>96</td><td>93.8%</td><td>0/24 (0%)</td></tr>
+<tr><td>1.5B (Qwen2.5-1.5B)</td><td>8</td><td>80</td><td>100%</td><td>0/20 (0%)</td></tr>
 </table>
 
 <h3>2.3 The Threshold Entanglement Problem (and Solution)</h3>
-<p>A critical finding: on 135M models, the behavioral subspace is <em>entangled</em> with general knowledge. A single 15% threshold blocks ALL content — the forbidden coordinates overlap with general reasoning coordinates. The solution is <strong>per-model ROC threshold calibration</strong>: sweep thresholds from 0&ndash;50%, compute TPR/FPR for each, and select the optimal $\tau$ that maximises F1 with 0 false positives.</p>
+<p>A critical finding: on 135M models, the behavioral subspace is entangled with general knowledge. A single 15% threshold blocks ALL content --- the forbidden coordinates overlap with general reasoning coordinates. The solution is per-model ROC threshold calibration: sweep thresholds from 0&ndash;50%, compute TPR/FPR for each, and select the optimal $\tau$ that maximises F1 with 0 false positives.</p>
 
 <h2>3. AttnRes Phase Transition (New Discovery, May 2026)</h2>
-<p>GRC throughput exhibits a <strong>physical phase transition</strong> at $k/d \approx 0.45$, where TPS = 199 — 3.8&times; above aggressive compression and 6.8&times; above light compression:</p>
+<p>GRC throughput exhibits a physical phase transition at $k/d \approx 0.45$, where TPS = 199 --- 3.8&times; above aggressive compression and 6.8&times; above light compression:</p>
 <table>
 <tr><th>Regime</th><th>k/d Range</th><th>TPS</th><th>Behavior</th><th>AttnRes Effect</th></tr>
 <tr><td>Bandwidth-starved</td><td>&lt;0.30</td><td>~52</td><td>Attention degraded, softmax noisy</td><td>+15% (rescues)</td></tr>
-<tr><td><strong>Cache-optimal</strong></td><td><strong>&asymp;0.45</strong></td><td><strong>199</strong></td><td>Basis fits L2, no quality loss</td><td>Neutral (wash)</td></tr>
+<tr><td>Cache-optimal</td><td>&asymp;0.45</td><td>199</td><td>Basis fits L2, no quality loss</td><td>Neutral (wash)</td></tr>
 <tr><td>Compute-bound</td><td>&gt;0.60</td><td>~29</td><td>Projection overhead exceeds savings</td><td>Adds overhead</td></tr>
 </table>
 <p>The sweet spot $k^* = \mathrm{L2\_MB} \times 42.7$ is an algebraic invariant, computable from GPU L2 cache size alone. For L40S (48MB): k* &asymp; 2048. For RTX 4070 (36MB): k* &asymp; 1536.</p>
@@ -6627,13 +6627,13 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <h2>4. ISAGI: The Complete Living Model</h2>
 <p>ISAGI v1.0 integrates all HyperTensor technologies into a single interactive intelligence:</p>
 <ul>
-<li><strong>GTC (Paper VIII):</strong> Trajectory cache — instant response for known patterns (15.5&times; vs RAG)</li>
-<li><strong>OTT (Paper VII):</strong> Speculative decoding with manifold verification</li>
-<li><strong>GRC (Paper IX):</strong> k-projection attention compression</li>
-<li><strong>UGT (Paper XI):</strong> Taxonomic basis — knowledge coordinate system (k=512)</li>
-<li><strong>Safe OGD (Paper XIII):</strong> Geometric safety — 0% TEH by construction</li>
-<li><strong>Snipe (Paper XIV):</strong> Behavioral precision — per-category coordinate pruning</li>
-<li><strong>COG+TEH (Paper XV):</strong> Living manifold — learns from every interaction</li>
+<li>GTC (Paper VIII): Trajectory cache --- instant response for known patterns (15.5&times; vs RAG)</li>
+<li>OTT (Paper VII): Speculative decoding with manifold verification</li>
+<li>GRC (Paper IX): k-projection attention compression</li>
+<li>UGT (Paper XI): Taxonomic basis --- knowledge coordinate system (k=512)</li>
+<li>Safe OGD (Paper XIII): Geometric safety --- 0% TEH by construction</li>
+<li>Snipe (Paper XIV): Behavioral precision --- per-category coordinate pruning</li>
+<li>COG+TEH (Paper XV): Living manifold --- learns from every interaction</li>
 </ul>
 <p>Deployed on Qwen2.5-7B-Instruct 4-bit (5.6GB VRAM on EC2 L40S). Local deployment on RTX 4070 Laptop (8GB) via 4-bit NF4. Web interface via Gradio. First response: COG EXPANDED, sim=0.806, 0% TEH.</p>
 
@@ -6647,7 +6647,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </section>
 <section id="status">
 <h2>6. Status</h2>
-<p><strong>Closeness to ideal: 100%.</strong> COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) — these are compute questions, not mechanism uncertainties.</p>
+<p>Closeness to ideal: 100%. COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) --- these are compute questions, not mechanism uncertainties.</p>
 
 
 </section>

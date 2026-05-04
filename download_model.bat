@@ -1,5 +1,5 @@
 @echo off
-REM ── Download Qwen2.5-7B-Instruct for local use ──
+REM -- Download Qwen2.5-7B-Instruct for local use --
 REM Set HF_TOKEN environment variable for faster downloads
 REM huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir .cache\huggingface\hub\models--Qwen--Qwen2.5-7B-Instruct
 

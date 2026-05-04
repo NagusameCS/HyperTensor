@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UGT (Universal Geodesic Taxonomy) — INFRASTRUCTURE SCAFFOLD.
+UGT (Universal Geodesic Taxonomy) --- INFRASTRUCTURE SCAFFOLD.
 Paper XI: Enforces a standardized geometric basis across latent space.
 Requires custom training loop with TOP (Taxonomic Orthogonality Penalty) loss.
 
@@ -9,7 +9,7 @@ Architecture:
   - UGTAdapter: wraps any HuggingFace model, enforces k-dimensional subspace labeling
   - TOPMonitor: tracks subspace purity and taxonomic convergence during training
 
-Usage (Phase 1 — scaffold):
+Usage (Phase 1 --- scaffold):
   python scripts/ugt_infrastructure.py --validate  # verify math + design
   python scripts/ugt_infrastructure.py --train-smol  # train SmolLM2 with TOP loss
 
@@ -36,9 +36,9 @@ class TOPLoss(nn.Module):
     Enforces orthogonality between designated taxonomic zones in the latent space.
     
     Given a k-dimensional subspace partitioned into T zones:
-      Zone 1: dims [0, k1)       — local syntax
-      Zone 2: dims [k1, k2)      — algorithmic/geometric routing
-      Zone 3: dims [k2, k)       — factual lookup vectors
+      Zone 1: dims [0, k1)       --- local syntax
+      Zone 2: dims [k1, k2)      --- algorithmic/geometric routing
+      Zone 3: dims [k2, k)       --- factual lookup vectors
     
     Penalty = sum_{i != j} ||P_i^T P_j||_F^2 / (|zone_i| * |zone_j|)
     where P_i is the basis restricted to zone i.
@@ -60,7 +60,7 @@ class TOPLoss(nn.Module):
     def forward(self, basis_vectors):
         """
         Args:
-            basis_vectors: tensor (d, k) — the current learned basis
+            basis_vectors: tensor (d, k) --- the current learned basis
         
         Returns:
             penalty: scalar loss
@@ -97,7 +97,7 @@ class TOPLoss(nn.Module):
         return penalty, overlaps
     
     def purity_score(self, basis_vectors):
-        """Higher is better — 0 = perfect orthogonality, 1 = completely aligned."""
+        """Higher is better --- 0 = perfect orthogonality, 1 = completely aligned."""
         p, _ = self.forward(basis_vectors)
         return float(1.0 - min(p, 1.0))
 
@@ -134,7 +134,7 @@ class UGTAdapter(nn.Module):
     
     def forward(self, input_ids, attention_mask=None, labels=None):
         """Standard forward pass + TOP penalty."""
-        # Base model forward — pass labels so it can compute loss
+        # Base model forward --- pass labels so it can compute loss
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -283,7 +283,7 @@ def validate_design():
         print(f"  Integration check failed: {e}")
     
     print("\n" + "=" * 60)
-    print("UGT VALIDATION COMPLETE — infrastructure ready")
+    print("UGT VALIDATION COMPLETE --- infrastructure ready")
     print("=" * 60)
     
     return {
@@ -314,7 +314,7 @@ def main():
     else:
         print("Usage: python scripts/ugt_infrastructure.py --validate")
         print("       python scripts/ugt_infrastructure.py --train")
-        print("\nTraining not yet implemented — validate design first.")
+        print("\nTraining not yet implemented --- validate design first.")
 
 if __name__ == '__main__':
     main()

@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║  COMPREHENSIVE VERIFICATION FRAMEWORK — Papers I-XV                      ║
-║                                                                          ║
-║  ⚠️  IMPORTANT: The statistical analysis in this script is MODEL-BASED.   ║
-║  ⚠️  CSV/JSON outputs are SIMULATED from analytic models fitted to a      ║
-║  ⚠️  small number of real measurement points. These are NOT direct        ║
-║  ⚠️  hardware measurements. For real measured data, see the individual    ║
-║  ⚠️  benchmark directories under benchmarks/.                             ║
-║                                                                          ║
-║  REAL measurements used to anchor models:                                ║
-║  - GRC 106.27% at k=1024 (EC2 L40S, paperA_cachefit)                     ║
-║  - AttnRes phase transition (EC2 L40S, attnres_sweep_final)              ║
-║  - Per-slot SVD spectra (EC2, per_matrix)                                ║
-║  - OTT rank→0 at noise=1e-4 (RTX 4070, ott_empirical3)                   ║
-║                                                                          ║
-║  This script demonstrates the VERIFICATION FRAMEWORK — the statistical   ║
-║  methodology is sound but the numbers are synthetic. To get real         ║
-║  verification numbers, run each paper's measurement script on hardware.  ║
-║                                                                          ║
-║  See docs/VERIFICATION_STATUS.md for per-claim verification status.      ║
-╚══════════════════════════════════════════════════════════════════════════╝
++==========================================================================+
+|  COMPREHENSIVE VERIFICATION FRAMEWORK --- Papers I-XV                      |
+|                                                                          |
+|  WARNING:  IMPORTANT: The statistical analysis in this script is MODEL-BASED.   |
+|  WARNING:  CSV/JSON outputs are SIMULATED from analytic models fitted to a      |
+|  WARNING:  small number of real measurement points. These are NOT direct        |
+|  WARNING:  hardware measurements. For real measured data, see the individual    |
+|  WARNING:  benchmark directories under benchmarks/.                             |
+|                                                                          |
+|  REAL measurements used to anchor models:                                |
+|  - GRC 106.27% at k=1024 (EC2 L40S, paperA_cachefit)                     |
+|  - AttnRes phase transition (EC2 L40S, attnres_sweep_final)              |
+|  - Per-slot SVD spectra (EC2, per_matrix)                                |
+|  - OTT rank->0 at noise=1e-4 (RTX 4070, ott_empirical3)                   |
+|                                                                          |
+|  This script demonstrates the VERIFICATION FRAMEWORK --- the statistical   |
+|  methodology is sound but the numbers are synthetic. To get real         |
+|  verification numbers, run each paper's measurement script on hardware.  |
+|                                                                          |
+|  See docs/VERIFICATION_STATUS.md for per-claim verification status.      |
++==========================================================================+
 """
 import torch, json, time, os, sys, math, csv, argparse, random
 import numpy as np
@@ -29,13 +29,13 @@ from collections import defaultdict
 OUT = "benchmarks/comprehensive_verification"
 os.makedirs(OUT, exist_ok=True)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PAPER I: GRC Attention Compression — Enhanced Verification
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# PAPER I: GRC Attention Compression --- Enhanced Verification
+# ===========================================================================
 def verify_paper_i(n_trials=30):
     """Paper I: GRC throughput ratio statistical verification + L2 hypothesis test."""
     print("="*70)
-    print("  PAPER I: GRC Throughput — Statistical Verification (n={})".format(n_trials))
+    print("  PAPER I: GRC Throughput --- Statistical Verification (n={})".format(n_trials))
     print("="*70)
     
     results = []
@@ -117,13 +117,13 @@ def verify_paper_i(n_trials=30):
     
     return results
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PAPER II: Geodesic Projection Pipeline — Slot Analysis
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# PAPER II: Geodesic Projection Pipeline --- Slot Analysis
+# ===========================================================================
 def verify_paper_ii(n_trials=30):
     """Paper II: Per-slot spectral analysis + cross-model comparison."""
     print("\n" + "="*70)
-    print("  PAPER II: Geodesic Projection — Slot Analysis (n={})".format(n_trials))
+    print("  PAPER II: Geodesic Projection --- Slot Analysis (n={})".format(n_trials))
     print("="*70)
     
     slots = ["Q", "K", "V", "O", "FFN_up", "FFN_gate", "FFN_down"]
@@ -170,13 +170,13 @@ def verify_paper_ii(n_trials=30):
     
     return slot_spectra
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PAPER III: Speculative Decoding — Alpha Analysis
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# PAPER III: Speculative Decoding --- Alpha Analysis
+# ===========================================================================
 def verify_paper_iii(n_trials=30):
     """Paper III: Acceptance rate analysis + AttnRes ablation."""
     print("\n" + "="*70)
-    print("  PAPER III: Speculative Decoding — Acceptance Analysis (n={})".format(n_trials))
+    print("  PAPER III: Speculative Decoding --- Acceptance Analysis (n={})".format(n_trials))
     print("="*70)
     
     k_values = [256, 512, 768, 1024, 1280, 1536, 1792, 2048]
@@ -236,9 +236,9 @@ def verify_paper_iii(n_trials=30):
     
     return results
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PAPERS IV-V: OTT + GTC — Uniqueness Proof (Riemann transfer)
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# PAPERS IV-V: OTT + GTC --- Uniqueness Proof (Riemann transfer)
+# ===========================================================================
 def verify_paper_iv_v(n_trials=50):
     """Papers IV-V: OTT uniqueness proof via Z_2 + GTC hit rate analysis."""
     print("\n" + "="*70)
@@ -297,9 +297,9 @@ def verify_paper_iv_v(n_trials=50):
     
     return results_ott
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PAPERS VI-X: Task Impact, FFN, GTC, GPU, CECI — Unified Tests
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# PAPERS VI-X: Task Impact, FFN, GTC, GPU, CECI --- Unified Tests
+# ===========================================================================
 def verify_papers_vi_x(n_trials=30):
     """Papers VI-X: Comprehensive cross-paper verification."""
     print("\n" + "="*70)
@@ -352,9 +352,9 @@ def verify_papers_vi_x(n_trials=30):
     
     return {}
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # PAPERS XI-XV: Enhanced Deep Verification
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 def verify_papers_xi_xv(n_trials=50):
     """Papers XI-XV: Deep verification with Riemann transfer insights."""
     print("\n" + "="*70)
@@ -362,7 +362,7 @@ def verify_papers_xi_xv(n_trials=50):
     print("="*70)
     
     # XI: Bilateral UGT scale invariance (Monte Carlo proof)
-    print(f"\n  XI: Bilateral UGT — Scale Invariance Monte Carlo")
+    print(f"\n  XI: Bilateral UGT --- Scale Invariance Monte Carlo")
     for d_val, label in [(1536, "1.5B"), (3584, "7B"), (5120, "32B")]:
         overlaps = []
         for trial in range(n_trials):
@@ -378,7 +378,7 @@ def verify_papers_xi_xv(n_trials=50):
         print(f"    {label} (d={d_val}): overlap={np.mean(overlaps):.4f} +/- {np.std(overlaps):.4f}")
     
     # XII: Native k-optimality proof
-    print(f"\n  XII: Native k* — Optimality Analysis")
+    print(f"\n  XII: Native k* --- Optimality Analysis")
     d_model = 3584
     for l2_mb in [36, 48, 72]:
         kstar = int(l2_mb * 42.7)
@@ -386,15 +386,15 @@ def verify_papers_xi_xv(n_trials=50):
         params_ratio = (kstar*kstar + d_model*kstar) / (d_model*d_model) * 100
         print(f"    L2={l2_mb}MB: k*={kstar}, params={params_ratio:.1f}%")
     
-    # XIII: Safe OGD — Guarantee verification
-    print(f"\n  XIII: Safe OGD — Safety Guarantee Verification")
+    # XIII: Safe OGD --- Guarantee verification
+    print(f"\n  XIII: Safe OGD --- Safety Guarantee Verification")
     for alpha in [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]:
         # By construction: TEH(h_safe) = 0 always
         print(f"    alpha={alpha:.2f}: TEH=0.0000 (by orthogonal construction, "
               f"verified at 0/25 blocked)")
     
-    # XIV: Snipe specificity — Monte Carlo
-    print(f"\n  XIV: Snipe Specificity — Monte Carlo Validation")
+    # XIV: Snipe specificity --- Monte Carlo
+    print(f"\n  XIV: Snipe Specificity --- Monte Carlo Validation")
     categories = ["privacy", "illegal_advice", "phishing", "sycophancy", 
                   "jailbreak", "toxicity", "misinformation", "self_harm"]
     for cat in categories:
@@ -423,9 +423,9 @@ def verify_papers_xi_xv(n_trials=50):
     
     return {}
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # NEW PAPER CONSIDERATIONS
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 def generate_new_paper_ideas():
     """Generate considerations for new papers based on insights gained."""
     print("\n" + "="*70)
@@ -503,19 +503,19 @@ def generate_new_paper_ideas():
     
     return ideas
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # MAIN
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 def main():
     t0 = time.time()
     print("="*70)
-    print("  COMPREHENSIVE VERIFICATION FRAMEWORK — Papers I-XV")
+    print("  COMPREHENSIVE VERIFICATION FRAMEWORK --- Papers I-XV")
     print(f"  n_trials=30 | Statistical rigor | Cross-model | Ablation | Edge cases")
     print("="*70)
     print()
-    print("  ⚠️  DISCLAIMER: Numbers are MODEL-BASED (simulated from analytic")
+    print("  WARNING:  DISCLAIMER: Numbers are MODEL-BASED (simulated from analytic")
     print("  models fitted to a few real measurement points). CSV/JSON outputs")
-    print("  are SYNTHETIC — not direct hardware measurements. For real data,")
+    print("  are SYNTHETIC --- not direct hardware measurements. For real data,")
     print("  see individual benchmark directories and docs/VERIFICATION_STATUS.md")
     print("="*70)
     

@@ -63,7 +63,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Nav ─────────────────────────────────────────────── */
+/* --- Nav ----------------------------------------------- */
 nav {
   position: sticky;
   top: 0;
@@ -95,7 +95,7 @@ nav {
 }
 .nav-links a:hover { color: var(--text); }
 
-/* ─── Hero ─────────────────────────────────────────────── */
+/* --- Hero ----------------------------------------------- */
 #hero {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -179,7 +179,7 @@ nav {
 .btn-secondary { background: var(--bg-soft); border: 1px solid var(--border); color: var(--text); }
 .btn-secondary:hover { background: var(--border); }
 
-/* ─── Sections ─────────────────────────────────────────── */
+/* --- Sections ------------------------------------------- */
 section {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -210,7 +210,7 @@ p { margin-bottom: 1.2rem; color: var(--text); }
 p:last-child { margin-bottom: 0; }
 a { color: var(--blue); }
 
-/* ─── Callout boxes ───────────────────────────────────── */
+/* --- Callout boxes ------------------------------------- */
 .callout {
   border-left: 3px solid;
   border-radius: 0 8px 8px 0;
@@ -246,7 +246,7 @@ a { color: var(--blue); }
 }
 .callout.info .callout-title { color: var(--blue); }
 
-/* ─── Tables ───────────────────────────────────────────── */
+/* --- Tables --------------------------------------------- */
 .table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 thead th {
@@ -271,7 +271,7 @@ td.num { font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; }
 td.good { color: var(--green); font-weight: 600; }
 td.warn { color: var(--accent); font-weight: 600; }
 
-/* ─── Code ─────────────────────────────────────────────── */
+/* --- Code ----------------------------------------------- */
 pre {
   background: var(--bg-code);
   border: 1px solid var(--border);
@@ -294,9 +294,9 @@ p code, li code {
   font-size: 0.84em;
 }
 
-/* ─── Math display ─────────────────────────────────────── */
+/* --- Math display --------------------------------------- /
 .math-block {
-  /* Avoid spurious horizontal scrollbars for equations that fit;
+  / Avoid spurious horizontal scrollbars for equations that fit;
      wide equations still scale via MathJax SVG. */
   overflow-x: clip;
   padding: 0.5rem 0;
@@ -305,7 +305,7 @@ p code, li code {
 }
 .math-block mjx-container { max-width: 100%; }
 
-/* ─── Figures ─────────────────────────────────────────── */
+/* --- Figures ------------------------------------------- */
 .figure {
   margin: 2rem 0;
   text-align: center;
@@ -317,7 +317,7 @@ p code, li code {
   font-style: italic;
 }
 
-/* ─── ASCII art figure ────────────────────────────────── */
+/* --- ASCII art figure ---------------------------------- */
 .ascii-figure {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.82rem;
@@ -331,7 +331,7 @@ p code, li code {
   margin: 1.5rem auto;
 }
 
-/* ─── Section number ──────────────────────────────────── */
+/* --- Section number ------------------------------------ */
 .section-num {
   font-size: 0.8rem;
   font-weight: 600;
@@ -342,7 +342,7 @@ p code, li code {
   display: block;
 }
 
-/* ─── Two-column grid ─────────────────────────────────── */
+/* --- Two-column grid ----------------------------------- */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
 .grid-2 .card {
   border: 1px solid var(--border);
@@ -353,7 +353,7 @@ p code, li code {
 .card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
 .card-body { font-size: 0.88rem; color: var(--text-soft); }
 
-/* ─── Gates bar ───────────────────────────────────────── */
+/* --- Gates bar ----------------------------------------- */
 .gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
 .gate-card {
   border: 1px solid #c8f0d8;
@@ -374,11 +374,11 @@ p code, li code {
 .gate-label { font-weight: 600; display: block; }
 .gate-value { color: var(--text-soft); }
 
-/* ─── Equation label ───────────────────────────────────── */
+/* --- Equation label ------------------------------------- */
 .eq-row { display: flex; align-items: baseline; gap: 1rem; justify-content: center; margin: 1.5rem 0; }
 .eq-num { font-size: 0.82rem; color: var(--text-soft); white-space: nowrap; }
 
-/* ─── Footer ───────────────────────────────────────────── */
+/* --- Footer --------------------------------------------- */
 footer {
   border-top: 1px solid var(--border);
   padding: 2.5rem 1.5rem;
@@ -389,7 +389,7 @@ footer {
 footer a { color: var(--text-soft); }
 footer strong { color: var(--text); }
 
-/* ─── Responsive ───────────────────────────────────────── */
+/* --- Responsive ----------------------------------------- */
 @media (max-width: 640px) {
   .grid-2 { grid-template-columns: 1fr; }
   .hero-stats { gap: 1.5rem; }
@@ -398,11 +398,11 @@ footer strong { color: var(--text); }
   section { padding: 3rem 1.2rem; }
 }
 
-/* ─── Smooth section transitions ─────────────────────── */
+/* --- Smooth section transitions ----------------------- */
 section { animation: fadeUp .4s ease both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* ─── Abstract card ───────────────────────────────────── */
+/* --- Abstract card ------------------------------------- */
 .abstract-box {
   background: var(--bg-soft);
   border: 1px solid var(--border);
@@ -422,7 +422,7 @@ section { animation: fadeUp .4s ease both; }
 </head>
 <body>
 
-<!-- ════════════════ NAV ════════════════ -->
+<!-- ================ NAV ================ -->
 <nav>
   <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
   <ul class="nav-links">
@@ -440,11 +440,11 @@ section { animation: fadeUp .4s ease both; }
 </nav>
 
 <div style="background:#eef4ff;border:1px solid #2d6be4;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
-<strong>HyperTensor Framework Update (May 3, 2026):</strong> This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
+HyperTensor Framework Update (May 3, 2026): This paper is part of a 30-paper research program. The complete framework now includes the k-manifold living-model stack (Papers XI&ndash;XV, 96% complete), a geometric approach to the Riemann Hypothesis via Z<sub>2</sub> symmetry (Papers XVI&ndash;XVIII), and the ISAGI adaptive living model. See the <a href="../whitepaper.html" style="color:#2d6be4;">unified whitepaper</a> and <a href="https://github.com/NagusameCS/HyperTensor" style="color:#2d6be4;">GitHub repository</a> for the full research program.
 </div>
 
 
-<!-- ════════════════ HERO ════════════════ -->
+<!-- ================ HERO ================ -->
 <div id="hero">
   <div class="hero-tag">Paper 1 &middot; April 2026 &middot; v0.4</div>
   <h1 class="hero-title">HyperTensor / Geodesic Runtime Compression</h1>
@@ -483,7 +483,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </div>
 
-<!-- ════════════════ ABSTRACT ════════════════ -->
+<!-- ================ ABSTRACT ================ -->
 <section id="abstract">
   <span class="section-num">§0, Abstract</span>
   <h2>Abstract</h2>
@@ -533,7 +533,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ GLOSSARY ════════════════ -->
+<!-- ================ GLOSSARY ================ -->
 <section id="glossary">
   <span class="section-num">§0.5, Glossary</span>
   <h2>Terms used in this report</h2>
@@ -566,7 +566,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ FOR EVERYONE ════════════════ -->
+<!-- ================ FOR EVERYONE ================ -->
 <section id="explainer">
   <span class="section-num">§1, Plain summary</span>
   <h2>The Simple Version: What We Built and Why It Matters</h2>
@@ -585,7 +585,7 @@ section { animation: fadeUp .4s ease both; }
     style of billions of documents.
   </p>
   <p>
-    A modern 8-billion-parameter model stores about 4–5 gigabytes of weights, similar to a
+    A modern 8-billion-parameter model stores about 4--5 gigabytes of weights, similar to a
     large movie file. Every single time the model generates one word, it has to read all of those
     weights from memory and do arithmetic with them. On a gaming GPU (like the one used in this
     research), that arithmetic happens about 35 times per second, which is why AI chatbots feel
@@ -625,8 +625,8 @@ section { animation: fadeUp .4s ease both; }
     </p>
   </div>
   <p>
-    The special thing about our method: <strong>we don't need any example text to find those
-    directions.</strong> Most compression methods require running thousands of text samples
+    The special thing about our method: we don't need any example text to find those
+    directions. Most compression methods require running thousands of text samples
     through the model to figure out which weights matter. Our method reads only the weights
     themselves, like finding the main structure of a sculpture by looking at it directly,
     rather than watching how shadows fall on it.
@@ -656,7 +656,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ INTRODUCTION ════════════════ -->
+<!-- ================ INTRODUCTION ================ -->
 <section id="intro">
   <span class="section-num">§2, Introduction</span>
   <h2>Introduction</h2>
@@ -664,8 +664,8 @@ section { animation: fadeUp .4s ease both; }
     The throughput of autoregressive transformer inference is limited primarily by memory
     bandwidth, not compute. For each generated token, the full weight tensor of every transformer
     layer must be read from GPU DRAM into registers. On current hardware, this produces arithmetic
-    intensity far below the compute-to-bandwidth ratio of the GPU (<strong>1.47–1.51% compute
-    utilisation vs 51–53% memory bandwidth utilisation</strong> in our measurements), placing the
+    intensity far below the compute-to-bandwidth ratio of the GPU (1.47--1.51% compute
+    utilisation vs 51--53% memory bandwidth utilisation in our measurements), placing the
     workload firmly in the memory-bandwidth-limited regime.
   </p>
   <p>
@@ -694,7 +694,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ BACKGROUND ════════════════ -->
+<!-- ================ BACKGROUND ================ -->
 <section id="background">
   <span class="section-num">§3, Background</span>
   <h2>Background: Transformers, Attention, and Memory Bandwidth</h2>
@@ -743,8 +743,8 @@ section { animation: fadeUp .4s ease both; }
   $$t_{\text{token}} \;=\; \frac{4.9\ \text{GB}}{256\ \text{GB/s}} \;\approx\; 19.1\ \text{ms}$$
   </div>
   <p>
-    giving a theoretical decode ceiling of $\sim 52$ tok/s. We measure 35–36 tok/s, which
-    means the implementation reaches roughly 67–70% of theoretical peak
+    giving a theoretical decode ceiling of $\sim 52$ tok/s. We measure 35--36 tok/s, which
+    means the implementation reaches roughly 67--70% of theoretical peak
     bandwidth, consistent with a well-tuned GEMV kernel on a memory-bound workload
     <a href="#ref-roofline"><sup>[10]</sup></a><a href="#ref-llm-roofline"><sup>[11]</sup></a>.
     Compute utilisation derived from FLOPs/(peak FP16 throughput) is on the order of 1.5%,
@@ -784,7 +784,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ RELATED WORK ════════════════ -->
+<!-- ================ RELATED WORK ================ -->
 <section id="related">
   <span class="section-num">§3.5, Related Work</span>
   <h2>Where GRC Sits in the Literature</h2>
@@ -857,7 +857,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ METHOD ════════════════ -->
+<!-- ================ METHOD ================ -->
 <section id="method">
   <span class="section-num">§4, Method</span>
   <h2>Method: Geodesic Runtime Compression</h2>
@@ -994,11 +994,11 @@ section { animation: fadeUp .4s ease both; }
     for the projected matrices, which partially displaces the original). The forward pass for
     prefill (processing the prompt in a batch) requires the raw weights for efficient batched
     GEMM; without them, prefill falls back to sequential token-by-token processing, adding
-    8–15% overhead. This is an implementation constraint, not fundamental to the method.
+    8--15% overhead. This is an implementation constraint, not fundamental to the method.
   </p>
 </section>
 
-<!-- ════════════════ EXPERIMENTAL SETUP ════════════════ -->
+<!-- ================ EXPERIMENTAL SETUP ================ -->
 <section id="setup">
   <span class="section-num">§5, Experimental Setup</span>
   <h2>Experimental Setup</h2>
@@ -1013,7 +1013,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>GPU DRAM bandwidth</td><td>256 GB/s theoretical (RTX 4070 Laptop, 128-bit × 16 Gbps)</td></tr>
         <tr><td>GPU L2 cache</td><td>32 MB</td></tr>
         <tr><td>GPU FP32 peak</td><td>40 TFLOPS (theoretical)</td></tr>
-        <tr><td>GPU TDP (observed decode)</td><td>103–109 W</td></tr>
+        <tr><td>GPU TDP (observed decode)</td><td>103--109 W</td></tr>
         <tr><td>GPU driver</td><td>595.79</td></tr>
         <tr><td>CPU</td><td>AMD Ryzen 9 7940HS, 8c/16t, 4.0 GHz base, 5.2 GHz boost</td></tr>
         <tr><td>System RAM</td><td>32 GB DDR5-5200 (2×16 GB Kingston)</td></tr>
@@ -1042,7 +1042,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>5.3 Measurement Protocol</h3>
   <p>
     All throughput measurements follow a locked protocol to prevent GPU thermal throttling from
-    confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800–1400 MHz
+    confounding results. Without cooldowns, the GPU clocks down from ~2235 MHz to ~800--1400 MHz
     after sustained load, producing artificially low throughput readings (as low as 53% of true
     baseline in early experiments, a measurement artefact, not a real effect).
   </p>
@@ -1051,8 +1051,8 @@ section { animation: fadeUp .4s ease both; }
     <li>Rank sweep runs first (while GPU is at thermal equilibrium)</li>
     <li>CI measurements: 12 repetitions per configuration</li>
     <li>PPL measurements: 5 repetitions (deterministic, all identical)</li>
-    <li>Starting GPU temperature: 38–41°C before each run</li>
-    <li>GPU temperature during sustained decode: 59–61°C</li>
+    <li>Starting GPU temperature: 38--41°C before each run</li>
+    <li>GPU temperature during sustained decode: 59--61°C</li>
   </ul>
   <p>
     The rank sweep uses 8 distinct prompt-length combinations (short/medium/long × coding/reasoning).
@@ -1062,7 +1062,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ RESULTS ════════════════ -->
+<!-- ================ RESULTS ================ -->
 <section id="results">
   <span class="section-num">§6, Results</span>
   <h2>Results</h2>
@@ -1120,7 +1120,7 @@ section { animation: fadeUp .4s ease both; }
     † k=2048 request is silently capped to k=1536 by <code>AXEX_MANIFOLD_K_MAX=1536</code>
     in <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/runtime/nn/axiom_exploit.h">runtime/nn/axiom_exploit.h</a>. The k=2048 row reflects cache warm-up
     behavioural differences, not true k=2048 projection geometry. Decode throughput baseline:
-    35–36 tok/s at 2,235 MHz GPU boost clock.
+    35--36 tok/s at 2,235 MHz GPU boost clock.
   </p>
 
   <h3>6.2 Confidence Intervals (12-rep Sustained Load)</h3>
@@ -1207,22 +1207,22 @@ section { animation: fadeUp .4s ease both; }
       reports approximate WikiText-2 PPL deltas relative to fp16 of:
     </p>
     <ul style="margin-top:0.5rem;">
-      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1–3%.</li>
-      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1–2%.</li>
-      <li>SliceGPT 25–30% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
-        ~+5–9% on WikiText-2 (calibration-based).</li>
+      <li>GPTQ 4-bit on Llama-7B<a href="#ref-frantar"><sup>[5]</sup></a>: ~+1--3%.</li>
+      <li>AWQ w4-g128 on Llama-7B<a href="#ref-lin"><sup>[6]</sup></a>: ~+1--2%.</li>
+      <li>SliceGPT 25--30% slicing on Llama-2-7B<a href="#ref-slicegpt"><sup>[2]</sup></a>:
+        ~+5--9% on WikiText-2 (calibration-based).</li>
       <li>ASVD 20% rank reduction on Llama-7B<a href="#ref-asvd"><sup>[3]</sup></a>:
-        ~+10–15% (activation-aware, calibration-based).</li>
+        ~+10--15% (activation-aware, calibration-based).</li>
       <li>Q4_K_M alone vs fp16 (the baseline GRC sits on)<a href="#ref-kquants"><sup>[13]</sup></a>:
-        ~+1–3%.</li>
+        ~+1--3%.</li>
     </ul>
     <p>
-      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10–12% vs fp16,
+      So GRC at $k=1536$ on top of Q4_K_M gives roughly an additive +10--12% vs fp16,
       comparable to ASVD's published numbers despite using no calibration data. PPL is a
       distribution-level metric; its relationship to task performance is non-linear. Task-level
       evaluations (MMLU, HumanEval, TruthfulQA) were not performed in this cycle, and
-      <strong>perplexity at $k=1024$, the throughput-optimal setting, has not been
-      measured</strong>. We flag this prominently because the headline 106.27% throughput
+      perplexity at $k=1024$, the throughput-optimal setting, has not been
+      measured. We flag this prominently because the headline 106.27% throughput
       number does not have a quality number attached to it.
     </p>
   </div>
@@ -1236,7 +1236,7 @@ section { animation: fadeUp .4s ease both; }
       <tbody>
         <tr><td>OS/display idle</td><td class="num">~1,136 MiB</td><td class="num">~1,136 MiB</td><td class="num">, </td></tr>
         <tr><td>Post-model load</td><td class="num">~5,812 MiB</td><td class="num">~5,812 MiB</td><td class="num">, </td></tr>
-        <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702–6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
+        <tr><td>Active decode (sustained)</td><td class="num">6,695 MiB</td><td class="num">6,702--6,731 MiB</td><td class="num">+7 to +36 MiB</td></tr>
         <tr><td>Peak observed</td><td class="num">6,695 MiB</td><td class="num">6,731 MiB</td><td class="num">+36 MiB</td></tr>
         <tr><td>Headroom (8,188 MiB total)</td><td class="num">~1,493 MiB</td><td class="num">~1,457 MiB</td><td class="num">, </td></tr>
       </tbody>
@@ -1250,8 +1250,8 @@ section { animation: fadeUp .4s ease both; }
       <tbody>
         <tr><td>Idle</td><td class="num">1.9 W</td><td class="num">2.3 W</td></tr>
         <tr><td>Model loading</td><td class="num">15.8 W</td><td class="num">15.9 W</td></tr>
-        <tr><td>PCA calibration (first run only)</td><td>, </td><td class="num">13–14 W (CPU-bound)</td></tr>
-        <tr><td>Decode (sustained)</td><td class="num">103–109 W</td><td class="num">103–109 W</td></tr>
+        <tr><td>PCA calibration (first run only)</td><td>, </td><td class="num">13--14 W (CPU-bound)</td></tr>
+        <tr><td>Decode (sustained)</td><td class="num">103--109 W</td><td class="num">103--109 W</td></tr>
       </tbody>
     </table>
   </div>
@@ -1315,7 +1315,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ CACHE FIT EFFECT ════════════════ -->
+<!-- ================ CACHE FIT EFFECT ================ -->
 <section id="cache-effect">
   <span class="section-num">§7, A Working Hypothesis: Cache-Fit</span>
   <h2>Why the Compressed Model Runs Faster (We Think)</h2>
@@ -1408,9 +1408,9 @@ section { animation: fadeUp .4s ease both; }
       <thead><tr><th>GPU</th><th>L2 cache</th><th>DRAM BW</th><th>Predicted optimal k/d</th></tr></thead>
       <tbody>
         <tr><td>RTX 4070 Laptop (tested)</td><td class="num">32 MB</td><td class="num">256 GB/s</td><td class="num">~0.25 (empirically observed)</td></tr>
-        <tr><td>RTX 4090</td><td class="num">72 MB</td><td class="num">1008 GB/s</td><td class="num">~0.35–0.40 (predicted)</td></tr>
-        <tr><td>A100 SXM</td><td class="num">40 MB</td><td class="num">2000 GB/s (HBM)</td><td class="num">~0.20–0.25 (predicted)</td></tr>
-        <tr><td>H100 SXM</td><td class="num">50 MB</td><td class="num">3350 GB/s (HBM3)</td><td class="num">~0.20–0.30 (predicted)</td></tr>
+        <tr><td>RTX 4090</td><td class="num">72 MB</td><td class="num">1008 GB/s</td><td class="num">~0.35--0.40 (predicted)</td></tr>
+        <tr><td>A100 SXM</td><td class="num">40 MB</td><td class="num">2000 GB/s (HBM)</td><td class="num">~0.20--0.25 (predicted)</td></tr>
+        <tr><td>H100 SXM</td><td class="num">50 MB</td><td class="num">3350 GB/s (HBM3)</td><td class="num">~0.20--0.30 (predicted)</td></tr>
       </tbody>
     </table>
   </div>
@@ -1421,7 +1421,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ SPECTRAL JUSTIFICATION ════════════════ -->
+<!-- ================ SPECTRAL JUSTIFICATION ================ -->
 <section id="spectra">
   <span class="section-num">§8, Spectral Justification of Low-Rank Compression</span>
   <h2>Why Attention Compresses but FFN Does Not</h2>
@@ -1503,7 +1503,7 @@ section { animation: fadeUp .4s ease both; }
     var cachedData = null;
 
     function renderPlots(d) {
-      // ── Figure 8.1: SV spectra (log-log) ──────────────────────────
+      // -- Figure 8.1: SV spectra (log-log) --------------------------
       var traces1 = [];
       var layerStyles = { 0: 1, 7: 0.85, 15: 0.7, 23: 0.55, 31: 0.4 };
       Object.keys(d.spectra.attn).forEach(function (L) {
@@ -1561,7 +1561,7 @@ section { animation: fadeUp .4s ease both; }
         ]
       }), plotConfig());
 
-      // ── Figure 8.2: Cumulative energy ─────────────────────────────
+      // -- Figure 8.2: Cumulative energy -----------------------------
       var traces2 = [];
       Object.keys(d.energy.attn).forEach(function (L) {
         ATTN.forEach(function (s) {
@@ -1596,7 +1596,7 @@ section { animation: fadeUp .4s ease both; }
         ]
       }), plotConfig());
 
-      // ── Figure 8.3: Per-layer k_95 bar/scatter ────────────────────
+      // -- Figure 8.3: Per-layer k_95 bar/scatter --------------------
       var traces3 = [];
       ATTN.concat(FFN).forEach(function (s) {
         var src = ATTN.indexOf(s) >= 0 ? d.rank95_per_layer.attn : d.rank95_per_layer.ffn;
@@ -1658,7 +1658,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ STATISTICAL SIGNIFICANCE ════════════════ -->
+<!-- ================ STATISTICAL SIGNIFICANCE ================ -->
 <section id="statistics">
   <span class="section-num">§9, Statistical Significance of the Super-Baseline</span>
   <h2>Hypothesis Tests on Throughput Gains</h2>
@@ -1749,12 +1749,12 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ THEORETICAL BOUND ════════════════ -->
+<!-- ================ THEORETICAL BOUND ================ -->
 <section id="eckart-young">
-  <span class="section-num">§10, Theoretical Bound: Eckart–Young vs GRC</span>
+  <span class="section-num">§10, Theoretical Bound: Eckart--Young vs GRC</span>
   <h2>How Far Is the Shared Basis from the Optimum?</h2>
   <p>
-    The Eckart–Young–Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
+    The Eckart--Young--Mirsky theorem gives a tight lower bound on the Frobenius reconstruction
     error of any rank-$k$ approximation:
   </p>
   <div class="math-block">
@@ -1764,14 +1764,14 @@ section { animation: fadeUp .4s ease both; }
     This bound is achieved by the truncated SVD of $\mathbf{W}$ alone. GRC, however, builds
     a single shared projection $\mathbf{P}_k$ from the combined Gram matrix
     $\mathbf{K} = \mathbf{W}_Q^\top\mathbf{W}_Q + \mathbf{W}_K^\top\mathbf{W}_K + \mathbf{W}_V^\top\mathbf{W}_V$,
-    so its per-matrix error must be $\geq$ the Eckart–Young bound. The excess factor
+    so its per-matrix error must be $\geq$ the Eckart--Young bound. The excess factor
     $\rho_k(\mathbf{W}) = \|\mathbf{W} - \mathbf{W}\mathbf{P}_k\mathbf{P}_k^\top\|_F^2 / \sum_{i>k}\sigma_i^2$
     quantifies the cost of using a shared (calibration-free) basis instead of a per-matrix one.
   </p>
 
-  <h3>10.1 Numerical verification (layers 0, 15, 31; ranks 512–2048)</h3>
+  <h3>10.1 Numerical verification (layers 0, 15, 31; ranks 512--2048)</h3>
   <p>
-    For each (layer, rank, matrix) triple we compute (a) the Eckart–Young rel-F² lower bound
+    For each (layer, rank, matrix) triple we compute (a) the Eckart--Young rel-F² lower bound
     and (b) the actual GRC rel-F² error using the same shared projection used by the runtime
     kernel (3-iteration power-stabilised eigendecomposition of $\mathbf{K}/\|\mathbf{K}\|_F$).
     Full data: <a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/eckart_young_bound.json">docs/figures/eckart_young_bound.json</a>.
@@ -1792,7 +1792,7 @@ section { animation: fadeUp .4s ease both; }
   <h3>10.2 Interpretation</h3>
   <p>
     Note that $\mathbf{W}_K, \mathbf{W}_V$ in Llama-3.1's GQA have rank $\leq 1024$ by
-    construction (shape $1024 \times 4096$), so their Eckart–Young bound is $0$ at $k\geq 1024$;
+    construction (shape $1024 \times 4096$), so their Eckart--Young bound is $0$ at $k\geq 1024$;
     the GRC error there is purely the cost of shared projection.
   </p>
   <p>
@@ -1801,7 +1801,7 @@ section { animation: fadeUp .4s ease both; }
   <ol>
     <li>
       The shared basis pays a real, quantifiable cost. At $k=512$, GRC sits
-      ~1.8–4.7× above the Eckart–Young oracle (averaged across {Q, K, V}). At larger $k$, the
+      ~1.8--4.7× above the Eckart--Young oracle (averaged across {Q, K, V}). At larger $k$, the
       relative gap widens because the EY bound itself drops faster than the shared basis can
       track.
     </li>
@@ -1815,7 +1815,7 @@ section { animation: fadeUp .4s ease both; }
   <div class="callout">
     <div class="callout-title">What this motivates</div>
     <p>
-      The $\sim$3–10× excess factor over Eckart–Young is the strongest argument for
+      The $\sim$3--10× excess factor over Eckart--Young is the strongest argument for
       per-matrix bases as future work (§13). A scheme that builds three
       separate projections $\mathbf{P}_Q, \mathbf{P}_K, \mathbf{P}_V$ would close the gap to the
       oracle bound at the cost of $3\times$ the projection storage. The fact that the shared
@@ -1825,7 +1825,7 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ NOVELTY ════════════════ -->
+<!-- ================ NOVELTY ================ -->
 <section id="novelty">
   <span class="section-num">§11, Novel Contributions</span>
   <h2>What This Work Contributes</h2>
@@ -1850,15 +1850,15 @@ section { animation: fadeUp .4s ease both; }
   </div>
 </section>
 
-<!-- ════════════════ IMPACT ════════════════ -->
+<!-- ================ IMPACT ================ -->
 <section id="impact">
   <span class="section-num">§11.5, Impact and Implications</span>
   <h2>Why This Might Matter (and Why It Might Not)</h2>
   <p>
     There is a real risk in research papers of overselling implications. We try to be careful
-    here. The strongest claim this report supports is local: <em>on this hardware, with this
+    here. The strongest claim this report supports is local: on this hardware, with this
     model, at this rank, decode is faster than baseline by a measurable and statistically
-    significant margin</em>. The interesting question is whether anything beyond the local
+    significant margin. The interesting question is whether anything beyond the local
     fact survives.
   </p>
 
@@ -1909,7 +1909,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ LIMITATIONS ════════════════ -->
+<!-- ================ LIMITATIONS ================ -->
 <section id="limitations">
   <span class="section-num">§12, Limitations</span>
   <h2>Limitations</h2>
@@ -1935,7 +1935,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Cross-model generality</td><td class="fail">Not demonstrated</td><td>Phase 3 in progress</td></tr>
         <tr><td>Quality at k=1024</td><td class="warn">Measured (+61.39% PPL)</td><td><a class="repo-link" href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/figures/ppl_sweep/llama31_8b_ppl_sweep.json">docs/figures/ppl_sweep/</a> ,  collapse explained by GQA K/V dim = 1024</td></tr>
         <tr><td>Batch inference behaviour</td><td class="fail">Not demonstrated</td><td>Single-request decode only</td></tr>
-        <tr><td>Long-context quality (4K–8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
+        <tr><td>Long-context quality (4K--8K tokens)</td><td class="fail">Not demonstrated</td><td>512-token eval windows only</td></tr>
         <tr><td>Task-level quality (MMLU, HumanEval)</td><td class="fail">Not demonstrated</td><td>Only PPL measured</td></tr>
       </tbody>
     </table>
@@ -1948,7 +1948,7 @@ section { animation: fadeUp .4s ease both; }
     $d=4096$ to $k=1536$. This stacks on top of the Q4_K_M quantisation penalty already present.
     Closing the gap requires either higher $k$ (reducing throughput benefit) or fine-tuning.
   </p>
-  <h4>Prefill overhead (8–15% slower)</h4>
+  <h4>Prefill overhead (8--15% slower)</h4>
   <p>
     When GRC is active, raw Q/K/V tensors are freed from VRAM after W_proj is built. The batch-prefill
     path requires raw tensors for efficient GEMM, so prefill falls back to sequential token processing.
@@ -2002,8 +2002,8 @@ section { animation: fadeUp .4s ease both; }
               GPTQ 3-bit / 4-bit, and SmoothQuant on identical hardware are not
               included. We compare only against the same Q4_K_M baseline that GRC sits on
               top of.</td>
-          <td>The “calibration-free” claim is real (no other method skips calibration), but
-              the “useful at production scale” claim cannot be fully ranked without
+          <td>The "calibration-free" claim is real (no other method skips calibration), but
+              the "useful at production scale" claim cannot be fully ranked without
               compatible-runtime baselines.</td>
         </tr>
         <tr>
@@ -2024,7 +2024,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ FUTURE WORK ════════════════ -->
+<!-- ================ FUTURE WORK ================ -->
 <section id="future">
   <span class="section-num">§13, Future Work</span>
   <h2>Future Work</h2>
@@ -2048,8 +2048,8 @@ section { animation: fadeUp .4s ease both; }
     Viable paths include: (a) block-diagonal decomposition, decompose each FFN
     weight into $B$ blocks and compress each independently, finding local low-rank structure;
     (b) input-adaptive sparse activation, identify and skip near-zero neurons
-    per token (exploiting the superposition / monosemanticity structure); (c) <strong>FFN on
-    CPU + attention on GPU</strong>, keep FFN in system RAM and run it on CPU while GPU handles
+    per token (exploiting the superposition / monosemanticity structure); (c) FFN on
+    CPU + attention on GPU, keep FFN in system RAM and run it on CPU while GPU handles
     attention-only GRC, accepting PCIe latency as a throughput tradeoff.
   </p>
 
@@ -2058,7 +2058,7 @@ section { animation: fadeUp .4s ease both; }
     The current implementation uses a shared $\mathbf{P}_t^{(\ell)}$ for Q, K, V in
     each layer. Because Q and KV matrices often operate in different subspaces (particularly in
     GQA architectures like Llama-3), per-matrix bases could significantly improve quality at the
-    same rank, especially for Q (which showed 79–87% energy capture vs 95–97% for K/V at $k=2048$).
+    same rank, especially for Q (which showed 79--87% energy capture vs 95--97% for K/V at $k=2048$).
   </p>
 
   <h3>13.4 Rank-Adaptive Deployment</h3>
@@ -2079,7 +2079,7 @@ section { animation: fadeUp .4s ease both; }
   </p>
 </section>
 
-<!-- ════════════════ REPRODUCIBILITY ════════════════ -->
+<!-- ================ REPRODUCIBILITY ================ -->
 <section id="reproduce">
   <span class="section-num">§14, Reproducibility</span>
   <h2>Reproducing This Work</h2>
@@ -2093,7 +2093,7 @@ section { animation: fadeUp .4s ease both; }
         <tr><td>Model</td><td><code>bartowski/Meta-Llama-3.1-8B-Instruct-GGUF</code> (Q4_K_M, 4.58 GB)</td></tr>
         <tr><td>Runtime</td><td>Geodessical binary or source build (Zig CC required for Windows)</td></tr>
         <tr><td>Disk</td><td>~5.8 GB (model + W_proj cache)</td></tr>
-        <tr><td>First-run time</td><td>60–120 s CPU calibration; subsequent runs use disk cache</td></tr>
+        <tr><td>First-run time</td><td>60--120 s CPU calibration; subsequent runs use disk cache</td></tr>
       </tbody>
     </table>
   </div>
@@ -2143,7 +2143,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
   </p>
 </section>
 
-<!-- ════════════════ REFERENCES ════════════════ -->
+<!-- ================ REFERENCES ================ -->
 <section id="references">
   <span class="section-num">§15, References</span>
   <h2>References</h2>
@@ -2192,7 +2192,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
     <li id="ref-roofline">
       Williams, S., Waterman, A., &amp; Patterson, D. (2009).
       Roofline: An Insightful Visual Performance Model for Multicore Architectures.
-      Communications of the ACM, 52(4), 65–76.
+      Communications of the ACM, 52(4), 65--76.
     </li>
     <li id="ref-llm-roofline">
       Yuan, Z., Shang, Y., Zhou, Y., Dong, Z., Xue, C., Wu, B., Li, Z., Gu, Q., Lee, Y. J.,
@@ -2234,7 +2234,7 @@ PPL GRC k=1536: 7.6936 (+13.30%)  |  PPL GRC k=2048: 7.6936 (+13.30%, identical 
   </ol>
 </section>
 
-<!-- ════════════════ FOOTER ════════════════ -->
+<!-- ================ FOOTER ================ -->
 <footer>
   <p>
     HyperTensor / Geodesic Runtime Compression , 

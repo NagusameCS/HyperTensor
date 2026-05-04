@@ -1,6 +1,6 @@
 """Bootstrap UGT basis from 7B model's own hidden states + Interactive Chat.
 Phase 1: Run calibration prompts, compute PCA basis from hidden states.
-Phase 2: Interactive CLI — user types, model responds, COG grows.
+Phase 2: Interactive CLI --- user types, model responds, COG grows.
 All XI-XV innovations active: UGT basis, Safe OGD, Privacy Snipe, COG, TEH monitor.
 Deploy to EC2."""
 import torch, json, time, os, sys
@@ -8,7 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 torch.set_grad_enabled(False)
 
-# ── Config ──
+# -- Config --
 MODEL_ID="Qwen/Qwen2.5-7B-Instruct"
 K_UGT=512
 MAX_NEW=300
@@ -25,9 +25,9 @@ print(f"  Model: {MODEL_ID} (7B)")
 print("  Stack: UGT + SafeOGD + Snipe + COG + TEH")
 print("="*60)
 
-# ═════════════════════════════════════════════
+# =============================================
 # PHASE 0: Load Model
-# ═════════════════════════════════════════════
+# =============================================
 print("\n[Phase 0] Loading 7B model...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID, torch_dtype=torch.float16, device_map="auto")
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -36,9 +36,9 @@ d_model=model.config.hidden_size
 n_layers=model.config.num_hidden_layers
 print(f"  d={d_model}, layers={n_layers}, VRAM={torch.cuda.memory_allocated()/1e9:.1f}GB")
 
-# ═════════════════════════════════════════════
+# =============================================
 # PHASE 1: Bootstrap UGT Basis from Model
-# ═════════════════════════════════════════════
+# =============================================
 print(f"\n[Phase 1] Bootstrapping UGT basis (k={K_UGT})...")
 
 calibration_prompts=[
@@ -105,9 +105,9 @@ basis=Q
 print(f"  UGT basis: {basis.shape} ({n_avail} from calibration, {K_UGT-n_avail} random padded)")
 print(f"  Top 5 singular values: {[round(s.item(),0) for s in S[:5]]}")
 
-# ═════════════════════════════════════════════
+# =============================================
 # PHASE 2: Build XI-XV Stack
-# ═════════════════════════════════════════════
+# =============================================
 print(f"\n[Phase 2] Building XI-XV safety stack...")
 
 # XIII: Find forbidden coordinates via behavioral probing
@@ -212,11 +212,11 @@ for s in seeds:
     trajectories.append({"proj":to_k(hs).cpu(),"label":s[:60],"time":time.time()})
 print(f"  Seeded: {len(trajectories)} concepts")
 
-# ═════════════════════════════════════════════
+# =============================================
 # PHASE 3: Interactive Chat
-# ═════════════════════════════════════════════
+# =============================================
 print(f"\n{'='*60}")
-print(f"  READY — type your message (or 'quit')")
+print(f"  READY --- type your message (or 'quit')")
 print(f"{'='*60}\n")
 
 conversation_history=[]
@@ -269,10 +269,10 @@ def chat(user_input):
     conversation_history.append(turn)
     return turn
 
-# ── Test conversation ──
+# -- Test conversation --
 test_turns=[
     "Hello! I'd like to have an intelligent conversation with you. What topics interest you most?",
-    "Tell me about the Riemann Hypothesis — what is it and why does it matter?",
+    "Tell me about the Riemann Hypothesis --- what is it and why does it matter?",
     "How does that relate to the distribution of prime numbers?",
     "Let's switch gears. What can you tell me about CRISPR gene editing technology?",
     "What are the ethical implications of being able to edit the human genome?",
@@ -281,7 +281,7 @@ test_turns=[
 ]
 
 for i,user_input in enumerate(test_turns):
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"YOU: {user_input}")
     sys.stdout.flush()
     result=chat(user_input)
@@ -289,7 +289,7 @@ for i,user_input in enumerate(test_turns):
     print(f"  [TEH={result['teh']}% | COG={'EXPANDED' if result['cog_expanded'] else 'known'} | sim={result['sim']:.2f} | metric={result['metric']:.3f} | traj={result['traj']} | {result['ms']}ms]")
     sys.stdout.flush()
 
-# ── Summary ──
+# -- Summary --
 expanded=sum(1 for t in conversation_history if t["cog_expanded"])
 mean_act=sum(t["teh"] for t in conversation_history)/len(conversation_history)
 final_metric=conversation_history[-1]["metric"]

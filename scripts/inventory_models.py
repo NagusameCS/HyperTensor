@@ -108,7 +108,7 @@ def summarise(path: Path) -> Dict[str, Any]:
                     rec[key] = v
                 break
 
-    # Decode quant code → readable name (llama.cpp file_type enum)
+    # Decode quant code -> readable name (llama.cpp file_type enum)
     quant_map = {
         0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 7: "Q8_0",
         8: "Q5_0", 9: "Q5_1", 10: "Q2_K", 11: "Q3_K_S", 12: "Q3_K_M",
@@ -139,18 +139,18 @@ def main():
           "|---|---|---|---:|---:|---:|---:|---:|---:|"]
     for r in rows:
         if r.get("stub"):
-            md.append(f"| {Path(r['path']).name} | _stub (0 B)_ | — | 0 | — | — | — | — | — |")
+            md.append(f"| {Path(r['path']).name} | _stub (0 B)_ | --- | 0 | --- | --- | --- | --- | --- |")
             continue
         md.append("| {n} | {a} | {q} | {sz} | {d} | {l} | {h} | {v} | {c} |".format(
             n=r.get("name", Path(r["path"]).name),
             a=r.get("arch", "?"),
             q=r.get("quant", "?"),
             sz=r.get("size_MB", "?"),
-            d=r.get("embedding_length", "—"),
-            l=r.get("block_count", "—"),
-            h=r.get("head_count", "—"),
-            v=r.get("vocab_size", "—"),
-            c=r.get("context_length", "—"),
+            d=r.get("embedding_length", "---"),
+            l=r.get("block_count", "---"),
+            h=r.get("head_count", "---"),
+            v=r.get("vocab_size", "---"),
+            c=r.get("context_length", "---"),
         ))
     (out_dir / "model_inventory.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     for line in md:

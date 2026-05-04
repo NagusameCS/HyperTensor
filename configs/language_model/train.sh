@@ -12,7 +12,7 @@ GRAD_ACCUM=4
 MAX_STEPS=50000
 
 echo "Training $OUTPUT from $MODEL"
-echo "Config: Dedicated Language Model — trained exclusively on natural language data"
+echo "Config: Dedicated Language Model --- trained exclusively on natural language data"
 
 # Use Axolotl or direct HF Trainer
 # Option 1: Axolotl (recommended for efficient training)

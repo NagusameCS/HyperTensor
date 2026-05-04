@@ -19,7 +19,7 @@ print("  NATIVE GEODESIC TRAINING: 1.5B UGT Model")
 print("  Paper XII P0 Gap: k-space training at scale")
 print("="*60)
 
-# ── Load ──
+# -- Load --
 print("\n[1] Loading 1.5B model + UGT basis...")
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -37,7 +37,7 @@ k_basis=basis.shape[1]
 print(f"  d={d_model}, layers={n_layers}, k={k_basis}")
 print(f"  VRAM used: {torch.cuda.memory_allocated()/1e9:.1f}GB")
 
-# ── NativeLinear module ──
+# -- NativeLinear module --
 class NativeLinear(torch.nn.Module):
     """Linear layer operating in k-space: W = B @ C @ B^T + residual.
     B: [d, k] learned basis, C: [k, k] core matrix.
@@ -73,7 +73,7 @@ class NativeLinear(torch.nn.Module):
     def param_count(self):
         return self.C.numel()+self.B.numel()+self.residual.numel()
 
-# ── RiemannianAdamW ──
+# -- RiemannianAdamW --
 class RiemannianAdamW(torch.optim.Optimizer):
     """AdamW with QR retraction to preserve Gr(k,d) orthonormality of B."""
     def __init__(self,params,lr=1e-4,betas=(0.9,0.999),eps=1e-8,weight_decay=0.01):
@@ -113,7 +113,7 @@ class RiemannianAdamW(torch.optim.Optimizer):
                     p.data.copy_(Q.to(p.dtype))
         return loss
 
-# ── Replace attention with NativeLinear ──
+# -- Replace attention with NativeLinear --
 print("\n[2] Replacing attention layers with NativeLinear...")
 native_params=0
 total_orig_params=0
@@ -142,8 +142,8 @@ for li in layers_to_nativize:
 
 print(f"  Native params: {native_params/1e6:.1f}M vs orig: {total_orig_params/1e6:.1f}M ({100*native_params/total_orig_params:.1f}%)")
 
-# ── Training data ──
-# Small corpus — we're validating the method, not full training
+# -- Training data --
+# Small corpus --- we're validating the method, not full training
 train_texts=[
     "The quick brown fox jumps over the lazy dog near the river bank",
     "If x squared plus y squared equals z squared, we have a right triangle",
@@ -162,7 +162,7 @@ train_texts=[
     "The theory of evolution explains the diversity of life on Earth",
 ]*20
 
-# ── Phase A: Basis-only warmup ──
+# -- Phase A: Basis-only warmup --
 print(f"\n[3] Native Phase A: Basis warmup (200 steps)...")
 # Freeze everything, then find NativeLinear parameters directly
 for param in model.parameters():
@@ -199,7 +199,7 @@ for step in range(200):
     if (step+1)%50==0:
         print(f"  Step {step+1}: loss={loss.item():.4f}")
 
-# ── Phase B: Full Native training ──
+# -- Phase B: Full Native training --
 print(f"\n[4] Native Phase B: Full k-space training (1000 steps)...")
 for param in model.parameters():
     param.requires_grad=True  # train everything
@@ -244,7 +244,7 @@ for step in range(steps_b):
             out2=model(**enc2,labels=enc2.input_ids)
         print(f"  Step {step+1}: loss={loss.item():.4f} ppl_proxy={math.exp(out2.loss.item()):.1f}")
 
-# ── Evaluation ──
+# -- Evaluation --
 print("\n[5] Evaluating Native model...")
 test_texts=[
     "The capital of France is Paris, a city known for its",
@@ -291,7 +291,7 @@ native_count=sum(p.numel() for n,p in model.named_parameters() if "NativeLinear"
 total_count=sum(p.numel() for p in model.parameters())
 print(f"  Trainable: {total_count/1e6:.1f}M total, {native_count/1e6:.1f}M native ({100*native_count/total_count:.1f}%)")
 
-# ── Save ──
+# -- Save --
 results={
     "config":{"model":MODEL_ID,"d_model":d_model,"n_layers":n_layers,"k_basis":k_basis,
               "nativized_layers":layers_to_nativize},

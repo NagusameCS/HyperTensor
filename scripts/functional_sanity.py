@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FUNCTIONAL SANITY CHECKER — Tests whether geometric/proxy metrics correlate with actual model output quality.
+FUNCTIONAL SANITY CHECKER --- Tests whether geometric/proxy metrics correlate with actual model output quality.
 
 Runs across all paper claims that are currently "measured by proxy":
 - Paper I:  GRC PPL vs actual text generation at each k
@@ -229,7 +229,7 @@ def main():
     all_summary = {}
     
     print("=" * 70)
-    print("FUNCTIONAL SANITY CHECKER — Geometric vs Actual Output Quality")
+    print("FUNCTIONAL SANITY CHECKER --- Geometric vs Actual Output Quality")
     print("=" * 70)
     
     # 
@@ -237,7 +237,7 @@ def main():
     # 
     if "I" in papers:
         print("\n" + "=" * 70)
-        print("PAPER I: GRC — PPL (geometric proxy) vs Text Quality (functional)")
+        print("PAPER I: GRC --- PPL (geometric proxy) vs Text Quality (functional)")
         print("=" * 70)
         
         for rank in ranks:
@@ -266,11 +266,11 @@ def main():
             del model; gc.collect(); torch.cuda.empty_cache()
     
     # 
-    # Paper V: LoRA distillation — PPL recovery vs text
+    # Paper V: LoRA distillation --- PPL recovery vs text
     # 
     if "V" in papers:
         print("\n" + "=" * 70)
-        print("PAPER V: GRC Light Distillation — PPL 107% recovery vs Text Quality")
+        print("PAPER V: GRC Light Distillation --- PPL 107% recovery vs Text Quality")
         print("=" * 70)
         
         for rank in ranks:
@@ -334,11 +334,11 @@ def main():
             del model; gc.collect(); torch.cuda.empty_cache()
     
     # 
-    # Paper VII: FFN cluster compression — Frobenius vs text
+    # Paper VII: FFN cluster compression --- Frobenius vs text
     # 
     if "VII" in papers:
         print("\n" + "=" * 70)
-        print("PAPER VII: FFN Cluster Compression — Frobenius vs Text")
+        print("PAPER VII: FFN Cluster Compression --- Frobenius vs Text")
         print("=" * 70)
         
         for k_frac in [0.75]:  # Conservative FFN compression
@@ -381,12 +381,12 @@ def main():
             del model; gc.collect(); torch.cuda.empty_cache()
     
     # 
-    # Paper X: CECI — geometric viability vs functional splicing
+    # Paper X: CECI --- geometric viability vs functional splicing
     # (SmolLM2 base + SmolLM2 instruct = same architecture different training stage)
     # 
     if "X" in papers:
         print("\n" + "=" * 70)
-        print("PAPER X: CECI — Geometric Viability vs Functional Splicing")
+        print("PAPER X: CECI --- Geometric Viability vs Functional Splicing")
         print("  Pair: SmolLM2-135M (base) × SmolLM2-135M-Instruct")
         print("=" * 70)
         
@@ -456,11 +456,11 @@ def main():
             print(f"  Viable: {viable}/{n_layers}")
             
             if viable == 0 and k != 576:
-                print(f"   NO VIABLE LAYERS — skipping splice")
+                print(f"   NO VIABLE LAYERS --- skipping splice")
                 del ma, mb; gc.collect(); torch.cuda.empty_cache()
                 continue
             
-            # Splice: base attention → instruct body
+            # Splice: base attention -> instruct body
             print(f"  Splicing ({viable} layers)...")
             for layer_idx in range(n_layers):
                 att_a = ma.model.layers[layer_idx].self_attn
@@ -501,7 +501,7 @@ def main():
     # Final verdict
     # 
     print("\n" + "=" * 70)
-    print("FINAL VERDICT — Geometric metrics vs Functional output")
+    print("FINAL VERDICT --- Geometric metrics vs Functional output")
     print("=" * 70)
     print(f"{'Test':<45s} {'Score':>6s} {'Coherent':>9s} {'Gibberish':>10s} {'Verdict':>15s}")
     print("-" * 85)

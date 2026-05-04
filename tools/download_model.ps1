@@ -83,37 +83,37 @@ $Registry = @{
     "qwen2.5-0.5b" = @{
         Url  = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf"
         File = "qwen2.5-0.5b-instruct-q4_0.gguf"
-        Desc = "Qwen2.5-0.5B-Instruct Q4_0 — Best math for size, 494M params"
+        Desc = "Qwen2.5-0.5B-Instruct Q4_0 --- Best math for size, 494M params"
         Size = "352 MB"
     }
     "qwen2.5-0.5b-q8" = @{
         Url  = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf"
         File = "qwen2.5-0.5b-instruct-q8_0.gguf"
-        Desc = "Qwen2.5-0.5B-Instruct Q8_0 — Higher quality, slower"
+        Desc = "Qwen2.5-0.5B-Instruct Q8_0 --- Higher quality, slower"
         Size = "531 MB"
     }
     "smollm2-135m" = @{
         Url  = "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q8_0.gguf"
         File = "smollm2-135m-instruct-q8_0.gguf"
-        Desc = "SmolLM2-135M-Instruct Q8_0 — Fastest, tiny model"
+        Desc = "SmolLM2-135M-Instruct Q8_0 --- Fastest, tiny model"
         Size = "145 MB"
     }
     "smollm2-360m" = @{
         Url  = "https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf"
         File = "smollm2-360m-instruct-q4km.gguf"
-        Desc = "SmolLM2-360M-Instruct Q4_K_M — Good balance"
+        Desc = "SmolLM2-360M-Instruct Q4_K_M --- Good balance"
         Size = "230 MB"
     }
     "tinyllama" = @{
         Url  = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
         File = "tinyllama-1.1b-chat-q4_0.gguf"
-        Desc = "TinyLlama-1.1B-Chat Q4_0 — Classic small LLM"
+        Desc = "TinyLlama-1.1B-Chat Q4_0 --- Classic small LLM"
         Size = "600 MB"
     }
     "gemma-2-2b" = @{
         Url  = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_0.gguf"
         File = "gemma-2-2b-it-q4_0.gguf"
-        Desc = "Gemma-2-2B-IT Q4_0 — Google's model, strong math"
+        Desc = "Gemma-2-2B-IT Q4_0 --- Google's model, strong math"
         Size = "1.4 GB"
     }
 }

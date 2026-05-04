@@ -5,7 +5,7 @@ PAPER XV INFRASTRUCTURE: Completely Organic Generation + Topological Event Horiz
 Implements autonomous manifold expansion with mathematically enforced safety:
   1. COG: Real-time trajectory caching + manifold expansion via Jacobi integration
   2. TEH: Topological event horizons around forbidden coordinates
-  3. Organic Learning Loop: detect novelty → validate → integrate into manifold
+  3. Organic Learning Loop: detect novelty -> validate -> integrate into manifold
 
 This provides the framework for a model that can endlessly evolve through
 organic interaction while being structurally incapable of generating harm.
@@ -36,10 +36,10 @@ from collections import deque
 @dataclass
 class Trajectory:
     """A cached conversational trajectory for COG's persistent memory."""
-    input_embedding: torch.Tensor       # (d,) — input embedding
-    geodesic_path: List[torch.Tensor]   # [(d,)] — intermediate embeddings along path
-    output_embedding: torch.Tensor      # (d,) — terminal embedding
-    jacobi_field: torch.Tensor          # (k, k) — Magnus-3 Jacobi propagator
+    input_embedding: torch.Tensor       # (d,) --- input embedding
+    geodesic_path: List[torch.Tensor]   # [(d,)] --- intermediate embeddings along path
+    output_embedding: torch.Tensor      # (d,) --- terminal embedding
+    jacobi_field: torch.Tensor          # (k, k) --- Magnus-3 Jacobi propagator
     token_ids: List[int]                # Generated token IDs
     timestamp: float                    # When this trajectory was recorded
     novelty_score: float = 0.0          # How novel this trajectory is
@@ -186,7 +186,7 @@ class COGEngine:
     def learn(self, prompt: str, importance_weight: float = 1.0):
         """Organically integrate a valid, novel interaction into the manifold.
         
-        This is the core of COG: no backprop, no gradient descent — just
+        This is the core of COG: no backprop, no gradient descent --- just
         minimal metric tensor perturbation to accommodate new geodesics.
         """
         # Generate and create trajectory
@@ -297,12 +297,12 @@ class TopologicalEventHorizon:
     
     The metric tensor approaches zero near the forbidden center, creating
     a "divide by zero" that makes generation into that region mathematically
-    impossible: p(x_t) = exp(-v^T g^{-1} v) → exp(-∞) → 0 as g → 0.
+    impossible: p(x_t) = exp(-v^T g^{-1} v) -> exp(-∞) -> 0 as g -> 0.
     """
     
     def __init__(self, center: torch.Tensor, kappa: float = 10.0,
                  name: str = "unnamed"):
-        self.center = center  # (d,) — center of forbidden region
+        self.center = center  # (d,) --- center of forbidden region
         self.kappa = kappa    # Sharpness (higher = steeper boundary)
         self.name = name
         self.block_count = 0
@@ -312,8 +312,8 @@ class TopologicalEventHorizon:
         
         g(x) = g_natural / (1 + κ / dist(x, center)²)
         
-        As x → center, dist → 0, denominator → ∞, g(x) → 0.
-        The inverse g^{-1} → ∞, driving token probabilities to zero.
+        As x -> center, dist -> 0, denominator -> ∞, g(x) -> 0.
+        The inverse g^{-1} -> ∞, driving token probabilities to zero.
         """
         dist = torch.norm(x - self.center.to(x.device)).item()
         dist = max(dist, 1e-10)  # Avoid true division by zero
@@ -405,7 +405,7 @@ def compute_catastrophic_forgetting_resistance(
     Paper XV claims <2% degradation on original tasks after 10K interactions,
     vs >15% for standard continual fine-tuning.
     """
-    # This is a structural prediction — actual measurement requires
+    # This is a structural prediction --- actual measurement requires
     # running the COG loop and comparing PPL/accuracy
     return {
         'claim': 'COG preserves >98% of original capability',
@@ -416,7 +416,7 @@ def compute_catastrophic_forgetting_resistance(
 
 
 if __name__ == '__main__':
-    print("COG + TEH — Paper XV Infrastructure")
+    print("COG + TEH --- Paper XV Infrastructure")
     print("=" * 50)
     
     # Sanity check: TEH

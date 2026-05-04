@@ -14,7 +14,7 @@ print("  HODGE PROTOTYPE: Algebraic Variety Manifold")
 print("  Paper XXXI: Harmonic forms = closed geodesics")
 print("="*60)
 
-# ── Simulated algebraic varieties ──
+# -- Simulated algebraic varieties --
 # Represent projective hypersurfaces by their defining polynomials
 # x^d + y^d + z^d + ... = 0 in P^n
 # Features: dimension n, degree d, Hodge numbers h^{p,q}
@@ -69,7 +69,7 @@ FEAT_DIM=len(variety_features(varieties[0]))
 vvecs=torch.stack([variety_features(v) for v in varieties])
 print(f"  Varieties: {n_varieties}, feat dim: {FEAT_DIM}")
 
-# ── Labels: Hodge classes ← algebraic cycles ──
+# -- Labels: Hodge classes <- algebraic cycles --
 # For each variety, generate some "algebraic cycles" (simulated subvarieties)
 # and corresponding "Hodge classes" (cohomology classes)
 # The conjecture says they should match
@@ -95,17 +95,17 @@ for i,v in enumerate(varieties):
 cycle_vecs=torch.stack(cycle_vectors)  # [N_cycles, feat_dim+3]
 print(f"  Algebraic cycles: {len(cycle_vecs)}")
 
-# ── Train manifold ──
+# -- Train manifold --
 print(f"\n[2] Training Hodge manifold (D={D})...")
-# Encoder: variety → manifold point
+# Encoder: variety -> manifold point
 vencoder=torch.nn.Sequential(torch.nn.Linear(FEAT_DIM,256),torch.nn.GELU(),torch.nn.Linear(256,D)).to(DEVICE)
-# Cycle embedder: algebraic cycle → tangent vector on manifold
+# Cycle embedder: algebraic cycle -> tangent vector on manifold
 cencoder=torch.nn.Sequential(torch.nn.Linear(FEAT_DIM+3,256),torch.nn.GELU(),torch.nn.Linear(256,D)).to(DEVICE)
 
 opt=torch.optim.AdamW(list(vencoder.parameters())+list(cencoder.parameters()),lr=0.002)
 
 for step in range(3000):
-    # Variety continuity: similar varieties → nearby
+    # Variety continuity: similar varieties -> nearby
     vi=torch.randint(0,n_varieties,(48,))
     ve=F.normalize(vencoder(vvecs[vi].to(DEVICE)),dim=-1)
     cont=(1-(ve@ve.T)).mean()
@@ -118,7 +118,7 @@ for step in range(3000):
     var_emb=vencoder(vvecs[torch.tensor(v_indices)].to(DEVICE))
     
     # Cycle should be TANGENT to variety (orthogonal to position)
-    # Harmonic condition: Δω = 0 → cycle is in kernel of Laplacian
+    # Harmonic condition: Δω = 0 -> cycle is in kernel of Laplacian
     # Simplified: cycle direction is orthogonal to variety position gradient
     tangent_comp=torch.norm(cycle_emb-(cycle_emb*var_emb).sum(dim=-1,keepdim=True)*var_emb,dim=-1).mean()
     # Want cycles to be tangent (parallel to variety, not radial)
@@ -142,7 +142,7 @@ for step in range(3000):
     if (step+1)%500==0:
         print(f"  Step {step+1}: loss={loss.item():.4f} cont={cont.item():.3f} cycle={cycle_loss.item():.3f}")
 
-# ── Hodge detection ──
+# -- Hodge detection --
 print("\n[3] Detecting Hodge classes as harmonic forms...")
 with torch.no_grad():
     # Embed all varieties

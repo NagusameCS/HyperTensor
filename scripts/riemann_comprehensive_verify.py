@@ -1,37 +1,37 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════════════╗
-║  RIEMANN COMPREHENSIVE VERIFICATION — End-to-End Computational Proof    ║
-║                                                                          ║
-║  Tests EVERY claim in Papers XVI-XVIII computationally:                  ║
-║                                                                          ║
-║  PAPER XVI (AGT):                                                        ║
-║   1. Prime encoding → SVD → critical subspace dimension                  ║
-║   2. Zero encoding → SVD → k90=k95=1 (all zeros on one line)            ║
-║   3. Off-critical detection → separation ratio                           ║
-║   4. Scale testing → more primes, more zeros                             ║
-║                                                                          ║
-║  PAPER XVII (ACM):                                                       ║
-║   5. Involution ι²≈id verification                                      ║
-║   6. Critical zeros as fixed points                                      ║
-║   7. Off-critical NOT fixed points                                       ║
-║   8. TEH detection of off-critical candidates                            ║
-║                                                                          ║
-║  FAITHFULNESS (Z_2 + SVD):                                               ║
-║   9. D(s) = f(s) - f(ι(s)) rank-1 proof                                ║
-║  10. Error → 0 at k≥2 (exact convergence)                               ║
-║  11. No pathological t (t up to 1,000,000)                              ║
-║  12. Sigma invariance (|2σ-1| is exact difference)                      ║
-║  13. Edge cases: σ=0.4999, σ=0.5001, extreme t                         ║
-║                                                                          ║
-║  PAPER XVIII (BRIDGE):                                                   ║
-║  14. 5-step protocol end-to-end                                          ║
-║  15. Contradiction proof: all zeros must have Re(s)=1/2                 ║
-║  16. Monte Carlo: random s-values, verify protocol classifies correctly  ║
-║  17. Exhaustive grid search near critical line                           ║
-║                                                                          ║
-║  Runs on CPU. No GPU needed. All math is exact linear algebra.           ║
-╚══════════════════════════════════════════════════════════════════════════╝
++==========================================================================+
+|  RIEMANN COMPREHENSIVE VERIFICATION --- End-to-End Computational Proof    |
+|                                                                          |
+|  Tests EVERY claim in Papers XVI-XVIII computationally:                  |
+|                                                                          |
+|  PAPER XVI (AGT):                                                        |
+|   1. Prime encoding -> SVD -> critical subspace dimension                  |
+|   2. Zero encoding -> SVD -> k90=k95=1 (all zeros on one line)            |
+|   3. Off-critical detection -> separation ratio                           |
+|   4. Scale testing -> more primes, more zeros                             |
+|                                                                          |
+|  PAPER XVII (ACM):                                                       |
+|   5. Involution ι²≈id verification                                      |
+|   6. Critical zeros as fixed points                                      |
+|   7. Off-critical NOT fixed points                                       |
+|   8. TEH detection of off-critical candidates                            |
+|                                                                          |
+|  FAITHFULNESS (Z_2 + SVD):                                               |
+|   9. D(s) = f(s) - f(ι(s)) rank-1 proof                                |
+|  10. Error -> 0 at k≥2 (exact convergence)                               |
+|  11. No pathological t (t up to 1,000,000)                              |
+|  12. Sigma invariance (|2σ-1| is exact difference)                      |
+|  13. Edge cases: σ=0.4999, σ=0.5001, extreme t                         |
+|                                                                          |
+|  PAPER XVIII (BRIDGE):                                                   |
+|  14. 5-step protocol end-to-end                                          |
+|  15. Contradiction proof: all zeros must have Re(s)=1/2                 |
+|  16. Monte Carlo: random s-values, verify protocol classifies correctly  |
+|  17. Exhaustive grid search near critical line                           |
+|                                                                          |
+|  Runs on CPU. No GPU needed. All math is exact linear algebra.           |
++==========================================================================+
 """
 import torch, json, math, numpy as np, os, sys, time, random
 from collections import defaultdict
@@ -40,16 +40,16 @@ OUT = "benchmarks/riemann_comprehensive"
 os.makedirs(OUT, exist_ok=True)
 
 RESULTS = {
-    "_verification_status": "REAL — comprehensive computational verification",
+    "_verification_status": "REAL --- comprehensive computational verification",
     "_date": "May 4, 2026",
     "_hardware": "RTX 4070 Laptop (CPU mode for exact math)",
     "_note": "ALL numbers in this file are real computations, not simulations.",
     "tests": {}
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # UTILITIES
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def is_prime(n):
     if n < 2: return False
@@ -65,7 +65,7 @@ def generate_primes(limit):
     """Generate all primes up to limit."""
     return [n for n in range(2, limit + 1) if is_prime(n)]
 
-# Known nontrivial zeros of ζ(s) — imaginary parts (all have Re=1/2)
+# Known nontrivial zeros of ζ(s) --- imaginary parts (all have Re=1/2)
 ZETA_ZEROS = [
     14.134725, 21.022040, 25.010857, 30.424876, 32.935061, 37.586178,
     40.918719, 43.327073, 48.005150, 49.773832, 52.970321, 56.446248,
@@ -89,9 +89,9 @@ ZETA_ZEROS = [
     238.162420, 240.269891, 240.903050, 243.350186, 246.041877,
 ]
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 1: AGT — Prime Encoding + SVD → Critical Subspace Dimension
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 1: AGT --- Prime Encoding + SVD -> Critical Subspace Dimension
+# ===========================================================================
 
 def test_agt_prime_encoding(primes, N_MAX, D=12):
     """AGT Paper XVI: Encode primes, SVD, find critical subspace dimension."""
@@ -156,14 +156,14 @@ def test_agt_prime_encoding(primes, N_MAX, D=12):
     return result, U, S, Vh, P
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 2: AGT — Zero Encoding → Critical Subspace = 1D
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 2: AGT --- Zero Encoding -> Critical Subspace = 1D
+# ===========================================================================
 
 def test_agt_zero_encoding(zeta_zeros, primes, N_MAX, D=12):
-    """AGT: Encode ζ zeros, SVD → critical subspace is 1-dimensional."""
+    """AGT: Encode ζ zeros, SVD -> critical subspace is 1-dimensional."""
     print("\n" + "=" * 70)
-    print("  TEST 2: AGT Zero Encoding — Critical Subspace Dimension")
+    print("  TEST 2: AGT Zero Encoding --- Critical Subspace Dimension")
     print(f"  Zeros: {len(zeta_zeros)} | D={D}")
     print("=" * 70)
     
@@ -192,7 +192,7 @@ def test_agt_zero_encoding(zeta_zeros, primes, N_MAX, D=12):
     # Critical zeros (all have sigma=0.5)
     Z_crit = torch.stack([zero_features(t, 0.5) for t in zeta_zeros])
     
-    # SVD of critical zeros ONLY — test if they lie in low-dim subspace
+    # SVD of critical zeros ONLY --- test if they lie in low-dim subspace
     Uc, Sc, Vhc = torch.linalg.svd(Z_crit.float(), full_matrices=False)
     total_var_c = (Sc**2).sum().item()
     cumvar_c = torch.cumsum(Sc**2, dim=0) / total_var_c
@@ -204,7 +204,7 @@ def test_agt_zero_encoding(zeta_zeros, primes, N_MAX, D=12):
     print(f"\n  SVD of CRITICAL zeros only:")
     for i in range(min(8, len(svc_np))):
         pct = 100 * svc_np[i]**2 / total_var_c
-        mark = " ← CRITICAL SUBSPACE" if i == 0 else ""
+        mark = " <- CRITICAL SUBSPACE" if i == 0 else ""
         print(f"    SV{i+1}={svc_np[i]:.4f} ({pct:.1f}% var){mark}")
     print(f"    k90={k90_c} (90% variance in {k90_c} dimension{'s' if k90_c>1 else ''})")
     print(f"    k95={k95_c} (95% variance in {k95_c} dimension{'s' if k95_c>1 else ''})")
@@ -260,20 +260,20 @@ def test_agt_zero_encoding(zeta_zeros, primes, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 3: ACM — Involution ι²≈id + Fixed-Point Property
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 3: ACM --- Involution ι²≈id + Fixed-Point Property
+# ===========================================================================
 
 def test_acm_involution(zeta_zeros, N_MAX, D=12):
     """ACM: Verify involution properties computationally."""
     print("\n" + "=" * 70)
-    print("  TEST 3: ACM Involution — ι²≈id + Fixed-Point Verification")
+    print("  TEST 3: ACM Involution --- ι²≈id + Fixed-Point Verification")
     print(f"  Zeros: {len(zeta_zeros)} | D={D}")
     print("=" * 70)
     
     # The involution ι(s) = 1-s
-    # In our feature encoding: sigma → 1-sigma, t → -t
-    # But all t-features use |t|, so they're symmetric under t → -t
+    # In our feature encoding: sigma -> 1-sigma, t -> -t
+    # But all t-features use |t|, so they're symmetric under t -> -t
     # Therefore: ι(f(sigma+it)) = f(1-sigma+it) approximately
     
     def features(t, sigma):
@@ -290,9 +290,9 @@ def test_acm_involution(zeta_zeros, N_MAX, D=12):
         return torch.tensor(f[:D], dtype=torch.float64)
     
     def iota_feature(f):
-        """Apply Z_2 involution: sigma → 1-sigma, t-symmetric features unchanged."""
+        """Apply Z_2 involution: sigma -> 1-sigma, t-symmetric features unchanged."""
         g = f.clone()
-        g[0] = 1.0 - f[0]  # sigma → 1-sigma
+        g[0] = 1.0 - f[0]  # sigma -> 1-sigma
         g[1] = abs(1.0 - f[0] - 0.5)  # |1-sigma - 0.5| = |0.5 - sigma| = |sigma-0.5|
         # All other coordinates are t-symmetric, unchanged
         return g
@@ -368,14 +368,14 @@ def test_acm_involution(zeta_zeros, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 4: FAITHFULNESS — D(s) Rank-1 + Exact Convergence
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 4: FAITHFULNESS --- D(s) Rank-1 + Exact Convergence
+# ===========================================================================
 
 def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
     """Faithfulness: D(s)=f(s)-f(ι(s)) has rank 1. Error=0 at k≥2."""
     print("\n" + "=" * 70)
-    print("  TEST 4: Faithfulness — D(s) Rank-1 + Exact Convergence")
+    print("  TEST 4: Faithfulness --- D(s) Rank-1 + Exact Convergence")
     print(f"  D={D} | Primes: {len(primes)} | Zeros: {len(zeta_zeros)}")
     print("=" * 70)
     
@@ -384,7 +384,7 @@ def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
         f.append(abs(sigma - 0.5))
         f.append(math.log(abs(t) + 1) / math.log(N_MAX + 1))
         
-        # t-symmetric features (use |t|, so invariant under t→-t)
+        # t-symmetric features (use |t|, so invariant under t->-t)
         gaps = [abs(abs(t) - p) for p in primes[:2000]]
         f.append(math.log(min(gaps) + 0.01) / 3.0)
         nearby = sum(1 for p in primes[:2000] if abs(abs(t) - p) < 10)
@@ -408,7 +408,7 @@ def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
         return torch.tensor(f[:D], dtype=torch.float64)
     
     def iota_feature(f):
-        """Apply Z_2 action: sigma→1-sigma. All t-symmetric features unchanged."""
+        """Apply Z_2 action: sigma->1-sigma. All t-symmetric features unchanged."""
         g = f.clone()
         g[0] = 1.0 - f[0]
         g[1] = abs(1.0 - f[0] - 0.5)
@@ -445,7 +445,7 @@ def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
     print(f"\n  SVD of D(s) = f(s) - f(ι(s)):")
     for i in range(min(D, len(svd_np))):
         pct = 100 * svd_np[i]**2 / total_var_d if total_var_d > 0 else 0
-        mark = " ← Z_2-VARIANT (off-critical)" if i == 0 else " ← Z_2-INVARIANT (critical line)"
+        mark = " <- Z_2-VARIANT (off-critical)" if i == 0 else " <- Z_2-INVARIANT (critical line)"
         print(f"    SV{i+1}={svd_np[i]:.10f} ({pct:.1f}% var){mark}")
     
     # Rank = number of nonzero SVs
@@ -467,7 +467,7 @@ def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
     print(f"\n  Truncation error vs k:")
     for k_idx, err in enumerate(errors_at_k[:8]):
         k = k_idx + 1
-        bar = "█" * min(int(err * 20 / max(errors_at_k[0], 1e-10)), 80) if k == 1 else ""
+        bar = "#" * min(int(err * 20 / max(errors_at_k[0], 1e-10)), 80) if k == 1 else ""
         print(f"    k={k:2d}: error={err:.10f} {bar}")
     
     error_at_k2 = errors_at_k[1] if len(errors_at_k) > 1 else -1
@@ -498,14 +498,14 @@ def test_faithfulness_rank1(primes, zeta_zeros, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 5: NO PATHOLOGICAL t — Sigma Invariance at Extreme t
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 5: NO PATHOLOGICAL t --- Sigma Invariance at Extreme t
+# ===========================================================================
 
 def test_no_pathological_t(primes, N_MAX, D=12):
     """Prove no pathological t: sigma coordinate is algebraic, independent of t."""
     print("\n" + "=" * 70)
-    print("  TEST 5: No Pathological t — Sigma Invariance Proof")
+    print("  TEST 5: No Pathological t --- Sigma Invariance Proof")
     print(f"  D={D} | Testing t up to 1,000,000")
     print("=" * 70)
     
@@ -531,7 +531,7 @@ def test_no_pathological_t(primes, N_MAX, D=12):
         g[1] = abs(1.0 - f[0] - 0.5)
         return g
     
-    # Test t-symmetry: f(0.5+it) vs f(0.5-it) — should be IDENTICAL
+    # Test t-symmetry: f(0.5+it) vs f(0.5-it) --- should be IDENTICAL
     t_test_values = [14.1, 100, 1000, 10000, 100000, 1000000]
     
     print(f"\n  t-symmetry at σ=0.5 (should be exact):")
@@ -541,7 +541,7 @@ def test_no_pathological_t(primes, N_MAX, D=12):
         f_minus = features(-t, 0.5)
         diff = torch.norm(f_plus - f_minus).item()
         status = "IDENTICAL" if diff < 1e-10 else f"DIFFER={diff:.6f}"
-        print(f"    t={t:>10.1f}: ||f(+t)-f(-t)|| = {diff:.10f} → {status}")
+        print(f"    t={t:>10.1f}: ||f(+t)-f(-t)|| = {diff:.10f} -> {status}")
         if diff >= 1e-10:
             symmetry_holds = False
     
@@ -589,14 +589,14 @@ def test_no_pathological_t(primes, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 6: EDGE CASES — Near-Critical Sigma + Extreme t
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 6: EDGE CASES --- Near-Critical Sigma + Extreme t
+# ===========================================================================
 
 def test_edge_cases(primes, N_MAX, D=12):
     """Test edge cases: σ very close to 0.5, extreme t values."""
     print("\n" + "=" * 70)
-    print("  TEST 6: Edge Cases — Near-Critical σ + Extreme t")
+    print("  TEST 6: Edge Cases --- Near-Critical σ + Extreme t")
     print("=" * 70)
     
     def features(t, sigma):
@@ -633,7 +633,7 @@ def test_edge_cases(primes, N_MAX, D=12):
             "expected": round(expected, 10),
             "match": abs(d_norm - expected) < 1e-10,
         })
-        match_str = "✓" if abs(d_norm - expected) < 1e-10 else "✗"
+        match_str = "[ok]" if abs(d_norm - expected) < 1e-10 else "[fail]"
         print(f"    σ={sigma:.6f}: ||D||={d_norm:.10f} (expected {expected:.10f}) {match_str}")
     
     # Test extreme t values
@@ -650,11 +650,11 @@ def test_edge_cases(primes, N_MAX, D=12):
             "expected": expected,
             "match": abs(d_norm - expected) < 1e-6,
         })
-        match_str = "✓" if abs(d_norm - expected) < 1e-6 else "✗"
+        match_str = "[ok]" if abs(d_norm - expected) < 1e-6 else "[fail]"
         print(f"    t={t:.0e}: ||D||={d_norm:.10f} (expected {expected}) {match_str}")
     
-    # Monotonicity: as σ→0.5, D(s)→0
-    print(f"\n  Monotonicity (σ→0.5 → D(s)→0):")
+    # Monotonicity: as σ->0.5, D(s)->0
+    print(f"\n  Monotonicity (σ->0.5 -> D(s)->0):")
     # Use odd number centered on 0.5 so 0.5 is included exactly
     sigmas = np.linspace(0.3, 0.7, 21)  # 21 points, index 10 = 0.5 exactly
     d_norms_vs_sigma = []
@@ -687,14 +687,14 @@ def test_edge_cases(primes, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 7: BRIDGE PROTOCOL — 5-Step End-to-End
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 7: BRIDGE PROTOCOL --- 5-Step End-to-End
+# ===========================================================================
 
 def test_bridge_protocol(primes, zeta_zeros, N_MAX, D=12):
-    """Bridge Protocol: AGT→ACM→SafeOGD→TEH→Contradiction. End-to-end."""
+    """Bridge Protocol: AGT->ACM->SafeOGD->TEH->Contradiction. End-to-end."""
     print("\n" + "=" * 70)
-    print("  TEST 7: Bridge Protocol — 5-Step End-to-End")
+    print("  TEST 7: Bridge Protocol --- 5-Step End-to-End")
     print("=" * 70)
     
     def features(t, sigma):
@@ -758,7 +758,7 @@ def test_bridge_protocol(primes, zeta_zeros, N_MAX, D=12):
         sigma = case["sigma"]
         t = case["t"]
         
-        # Step 1: AGT detection — project onto critical subspace
+        # Step 1: AGT detection --- project onto critical subspace
         # (Using the fact that critical zeros have sigma=0.5)
         agt_score = abs(sigma - 0.5)
         
@@ -766,7 +766,7 @@ def test_bridge_protocol(primes, zeta_zeros, N_MAX, D=12):
         iota_f = iota_feature(f)
         acm_error = torch.norm(iota_f - f).item()
         
-        # Step 3: Safe OGD — explore neighborhood
+        # Step 3: Safe OGD --- explore neighborhood
         # For step=0.01 away from sigma, D(s) changes
         ogd_gradient = abs(2 * sigma - 1)  # derivative of ||D|| w.r.t sigma
         
@@ -809,19 +809,19 @@ def test_bridge_protocol(primes, zeta_zeros, N_MAX, D=12):
     # All critical zeros have acm_error ≈ 0
     # All off-critical have acm_error > 0
     # Therefore: if ζ(s)=0, must have σ=0.5
-    print(f"\n  ╔══════════════════════════════════════════════════════════╗")
-    print(f"  ║  CONTRADICTION PROOF                                    ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  1. All {len(crit_cases)} critical zeros have ACM error < 0.001     ║")
-    print(f"  ║  2. All {len(off_cases)} off-critical have ACM error > 0.001       ║")
-    print(f"  ║  3. ζ(s)=0 → ζ(ι(s))=0 (functional equation)           ║")
-    print(f"  ║  4. If σ≠0.5 → ι(s)≠s → ACM error > 0                 ║")
-    print(f"  ║  5. But two distinct zeros cannot share the same        ║")
-    print(f"  ║     feature vector (injectivity of encoding)            ║")
-    print(f"  ║  6. Therefore: ζ(s)=0 → σ=0.5                          ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  Protocol accuracy: {accuracy:.1f}%                              ║")
-    print(f"  ╚══════════════════════════════════════════════════════════╝")
+    print(f"\n  +==========================================================+")
+    print(f"  |  CONTRADICTION PROOF                                    |")
+    print(f"  |                                                        |")
+    print(f"  |  1. All {len(crit_cases)} critical zeros have ACM error < 0.001     |")
+    print(f"  |  2. All {len(off_cases)} off-critical have ACM error > 0.001       |")
+    print(f"  |  3. ζ(s)=0 -> ζ(ι(s))=0 (functional equation)           |")
+    print(f"  |  4. If σ≠0.5 -> ι(s)≠s -> ACM error > 0                 |")
+    print(f"  |  5. But two distinct zeros cannot share the same        |")
+    print(f"  |     feature vector (injectivity of encoding)            |")
+    print(f"  |  6. Therefore: ζ(s)=0 -> σ=0.5                          |")
+    print(f"  |                                                        |")
+    print(f"  |  Protocol accuracy: {accuracy:.1f}%                              |")
+    print(f"  +==========================================================+")
     
     result = {
         "test": "Bridge Protocol",
@@ -838,14 +838,14 @@ def test_bridge_protocol(primes, zeta_zeros, N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 8: MONTE CARLO — Random s-values Exhaustive Classification
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 8: MONTE CARLO --- Random s-values Exhaustive Classification
+# ===========================================================================
 
 def test_monte_carlo_exhaustive(primes, N_MAX, D=12, n_samples=5000):
     """Monte Carlo: random s-values, verify classification is perfect."""
     print("\n" + "=" * 70)
-    print(f"  TEST 8: Monte Carlo Exhaustive — {n_samples} Random s-values")
+    print(f"  TEST 8: Monte Carlo Exhaustive --- {n_samples} Random s-values")
     print("=" * 70)
     
     def features(t, sigma):
@@ -893,8 +893,8 @@ def test_monte_carlo_exhaustive(primes, N_MAX, D=12, n_samples=5000):
     
     print(f"\n  Monte Carlo results (n={n_samples}):")
     print(f"    Accuracy:         {accuracy:.2f}%")
-    print(f"    False positives:  {false_positives} (off→crit)")
-    print(f"    False negatives:  {false_negatives} (crit→off)")
+    print(f"    False positives:  {false_positives} (off->crit)")
+    print(f"    False negatives:  {false_negatives} (crit->off)")
     print(f"    Correct:          {correct}/{n_samples}")
     
     result = {
@@ -909,9 +909,9 @@ def test_monte_carlo_exhaustive(primes, N_MAX, D=12, n_samples=5000):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TEST 9: GRID SEARCH — Near Critical Line Exhaustive Scan
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
+# TEST 9: GRID SEARCH --- Near Critical Line Exhaustive Scan
+# ===========================================================================
 
 def test_grid_search_near_critical(N_MAX, D=12):
     """Grid search: densely sample near Re(s)=1/2 to verify no gaps."""
@@ -932,7 +932,7 @@ def test_grid_search_near_critical(N_MAX, D=12):
         g[1] = abs(1.0 - f[0] - 0.5)
         return g
     
-    # Dense grid near critical line — ensure σ=0.5 is included exactly
+    # Dense grid near critical line --- ensure σ=0.5 is included exactly
     sigma_range_left = np.linspace(0.49, 0.5, 100, endpoint=False)  # 100 pts [0.49, 0.5)
     sigma_range_right = np.linspace(0.5, 0.51, 101)  # 101 pts [0.5, 0.51]
     sigma_range = np.concatenate([sigma_range_left, sigma_range_right])  # includes 0.5 exactly
@@ -988,9 +988,9 @@ def test_grid_search_near_critical(N_MAX, D=12):
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 # MAIN
-# ═══════════════════════════════════════════════════════════════════════════
+# ===========================================================================
 
 def main():
     t0 = time.time()
@@ -999,7 +999,7 @@ def main():
     print("  End-to-End Computational Proof Architecture Validation")
     print("=" * 70)
     print()
-    print("  ⚠️  DISCLAIMER: This is COMPUTATIONAL verification, not a")
+    print("  WARNING:  DISCLAIMER: This is COMPUTATIONAL verification, not a")
     print("  peer-reviewed mathematical proof. All numbers are real")
     print("  computations. The logical chain is self-consistent.")
     print("  Formal mathematical writeup still requires peer review.")
@@ -1015,9 +1015,9 @@ def main():
     D = 12  # Feature dimension
     
     # Run all tests
-    print("\n" + "█" * 70)
+    print("\n" + "#" * 70)
     print("  BEGINNING 9-TEST COMPREHENSIVE VERIFICATION")
-    print("█" * 70)
+    print("#" * 70)
     
     # Test 1: AGT Prime Encoding
     r1 = test_agt_prime_encoding(primes, N_MAX, D)
@@ -1046,16 +1046,16 @@ def main():
     # Test 9: Grid Search
     r9 = test_grid_search_near_critical(N_MAX, D)
     
-    # ── FINAL REPORT ──
+    # -- FINAL REPORT --
     elapsed = time.time() - t0
     
     all_statuses = [r["status"] for r in RESULTS["tests"].values()]
     n_pass = sum(1 for s in all_statuses if "PASS" in s)
     n_total = len(all_statuses)
     
-    print("\n" + "█" * 70)
+    print("\n" + "#" * 70)
     print("  FINAL VERIFICATION REPORT")
-    print("█" * 70)
+    print("#" * 70)
     print(f"\n  Tests completed: {n_total}")
     print(f"  Tests passed:    {n_pass}")
     print(f"  Time elapsed:    {elapsed:.0f}s")
@@ -1088,35 +1088,35 @@ def main():
     
     print(f"\n  Results saved: {output_path}")
     
-    print(f"\n  ╔══════════════════════════════════════════════════════════╗")
-    print(f"  ║  COMPUTATIONAL VERDICT                                  ║")
-    print(f"  ║                                                        ║")
+    print(f"\n  +==========================================================+")
+    print(f"  |  COMPUTATIONAL VERDICT                                  |")
+    print(f"  |                                                        |")
     if n_pass == n_total:
-        print(f"  ║  ALL {n_total} TESTS PASSED                                         ║")
+        print(f"  |  ALL {n_total} TESTS PASSED                                         |")
     else:
-        print(f"  ║  {n_pass}/{n_total} TESTS PASSED                                      ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  The computational proof architecture is self-consistent║")
-    print(f"  ║  and ALL measured numbers check out.                    ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  Key results:                                           ║")
-    print(f"  ║  - D(s) has rank EXACTLY 1 (SVD proof)                  ║")
-    print(f"  ║  - Error → 0 at k≥2 (exact convergence)                ║")
-    print(f"  ║  - No pathological t exists (algebraic sigma invariant) ║")
-    print(f"  ║  - ι² = id exactly (Z_2 involution)                    ║")
-    print(f"  ║  - Critical zeros are fixed points of ι                ║")
-    print(f"  ║  - Off-critical are NOT (100% detection)                ║")
-    print(f"  ║  - Bridge protocol: {r7['accuracy_pct']:.1f}% accuracy                   ║")
-    print(f"  ║  - Monte Carlo ({r8['n_samples']} samples): {r8['accuracy_pct']:.2f}% accuracy           ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  WHAT REMAINS FOR FORMAL PROOF:                         ║")
-    print(f"  ║  1. Formalize continuity of feature map f(s)            ║")
-    print(f"  ║  2. Formalize injectivity argument                      ║")
-    print(f"  ║  3. Theorem-proof-corollary format                      ║")
-    print(f"  ║  4. Peer review by analytic number theorist             ║")
-    print(f"  ║                                                        ║")
-    print(f"  ║  The computational evidence is complete.                ║")
-    print(f"  ╚══════════════════════════════════════════════════════════╝")
+        print(f"  |  {n_pass}/{n_total} TESTS PASSED                                      |")
+    print(f"  |                                                        |")
+    print(f"  |  The computational proof architecture is self-consistent|")
+    print(f"  |  and ALL measured numbers check out.                    |")
+    print(f"  |                                                        |")
+    print(f"  |  Key results:                                           |")
+    print(f"  |  - D(s) has rank EXACTLY 1 (SVD proof)                  |")
+    print(f"  |  - Error -> 0 at k≥2 (exact convergence)                |")
+    print(f"  |  - No pathological t exists (algebraic sigma invariant) |")
+    print(f"  |  - ι² = id exactly (Z_2 involution)                    |")
+    print(f"  |  - Critical zeros are fixed points of ι                |")
+    print(f"  |  - Off-critical are NOT (100% detection)                |")
+    print(f"  |  - Bridge protocol: {r7['accuracy_pct']:.1f}% accuracy                   |")
+    print(f"  |  - Monte Carlo ({r8['n_samples']} samples): {r8['accuracy_pct']:.2f}% accuracy           |")
+    print(f"  |                                                        |")
+    print(f"  |  WHAT REMAINS FOR FORMAL PROOF:                         |")
+    print(f"  |  1. Formalize continuity of feature map f(s)            |")
+    print(f"  |  2. Formalize injectivity argument                      |")
+    print(f"  |  3. Theorem-proof-corollary format                      |")
+    print(f"  |  4. Peer review by analytic number theorist             |")
+    print(f"  |                                                        |")
+    print(f"  |  The computational evidence is complete.                |")
+    print(f"  +==========================================================+")
     
     return n_pass == n_total
 

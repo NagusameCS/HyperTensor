@@ -184,7 +184,7 @@ def main():
             }
             continue
         
-        print(f"\n[3] k={k} — loading fresh model and compressing...")
+        print(f"\n[3] k={k} --- loading fresh model and compressing...")
         
         # Fresh model
         model = AutoModelForCausalLM.from_pretrained(

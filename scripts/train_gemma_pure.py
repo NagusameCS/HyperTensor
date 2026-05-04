@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 EC2 Gemma-4-2B Pure LoRA Training.
-Self-contained script — upload to EC2 and run directly.
+Self-contained script --- upload to EC2 and run directly.
 Trains a pure single-skill model on either math or language data.
 
 Usage on EC2:
@@ -9,7 +9,7 @@ Usage on EC2:
   python3 train_gemma_pure.py --skill language --steps 5000
   
 Requirements: torch, transformers, peft, datasets, accelerate
-EC2: g6e.xlarge (L40S 46GB) — Gemma-4-2B fits in BF16 with LoRA (~8GB)
+EC2: g6e.xlarge (L40S 46GB) --- Gemma-4-2B fits in BF16 with LoRA (~8GB)
 """
 
 import argparse, json, os, time
@@ -36,11 +36,11 @@ MATH_TEXTS = [
     "Question: Solve for x: 3x + 7 = 22\nAnswer: 3x=15, x=5.",
     "Question: What is 15% of 200?\nAnswer: 0.15×200=30.",
     "Question: A rectangle has length 8m and width 5m. Find its area and perimeter.\nAnswer: Area=8×5=40m². Perimeter=2(8+5)=26m.",
-    "Question: Factor: x² - 9\nAnswer: (x+3)(x-3) — difference of squares.",
+    "Question: Factor: x² - 9\nAnswer: (x+3)(x-3) --- difference of squares.",
     "Question: What is the square root of 196?\nAnswer: 14, since 14²=196.",
     "Question: If f(x)=2x²+3x-5, find f(2).\nAnswer: f(2)=2(4)+6-5=8+6-5=9.",
     "Question: A train leaves at 8:00 AM traveling 80 mph. Another train leaves the same station at 9:30 AM traveling 100 mph. When does the second train catch up?\nAnswer: Head start: 1.5×80=120 miles. Relative speed: 20 mph. 120/20=6 hours after 9:30 AM = 3:30 PM.",
-    "Question: Solve the system: 2x + y = 7, x - y = 2\nAnswer: From second: x=y+2. Substitute: 2(y+2)+y=7 → 2y+4+y=7 → 3y=3 → y=1, x=3.",
+    "Question: Solve the system: 2x + y = 7, x - y = 2\nAnswer: From second: x=y+2. Substitute: 2(y+2)+y=7 -> 2y+4+y=7 -> 3y=3 -> y=1, x=3.",
     "Question: What is the probability of rolling a sum of 7 with two dice?\nAnswer: 6 favorable outcomes (1+6,2+5,3+4,4+3,5+2,6+1) out of 36. P=6/36=1/6.",
     "Question: Find the derivative of f(x)=3x⁴-2x²+5x-7.\nAnswer: f'(x)=12x³-4x+5.",
     "Question: A circle has radius 5. Find its circumference and area.\nAnswer: C=2π×5=10π≈31.4. A=π×5²=25π≈78.5.",
@@ -61,21 +61,21 @@ LANGUAGE_TEXTS = [
     "The old fisherman sat at the end of the pier, his weathered hands mending nets with the same patience he had learned from his grandfather sixty years ago, when the sea still teemed with life.",
     "In the heart of the city, beneath the neon glow of countless advertisements, a small coffee shop served as a sanctuary for writers, artists, and dreamers who found solace in the bitter aroma of freshly ground beans.",
     "The symphony began with a whisper of violins, building slowly like a storm gathering on the horizon, until the full orchestra erupted in a cascade of sound that left the audience breathless.",
-    "He remembered the taste of his grandmother's apple pie — cinnamon and nutmeg dancing on his tongue, the flaky crust crumbling perfectly with each bite, a recipe passed down through four generations.",
+    "He remembered the taste of his grandmother's apple pie --- cinnamon and nutmeg dancing on his tongue, the flaky crust crumbling perfectly with each bite, a recipe passed down through four generations.",
     "The desert stretched endlessly before them, a vast ocean of sand dunes sculpted by millennia of wind, where the only sound was the soft whisper of grains shifting in the afternoon breeze.",
     "Language is not merely a tool for communication but the very fabric of thought itself, shaping our perception of reality in ways we are only beginning to understand through cognitive science.",
-    "The detective examined the crime scene with meticulous care, noting every detail — the position of the overturned chair, the half-empty glass of wine, the faint footprint in the carpet.",
+    "The detective examined the crime scene with meticulous care, noting every detail --- the position of the overturned chair, the half-empty glass of wine, the faint footprint in the carpet.",
     "As autumn painted the forest in shades of amber and crimson, the old oak stood sentinel, its branches reaching toward the pale October sky like the arms of a patient guardian.",
     "The chef moved through the kitchen with practiced grace, his knife dancing across the cutting board in a rhythm perfected over decades, transforming simple ingredients into culinary art.",
-    "History teaches us that the greatest discoveries often come not from methodical research but from serendipitous accidents — penicillin, X-rays, and microwave ovens were all born from unexpected observations.",
+    "History teaches us that the greatest discoveries often come not from methodical research but from serendipitous accidents --- penicillin, X-rays, and microwave ovens were all born from unexpected observations.",
     "The garden bloomed in defiance of the urban landscape surrounding it, a riot of color and fragrance that attracted butterflies and hummingbirds who seemed unaware they were in the middle of a metropolis.",
     "She opened the letter with trembling hands, the yellowed paper crackling softly as she unfolded decades of silence, tears forming as she recognized her mother's elegant handwriting.",
     "The philosopher argued that consciousness arises not from any single region of the brain but from the complex interactions between neural networks that create our sense of self and agency.",
     "Beneath the star-filled sky, the campfire crackled and popped, sending sparks spiraling upward to join the distant constellations that had guided travelers across these same mountains for thousands of years.",
     "The architect designed buildings that seemed to defy gravity, glass and steel structures that captured light in unexpected ways, transforming the city skyline into a work of modern art.",
-    "Poetry is the art of saying the unsayable — capturing in a few carefully chosen words the depth of human emotion that prose requires pages to express inadequately.",
+    "Poetry is the art of saying the unsayable --- capturing in a few carefully chosen words the depth of human emotion that prose requires pages to express inadequately.",
     "The old train station stood abandoned, its Victorian ironwork rusted but still beautiful, a monument to an era when railways connected the nation and travel was an adventure rather than an inconvenience.",
-    "She discovered that true happiness lay not in achieving her goals but in the journey itself — the small victories, the lessons from failures, the people who walked beside her along the way.",
+    "She discovered that true happiness lay not in achieving her goals but in the journey itself --- the small victories, the lessons from failures, the people who walked beside her along the way.",
 ] * 250  # 5000 texts
 
 # ===========================================================================

@@ -58,7 +58,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
     kstar_analytic = max(64, min(kstar_analytic, d))
     print(f"  GPU: {gpu_name}, L2={gpu_l2_mb}MB, analytic k*={kstar_analytic}")
     
-    # ── Analyze attention layers ──
+    # -- Analyze attention layers --
     print(f"\n[2/6] Analyzing attention weight spectra...")
     
     layer_spectra = []
@@ -114,7 +114,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
             "all_options": options,
         })
     
-    # ── Summarize ──
+    # -- Summarize --
     alphas = [s["alpha"] for s in layer_spectra]
     best_ks = [s["best_k"] for s in layer_spectra]
     var_pcts = [s["best_variance_pct"] for s in layer_spectra]
@@ -126,7 +126,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
     print(f"  Variance preserved: {np.mean(var_pcts):.1f}%")
     print(f"  Compression: {np.mean(compressions):.1f}x")
     
-    # ── Analyze FFN layers ──
+    # -- Analyze FFN layers --
     print(f"\n[4/6] Analyzing FFN weight spectra...")
     
     # FFN down projection
@@ -159,7 +159,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
     print(f"  FFN best k: {best_ffn['k']}, {best_ffn['variance_pct']:.1f}% variance, "
           f"{best_ffn['compression']:.1f}x compression, {best_ffn['param_ratio_pct']:.1f}% params")
     
-    # ── UGT Zone Probing ──
+    # -- UGT Zone Probing --
     print(f"\n[5/6] Probing UGT knowledge zones...")
     tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
@@ -189,7 +189,7 @@ def hypertensorize(model_id, use_4bit=False, output_dir=None):
                 sep = 1.0 - sim
                 print(f"  {z1:10s} vs {z2:10s}: separation={sep:.3f}")
     
-    # ── Deployment Config ──
+    # -- Deployment Config --
     print(f"\n[6/6] Generating deployment config...")
     attn_k = int(np.mean(best_ks))
     ffn_k = best_ffn['k']

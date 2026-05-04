@@ -12,7 +12,7 @@ OLLAMA_NS = "https://ollama.com/Nagusamecs"
 # Map paper number to Ollama model
 OLLAMA_MODEL_MAP = {
     "X": "MINSKAT",  # CECI
-    "V": None,       # Distillation — no specific model
+    "V": None,       # Distillation --- no specific model
 }
 
 UPDATES = 0

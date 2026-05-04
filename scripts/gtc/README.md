@@ -1,4 +1,4 @@
-# GTC — Geodesic Trajectory Caching (v0.2, validated)
+# GTC --- Geodesic Trajectory Caching (v0.2, validated)
 
 Small-scale prototype for the "GTC + Jacobi correction" idea (Paper 4 §2),
 made runnable end-to-end on the 4070 Laptop. The goal is a falsifiable
@@ -8,7 +8,7 @@ answer to:
 > trajectory plus a Jacobi-field correction, while staying within an error
 > tolerance comparable to OneDecode?
 
-**v0.2 status (2026-04-27):** harness validated against a closed-form
+v0.2 status (2026-04-27): harness validated against a closed-form
 sphere case, full N-dimensional Christoffel + Riemann pipeline now in
 place. Results in [`../../docs/figures/gtc/GTC_RESULTS.md`](../../docs/figures/gtc/GTC_RESULTS.md).
 
@@ -28,15 +28,15 @@ The runtime emits one global Christoffel tensor and a per-point diagonal
 of the metric, which is too thin to give a non-trivial connection. v0.2
 sidesteps this entirely:
 
-- The metric tensor `g(x)` is fitted **in Python** as the inverse of the
+- The metric tensor `g(x)` is fitted in Python as the inverse of the
   local k-NN covariance of the Phase-1 cloud, lifted to the intrinsic
   dimension by padding with PCA-tail-eigenvalue noise. This is the
-  classical Mahalanobis metric on embedded data — a Fisher-information
+  classical Mahalanobis metric on embedded data --- a Fisher-information
   proxy when the data are activations.
 - The metric field is smoothed with a log-Euclidean RBF (so it stays SPD
   along its natural geometry).
 - `Γ^k_ij(x)` is computed from `g` by the standard formula and central
-  differences. **No runtime patch needed.**
+  differences. No runtime patch needed.
 - `R^a_bcd` along a geodesic is finite-differenced from `Γ`. The Jacobi
   ODE `D²J/dλ² = −R(J, γ̇) γ̇` is then integrated with a Magnus-3 step.
 
@@ -60,11 +60,11 @@ Outputs land at `docs/figures/gtc/<case>_validity_radius.json`.
 
 `ε⋆(τ=5%) = 0.05`, `ε⋆(τ=10%) = 0.10`, `ε⋆(τ=20%) = 0.20`. Quadratic
 scaling in ε is exactly the theoretical Jacobi bound on a constant-K
-manifold. **The harness is correct.**
+manifold. The harness is correct.
 
 On SmolLM2-135M the manifold is so weakly curved at the runtime sampling
 resolution that errors are below 1e-3 across the whole ε ∈ [0.005, 0.4]
-sweep. This is the operational green light: the validity radius is **not**
+sweep. This is the operational green light: the validity radius is not
 the bottleneck for GTC; coverage is.
 
 ## Coverage benchmark (NEW, 2026-04-22)
@@ -77,16 +77,16 @@ geodesic anchored at its g-norm-nearest cached point within tolerance ε".
 .venv\Scripts\python.exe scripts\gtc\gtc_benchmark.py --model smollm2-135m --dim 8
 ```
 
-**Headline result (SmolLM2-135M, n=8, 16 repeats):**
+Headline result (SmolLM2-135M, n=8, 16 repeats):
 
 | Cached fraction (k) | Coverage @ ε=3.0 |
 |---:|---:|
 |  9 % (k=6)  | 58.6 % |
-| 25 % (k=16) | **91.0 %** |
+| 25 % (k=16) | 91.0 % |
 | 50 % (k=32) | 99.8 % |
 | 75 % (k=48) | 100.0 % |
 
-**Interpretation.** A 25 % cache covers 91 % of the activation cloud at
+Interpretation. A 25 % cache covers 91 % of the activation cloud at
 the operational ε that the validity radius study showed safe (ε ≤ 5.0 has
 < 0.1 % geodesic error). This is the first quantitative answer to the
 GTC feasibility question on a real LM manifold. Knife-edge transition
@@ -96,7 +96,7 @@ manifold is essentially a single chart.
 ## Curvature-warp prototype (NEW, 2026-04-22)
 
 See [`../curvature_warp/`](../curvature_warp). Tests Paper 4 §3's
-metric-warp knowledge injection idea. **Falsifiable negative result:**
+metric-warp knowledge injection idea. Falsifiable negative result:
 0/32 configurations of `(strength, sigma, dl)` meet the success criterion
 (≥ 50 % redirect at target AND ≤ 5 % spillover). Best improvement 16 %
 but spillover diverges. Mechanism: the manifold is too flat for a
@@ -111,16 +111,16 @@ Three additions land GTC against more of Paper 5's testable contract:
 
 ### Compressed record store + two-stage lookup
 [`record_store.py`](record_store.py) implements Paper 5 §4.4 Algorithm 1:
-Euclidean nearest-neighbour screen → g-norm refinement → Jacobi
+Euclidean nearest-neighbour screen -> g-norm refinement -> Jacobi
 correction. On-disk format uses rank-5 SVD truncation of Φ (paper claim:
-"rank ≈ 5 sufficient" — verified, reconstruction error 0.0).
+"rank ≈ 5 sufficient" --- verified, reconstruction error 0.0).
 
 ```powershell
 .venv\Scripts\python.exe scripts\gtc\record_store.py --model smollm2-135m --dim 8 --max-records 24
 ```
 Result: 5.96 KB/record, 30.9 µs/lookup, paper targets met or exceeded.
 
-### Batch Jacobi resonance (Paper 5 Tests 4a–4c)
+### Batch Jacobi resonance (Paper 5 Tests 4a--4c)
 [`batch_jacobi.py`](batch_jacobi.py) replicates the resonance benchmark
 on a real LM manifold. SmolLM2-135M:
 

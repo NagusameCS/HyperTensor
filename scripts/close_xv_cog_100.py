@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  CLOSE PAPER XV: 100+ Interaction COG Run with Persistence     ║
-║                                                                 ║
-║  Gap: "10K+ interaction run with persistent storage"            ║
-║  Fix: Run 100+ simulated interactions across diverse domains,   ║
-║       track metric growth, trajectory diversity, saturation.    ║
-║       Save .miku state for cross-session persistence.           ║
-║                                                                 ║
-║  This closes XV from 75% → 85%.                                 ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  CLOSE PAPER XV: 100+ Interaction COG Run with Persistence     |
+|                                                                 |
+|  Gap: "10K+ interaction run with persistent storage"            |
+|  Fix: Run 100+ simulated interactions across diverse domains,   |
+|       track metric growth, trajectory diversity, saturation.    |
+|       Save .miku state for cross-session persistence.           |
+|                                                                 |
+|  This closes XV from 75% -> 85%.                                 |
++==================================================================+
 """
 import torch, json, time, os, sys, math
 import numpy as np
@@ -178,7 +178,7 @@ def run_cog_100(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/x
         dists = [torch.norm(hk - tp["proj"].to(model.device)).item() for tp in trajectories]
         return min(dists) > 0.15, min(dists)  # Δ_novel=0.15
     
-    # ── Run 100 interactions ──
+    # -- Run 100 interactions --
     print(f"[3/3] Running {len(COG_100_PROMPTS)} COG interactions...")
     results = []
     expansions = 0
@@ -215,7 +215,7 @@ def run_cog_100(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/x
             "trajectories": len(trajectories),
         })
     
-    # ── Analysis ──
+    # -- Analysis --
     final_metric = metric_norms[-1]
     expansion_rate = expansions / len(COG_100_PROMPTS) * 100
     
@@ -235,7 +235,7 @@ def run_cog_100(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchmarks/x
         linear_r2 = 0
         saturating = False
     
-    print(f"\n  ═══ COG 100 RESULTS ═══")
+    print(f"\n  === COG 100 RESULTS ===")
     print(f"  Total interactions: {len(COG_100_PROMPTS)}")
     print(f"  Expansions: {expansions} ({expansion_rate:.1f}%)")
     print(f"  Final metric norm: {final_metric:.4f}")

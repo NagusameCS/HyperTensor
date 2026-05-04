@@ -32,8 +32,8 @@ MathJax = {
       tr: '{\\operatorname{tr}}',
       Cov: '{\\operatorname{Cov}}',
       Var: '{\\operatorname{Var}}',
-      argmax: '{\\operatorname*{arg\\,max}}',
-      argmin: '{\\operatorname*{arg\\,min}}'
+      argmax: '{\\operatorname{arg\\,max}}',
+      argmin: '{\\operatorname{arg\\,min}}'
     }
   },
   svg: { fontCache: 'global' }
@@ -320,7 +320,7 @@ Llama-3.1-8B (<span class="math inline">\(d{=}4096\)</span>, <span class="math i
 and retain about <span class="math inline">\(80\%\)</span> of energy at <span class="math inline">\(k{=}1024\)</span>. FFN slots require
 <span class="math inline">\(k_{95}\approx 0.8\,d\)</span> and lose about half of Frobenius energy at
 <span class="math inline">\(k{=}1024\)</span>. This is the quantitative version of the qualitative
-“FFN is flat” observation in Geva et al. <span class="citation" data-cites="geva2021ffn">(Geva et al. 2021)</span>. We give
+"FFN is flat" observation in Geva et al. <span class="citation" data-cites="geva2021ffn">(Geva et al. 2021)</span>. We give
 <span class="math inline">\(W_\text{down}\)</span> a dedicated SVD path rather than the
 Gram-eigendecomposition route used for the other six slots, because
 the construction is mathematically equivalent in the rank-truncated
@@ -332,7 +332,7 @@ flat <span class="citation" data-cites="golub2013matrix eckart1936">(Golub and 
 <p>Attention and FFN solve different problems. The attention block is a
 routing circuit: <span class="math inline">\(\Wmat_Q,\Wmat_K\)</span> project tokens into a similarity
 space whose discriminative directions are concentrated in a few hundred
-coordinates (head subspaces plus the residual stream’s preferred basis),
+coordinates (head subspaces plus the residual stream's preferred basis),
 and <span class="math inline">\(\Wmat_V,\Wmat_O\)</span> assemble a context-conditional message in that
 low-rank space. Routing is structurally low-rank because the number of
 things being routed is small relative to <span class="math inline">\(d\)</span>. The FFN, by contrast,
@@ -399,8 +399,8 @@ unrelated background workloads on the same machine reported
 (<span class="math inline">\(-2.2\%\)</span>, <span class="math inline">\(21\times\)</span> higher MCR variance). A clean repeat with no
 co-resident processes (verified by <code>nvidia-smi</code> idle pre-launch
 and process audit) yields baseline <span class="math inline">\(39.28\pm 0.05\)</span> tok/s vs. MCR
-<span class="math inline">\(39.23\pm 0.05\)</span> tok/s, a <strong><span class="math inline">\(-0.13\%\)</span> delta within run-to-run
-noise, <span class="math inline">\(1{\times}\)</span> variance</strong>. The variance gap in the first run was
+<span class="math inline">\(39.23\pm 0.05\)</span> tok/s, a <span class="math inline">\(-0.13\%\)</span> delta within run-to-run
+noise, <span class="math inline">\(1{\times}\)</span> variance. The variance gap in the first run was
 the contamination signal; both means rose by <span class="math inline">\(\sim 1.4\)</span> tok/s once the
 machine was quiet, confirming <span class="math inline">\(\sim 3.5\%\)</span> throughput was being eaten
 by the unrelated workload. We therefore report MCR at this rank as
@@ -422,7 +422,7 @@ weight-PCA mode no calibration pass is performed, so the activation
 variance vector is identically zero. The runtime correctly detects this
 (<code>[MCR] Flat activation-variance profile, uniform rank recommended</code>, <code>phases_valid=0/32</code>) and falls back to a uniform
 <span class="math inline">\(k_\ell{=}K_\text{max}\)</span> allocation, which is identical to the
-shared-rank baseline. The implication is that MCR’s per-layer
+shared-rank baseline. The implication is that MCR's per-layer
 rebalancing is only active when paired with
 <code>--axex-actaware-pca</code>; pure weight-PCA users get a uniform
 allocation regardless of whether <code>--axex-mcr</code> is set. We disclose
@@ -455,7 +455,7 @@ V_{r+1}^{(\ell)} \;\leftarrow\; \mathrm{QR}\!\bigl([\,V_{r}^{(\ell)}\;\;\hat s\,
 This adds at most one rank per layer and bounds the sink-step
 reconstruction error by <span class="math inline">\(\|h_0\|\sin\theta(\hat s, V_{r+1}^{(\ell)})\)</span>,
 which is zero by construction. Empirically the bypass fires on <span class="math inline">\(3{-}7\%\)</span>
-of layers and eliminates the rare “first-token spike” in perplexity
+of layers and eliminates the rare "first-token spike" in perplexity
 that shared-rank GP otherwise exhibits at very low <span class="math inline">\(k\)</span>.</p>
 </section>
 </section>
@@ -516,7 +516,7 @@ have inspected, this layer sits near depth <span class="math inline">\(\ell^\sta
 Saturation Rule. The name is ours and the observation is, to our knowledge,
 first reported here. The rule is exploited as an <span class="math inline">\(O(1)\)</span> proxy for the
 otherwise <span class="math inline">\(O(L)\)</span> cache-integrity check: the integrity probe reads only the
-depth-sink layer’s spectrum and recomputes it on the fly (under <span class="math inline">\(200\)</span> ms on
+depth-sink layer's spectrum and recomputes it on the fly (under <span class="math inline">\(200\)</span> ms on
 Llama-3.1-8B against about <span class="math inline">\(70\)</span> s for the full sweep).</p>
 <p>The data motivating the rule are these four spectra. In each model the
 cumulative explained variance of the residual stream rises monotonically
@@ -697,7 +697,7 @@ where <span class="math inline">\(\mathrm{tail}_r(M)=\norm{M}_F^2-\norm{\mathrm{
 gradient in log-space is sparse and analytic:
 <span class="math display">\[\partial_{\lambda_i}\mathrm{tail}_r(W\diag(e^{-\lambda}))=-2\norm{X_\text{tail}[:,i]}^2,\quad
 \partial_{\lambda_i}\mathrm{tail}_r(\diag(e^{\lambda})W)=+2\norm{X_\text{tail}[i,:]}^2.\]</span>
-Both follow from <span class="math inline">\(\norm{M}_F^2=\trace(M^\top M)\)</span>. 10–30 outer iterations
+Both follow from <span class="math inline">\(\norm{M}_F^2=\trace(M^\top M)\)</span>. 10--30 outer iterations
 suffice; we normalise so <span class="math inline">\(\prod_i g_i^{1/d}=1\)</span> to remove the global scale.</p>
 </section>
 <section id="bakeable-zero-overhead-inference." class="level7">
@@ -726,7 +726,7 @@ baseline (rank held fixed at <span class="math inline">\(r_\text{max}\)</span> w
 permitted to actuate) remains the next step.</p>
 <p>On the reference RTX 4070 Laptop, sustained Llama-3.1-8B inference reaches
 <span class="math inline">\(\sim 85\,^\circ\mathrm{C}\)</span> within <span class="math inline">\(\sim 30\)</span> s and the boost clock is
-clamped; tok/s falls to 50–60% of cold-start. Earlier work clamps the
+clamped; tok/s falls to 50--60% of cold-start. Earlier work clamps the
 clock proactively; we clamp the compression rank instead.</p>
 <section id="linear-interpolation-rule." class="level7">
 <p class="heading">Linear interpolation rule.</p>
@@ -758,7 +758,7 @@ headroom, and energy.</p>
 <p class="heading">Predicted gain.</p>
 <p>At <span class="math inline">\(r{=}1024\)</span> baseline tok/s drops <span class="math inline">\(\sim 40\%\)</span>
 once throttling engages. Thermal Rank avoids throttle altogether at the
-cost of a controlled rank reduction; if rank–PPL elasticity is <span class="math inline">\(&lt;1\%\)</span> per
+cost of a controlled rank reduction; if rank--PPL elasticity is <span class="math inline">\(&lt;1\%\)</span> per
 rank-step in the operating regime (typical for <span class="math inline">\(r\in[768,1280]\)</span> on
 Llama-3.1-8B), the trade is favourable.</p>
 </section>
@@ -811,9 +811,9 @@ a sample of the direction the current basis fails to capture.</p>
 gradient ascent on the Rayleigh quotient <span class="citation" data-cites="shamir2015fast">(Shamir 2015)</span> requires
 explicit orthogonalisation against all already-converged components,
 costing <span class="math inline">\(O(k^2 d)\)</span> per update and a global synchronisation across rows.
-Krasulina’s rule <span class="citation" data-cites="krasulina1969">(Krasulina 1969)</span> converges faster than Oja’s on
+Krasulina's rule <span class="citation" data-cites="krasulina1969">(Krasulina 1969)</span> converges faster than Oja's on
 quadratic losses but needs an estimate of the running mean to subtract,
-which requires a second moving statistic per layer. Oja’s rule needs
+which requires a second moving statistic per layer. Oja's rule needs
 neither: the orthogonalisation is implicit in the row-normalisation
 step, and the rule is correct under the centred residual that
 speculative rejections already provide
@@ -825,7 +825,7 @@ the per-update cost is <span class="math inline">\(O(kd)\)</span>.</p>
 <p class="heading">Decayed Oja update.</p>
 <p>Write the projection basis at step <span class="math inline">\(t\)</span> as
 <span class="math inline">\(\Pmat_t=W_tW_t^\top\in\R^{d\times d}\)</span>, the orthogonal projector onto
-the row-span of <span class="math inline">\(W_t\)</span>. Oja’s rule lifts this to a per-row update on
+the row-span of <span class="math inline">\(W_t\)</span>. Oja's rule lifts this to a per-row update on
 <span class="math inline">\(W_t\)</span> itself: for layer <span class="math inline">\(\ell\)</span> with basis <span class="math inline">\(W_t\in\R^{k\times d}\)</span> and
 sample <span class="math inline">\(x=h^\text{tgt}-h^\text{drft}\)</span>,
 <span class="math display">\[\begin{equation}
@@ -839,7 +839,7 @@ the projector is
 <span class="math inline">\(\Pmat_{t+1}=\Pmat_t+\eta_t\bigl(xx^\top-\Pmat_t xx^\top\Pmat_t\bigr)+O(\eta_t^2)\)</span>,
 i.e. a rank-one tilt of <span class="math inline">\(\Pmat_t\)</span> toward the residual direction <span class="math inline">\(x\)</span> at
 rate <span class="math inline">\(\eta_t\)</span>. The learning-rate schedule <span class="math inline">\(\eta_t=\eta_0/\sqrt t\)</span>
-satisfies the Robbins–Monro conditions <span class="math inline">\(\sum\eta_t=\infty\)</span>,
+satisfies the Robbins--Monro conditions <span class="math inline">\(\sum\eta_t=\infty\)</span>,
 <span class="math inline">\(\sum\eta_t^2&lt;\infty\)</span> <span class="citation" data-cites="robbins1951sa">(Robbins and Monro 1951)</span>; default <span class="math inline">\(\eta_0=0.01\)</span>.
 Convergence to the leading eigenvectors of the running covariance is
 classical <span class="citation" data-cites="oja1982">(Oja 1982)</span>; what is new is the trigger, only rejection
@@ -849,7 +849,7 @@ capture.</p>
 <section id="convergence-rate-and-bias-floor." class="level7">
 <p class="heading">Convergence rate and bias floor.</p>
 <p>For a stationary covariance <span class="math inline">\(\Sigma\)</span> with eigengap
-<span class="math inline">\(\Delta=\lambda_k-\lambda_{k+1}\)</span>, Oja’s rule with the
+<span class="math inline">\(\Delta=\lambda_k-\lambda_{k+1}\)</span>, Oja's rule with the
 <span class="math inline">\(\eta_t=\eta_0/\sqrt t\)</span> schedule attains
 <span class="math inline">\(\E\norm{\Pmat_t-\Pmat^\star}_F^2 = O(d/(\Delta^2 t))\)</span> after a burn-in
 <span class="citation" data-cites="allen2017first jain2016streaming">(Allen-Zhu and Li 2017; Jain et al. 2016)</span>. For the depth-sink layer of
@@ -872,10 +872,10 @@ below the truncation floor.</p>
 <span class="citation" data-cites="leviathan2023speculative">(Leviathan et al. 2023)</span>; rejected positions sample the same
 target distribution as accepted ones. The residual
 <span class="math inline">\(h^\text{tgt}-h^\text{drft}\)</span> at a rejection is therefore an unbiased
-measurement of the direction along which the draft model’s hidden state
-diverges from the verifier’s, and the GP basis is fitted on the
-verifier’s activations, so feeding only rejection residuals into Oja’s
-rule is equivalent to running Oja’s rule on samples of
+measurement of the direction along which the draft model's hidden state
+diverges from the verifier's, and the GP basis is fitted on the
+verifier's activations, so feeding only rejection residuals into Oja's
+rule is equivalent to running Oja's rule on samples of
 <span class="math inline">\(\Sigma_\text{drift}=\Sigma_\text{verifier}-\Sigma_\text{calibration}\)</span>.
 The result is a basis that tracks the calibration-to-deployment delta,
 not the absolute distribution; the calibration component is held by the
@@ -885,7 +885,7 @@ static rows of <span class="math inline">\(W_t\)</span> already.</p>
 <p class="heading">Per-layer staleness.</p>
 <p>A bump-counter
 <code>onb_layer_state_t::version</code> is incremented on every applied
-update. GP tracks the version it last consumed; if a layer’s version
+update. GP tracks the version it last consumed; if a layer's version
 moves ahead, the cached projection is recomputed lazily on the next
 forward. Updates apply between decode steps, queue bounded to 256, with
 a 4-rejection minimum gate.</p>
@@ -945,8 +945,8 @@ A preliminary single-prompt run at <span class="math inline">\(k{=}1024\)</span>
 Q4_K_M (RTX 4070 Laptop) produced no measurable speed-up over
 baseline; this is consistent with the <span class="math inline">\(k_{95}\)</span> spectrum analysis (FFN
 <span class="math inline">\(k_{95}/d{\approx}0.85\)</span> vs. attention <span class="math inline">\(k_{95}/d{\approx}0.41\)</span>, see
-companion paper <span class="citation" data-cites="stewart2026grc">(Stewart 2026)</span> Section “Spectral evidence for
-compressing attention only”), which predicts that the FFN spectrum is
+companion paper <span class="citation" data-cites="stewart2026grc">(Stewart 2026)</span> Section "Spectral evidence for
+compressing attention only"), which predicts that the FFN spectrum is
 too flat for low-rank substitution to be a net win at this rank. We
 flag this as the spectrum predicting a null result rather than a
 characterised regression: a full FFN-only sweep at
@@ -958,7 +958,7 @@ not claim a regression number, only that the design rationale of GP
 </section>
 <section id="sec:repro" class="level4">
 <h4>Reproduction</h4>
-<p>static-GP measurement: see the companion paper’s reproduction recipe
+<p>static-GP measurement: see the companion paper's reproduction recipe
 at <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md" class="uri">https://github.com/NagusameCS/HyperTensor/blob/main/repro/REPRODUCE.md</a>.
 Cross-model intrinsic-dim numbers are reproducible via:</p>
 <div class="sourceCode" id="cb1" data-language="bash"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># intrinsic-dim re-run for any model under legacy/axiom_vis/</span></span>
@@ -973,52 +973,52 @@ Cross-model intrinsic-dim numbers are reproducible via:</p>
 <h4 class="unnumbered"></h4>
 <div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-ainslie2023gqa" class="csl-entry" role="listitem">
-Ainslie, Joshua, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit Sanghai. 2023. <em><span>GQA</span>: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</em>. <a href="https://arxiv.org/abs/2305.13245">https://arxiv.org/abs/2305.13245</a>.
+Ainslie, Joshua, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit Sanghai. 2023. <span>GQA</span>: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. <a href="https://arxiv.org/abs/2305.13245">https://arxiv.org/abs/2305.13245</a>.
 </div>
 <div id="ref-allen2017first" class="csl-entry" role="listitem">
-Allen-Zhu, Zeyuan, and Yuanzhi Li. 2017. <span>“First Efficient Convergence for Streaming k-PCA: A Global, Gap-Free, and Near-Optimal Rate.”</span> <em>Proc. FOCS</em>.
+Allen-Zhu, Zeyuan, and Yuanzhi Li. 2017. <span>"First Efficient Convergence for Streaming k-PCA: A Global, Gap-Free, and Near-Optimal Rate."</span> Proc. FOCS.
 </div>
 <div id="ref-chen2023speculative" class="csl-entry" role="listitem">
-Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>“Accelerating Large Language Model Decoding with Speculative Sampling.”</span> <em>arXiv Preprint</em>. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
+Chen, Charlie, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, and John Jumper. 2023. <span>"Accelerating Large Language Model Decoding with Speculative Sampling."</span> arXiv Preprint. <a href="https://arxiv.org/abs/2302.01318">https://arxiv.org/abs/2302.01318</a>.
 </div>
 <div id="ref-eckart1936" class="csl-entry" role="listitem">
-Eckart, Carl, and Gale Young. 1936. <span>“The Approximation of One Matrix by Another of Lower Rank.”</span> <em>Psychometrika</em> 1 (3): 211–18.
+Eckart, Carl, and Gale Young. 1936. <span>"The Approximation of One Matrix by Another of Lower Rank."</span> Psychometrika 1 (3): 211--18.
 </div>
 <div id="ref-elhage2022superposition" class="csl-entry" role="listitem">
-<span class="nocase">Elhage, Nelson, Tristan Hume, Catherine Olsson, Nicholas Schiefer, et al.</span> 2022. <em>Toy Models of Superposition</em>. Anthropic Transformer Circuits Thread.
+<span class="nocase">Elhage, Nelson, Tristan Hume, Catherine Olsson, Nicholas Schiefer, et al.</span> 2022. Toy Models of Superposition. Anthropic Transformer Circuits Thread.
 </div>
 <div id="ref-ggerganov2023kquants" class="csl-entry" role="listitem">
-<span class="nocase">Gerganov, Georgi, and llama.cpp contributors</span>. 2023. <em><span class="nocase">llama.cpp</span> k-Quants (<span>Q4_K_M</span>, <span>Q5_K_M</span>, <span>Q6_K</span>) Format Specification</em>. <a href="https://github.com/ggerganov/llama.cpp/pull/1684" class="uri">Https://github.com/ggerganov/llama.cpp/pull/1684</a>.
+<span class="nocase">Gerganov, Georgi, and llama.cpp contributors</span>. 2023. <span class="nocase">llama.cpp</span> k-Quants (<span>Q4_K_M</span>, <span>Q5_K_M</span>, <span>Q6_K</span>) Format Specification. <a href="https://github.com/ggerganov/llama.cpp/pull/1684" class="uri">Https://github.com/ggerganov/llama.cpp/pull/1684</a>.
 </div>
 <div id="ref-geva2021ffn" class="csl-entry" role="listitem">
-Geva, Mor, Roei Schuster, Jonathan Berant, and Omer Levy. 2021. <span>“Transformer Feed-Forward Layers Are Key–Value Memories.”</span> <em>EMNLP</em>.
+Geva, Mor, Roei Schuster, Jonathan Berant, and Omer Levy. 2021. <span>"Transformer Feed-Forward Layers Are Key--Value Memories."</span> EMNLP.
 </div>
 <div id="ref-golub2013matrix" class="csl-entry" role="listitem">
-Golub, Gene H., and Charles F. Van Loan. 2013. <em>Matrix Computations</em>. 4th ed. Johns Hopkins University Press.
+Golub, Gene H., and Charles F. Van Loan. 2013. Matrix Computations. 4th ed. Johns Hopkins University Press.
 </div>
 <div id="ref-jain2016streaming" class="csl-entry" role="listitem">
-Jain, Prateek, Chi Jin, Sham M. Kakade, Praneeth Netrapalli, and Aaron Sidford. 2016. <span>“Streaming PCA: Matching Matrix Bernstein and Near-Optimal Finite Sample Guarantees for Oja’s Algorithm.”</span> <em>Proc. COLT</em>.
+Jain, Prateek, Chi Jin, Sham M. Kakade, Praneeth Netrapalli, and Aaron Sidford. 2016. <span>"Streaming PCA: Matching Matrix Bernstein and Near-Optimal Finite Sample Guarantees for Oja's Algorithm."</span> Proc. COLT.
 </div>
 <div id="ref-krasulina1969" class="csl-entry" role="listitem">
-Krasulina, T. P. 1969. <span>“The Method of Stochastic Approximation for the Determination of the Least Eigenvalue of a Symmetrical Matrix.”</span> <em>USSR Comp. Math. Math. Phys.</em> 9 (6): 189–95.
+Krasulina, T. P. 1969. <span>"The Method of Stochastic Approximation for the Determination of the Least Eigenvalue of a Symmetrical Matrix."</span> USSR Comp. Math. Math. Phys. 9 (6): 189--95.
 </div>
 <div id="ref-leviathan2023speculative" class="csl-entry" role="listitem">
-Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>“Fast Inference from Transformers via Speculative Decoding.”</span> <em>ICML</em>.
+Leviathan, Yaniv, Matan Kalman, and Yossi Matias. 2023. <span>"Fast Inference from Transformers via Speculative Decoding."</span> ICML.
 </div>
 <div id="ref-oja1982" class="csl-entry" role="listitem">
-Oja, Erkki. 1982. <span>“Simplified Neuron Model as a Principal Component Analyzer.”</span> <em>Journal of Mathematical Biology</em> 15 (3): 267–73.
+Oja, Erkki. 1982. <span>"Simplified Neuron Model as a Principal Component Analyzer."</span> Journal of Mathematical Biology 15 (3): 267--73.
 </div>
 <div id="ref-robbins1951sa" class="csl-entry" role="listitem">
-Robbins, Herbert, and Sutton Monro. 1951. <span>“A Stochastic Approximation Method.”</span> <em>The Annals of Mathematical Statistics</em> 22 (3): 400–407.
+Robbins, Herbert, and Sutton Monro. 1951. <span>"A Stochastic Approximation Method."</span> The Annals of Mathematical Statistics 22 (3): 400--407.
 </div>
 <div id="ref-shamir2015fast" class="csl-entry" role="listitem">
-Shamir, Ohad. 2015. <span>“A Stochastic PCA and SVD Algorithm with an Exponential Convergence Rate.”</span> <em>Proc. ICML</em>.
+Shamir, Ohad. 2015. <span>"A Stochastic PCA and SVD Algorithm with an Exponential Convergence Rate."</span> Proc. ICML.
 </div>
 <div id="ref-stewart2026grc" class="csl-entry" role="listitem">
-Stewart, William Ken Ohara. 2026. <span>“Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression.”</span> <em>HyperTensor Companion Paper, to Appear</em>.
+Stewart, William Ken Ohara. 2026. <span>"Geodesic Runtime Compression: A Calibration-Free, Super-Baseline Attention Compression."</span> HyperTensor Companion Paper, to Appear.
 </div>
 <div id="ref-xiao2023streamingllm" class="csl-entry" role="listitem">
-Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. <em>Efficient Streaming Language Models with Attention Sinks</em>. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
+Xiao, Guangxuan, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2023. Efficient Streaming Language Models with Attention Sinks. <a href="https://arxiv.org/abs/2309.17453">https://arxiv.org/abs/2309.17453</a>.
 </div>
 </div>
 </section>

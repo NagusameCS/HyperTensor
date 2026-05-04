@@ -2,7 +2,7 @@
 """
 REAL FFN Activation Collection (fixes P2 Phase 2 failure).
 Uses PyTorch forward hooks to capture actual FFN intermediate activations.
-Previous approach (weight column norms) FAILED — PPL 1230 vs 27 baseline.
+Previous approach (weight column norms) FAILED --- PPL 1230 vs 27 baseline.
 
 This collects the real per-column activation statistics needed for
 activation-weighted FFN compression.

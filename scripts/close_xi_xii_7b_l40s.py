@@ -186,7 +186,7 @@ def main():
     print(f"  Model: {MODEL_ID}")
     print("=" * 70)
     
-    # ── Load model once ──
+    # -- Load model once --
     print(f"\n[1/5] Loading {MODEL_ID} (fp16, ~15GB)...")
     t0 = time.time()
     model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.float16, device_map="auto", trust_remote_code=True)
@@ -198,7 +198,7 @@ def main():
     vram = torch.cuda.memory_allocated() / 1e9
     print(f"  d={d}, layers={n_layers}, VRAM={vram:.1f}GB ({time.time()-t0:.0f}s)")
     
-    # ── XI: Extract UGT basis from two "models" ──
+    # -- XI: Extract UGT basis from two "models" --
     print(f"\n[2/5] XI: Bilateral UGT at 7B (sequential)...")
     
     # Model A: use current model with seed 42
@@ -231,7 +231,7 @@ def main():
     else:
         print(f"    XI: 98% maintained. Overlap {overlap:.4f} indicates bases are similar.")
     
-    # ── XII: Extract weight + train Native ──
+    # -- XII: Extract weight + train Native --
     print(f"\n[3/5] XII: Extracting attention weight from 7B...")
     
     target_weight = model.model.layers[0].self_attn.q_proj.weight.data.clone()
@@ -244,7 +244,7 @@ def main():
     d_use = min_dim
     print(f"  Square subset: [{d_use}, {d_use}]")
     
-    # Free the 7B model — don't need it anymore
+    # Free the 7B model --- don't need it anymore
     print(f"  Freeing 7B model (saving 15GB VRAM)...")
     del model
     torch.cuda.empty_cache()
@@ -280,7 +280,7 @@ def main():
         print(f"  Best: k={best_overall['k']}, {best_overall['variance_preserved_pct']:.1f}% variance")
         print(f"  XII: 85% -> 92%.")
     
-    # ── Save ──
+    # -- Save --
     print(f"\n[5/5] Saving results...")
     xi_closed = overlap > 0.90
     xii_closed = best_k is not None

@@ -3,13 +3,13 @@
 CLOSE PAPER XIII to 100%: Multi-step Safe OGD Chains + Human-Mimetic Evaluation.
 
 What's missing:
-- Multi-step OGD: iterate concept generation (concept→refine→verify)
+- Multi-step OGD: iterate concept generation (concept->refine->verify)
 - Human semantic coherence evaluation
 - Proof that chains don't collapse into noise
 
 This script:
 1. Generates seed concepts via Safe OGD at best α
-2. Iteratively refines through 3-step chains (α→α/2→α/4)
+2. Iteratively refines through 3-step chains (α->α/2->α/4)
 3. Scores chain coherence via embedding trajectory smoothness
 4. Proves chains maintain semantic direction
 """
@@ -18,7 +18,7 @@ import torch, json, sys, os, numpy as np
 def multi_step_ogd_chain(h_seed, basis, P_safe, alphas=[0.20, 0.10, 0.05], n_steps=3):
     """Generate a multi-step OGD chain: each step refines the previous.
     
-    Chain: h_seed → h₁ (α₁) → h₂ (α₂) → h₃ (α₃)
+    Chain: h_seed -> h₁ (α₁) -> h₂ (α₂) -> h₃ (α₃)
     Each step pushes in the same safe direction but with decreasing magnitude
     to converge on a refined concept.
     """
@@ -126,7 +126,7 @@ def close_xiii_final(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
             out = model(**enc, output_hidden_states=True)
         return out.hidden_states[-1][0, -1, :].float()
     
-    # ── Generate chains from diverse seeds ──
+    # -- Generate chains from diverse seeds --
     print("[3/4] Generating multi-step OGD chains from 10 seed concepts...")
     seed_texts = [
         "A novel approach to sustainable energy",
@@ -149,7 +149,7 @@ def close_xiii_final(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
         coherence = score_chain_coherence(chain, basis)
         chain_results.append({"seed": seed_text[:60], "coherence": coherence})
     
-    # ── Analyze ──
+    # -- Analyze --
     print("[4/4] Analyzing chain quality...")
     scores = [r["coherence"]["coherence_score"] for r in chain_results]
     smoothness_vals = [r["coherence"]["smoothness"] for r in chain_results]
@@ -165,7 +165,7 @@ def close_xiii_final(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
     collapsed = sum(1 for s in smoothness_vals if s < 0.3)
     collapse_rate = collapsed / len(smoothness_vals)
     
-    print(f"\n  ═══ MULTI-STEP OGD CHAIN RESULTS ═══")
+    print(f"\n  === MULTI-STEP OGD CHAIN RESULTS ===")
     print(f"  Chains generated: {len(chain_results)}")
     print(f"  Mean coherence: {mean_score:.3f} (target: >0.60)")
     print(f"  Mean smoothness: {mean_smoothness:.3f} (target: >0.80)")
@@ -181,7 +181,7 @@ def close_xiii_final(model_id="Qwen/Qwen2.5-1.5B-Instruct", output_path="benchma
     print(f"\n  [OK] PAPER XIII: {verdict}")
     print(f"  Multi-step OGD chains are functional, coherent, and directional.")
     if collapse_rate > 0.1:
-        print(f"  [!!]  {collapsed}/{len(chain_results)} chains showed low smoothness — increase baseline α.")
+        print(f"  [!!]  {collapsed}/{len(chain_results)} chains showed low smoothness --- increase baseline α.")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

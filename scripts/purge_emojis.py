@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Emoji purger — removes all emoji characters from text files recursively.
+Emoji purger --- removes all emoji characters from text files recursively.
 """
 import re, sys
 from pathlib import Path

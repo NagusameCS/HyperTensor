@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FAST TWIN TRAINING — LoRA continued pretraining of SmolLM2-135M on pure data.
+FAST TWIN TRAINING --- LoRA continued pretraining of SmolLM2-135M on pure data.
 
 WHY LORA:
 1. 5-10x faster per step (only adapter weights have gradients)
-2. Base weights stay IDENTICAL — both M and L share exact same base
+2. Base weights stay IDENTICAL --- both M and L share exact same base
 3. LoRA adapters capture the skill specialization (math vs language)
 4. For CECI splice: compute subspaces from base weights + merge adapters
 5. RTX 4070: expect 8-12 steps/sec (vs 0.2 steps/sec with full training)
@@ -34,10 +34,10 @@ from peft import LoraConfig, get_peft_model, TaskType
 BASE_MODEL = "HuggingFaceTB/SmolLM2-135M"
 OUTPUT_ROOT = Path("outputs/pure_models")
 
-# LoRA config — targets all linear layers for full adaptation
+# LoRA config --- targets all linear layers for full adaptation
 LORA_CONFIG = LoraConfig(
     task_type=TaskType.CAUSAL_LM,
-    r=8,                        # Rank — small, fast, effective
+    r=8,                        # Rank --- small, fast, effective
     lora_alpha=16,
     lora_dropout=0.05,
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj",

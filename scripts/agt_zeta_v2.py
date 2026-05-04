@@ -91,7 +91,7 @@ zero_embedder = torch.nn.Sequential(
     torch.nn.Linear(ZETA_FEAT_DIM, 64), torch.nn.GELU(), torch.nn.Linear(64, D_MODEL),
 ).to(DEVICE)
 
-# ── Train ──
+# -- Train --
 print("\n[Training] Manifold learning...")
 opt = torch.optim.AdamW(list(embedder.parameters()) + list(zero_embedder.parameters()), lr=0.002)
 steps = 2000
@@ -125,7 +125,7 @@ for step in range(steps):
         print(f"  Step {step+1}: loss={loss.item():.4f} cont={cont_loss.item():.3f} "
               f"zclust={zclust.item():.3f} offsep={off_sep.item():.4f}")
 
-# ── TEH Test ──
+# -- TEH Test --
 print("\n[TEH] Off-critical-line detection...")
 with torch.no_grad():
     all_z = F.normalize(zero_embedder(critical_zeros.to(DEVICE)), dim=-1)

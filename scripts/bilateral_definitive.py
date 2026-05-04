@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEFINITIVE BILATERAL UGT at 1.5B — Full training run on EC2.
+DEFINITIVE BILATERAL UGT at 1.5B --- Full training run on EC2.
 Cost: ~$0.30 (L40S spot, ~15 min). Safe.
 """
 import torch, json, time, os, math
@@ -12,7 +12,7 @@ OUT = "/home/ubuntu/benchmarks/bilateral_final"
 os.makedirs(OUT, exist_ok=True)
 
 print("="*60)
-print("  DEFINITIVE BILATERAL UGT — 1.5B Full Run")
+print("  DEFINITIVE BILATERAL UGT --- 1.5B Full Run")
 print("="*60)
 
 MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -63,7 +63,7 @@ prompts = [
     "Euler's identity e^(i pi) + 1 = 0 connects five fundamental constants.",
 ]
 
-# ── Model A ──
+# -- Model A --
 print("\n[1/3] Training UGT basis A (1000 steps)...")
 hs_list = []
 for p in prompts:
@@ -97,7 +97,7 @@ for step in range(1000):
 with torch.no_grad(): Qa, _ = torch.linalg.qr(basis_a.data); basis_a = Qa.detach().cpu()
 print(f"  Basis A: {basis_a.shape}")
 
-# ── Model B (perturb weights) ──
+# -- Model B (perturb weights) --
 print("\n[2/3] Training UGT basis B (different seed)...")
 torch.manual_seed(123)
 with torch.no_grad():
@@ -136,7 +136,7 @@ for step in range(1000):
 with torch.no_grad(): Qb, _ = torch.linalg.qr(basis_b.data); basis_b = Qb.detach().cpu()
 print(f"  Basis B: {basis_b.shape}")
 
-# ── Overlap ──
+# -- Overlap --
 print("\n[3/3] Computing subspace overlap...")
 cross = basis_a.T @ basis_b
 overlap = (cross**2).sum().item() / k
@@ -144,7 +144,7 @@ print(f"  Subspace overlap: {overlap:.4f}")
 
 if overlap > 0.95:
     print(f"  BILATERAL UGT: CONFIRMED at 1.5B")
-    print(f"  XI: 100% CLOSED — mechanism proven, scales to any model.")
+    print(f"  XI: 100% CLOSED --- mechanism proven, scales to any model.")
 else:
     print(f"  Bilateral UGT: PARTIAL ({overlap:.4f})")
 

@@ -101,7 +101,7 @@ SKIP_RE = re.compile(
     r"|<script\b[^>]*>.*?</script>"
     r"|<code\b[^>]*>.*?</code>"
     r"|<pre\b[^>]*>.*?</pre>"
-    r"|<em\b[^>]*>.*?</em>"
+    r"|]*>.*?"
     r"|<section\b[^>]*\bid=\"references\"[^>]*>.*?</section>"
     r"|<section\b[^>]*\bid=\"refs\"[^>]*>.*?</section>"
     r"|<div\b[^>]*\bid=\"refs\"[^>]*>(?:[^<]|<(?!/?div\b))*?</div>\s*</section>"

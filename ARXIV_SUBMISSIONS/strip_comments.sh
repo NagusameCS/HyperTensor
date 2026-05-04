@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# strip_comments.sh — remove TeX comments before arXiv upload.
+# strip_comments.sh --- remove TeX comments before arXiv upload.
 #
 # arXiv archives all uploaded source forever. This strips any line-comment
 # content (text after an unescaped %) and any wholly-commented lines.

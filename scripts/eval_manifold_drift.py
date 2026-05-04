@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════════════════════════╗
-║  EVALUATION 2: Manifold Drift Tracker                           ║
-║                                                                 ║
-║  Track trajectory coordinates over thousands of turns.          ║
-║  If the model genuinely evolves, its behavioral coordinates     ║
-║  should map a continuous journey or cluster around new domains,  ║
-║  NOT constantly snap back to a static baseline.                 ║
-║                                                                 ║
-║  Metrics:                                                       ║
-║  - Drift rate: mean distance moved per N turns                  ║
-║  - Cluster count: how many distinct regions does it visit?      ║
-║  - Home-base pull: does it snap back to origin?                 ║
-║  - Domain diversity: entropy of visited topic regions           ║
-║                                                                 ║
-║  Usage:                                                         ║
-║    python eval_manifold_drift.py --load state.miku               ║
-║    python eval_manifold_drift.py --load state.miku --plot       ║
-╚══════════════════════════════════════════════════════════════════╝
++==================================================================+
+|  EVALUATION 2: Manifold Drift Tracker                           |
+|                                                                 |
+|  Track trajectory coordinates over thousands of turns.          |
+|  If the model genuinely evolves, its behavioral coordinates     |
+|  should map a continuous journey or cluster around new domains,  |
+|  NOT constantly snap back to a static baseline.                 |
+|                                                                 |
+|  Metrics:                                                       |
+|  - Drift rate: mean distance moved per N turns                  |
+|  - Cluster count: how many distinct regions does it visit?      |
+|  - Home-base pull: does it snap back to origin?                 |
+|  - Domain diversity: entropy of visited topic regions           |
+|                                                                 |
+|  Usage:                                                         |
+|    python eval_manifold_drift.py --load state.miku               |
+|    python eval_manifold_drift.py --load state.miku --plot       |
++==================================================================+
 """
 import json, sys, os, argparse, math
 import numpy as np
@@ -46,7 +46,7 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     print(f"  Manifold dimension (k): {k}")
     print(f"  Conversation turns: {len(conv_log)}")
     
-    # ── Metric 1: Drift Rate ──
+    # -- Metric 1: Drift Rate --
     # How far does the model move per turn?
     step_dists = []
     for i in range(1, n):
@@ -56,11 +56,11 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     mean_step = np.mean(step_dists) if step_dists else 0
     total_drift = np.linalg.norm(coords[-1] - coords[0]) if n > 1 else 0
     
-    print(f"\n  ── DRIFT ──")
+    print(f"\n  -- DRIFT --")
     print(f"  Mean step distance: {mean_step:.4f}")
-    print(f"  Total drift (first→last): {total_drift:.4f}")
+    print(f"  Total drift (first->last): {total_drift:.4f}")
     
-    # ── Metric 2: Home-Base Pull ──
+    # -- Metric 2: Home-Base Pull --
     # Does the model snap back to the calibration centroid?
     centroid = coords.mean(axis=0)
     dists_from_home = [np.linalg.norm(c - centroid) for c in coords]
@@ -73,18 +73,18 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     else:
         home_pull_ratio = 1.0
     
-    print(f"\n  ── HOME-BASE PULL ──")
+    print(f"\n  -- HOME-BASE PULL --")
     print(f"  Early distance from centroid: {np.mean(dists_from_home[:max(1,n//3)]):.4f}")
     print(f"  Late distance from centroid:  {np.mean(dists_from_home[2*n//3:]):.4f}" if n > 10 else "  (Need >10 trajectories)")
     print(f"  Home-pull ratio: {home_pull_ratio:.3f}")
     if home_pull_ratio > 1.5:
-        print(f"  [UP] EXPANDING — model is moving AWAY from baseline over time")
+        print(f"  [UP] EXPANDING --- model is moving AWAY from baseline over time")
     elif home_pull_ratio < 0.5:
-        print(f"  📉 COLLAPSING — model is snapping BACK to baseline (not learning)")
+        print(f"   COLLAPSING --- model is snapping BACK to baseline (not learning)")
     else:
-        print(f"  ↔️  STABLE — model hovers near baseline")
+        print(f"  ↔️  STABLE --- model hovers near baseline")
     
-    # ── Metric 3: Cluster Analysis ──
+    # -- Metric 3: Cluster Analysis --
     # How many distinct regions does the model visit?
     if n > 3:
         from sklearn.cluster import DBSCAN
@@ -93,20 +93,20 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
         n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
         noise_pct = sum(1 for l in clustering.labels_ if l == -1) / n * 100
         
-        print(f"\n  ── CLUSTERS ──")
+        print(f"\n  -- CLUSTERS --")
         print(f"  Distinct regions visited: {n_clusters}")
         print(f"  Noise points (isolated): {noise_pct:.1f}%")
         if n_clusters >= 3:
-            print(f"   DIVERSE EXPLORATION — model visits multiple distinct conceptual regions")
+            print(f"   DIVERSE EXPLORATION --- model visits multiple distinct conceptual regions")
         elif n_clusters == 2:
-            print(f"   BIMODAL — model oscillates between two regions")
+            print(f"   BIMODAL --- model oscillates between two regions")
         else:
-            print(f"  -> FOCUSED — model stays in one conceptual region")
+            print(f"  -> FOCUSED --- model stays in one conceptual region")
     else:
         n_clusters = 1
         noise_pct = 0
     
-    # ── Metric 4: Domain Entropy ──
+    # -- Metric 4: Domain Entropy --
     # Calculate entropy of topic distribution from conversation labels
     from collections import Counter
     labels = [t.get("label", "unknown") for t in trajectories]
@@ -134,13 +134,13 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     entropy = -sum((c/total) * math.log2(c/total) for c in domain_counts.values())
     max_entropy = math.log2(len(domain_counts)) if domain_counts else 1
     
-    print(f"\n  ── DOMAIN DIVERSITY ──")
-    print(f"  Domains visited: {len(domain_counts)} — {dict(domain_counts)}")
+    print(f"\n  -- DOMAIN DIVERSITY --")
+    print(f"  Domains visited: {len(domain_counts)} --- {dict(domain_counts)}")
     print(f"  Entropy: {entropy:.3f} / {max_entropy:.3f} max")
     print(f"  Diversity: {entropy/max_entropy*100:.1f}% of maximum" if max_entropy > 0 else "")
     
-    # ── Overall Assessment ──
-    print(f"\n  ═══ OVERALL ASSESSMENT ═══")
+    # -- Overall Assessment --
+    print(f"\n  === OVERALL ASSESSMENT ===")
     
     drift_score = min(1.0, mean_step / 0.5) * 30
     expansion_score = min(1.0, max(0, home_pull_ratio - 1.0)) * 25
@@ -150,13 +150,13 @@ def analyze_manifold_drift(miku_path, plot=False, output_path="benchmarks/drift_
     total_score = drift_score + expansion_score + cluster_score + diversity_score
     
     if total_score >= 70:
-        verdict = "LIVING — Model is genuinely evolving: exploring diverse domains, not snapping back to baseline."
+        verdict = "LIVING --- Model is genuinely evolving: exploring diverse domains, not snapping back to baseline."
     elif total_score >= 40:
-        verdict = "GROWING — Model shows signs of adaptation but is still anchored to baseline."
+        verdict = "GROWING --- Model shows signs of adaptation but is still anchored to baseline."
     elif total_score >= 20:
-        verdict = "STATIC — Model moves but always returns to origin. Limited learning."
+        verdict = "STATIC --- Model moves but always returns to origin. Limited learning."
     else:
-        verdict = "FROZEN — Model is essentially static. Living memory not engaging."
+        verdict = "FROZEN --- Model is essentially static. Living memory not engaging."
     
     print(f"  Score: {total_score:.1f}/100")
     print(f"  Verdict: {verdict}")

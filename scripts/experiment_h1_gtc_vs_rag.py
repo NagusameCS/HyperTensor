@@ -8,7 +8,7 @@ Builds a faithful Python simulation comparing:
   - RAG (Retrieval-Augmented Generation): FAISS vector search + LLM generation
 
 Uses real model embeddings + FAISS for RAG, simulation for GTC.
-No full GPU inference needed — uses embedding lookups and matrix operations.
+No full GPU inference needed --- uses embedding lookups and matrix operations.
 """
 
 import json, math, os, time, random, numpy as np
@@ -139,7 +139,7 @@ def run_comparison():
     num_queries = CONFIG["num_queries"]
     
     print("=" * 70)
-    print("EXPERIMENT H1: GTC vs RAG — Live Simulation")
+    print("EXPERIMENT H1: GTC vs RAG --- Live Simulation")
     print(f"  {num_queries:,} queries, d={d}")
     print("=" * 70)
     
@@ -228,8 +228,8 @@ def run_comparison():
     print(f"{'-'*30} {'-'*15} {'-'*15} {'-'*10}")
     print(f"{'Total time (s)':<30} {gtc_total_ms/1000:>15.1f} {rag_total_ms/1000:>15.1f} {gtc_speedup:>9.1f}")
     print(f"{'Avg latency (ms)':<30} {gtc_avg_ms:>15.3f} {rag_avg_ms:>15.1f} {gtc_latency_ratio:>9.1f}")
-    print(f"{'Tokens generated':<30} {gtc_tokens_generated:>15,} {rag_tokens_generated:>15,} {'—':>10}")
-    print(f"{'Hit rate':<30} {gtc_hit_rate:>14.1%} {'100.0%':>15} {'—':>10}")
+    print(f"{'Tokens generated':<30} {gtc_tokens_generated:>15,} {rag_tokens_generated:>15,} {'---':>10}")
+    print(f"{'Hit rate':<30} {gtc_hit_rate:>14.1%} {'100.0%':>15} {'---':>10}")
     
     # Paper VIII prediction check
     print(f"\nPAPER VIII VERIFICATION:")

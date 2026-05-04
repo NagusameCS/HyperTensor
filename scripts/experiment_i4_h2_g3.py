@@ -5,7 +5,7 @@ EXPERIMENTS I4 + H2 + G3: GPU-free analytic verifications.
 - H2: Hybrid GTC+RAG Pareto analysis
 - G3: Combined attn+FFN byte savings computation
 
-All pure math — no GPU needed.
+All pure math --- no GPU needed.
 """
 
 import json, math, os, numpy as np
@@ -160,7 +160,7 @@ def compute_combined_savings():
     print(f"\n  Uncompressed: {total_std/1e6:.1f} MB")
     print(f"  GRC+Cluster:  {total_grc/1e6:.1f} MB")
     print(f"  Savings:      {savings:.1f}")
-    print(f"  Paper VII predicted ~2.5 — {' WITHIN RANGE' if 2.0 <= savings <= 3.0 else ' OUTSIDE RANGE'}")
+    print(f"  Paper VII predicted ~2.5 --- {' WITHIN RANGE' if 2.0 <= savings <= 3.0 else ' OUTSIDE RANGE'}")
     
     return {"total_std_MB": round(total_std/1e6, 1), "total_grc_MB": round(total_grc/1e6, 1), "savings": round(savings, 1)}
 

@@ -5,7 +5,7 @@ XI MATHEMATICAL CLOSURE: Prove 7B bilateral UGT transfers from 1.5B.
 The UGT basis construction is scale-INVARIANT:
 1. Collect hidden states from N calibration prompts on model of dimension d
 2. SVD: H = U Sigma V^T
-3. Basis = U[:, :k] — the top-k left singular vectors
+3. Basis = U[:, :k] --- the top-k left singular vectors
 
 The subspace overlap between two independently trained bases:
   overlap(B_A, B_B) = (1/k) ||B_A^T B_B||_F^2
@@ -47,7 +47,7 @@ print("="*60)
 # gap_k will be proportionally larger since d increased 2.3x
 # If sigma_k scales roughly with sqrt(d), gap_k ~ 10 * sqrt(3584/1536) ~ 15.3
 # Subspace error bound: 2 * 12.0 / 15.3 = 1.57
-# overlap ~ 1 - 1.57/k ~ 0.922 — same bound
+# overlap ~ 1 - 1.57/k ~ 0.922 --- same bound
 
 # CONCLUSION: The subspace overlap bound does NOT degrade with model dimension.
 # The SVD gap grows with d, compensating for the larger perturbation.
@@ -113,7 +113,7 @@ if abs(mean_small - mean_large) < 0.05:
     print(f"\n  [OK] OVERLAP IS SCALE-INVARIANT: difference = {abs(mean_small-mean_large):.4f}")
     print(f"  XI: 7B bilateral UGT transfers from 1.5B by mathematical proof.")
     print(f"  The 0.9999 overlap measured at 1.5B predicts >= {mean_large:.3f} at 7B.")
-    print(f"  XI: 100% CLOSED — mechanism proven at all scales.")
+    print(f"  XI: 100% CLOSED --- mechanism proven at all scales.")
     status = "100%_CLOSED"
 else:
     print(f"\n  Overlap has weak scale dependence: diff={abs(mean_small-mean_large):.4f}")

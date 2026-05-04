@@ -2,7 +2,7 @@
 Builds on Phase A basis (already trained, 400 steps).
 Phase B: multi-head zone competition, task-specific specialization,
 TOPLoss for healthy overlap. Target: clear zone separation at 1.5B scale.
-Deploy to EC2 — ~45GB VRAM free, 1.5B model fits."""
+Deploy to EC2 --- ~45GB VRAM free, 1.5B model fits."""
 import torch, json, time, os
 from collections import defaultdict
 from transformers import AutoModelForCausalLM, AutoTokenizer, get_linear_schedule_with_warmup
@@ -20,7 +20,7 @@ print("  UGT PHASE B: 1.5B Zone Specialization")
 print("  Paper XI Gap: Full multi-head zone competition")
 print("="*60)
 
-# ── Load ──
+# -- Load --
 print("\n[1] Loading model + Phase A basis...")
 model=AutoModelForCausalLM.from_pretrained(MODEL_ID,torch_dtype=torch.float16,device_map=DEVICE)
 tok=AutoTokenizer.from_pretrained(MODEL_ID)
@@ -31,7 +31,7 @@ basis=torch.load(f"{UGT_DIR}/taxonomic_basis.pt",map_location=DEVICE)
 k_basis=basis.shape[1]
 print(f"  d={d_model}, layers={n_layers}, k={k_basis}")
 
-# ── Subspace definitions (scaled) ──
+# -- Subspace definitions (scaled) --
 subspace_defs={
     "syntax":list(range(0,192)),
     "routing":list(range(192,384)),
@@ -40,7 +40,7 @@ subspace_defs={
 }
 n_zones=len(subspace_defs)
 
-# ── Create trainable zone heads ──
+# -- Create trainable zone heads --
 zone_dim=128
 zone_heads=torch.nn.Parameter(torch.randn(n_zones,d_model,zone_dim,device=DEVICE,dtype=torch.float32)*0.01)
 zone_temp=0.3
@@ -55,7 +55,7 @@ zone_adapter=torch.nn.Sequential(
 for p in model.parameters():
     p.requires_grad=False
 
-# ── Training data (zone-specific) ──
+# -- Training data (zone-specific) --
 syntax_data=[
     "The cat sat on the mat near the window in the afternoon sun",
     "She walked to the store and bought some bread and milk for breakfast",
@@ -93,7 +93,7 @@ all_data={
     "factual":factual_data,"math":math_data,
 }
 
-# ── Phase B training ──
+# -- Phase B training --
 PHASE_B_STEPS=3000
 lambda_top=0.01
 print(f"\n[2] Phase B: {PHASE_B_STEPS} steps, {n_zones} zones...")
@@ -168,7 +168,7 @@ for step in range(PHASE_B_STEPS):
         print(f"  Step {step+1}: loss={loss.item():.4f} spec={specialization_loss.item():.3f} "
               f"top={top_loss.item():.4f} zones={zw}")
 
-# ── Measure zone specialization ──
+# -- Measure zone specialization --
 print("\n[3] Measuring zone specialization...")
 
 test_prompts={
@@ -190,7 +190,7 @@ for zname,prompts in test_prompts.items():
     zone_ppls[zname]=round(total_loss/max(total_tok,1),2)
     print(f"  {zname:<10}: PPL={zone_ppls[zname]:.1f}")
 
-# ── Measure zone competition on held-out data ──
+# -- Measure zone competition on held-out data --
 print("\n[4] Zone competition analysis...")
 zone_activation=defaultdict(list)
 for zname,prompts in test_prompts.items():
@@ -213,7 +213,7 @@ for zname in sub_names:
     if acts:
         print(f"  {zname:<10}: mean={sum(acts)/len(acts):.3f}")
 
-# ── Save ──
+# -- Save --
 results={
     "config":{"model":MODEL_ID,"d_model":d_model,"n_layers":n_layers,"k_basis":k_basis,
               "phase_b_steps":PHASE_B_STEPS,"n_zones":n_zones},

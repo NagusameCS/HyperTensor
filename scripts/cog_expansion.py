@@ -54,7 +54,7 @@ def teh_act(h):
     tn=torch.norm(h).item()
     return (pn/max(tn,1e-8))*100
 
-# ── COG Cache with manifold expansion ──
+# -- COG Cache with manifold expansion --
 print("\n[2] Running COG with manifold expansion...")
 
 class LivingManifold:
@@ -138,7 +138,7 @@ print(f"  Novel concepts: {len(novel_concepts)}")
 print(f"  Novelty threshold: {manifold.delta_novel}")
 print(f"  Expansion rate η: {manifold.eta}")
 
-# ── Phase 1: Seed the manifold ──
+# -- Phase 1: Seed the manifold --
 print("\n[3] Phase 1: Seeding manifold with baseline knowledge...")
 for concept in seed_concepts:
     h=get_hidden(concept)
@@ -146,7 +146,7 @@ for concept in seed_concepts:
     if act<15:  # safe
         manifold.store(h,concept)
 
-# ── Phase 2: Introduce novel concepts with expansion ──
+# -- Phase 2: Introduce novel concepts with expansion --
 print("\n[4] Phase 2: Introducing novel concepts with manifold expansion...")
 expansion_log=[]
 for i,concept in enumerate(novel_concepts):
@@ -170,7 +170,7 @@ for i,concept in enumerate(novel_concepts):
     
     expansion_log.append(result)
 
-# ── Phase 3: Query the living manifold ──
+# -- Phase 3: Query the living manifold --
 print("\n[5] Phase 3: Querying the living manifold...")
 
 query_concepts=[
@@ -202,10 +202,10 @@ for query in query_concepts:
         "query":query,"known":not is_novel,"min_dist":round(min_dist,4),
         "best_match":best_concept[:60],"similarity":round(best_sim,3),
     })
-    flag="✓ KNOWN" if not is_novel else "? UNKNOWN"
+    flag="[ok] KNOWN" if not is_novel else "? UNKNOWN"
     print(f"  [{flag}] sim={best_sim:.3f} | {query[:50]}... -> {best_concept[:40]}...")
 
-# ── Summary ──
+# -- Summary --
 expanded=sum(1 for r in expansion_log if r["expanded"])
 stored=sum(1 for r in expansion_log if r["stored"])
 blocked=len(expansion_log)-expanded-stored

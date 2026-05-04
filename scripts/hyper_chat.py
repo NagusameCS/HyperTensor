@@ -22,9 +22,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch.nn.functional as F
 torch.set_grad_enabled(False)
 
-# ═══════════════════════════════════════════════════
+# ===================================================
 # CONFIG
-# ═══════════════════════════════════════════════════
+# ===================================================
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
 K_UGT = 512
 MAX_NEW = 350
@@ -40,9 +40,9 @@ else:
     STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "benchmarks", "hyper_chat")
 os.makedirs(STATE_DIR, exist_ok=True)
 
-# ═══════════════════════════════════════════════════
+# ===================================================
 # CALIBRATION PROMPTS (diverse domains for dense basis)
-# ═══════════════════════════════════════════════════
+# ===================================================
 CAL_PROMPTS = [
     # Sciences
     "The mitochondria is the powerhouse of the cell, generating ATP through oxidative phosphorylation in the inner membrane.",
@@ -57,13 +57,13 @@ CAL_PROMPTS = [
     "The water cycle describes evaporation, condensation, precipitation, and collection of water on Earth.",
     "Electromagnetic waves travel at the speed of light and include radio, microwave, infrared, visible, UV, X-rays, and gamma.",
     "The immune system has innate and adaptive components: macrophages and T-cells respectively.",
-    "In thermodynamics, entropy of an isolated system never decreases over time — the second law.",
+    "In thermodynamics, entropy of an isolated system never decreases over time --- the second law.",
     "Neurons communicate via action potentials: electrical signals propagated along axons to synaptic terminals.",
     "The Higgs boson, discovered at CERN in 2012, gives other particles mass through the Higgs field mechanism.",
     # Math + Logic
     "The Pythagorean theorem: in a right triangle, the square of the hypotenuse equals the sum of squares of the other sides.",
     "A prime number has exactly two positive divisors: one and itself. There are infinitely many primes.",
-    "The derivative of a function at a point measures its instantaneous rate of change — the limit of difference quotients.",
+    "The derivative of a function at a point measures its instantaneous rate of change --- the limit of difference quotients.",
     "In linear algebra, eigenvectors of a matrix are vectors whose direction is unchanged by the transformation.",
     "Bayes theorem relates conditional probabilities: P of A given B equals P of B given A times P of A over P of B.",
     "Godel's incompleteness theorems show that any sufficiently powerful formal system contains unprovable truths.",
@@ -101,9 +101,9 @@ CAL_PROMPTS = [
     "Climate science integrates physics, chemistry, biology, and geology to understand Earth's changing systems.",
 ]
 
-# ═══════════════════════════════════════════════════
+# ===================================================
 # .MIKU FILE FORMAT SPEC
-# ═══════════════════════════════════════════════════
+# ===================================================
 def save_hyper_state(path, basis, forbidden, snipe_coords, metric, trajectories, conversation_log):
     """Save the complete living model state in .miku format.
     
@@ -169,9 +169,9 @@ def load_hyper_state(path):
     print(f"  [.miku loaded] basis={basis.shape}, metric={metric.shape}, trajectories={len(trajectories)}")
     return basis, forbidden, snipe_coords, metric, trajectories, conv_log
 
-# ═══════════════════════════════════════════════════
+# ===================================================
 # MAIN
-# ═══════════════════════════════════════════════════
+# ===================================================
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load", type=str, help="Load .miku state file")
@@ -182,13 +182,13 @@ def main():
     args = parser.parse_args()
     
     print("=" * 60)
-    print("  HyperChat — Living Model CLI")
+    print("  HyperChat --- Living Model CLI")
     print(f"  Model: {MODEL_ID}")
     print(f"  Mode: {'4-bit NF4 (local 8GB)' if args.use_4bit else 'fp16 (server 16GB+)'}")
     print("  Stack: UGT (XI) + Safe OGD (XIII) + Snipe (XIV) + COG+TEH (XV)")
     print("=" * 60)
     
-    # ── Load Model ──
+    # -- Load Model --
     print(f"\n[1/5] Loading 7B model{' (4-bit)' if args.use_4bit else ''}...")
     if args.use_4bit:
         bnb_config = BitsAndBytesConfig(
@@ -212,7 +212,7 @@ def main():
     vram = torch.cuda.memory_allocated()/1e9 if torch.cuda.is_available() else 0
     print(f"  d={d_model}, layers={n_layers}, VRAM={vram:.1f}GB")
     
-    # ── Bootstrap or Load UGT Basis ──
+    # -- Bootstrap or Load UGT Basis --
     if args.load:
         print(f"\n[2/5] Loading .miku state from {args.load}...")
         basis, forbidden, snipe_coords, metric, trajectories, conv_log = load_hyper_state(args.load)
@@ -292,7 +292,7 @@ def main():
         conv_log = []
         print(f"  Forbidden coords: {forbidden[:8]}... | Snipe coords: {len(snipe_coords)}")
     
-    # ── Build Safety Stack ──
+    # -- Build Safety Stack --
     print(f"\n[3/5] Building safety stack...")
     ft = torch.tensor(forbidden, device="cuda", dtype=torch.long)
     Bf = basis[:, ft].float(); Qf, _ = torch.linalg.qr(Bf)
@@ -354,19 +354,19 @@ def main():
         trajectories.append({"proj": to_k(hs).cpu(), "label": prompt[:60], "time": time.time()})
     print(f"  Safety: geometric (0% TEH guaranteed) | Manifold: {len(trajectories)} seeded")
     
-    # ── Seed conversation log from loaded state ──
+    # -- Seed conversation log from loaded state --
     if conv_log:
         print(f"  Loaded {len(conv_log)} prior conversation turns")
     
-    # ═══════════════════════════════════════════════════
+    # ===================================================
     # INTERACTIVE CHAT LOOP
-    # ═══════════════════════════════════════════════════
+    # ===================================================
     print(f"\n[4/5] Ready!")
     print(f"{'='*60}")
     print(f"  Type your message and press Enter. Commands:")
-    print(f"    /save <path>  — Save .miku state")
-    print(f"    /status       — Show manifold stats")
-    print(f"    /quit         — Exit")
+    print(f"    /save <path>  --- Save .miku state")
+    print(f"    /status       --- Show manifold stats")
+    print(f"    /quit         --- Exit")
     print(f"{'='*60}\n")
     
     def chat_turn(user_input):

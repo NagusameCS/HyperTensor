@@ -5,7 +5,7 @@ Paper I showed k≥512 for SmolLM2-135M (d=576) but k≥1024 for Llama-8B (d=409
 This experiment computes the safe k/d ratio as a function of model dimension d,
 using the joint Gram spectrum to predict where PPL becomes acceptable.
 
-CPU-only. No model loading needed — works from saved spectral data.
+CPU-only. No model loading needed --- works from saved spectral data.
 """
 
 import json, math, os
@@ -45,7 +45,7 @@ print("=" * 70)
 # ---------------------------------------------------------------------------
 # The key insight from Paper I Exp A1:
 # - Signal preservation (Frobenius energy retained) DOES predict safe k
-# - But the degradation is amplified: small energy loss → huge PPL increase
+# - But the degradation is amplified: small energy loss -> huge PPL increase
 # - The amplification factor depends on d
 
 # From measured data:
@@ -61,15 +61,15 @@ d1, ks1 = 576, 512
 d2, ks2 = 4096, 1536
 
 # Model: k_safe/d = 1 - α/√d
-# For SmolLM2: 512/576 = 1 - α/√576 → 0.889 = 1 - α/24 → α = 2.667
-# For Llama: 1536/4096 = 1 - α/√4096 → 0.375 = 1 - α/64 → α = 40.0
-# α is NOT constant — so it's not a simple 1/√d relationship
+# For SmolLM2: 512/576 = 1 - α/√576 -> 0.889 = 1 - α/24 -> α = 2.667
+# For Llama: 1536/4096 = 1 - α/√4096 -> 0.375 = 1 - α/64 -> α = 40.0
+# α is NOT constant --- so it's not a simple 1/√d relationship
 
 # Alternative: k_safe/d scales with d^(-β)
 # log(k_safe/d) = -β·log(d) + γ
-# log(0.889) = -β·log(576) + γ → -0.1178 = -6.356β + γ
-# log(0.375) = -β·log(4096) + γ → -0.9808 = -8.317β + γ
-# Subtracting: 0.8630 = 1.961β → β = 0.44
+# log(0.889) = -β·log(576) + γ -> -0.1178 = -6.356β + γ
+# log(0.375) = -β·log(4096) + γ -> -0.9808 = -8.317β + γ
+# Subtracting: 0.8630 = 1.961β -> β = 0.44
 # γ = 0.44·6.356 - 0.1178 = 2.68
 
 beta = 0.44
@@ -113,7 +113,7 @@ for m in MODELS:
     })
     
     print(f"  {m['name']:<20} d={d:>5}  k_safe/d={k_safe_ratio:.3f}  "
-          f"k_safe={k_safe:>5}→{k_safe_pow2:>5}  k_95={k_95:>5}  "
+          f"k_safe={k_safe:>5}->{k_safe_pow2:>5}  k_95={k_95:>5}  "
           f"recommend={k_recommended:>5} ({k_recommended/d:.3f}d)")
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ print()
 # α ∝ d^(-γ) for some γ
 # α_smol/α_llama = 25.1/1.92 = 13.07
 # d_llama/d_smol = 4096/576 = 7.11
-# (d_ratio)^γ = α_ratio → 7.11^γ = 13.07 → γ = ln(13.07)/ln(7.11) = 2.57/1.96 = 1.31
+# (d_ratio)^γ = α_ratio -> 7.11^γ = 13.07 -> γ = ln(13.07)/ln(7.11) = 2.57/1.96 = 1.31
 
 amp_gamma = 1.31
 print(f"    α(d) ∝ d^(-{amp_gamma:.2f})")
@@ -158,7 +158,7 @@ print("    " + "-" * 58)
 for m in MODELS:
     d = m["d"]
     alpha = 25.1 * (576 / d)**amp_gamma
-    # Safe = where PPL < 1.20 baseline → energy_retained > 1 - ln(1.20)/α
+    # Safe = where PPL < 1.20 baseline -> energy_retained > 1 - ln(1.20)/α
     energy_needed = 1.0 - math.log(1.20) / alpha
     k_safe_alt = int(d * energy_needed)
     k_safe_pow2 = 2**int(round(math.log2(max(k_safe_alt, 64))))

@@ -1,4 +1,4 @@
-# Serial cross-HW chain: g6e.xlarge (L40S) → g5.xlarge (A10G)
+# Serial cross-HW chain: g6e.xlarge (L40S) -> g5.xlarge (A10G)
 # Waits for vCPU quota to free between runs.
 # Idempotent: re-running picks up wherever the previous run left off
 # (each launch_detached.ps1 invocation is self-contained).
@@ -21,7 +21,7 @@ $chainDir = Join-Path $repo "benchmarks\paperB_chain_$ts"
 New-Item -ItemType Directory -Force -Path $chainDir | Out-Null
 $chainLog = Join-Path $chainDir "chain.log"
 function ChainLog($msg) { $line = "[{0}] {1}" -f (Get-Date -Format HH:mm:ss), $msg; $line | Tee-Object -FilePath $chainLog -Append; Write-Host $line }
-ChainLog "Chain started for: $($InstanceTypes -join ', ')  → dir=$chainDir"
+ChainLog "Chain started for: $($InstanceTypes -join ', ')  -> dir=$chainDir"
 
 function Wait-NoActiveGInstances {
     param([int]$TimeoutSec = 1200)
@@ -32,10 +32,10 @@ function Wait-NoActiveGInstances {
             --query 'Reservations[].Instances[?starts_with(InstanceType,`g`)].[InstanceId,InstanceType,State.Name]' `
             --output text 2>$null
         if (-not $active -or $active.Trim() -eq '') {
-            ChainLog "  no active G-family instances — quota free"
+            ChainLog "  no active G-family instances --- quota free"
             return $true
         }
-        ChainLog "  active G-instances: $($active -replace '\s+',' ') — waiting"
+        ChainLog "  active G-instances: $($active -replace '\s+',' ') --- waiting"
         Start-Sleep -Seconds 30
     }
     return $false
@@ -44,7 +44,7 @@ function Wait-NoActiveGInstances {
 foreach ($it in $InstanceTypes) {
     ChainLog "===== $it ====="
     if (-not (Wait-NoActiveGInstances -TimeoutSec 1500)) {
-        ChainLog "TIMEOUT waiting for quota — aborting chain at $it"; break
+        ChainLog "TIMEOUT waiting for quota --- aborting chain at $it"; break
     }
     Start-Sleep -Seconds $WaitBetweenSeconds  # let AWS catch up
     $runLog = Join-Path $chainDir "$it.log"

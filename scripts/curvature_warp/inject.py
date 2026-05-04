@@ -23,8 +23,8 @@ ball.
 Test protocol (paper §3 success criterion):
 
     For 50 synthetic facts on the fitted SmolLM2 manifold:
-      pre-injection geodesic-step error to x_target  → mean ε_pre
-      post-injection geodesic-step error             → mean ε_post
+      pre-injection geodesic-step error to x_target  -> mean ε_pre
+      post-injection geodesic-step error             -> mean ε_post
     Success: ε_post < 0.5 · ε_pre and the unperturbed-region p95 error
     delta is below 5 % (no catastrophic spillover).
 

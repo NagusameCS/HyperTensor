@@ -91,7 +91,7 @@ def main() -> None:
         ax.hist(b_rates, bins=20, alpha=0.55, label=f"Baseline (mean={statistics.mean(b_rates):.1f}%, n={len(b_rates)})", color="#444")
     if g_rates:
         ax.hist(g_rates, bins=20, alpha=0.55, label=f"GRC k=1024 (mean={statistics.mean(g_rates):.1f}%, n={len(g_rates)})", color="#1f77b4")
-    ax.set_xlabel("L2 read hit rate (%) — kernel_gemv_q4_k")
+    ax.set_xlabel("L2 read hit rate (%) --- kernel_gemv_q4_k")
     ax.set_ylabel("Launch count")
     ax.set_title("Llama-3.1-8B Q4_K_M decode: L2 cache-fit (Paper A §6)")
     ax.legend(loc="best", fontsize=8)

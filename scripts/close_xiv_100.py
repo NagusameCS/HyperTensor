@@ -27,7 +27,7 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     d = model.config.hidden_size
     n_layers = model.config.num_hidden_layers
     
-    print(f"  d={d}, layers={n_layers} — 1.5B scale VALIDATED")
+    print(f"  d={d}, layers={n_layers} --- 1.5B scale VALIDATED")
     
     # Bootstrap basis
     print("[2/5] Bootstrapping UGT basis (k=128)...")
@@ -131,13 +131,13 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     benign_loss = (pre_benign - post_benign) / max(pre_benign, 1e-8) * 100
     specificity = harm_reduction / max(benign_loss, 1e-8)
     
-    print(f"\n  ── SNIPE RESULTS AT 1.5B ──")
+    print(f"\n  -- SNIPE RESULTS AT 1.5B --")
     print(f"  Coords selected: {len(selected)}/{k}")
     print(f"  Harm reduction: {harm_reduction:.1f}%")
     print(f"  Benign loss: {benign_loss:.2f}% {'[OK] <2%' if benign_loss < 2 else '[!!]'}")
     print(f"  Specificity: {specificity:.1f}x")
     
-    # ── Pre/Post COG Pipeline ──
+    # -- Pre/Post COG Pipeline --
     print("\n[4/5] Validating pre/post COG snipe pipeline...")
     
     # Pre-snipe: build P_pre to block harmful coords BEFORE COG expansion
@@ -160,7 +160,7 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
     print(f"  Pre-snipe BEFORE COG: harmful content blocked from manifold")
     print(f"  Post-snipe AFTER COG: existing harmful trajectories cleaned")
     
-    # ── Pipeline status ──
+    # -- Pipeline status --
     print(f"\n[5/5] Pipeline integration status:")
     pipeline_checks = {
         "snipe_at_1.5B": True,
@@ -173,7 +173,7 @@ def validate_snipe_pipeline(model_id="Qwen/Qwen2.5-1.5B-Instruct",
         print(f"  {'[OK]' if status else '[!!]'} {check}")
     
     all_pass = all(pipeline_checks.values())
-    print(f"\n  {'[OK] PAPER XIV: 100% CLOSED' if all_pass else '[!!] PAPER XIV: 95% — minor budget exceedance'}")
+    print(f"\n  {'[OK] PAPER XIV: 100% CLOSED' if all_pass else '[!!] PAPER XIV: 95% --- minor budget exceedance'}")
     
     os.makedirs("benchmarks", exist_ok=True)
     report = {

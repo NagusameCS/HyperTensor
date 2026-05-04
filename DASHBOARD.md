@@ -1,10 +1,10 @@
-# HyperTensor Pipeline Dashboard — May 1, 2026
+# HyperTensor Pipeline Dashboard --- May 1, 2026
 
 ## Models
 | Model | Status | Steps | Time | Loss |
 |-------|--------|-------|------|------|
 | M (Pure Math) |  COMPLETE | 10,000 | 2h 26m | 2.215 |
-| L (Pure Language) |  TRAINING | 6% | ~2h remaining | — |
+| L (Pure Language) |  TRAINING | 6% | ~2h remaining | --- |
 
 ## Experiments (30 total: 8  + 1  + 11  + 10 )
 

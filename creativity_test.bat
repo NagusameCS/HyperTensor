@@ -1,5 +1,5 @@
 @echo off
-REM ── MIKU Creativity Benchmark Launcher ──
+REM -- MIKU Creativity Benchmark Launcher --
 REM Runs the 5-dimension creativity test on the local model
 
 cd /d %~dp0..

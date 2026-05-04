@@ -104,7 +104,7 @@ for step in range(30000):
     torch.nn.utils.clip_grad_norm_(native.parameters(), 1.0)
     opt.step(); scheduler.step()
     
-    # Gentle retraction — only every 5000 steps
+    # Gentle retraction --- only every 5000 steps
     if step % 5000 == 0 and step > 0:
         native.retract()
     

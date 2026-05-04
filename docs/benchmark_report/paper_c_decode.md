@@ -1,4 +1,4 @@
-## Paper C — Decode Throughput Under GRC Compression
+## Paper C --- Decode Throughput Under GRC Compression
 
 Summary: preliminary decode measurements indicate usable throughput with GRC and provide early OTT/AttnRes interaction evidence.
 
@@ -7,7 +7,7 @@ No farm decode log rows yet; showing OTT/AttnRes empirical sections below.
 
 ---
 
-# OTT Speculative Decode — Empirical Speedup Table
+# OTT Speculative Decode --- Empirical Speedup Table
 
 Paper C empirical anchor data  
 Rows show mean tok/s ± 95% CI and acceptance rate α across 10 locked prompts.
@@ -15,9 +15,9 @@ Speedup = mean_tok_s / baseline_tok_s for the same model.
 
 | Model | Mode | thresh | batch | tok/s | ±CI | α (%) | ±CI | geo_frac | Speedup |
 |-------|------|--------|-------|-------|-----|-------|-----|----------|---------|
-| SmolLM2-135M | baseline | 0.0 | 0 | 71.92 | ±21.96 | — | ±— | — | 1.0 |
-| SmolLM2-135M | spec | 0.45 | 4 | 33.66 | ±19.22 | — | ±— | — | 0.468 |
-| SmolLM2-135M | spec_grc | 0.45 | 4 | 81.31 | ±12.57 | 46.9 | ±— | 46.9% | 1.131 |
+| SmolLM2-135M | baseline | 0.0 | 0 | 71.92 | ±21.96 | --- | ±--- | --- | 1.0 |
+| SmolLM2-135M | spec | 0.45 | 4 | 33.66 | ±19.22 | --- | ±--- | --- | 0.468 |
+| SmolLM2-135M | spec_grc | 0.45 | 4 | 81.31 | ±12.57 | 46.9 | ±--- | 46.9% | 1.131 |
 
 ## Key observations
 

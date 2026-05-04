@@ -36,8 +36,8 @@
 <h2>Scope</h2>
 <p>Validates the cross-GPU super-baseline throughput model: GRC throughput ratio
 T_GRC(k)/T_standard systematically exceeds 1.0 when the projection basis fits
-in L2 cache. The optimal k* depends on GPU L2 size — k*=1536 for RTX 4070/4080
-(36-64MB L2), k*=1280 for L40S (48MB L2), and k*=1024 for A100 (40MB L2).
+in L2 cache. The optimal k* depends on GPU L2 size --- k=1536 for RTX 4070/4080
+(36-64MB L2), k=1280 for L40S (48MB L2), and k*=1024 for A100 (40MB L2).
 This guide runs the analytical simulator and, when GPU is available, the
 measured throughput sweep.</p>
 <h2>Hardware target</h2>
@@ -60,10 +60,10 @@ measured throughput sweep.</p>
 <p>Expected: peak TPS at k* matching the simulator prediction within ±128.</p>
 <h2>Step 3: Cross-GPU validation table</h2>
 <p>Run on each available GPU and compare against the predictive table:</p>
-<pre><code># RTX 4070 Laptop (36MB L2): k*=1536, ratio≈1.04 ✓ MEASURED
-# L40S (48MB L2):           k*=1280, ratio≈1.04   PENDING
-# A100 (40MB L2):           k*=1024, ratio≈1.06   PENDING
-# H100 (50MB L2):           k*=1280, ratio≈1.04   PENDING</code></pre>
+<pre><code># RTX 4070 Laptop (36MB L2): k=1536, ratio≈1.04 [ok] MEASURED
+# L40S (48MB L2):           k=1280, ratio≈1.04   PENDING
+# A100 (40MB L2):           k=1024, ratio≈1.06   PENDING
+# H100 (50MB L2):           k=1280, ratio≈1.04   PENDING</code></pre>
 </article>
 </body>
 </html>

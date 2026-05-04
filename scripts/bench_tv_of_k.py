@@ -16,7 +16,7 @@ MODEL = Path(r"C:\Users\legom\models\models--bartowski--Meta-Llama-3.1-8B-Instru
 OUT   = REPO / "docs" / "figures" / "paper-c"
 OUT.mkdir(parents=True, exist_ok=True)
 
-# Smaller prompt set than spec-decode bench (8) — 4 to keep runtime bounded
+# Smaller prompt set than spec-decode bench (8) --- 4 to keep runtime bounded
 # across 6 ranks  4 prompts  ~30 s/run ≈ 12 min plus cold-cache warmups.
 PROMPTS = [
     "Explain the difference between a list and a tuple in Python.",
@@ -85,7 +85,7 @@ def main():
     rows = []
     for k in K_VALUES:
         # cold-cache warmup at this k (populates wproj cache for the rank)
-        print(f"warmup k={k}…")
+        print(f"warmup k={k}...")
         run_once(k, PROMPTS[0], warmup=True)
         for prompt in PROMPTS:
             r = run_once(k, prompt)

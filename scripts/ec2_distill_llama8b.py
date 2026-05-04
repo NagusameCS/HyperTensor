@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EC2 Llama-8B GRC Light Distillation — Paper V gap closure.
+EC2 Llama-8B GRC Light Distillation --- Paper V gap closure.
 Runs on EC2 g6e.xlarge (L40S 24GB).
 Target: Llama-3.1-8B-Instruct at k=1024, r=8 LoRA.
 

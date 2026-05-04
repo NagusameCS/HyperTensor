@@ -161,7 +161,7 @@ def main():
     if avg_recovery >= 50:
         print(f"   Distillation recovers majority of PPL gap")
     else:
-        print(f"   Recovery below 50% — more distillation steps needed")
+        print(f"   Recovery below 50% --- more distillation steps needed")
     
     with open(OUTPUT / "distill_ppl_results.json", 'w') as f:
         json.dump(results, f, indent=2)

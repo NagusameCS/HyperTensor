@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-OVERNIGHT EXPERIMENT RUNNER — Sequential GPU experiment execution.
+OVERNIGHT EXPERIMENT RUNNER --- Sequential GPU experiment execution.
 Runs ALL pending experiments in optimal order after Model M+L complete.
 
-Order: A1 (PPL vs k) → G2 (FFN cluster PPL) → E2 (distillation PPL) → F1 (task benchmarks)
+Order: A1 (PPL vs k) -> G2 (FFN cluster PPL) -> E2 (distillation PPL) -> F1 (task benchmarks)
 
 Usage: python scripts/run_all_experiments.py
 """

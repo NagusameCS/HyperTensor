@@ -53,7 +53,7 @@ class JacobiFieldPropagator:
         the curvature of the logit manifold.
         
         Args:
-            logits: (vocab_size,) or (batch, vocab_size) — current logits
+            logits: (vocab_size,) or (batch, vocab_size) --- current logits
             hidden_state: optional hidden state for curvature estimation
         
         Returns:
@@ -90,11 +90,11 @@ class OGDDecoder:
     constrained deviation into unexplored manifold regions.
     
     Phase diagram by α:
-      α ∈ [0.00, 0.05]: Conservative — factual augmentation
-      α ∈ [0.05, 0.15]: Creative — cross-domain metaphor
-      α ∈ [0.15, 0.30]: Exploratory — novel conceptual combinations
-      α ∈ [0.30, 0.50]: Void Decoding — concepts absent from training
-      α > 0.50:           Divergent — manifold detachment, incoherence
+      α ∈ [0.00, 0.05]: Conservative --- factual augmentation
+      α ∈ [0.05, 0.15]: Creative --- cross-domain metaphor
+      α ∈ [0.15, 0.30]: Exploratory --- novel conceptual combinations
+      α ∈ [0.30, 0.50]: Void Decoding --- concepts absent from training
+      α > 0.50:           Divergent --- manifold detachment, incoherence
     """
     
     def __init__(self, model, tokenizer, alpha: float = 0.10,
@@ -317,7 +317,7 @@ Synthesize a novel framework that combines the structural properties of A with t
 
 
 if __name__ == '__main__':
-    print("OGD Decoder — Paper XIII Infrastructure")
+    print("OGD Decoder --- Paper XIII Infrastructure")
     print("=" * 50)
     
     # Sanity check
@@ -331,4 +331,4 @@ if __name__ == '__main__':
     for alpha in [0.02, 0.10, 0.25, 0.40, 0.60]:
         decoder = OGDDecoder(None, None, alpha=alpha)
         phase = decoder._classify_phase(alpha, 0.5)
-        print(f"    α={alpha:.2f} → {phase}")
+        print(f"    α={alpha:.2f} -> {phase}")

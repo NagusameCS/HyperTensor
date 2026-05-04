@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UGT CAUSAL ABLATION — Proves taxonomic zones control distinct behaviors.
+UGT CAUSAL ABLATION --- Proves taxonomic zones control distinct behaviors.
 
 Experiment:
 1. Train UGT basis to purity > 0.95 on SmolLM2-135M
@@ -139,7 +139,7 @@ def run_ablation(model, tokenizer, basis, zones, test_suite):
             if ablate_zone is not None:
                 # Use output_hidden_states to get per-layer hidden states
                 out = model(**enc, output_hidden_states=True, labels=enc["input_ids"])
-                # This won't work for generation — need a custom forward
+                # This won't work for generation --- need a custom forward
                 # Fall back to: just ablate from the final hidden state via logit manipulation
                 out = model(**enc, output_hidden_states=True)
                 last_hidden = out.hidden_states[-1]  # (1, seq_len, d)
@@ -167,7 +167,7 @@ def run_ablation(model, tokenizer, basis, zones, test_suite):
                 response_ids = [next_token.item()]
                 
                 # Simple greedy decode loop (max 30 tokens for speed)
-                # This is approximate — we're ablating only the last token's projection
+                # This is approximate --- we're ablating only the last token's projection
                 # Full layer-by-layer ablation requires hooks (complex but more rigorous)
                 gen_ids = []
                 
@@ -199,7 +199,7 @@ def run_ablation(model, tokenizer, basis, zones, test_suite):
         with torch.no_grad():
             # Get hidden states with full forward
             outputs = model(**enc, output_hidden_states=True)
-            last_h = outputs.hidden_states[-1][:, -1, :]  # (1, d) — last token
+            last_h = outputs.hidden_states[-1][:, -1, :]  # (1, d) --- last token
             
             # Project onto basis: h_k = P^T h
             h_k = last_h @ P  # (1, k)
@@ -290,7 +290,7 @@ def main():
     
     zones = [12, 24, 32]
     print("=" * 60)
-    print("UGT CAUSAL ABLATION — Proving taxonomic zone specificity")
+    print("UGT CAUSAL ABLATION --- Proving taxonomic zone specificity")
     print(f"  k={args.k}, zones={zones}, steps={args.steps}")
     print("=" * 60)
     
@@ -355,7 +355,7 @@ def main():
         a_avg = np.mean([r["zone_energies"]["algorithmic"] for r in cat_probes])
         f_avg = np.mean([r["zone_energies"]["factual"] for r in cat_probes])
         dominant = "syntax" if s_avg > max(a_avg, f_avg) else "algorithmic" if a_avg > max(s_avg, f_avg) else "factual"
-        print(f"    {cat:<14s}: s={s_avg:.4f}, a={a_avg:.4f}, f={f_avg:.4f} → dominant: {dominant} "
+        print(f"    {cat:<14s}: s={s_avg:.4f}, a={a_avg:.4f}, f={f_avg:.4f} -> dominant: {dominant} "
               f"[{'MATCH' if dominant == cat else 'MISMATCH'}]")
     
     # Ablation impact: does ablating the right zone break the right probes?

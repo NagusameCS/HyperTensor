@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $modelsRoot = "$env:USERPROFILE\.ollama\models"
 $mfPath = Join-Path $modelsRoot "manifests\registry.ollama.ai\library\llama3.1\70b"
 if (-not (Test-Path $mfPath)) {
-    throw "llama3.1:70b manifest not found at $mfPath — is the pull complete?"
+    throw "llama3.1:70b manifest not found at $mfPath --- is the pull complete?"
 }
 Write-Host "[enable_70b] llama3.1:70b manifest confirmed."
 
@@ -28,7 +28,7 @@ foreach ($id in $ids) {
 }
 
 if ($patched -eq $content) {
-    Write-Warning "No 'enabled: false' entries found for 70B jobs — may already be enabled or pattern mismatch."
+    Write-Warning "No 'enabled: false' entries found for 70B jobs --- may already be enabled or pattern mismatch."
 } else {
     Set-Content $ManifestPath -Value $patched -Encoding UTF8 -NoNewline
     Write-Host "[enable_70b] Enabled 70B jobs in $ManifestPath"

@@ -147,7 +147,7 @@ if (Test-Path $OpenBLASLib) {
     $LDFLAGS += $OpenBLASLib
     Write-Host '  OpenBLAS CBLAS enabled (fast SVD compression)' -ForegroundColor Yellow
 } else {
-    Write-Host '  OpenBLAS not found — SVD compression will be slow' -ForegroundColor DarkYellow
+    Write-Host '  OpenBLAS not found --- SVD compression will be slow' -ForegroundColor DarkYellow
 }
 
 # Clean

@@ -13,7 +13,7 @@ distribution (that's what `axiom_geo` Phase 1 emits). We treat the cloud
 as a tape of decode steps:
 
   for each held-out cloud point p_t (the "next decode step"):
-    1. find nearest cached anchor q* via two-stage Euclidean→g-norm lookup
+    1. find nearest cached anchor q* via two-stage Euclidean->g-norm lookup
     2. apply Jacobi correction:  p_hat = q*.xs[T] + Phi_T @ (p_t - q*.q)
     3. record relative prediction error  ‖p_hat - p_t‖ / ‖p_t‖
     4. record hit-or-miss vs validity threshold ε_⋆
@@ -103,11 +103,11 @@ def substitute_run(model: str, dim: int = 8, cache_fraction: float = 0.25,
     """Three-bucket decode-substitution benchmark.
 
     For each held-out cloud point treated as a decode step:
-      bucket A — within ρ of nearest anchor: Jacobi correction is reliable.
+      bucket A --- within ρ of nearest anchor: Jacobi correction is reliable.
                  We measure prediction error vs a real geodesic ground truth.
-      bucket B — within ε* but outside ρ: cache hit but correction unreliable;
+      bucket B --- within ε* but outside ρ: cache hit but correction unreliable;
                  step would fall back to a fresh O(nk²) geodesic solve.
-      bucket C — outside ε*: cache miss; full O(d·L) forward pass.
+      bucket C --- outside ε*: cache miss; full O(d·L) forward pass.
     """
     points, p1 = _intrinsic_lift(model, dim, seed=seed)
     Nc = points.shape[0]
@@ -290,7 +290,7 @@ def main():
     ap.add_argument("--cache-fraction", type=float, default=0.25)
     ap.add_argument("--eps-star", type=float, default=3.0)
     ap.add_argument("--rho", type=float, default=0.4,
-                    help="Validity radius — Jacobi correction trusted within this g-norm distance.")
+                    help="Validity radius --- Jacobi correction trusted within this g-norm distance.")
     ap.add_argument("--T", type=int, default=8)
     ap.add_argument("--dl", type=float, default=0.1)
     ap.add_argument("--phi-rank", type=int, default=5)

@@ -1,4 +1,4 @@
-"""Safe OGD → COG Long-Term Loop (Paper XIII+XV P0 gap).
+"""Safe OGD -> COG Long-Term Loop (Paper XIII+XV P0 gap).
 50 interactions: Safe OGD generates creative concepts,
 TEH validates safety, COG caches with metric expansion.
 Measures: novelty rate, cache growth, metric evolution, safety.

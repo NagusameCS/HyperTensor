@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-MINSKAT — Model INtegration via Subspace Kernel Alignment Transfer
+MINSKAT --- Model INtegration via Subspace Kernel Alignment Transfer
 First successful chimeric model under the CECI protocol.
 
 Benchmarks MINSKAT vs its two contributing models:
-  A: SmolLM2-135M (base) — attention donor
-  B: SmolLM2-135M-Instruct — body/FFN donor
+  A: SmolLM2-135M (base) --- attention donor
+  B: SmolLM2-135M-Instruct --- body/FFN donor
   MINSKAT: CECI splice (A's attention projected onto B via shared basis)
 
 Usage: python scripts/benchmark_minsk_at.py
@@ -122,7 +122,7 @@ def bench_text(model, tokenizer, name):
 
 def main():
     print("=" * 70)
-    print("MINSKAT — Model INtegration via Subspace Kernel Alignment Transfer")
+    print("MINSKAT --- Model INtegration via Subspace Kernel Alignment Transfer")
     print("First successful CECI chimeric model benchmark")
     print("=" * 70)
     
@@ -138,7 +138,7 @@ def main():
               "acronym": "Model INtegration via Subspace Kernel Alignment Transfer"}
     
     # --- Model A: SmolLM2 base ---
-    print("\n[1/3] SmolLM2-135M (base) — attention donor...")
+    print("\n[1/3] SmolLM2-135M (base) --- attention donor...")
     ma = AutoModelForCausalLM.from_pretrained(A_ID, dtype=torch.float16, device_map="auto", local_files_only=True)
     ta = AutoTokenizer.from_pretrained(A_ID, local_files_only=True)
     if ta.pad_token is None: ta.pad_token = ta.eos_token
@@ -149,7 +149,7 @@ def main():
     del ma; gc.collect(); torch.cuda.empty_cache()
     
     # --- Model B: SmolLM2-Instruct ---
-    print("\n[2/3] SmolLM2-135M-Instruct — body donor...")
+    print("\n[2/3] SmolLM2-135M-Instruct --- body donor...")
     mb = AutoModelForCausalLM.from_pretrained(B_ID, dtype=torch.float16, device_map="auto", local_files_only=True)
     tb = AutoTokenizer.from_pretrained(B_ID, local_files_only=True)
     if tb.pad_token is None: tb.pad_token = tb.eos_token
@@ -159,7 +159,7 @@ def main():
     report["model_b"] = {"ppl": round(ppl_b, 2), "accuracy": round(acc_b, 3), "responses": text_b}
     
     # --- MINSKAT: CECI splice ---
-    print("\n[3/3] MINSKAT — CECI chimeric (base attention + instruct body)...")
+    print("\n[3/3] MINSKAT --- CECI chimeric (base attention + instruct body)...")
     print("  Loading fresh instruct model...")
     m_minsk = AutoModelForCausalLM.from_pretrained(B_ID, dtype=torch.float16, device_map="auto", local_files_only=True)
     tm = AutoTokenizer.from_pretrained(B_ID, local_files_only=True)

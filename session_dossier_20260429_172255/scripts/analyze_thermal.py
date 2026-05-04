@@ -1,5 +1,5 @@
 """
-analyze_thermal.py — turn nvidia-smi CSV trace into a paper-ready summary.
+analyze_thermal.py --- turn nvidia-smi CSV trace into a paper-ready summary.
 
 Input: docs/figures/paper-b/v02_empirical/thermal_sustained_8b.csv
        header: ts,gpu_C,sm_MHz,mem_MHz,power_W,util_pct
@@ -146,7 +146,7 @@ def main():
 
     (OUT / "thermal_summary.json").write_text(json.dumps(summary, indent=2))
 
-    md = ["# Thermal Rank — Sustained-Decode Empirical Trace", "",
+    md = ["# Thermal Rank --- Sustained-Decode Empirical Trace", "",
           "Hardware: RTX 4070 Laptop (8 GB VRAM, ~40 TFLOPS FP16 peak); "
           "model: Meta-Llama-3.1-8B-Instruct Q4_K_M (8.31 B params, "
           "4693 MB on-disk).",
@@ -181,7 +181,7 @@ def main():
                f"{s['late_third']['power_W']:.1f} | "
                f"{s['late_third']['gpu_C']:.1f} |",
                f"| Δ     | {s['delta_sm_MHz']:+.0f} "
-               f"({s['delta_sm_pct']:+.1f} %) | — | "
+               f"({s['delta_sm_pct']:+.1f} %) | --- | "
                f"{s['delta_T_C']:+.1f} |"]
 
     if "throughput_drift" in summary:
@@ -204,13 +204,13 @@ def main():
            "The Thermal Rank module (`runtime/nn/thermal_rank.c`) consumes "
            "exactly the telemetry channels measured here (NVML "
            "`nvmlDeviceGetTemperature`, `nvmlDeviceGetPowerUsage`). The "
-           "thresholds in code default to T_low=65 °C → full rank, "
-           "T_high=85 °C → min rank, with a linear interpolation between. "
+           "thresholds in code default to T_low=65 °C -> full rank, "
+           "T_high=85 °C -> min rank, with a linear interpolation between. "
            "The empirically observed active-window distribution (above) "
            "shows whether the workload reaches the actuation band. If the "
            "p90 active temp sits below T_low, the rank is held at full and "
            "Thermal Rank reduces to a no-op for this workload (which is "
-           "the *correct* behaviour — no throttling pressure means no rank "
+           "the *correct* behaviour --- no throttling pressure means no rank "
            "reduction is needed); the feature only differentiates from "
            "fixed-rank operation under thermal load.",
            "",
