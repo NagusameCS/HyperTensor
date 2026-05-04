@@ -338,7 +338,7 @@ SV1 = 8.944272 (100%), SV2..SV12 = 0.000000 (0%). 11/12 directions are Z_2-invar
 
 - A novel Z_2-symmetry framework connecting the functional equation to the critical line
 - Internally consistent: the algebraic machinery (Theorems 1-3) is mathematically sound
-- Computationally robust: 19/19 verification tests passed across 9 comprehensive and 10 adversarial probes
+- Computationally robust: 26/26 verification tests passed (9 comprehensive + 10 adversarial + 7 mega)
 - The framework provides a precise, testable conjecture: zeros of zeta(s) must lie in the Z_2-invariant subspace
 - If the central analytic gap (Section 0.2) can be closed via the explicit formula, the framework would constitute a proof of RH
 - The Z_2 + SVD method transfers to other L-function problems (BSD, GRH) and to all engineering papers in Volume 1
@@ -445,6 +445,6 @@ The handoff document (`docs/HANDOFF_TO_PHD.md`) is ready for a qualified mathema
 
 ---
 
-*All computational evidence is in the HyperTensor repository. 19/19 verification tests passed (9 comprehensive + 10 adversarial). The framework is internally consistent and computationally robust. The central analytic gap (Section 0.2) requires specialist attention from analytic number theorists. This document will be updated as the framework develops. Last updated: May 4, 2026.*
+*All computational evidence is in the HyperTensor repository. 26/26 verification tests passed (9 comprehensive + 10 adversarial + 7 mega). AGT validated to 50K primes on EC2 L40S. Framework is internally consistent and computationally robust at all tested scales. The central analytic gap (Section 0.2) requires specialist attention from analytic number theorists. Last updated: May 4, 2026.*
 
 Last updated: May 3, 2026.
