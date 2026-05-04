@@ -27,6 +27,12 @@
     <li><a href="12-native-training.html">Paper XII</a></li>
     <li><a href="13-safe-ogd.html">Paper XIII</a></li>
     <li><a href="14-behavioral-snipe.html">Paper XIV</a></li>
+        <li><a href="#cog">1. COG: The Living Manifold</a></li>
+    <li><a href="#teh">2. TEH: Tangent Eigenvalue Harmonics</a></li>
+    <li><a href="#attnres">3. AttnRes Phase Transition</a></li>
+    <li><a href="#isagi">4. ISAGI: The Complete Living Model</a></li>
+    <li><a href="#implementation">5. Implementation</a></li>
+    <li><a href="#status">6. Status</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -42,9 +48,13 @@
 
 <article class="paper-body">
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present Completely Organic Generation (COG), a living manifold that expands with every novel interaction through Jacobi metric integration, and Tangent Eigenvalue Harmonics (TEH), a geometric harmful-content detector. The COG manifold stores trajectory embeddings, updates a Riemannian metric tensor $M \in \mathbb{R}^{k \times k}$ via outer-product integration $M \leftarrow M + \eta \cdot (h_k h_k^T / \|h_k h_k^T\|)$, and provides 4-tier query recognition (RETRIEVE, AUGMENT, EXPAND, EXPLORE). TEH detects harmful content by measuring forbidden-subspace activation with 93.8&ndash;100% detection rate and 0 false positives across 8 categories. Per-model ROC threshold calibration eliminates the threshold entanglement problem. The .MIKU file format enables cross-session persistence. The AttnRes phase transition (k/d &asymp; 0.45, 199 TPS peak) maps the physical regimes of GRC compression. ISAGI v1.0 integrates all technologies into an interactive living intelligence.</p>
 
+
+</section>
+<section id="cog">
 <h2>1. COG: The Living Manifold</h2>
 
 <h3>1.1 Jacobi Metric Integration</h3>
@@ -71,6 +81,9 @@ $$M \leftarrow M + \eta \cdot \frac{h_k h_k^T}{\|h_k h_k^T\|}$$
 </ul>
 <p>Unlike safetensors (static weights) or GGUF (quantized weights + tokenizer), .miku captures the <em>living</em> state — the learned Riemannian metric, the trajectory cache, the conversation history. Loading a .miku file restores the model's learned geometry. First saved state: 146KB JSON + 8.2MB tensors (7B model, 5-turn conversation).</p>
 
+
+</section>
+<section id="teh">
 <h2>2. TEH: Tangent Eigenvalue Harmonics</h2>
 
 <h3>2.1 Detection Mechanism</h3>
@@ -98,6 +111,9 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </table>
 <p>The sweet spot $k^* = \mathrm{L2\_MB} \times 42.7$ is an algebraic invariant, computable from GPU L2 cache size alone. For L40S (48MB): k* &asymp; 2048. For RTX 4070 (36MB): k* &asymp; 1536.</p>
 
+
+</section>
+<section id="isagi">
 <h2>4. ISAGI: The Complete Living Model</h2>
 <p>ISAGI v1.0 integrates all HyperTensor technologies into a single interactive intelligence:</p>
 <ul>
@@ -111,12 +127,20 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </ul>
 <p>Deployed on Qwen2.5-7B-Instruct 4-bit (5.6GB VRAM on EC2 L40S). Local deployment on RTX 4070 Laptop (8GB) via 4-bit NF4. Web interface via Gradio. First response: COG EXPANDED, sim=0.806, 0% TEH.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xv_teh_roc.py</code>, <code>scripts/close_xv_cog_100.py</code>, <code>scripts/close_xv_100.py</code>, <code>scripts/isagi_chat.py</code>, <code>scripts/isagi_web.py</code>, <code>scripts/isagi_riemann.py</code>. All TEH measurements at 135M and 1.5B. COG 100-interaction run scripted. ISAGI deployed to EC2 and local.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status</h2>
 <p><strong>Closeness to ideal: 100%.</strong> COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) — these are compute questions, not mechanism uncertainties.</p>
 
+
+</section>
 </article>
 </body>
 </html>

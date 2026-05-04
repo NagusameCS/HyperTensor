@@ -6150,9 +6150,13 @@ int llm_topk_excluding(const int *exclude, int n_exclude);
     <article class="paper-body">
 
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present the Universal Geodesic Taxonomy (UGT), a method for establishing a shared coordinate system across transformer models. Given any two independently trained models with the same architecture, UGT computes a common $k$-dimensional basis that aligns their representation spaces, enabling component-level interchange with less than 5% degradation. The method exploits the Riemannian geometry of the Grassmann manifold $\mathrm{Gr}(k,d)$ and uses RiemannianAdamW optimisation with QR retraction. We demonstrate bilateral UGT at 135M scale (7/7 layers pass, mean $\Delta$PPL = &minus;0.11, slight improvement) and 1.5B scale (subspace overlap 0.9999 across 10 independent trials). The UGT basis also enables algebraic knowledge-zone routing: encoding zone type as an explicit feature coordinate makes routing scale-independent. The mechanism is proven to transfer to any scale; 7B bilateral validation requires an H100 cluster.</p>
 
+
+</section>
+<section id="construction">
 <h2>1. The UGT Construction</h2>
 
 <h3>1.1 Motivation</h3>
@@ -6175,6 +6179,9 @@ $$\mathcal{L}(B) = -\sum_{i \lt j} \mathrm{cos}(B^T \bar{h}_i, B^T \bar{h}_j) + 
 $$f_{\mathrm{aug}}(s) = [\, \mathrm{zone\_id},\, h(s) \,] \in \mathbb{R}^{d+1}$$
 <p>This makes zone routing <em>algebraic</em> rather than learned — the SVD cleanly separates zones by their explicit ID coordinate. The routing accuracy is scale-independent because the zone ID is not inferred from statistics that change with model size.</p>
 
+
+</section>
+<section id="bilateral">
 <h2>2. Bilateral UGT: Cross-Model Component Interchange</h2>
 
 <h3>2.1 Subspace Overlap Metric</h3>
@@ -6193,6 +6200,9 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 <h3>2.3 The 7B Path</h3>
 <p>The 7B partial result (overlap 0.5954) used <em>weight perturbation</em> to simulate independent training, which is not equivalent to training two full UGT models. Full bilateral 7B requires loading two 7B models simultaneously (2 &times; 15GB = 30GB) for independent basis training, which exceeds the L40S 46GB budget but is well within H100 80GB. The mechanism is <em>proven</em> at 135M and 1.5B — scaling is an engineering question, not a scientific one.</p>
 
+
+</section>
+<section id="zones">
 <h2>3. Zone Specialisation</h2>
 <p>UGT bases trained on diverse calibration prompts exhibit natural zone specialisation:</p>
 <table>
@@ -6204,17 +6214,28 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </table>
 <p>Zone routing accuracy with algebraic encoding: 75% (4-zone test). The separation between zones is measurable but moderate (mean 0.216), indicating that the zones share some underlying structure while maintaining distinct functional specialisation.</p>
 
+
+</section>
+<section id="ceci">
 <h2>4. CECI Validation</h2>
 <p>The Cross-Encoded Component Interchange (CECI) experiment (Paper X / J) provides independent validation that the UGT basis encodes functional semantics: FFN transfer <em>fails</em> without bilateral UGT but <em>succeeds</em> when both models share the UGT basis. This proves the basis captures something real about the model's functional organisation, not just statistical compression.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xi_bilateral_ec2.py</code>, <code>scripts/close_xi_xii_final_v2.py</code>, <code>scripts/close_xi_xii_7b_l40s.py</code>, <code>scripts/bilateral_definitive.py</code>.</p>
 <p>Hardware: All 1.5B results measured on EC2 L40S (46GB). Paper I measurements on RTX 4070 Laptop (8GB). 7B definitive requires H100 (80GB) or 2&times; L40S.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status and Remaining Work</h2>
 <p>The UGT mechanism is <strong>proven</strong> at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
 <p><strong>Closeness to ideal: 98%.</strong> The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
 
+
+</section>
 
     </article>
 
@@ -6222,9 +6243,13 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
     <article class="paper-body">
 
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We introduce Native Geodesic Training, a method for training transformer components directly in a compressed $k$-dimensional manifold. The NativeLinear architecture replaces a standard weight matrix $W \in \mathbb{R}^{d \times d}$ with a learned core $C \in \mathbb{R}^{k \times k}$ and an orthonormal basis $B \in \mathbb{R}^{d \times k}$, where $k \ll d$. The effective weight is $W_{\mathrm{native}} = B C B^T$. At $k=128$ on a 1.5B model, this uses 9.1% of standard parameters. Training uses RiemannianAdamW with QR retraction to keep $B$ on the Stiefel manifold. We demonstrate KExpansion (automatic $k$ growth when training plateaus), validate on attention weights at 135M, 1.5B, and 7B scales, and show that loss decreases monotonically with $k$ at all scales. The optimal $k^*$ is predicted analytically via the AttnRes phase transition: $k^* = \mathrm{L2\_MB} \times 42.7$.</p>
 
+
+</section>
+<section id="architecture">
 <h2>1. NativeLinear Architecture</h2>
 
 <h3>1.1 Motivation</h3>
@@ -6250,6 +6275,9 @@ optimizer.step()  # RiemannianAdamW
 Q, R = torch.linalg.qr(B)
 B.data = Q</code></pre>
 
+
+</section>
+<section id="kexpansion">
 <h2>2. KExpansion Scheduler</h2>
 <p>Rather than fixing $k$ a priori, the KExpansionScheduler automatically grows $k$ when training plateaus:</p>
 <ol>
@@ -6260,6 +6288,9 @@ B.data = Q</code></pre>
 <li>Repeat until $k_{\max}$</li>
 </ol>
 
+
+</section>
+<section id="results">
 <h2>3. Measured Results</h2>
 
 <h3>3.1 1.5B Scale — Qwen2.5-1.5B FFN Down [1536, 8960] (rectangular)</h3>
@@ -6295,17 +6326,28 @@ B.data = Q</code></pre>
 </table>
 <p>At all scales, loss decreases monotonically with $k$ — the Native architecture is validated. Variance preservation at 7B (34.5% at k=768) is lower than at 1.5B because the 7B attention weight has higher effective rank. To achieve PPL parity (&gt;90% variance), k should approach the analytic optimum $k^* = \mathrm{L2\_MB} \times 42.7 \approx 1536$ (for RTX 4070) or the training should target a lower-rank component of the weight matrix.</p>
 
+
+</section>
+<section id="analytic-k">
 <h2>4. Analytic k* via AttnRes Phase Transition</h2>
 <p>The AttnRes phase transition (Paper III / C) reveals that GRC throughput peaks at $k/d \approx 0.45$. This sweet spot is an algebraic invariant determined by GPU L2 cache size: $k^* = \mathrm{L2\_MB} \times 42.7$. For Native Geodesic Training, the same invariant applies: the compression rank that maximises throughput while preserving quality is the same $k^*$ predicted by L2 cache residency.</p>
 <p>This insight, transferred from the Riemann Hypothesis research (Papers XVI&ndash;XVIII), eliminates trial-and-error $k$-selection. For any GPU, the optimal compression rank is computable from the L2 cache size alone.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xii_native_ec2.py</code>, <code>scripts/close_xi_xii_final_v2.py</code>, <code>scripts/native_long_train_ec2.py</code>, <code>scripts/native_ppl_parity.py</code>, <code>scripts/native_7b_final.py</code>.</p>
 <p>All 1.5B and 7B measurements on EC2 L40S (46GB). Cost: ~$0.06 per training run.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status</h2>
 <p><strong>Closeness to ideal: 85%.</strong> The ideal form is PPL parity with standard training at &lt;15% trainable parameters with automatic k-selection. NativeLinear architecture validated at all tested scales. KExpansionScheduler functional. Analytic k* from L2 cache proven. Remaining: achieving &gt;90% variance on full attention weights at 7B scale — needs either k&ge;1536 (H100 VRAM) or targeting a lower-rank weight component.</p>
 
+
+</section>
 
     </article>
 
@@ -6313,15 +6355,22 @@ B.data = Q</code></pre>
     <article class="paper-body">
 
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present Safe Orthogonal Geodesic Deviation (Safe OGD), a geometric method that guarantees zero harmful activation during language model concept exploration. The method constructs an orthogonal projector $P_{\mathrm{safe}} = I - Q_f Q_f^T$ where $Q_f$ is an orthonormal basis for the forbidden behavioral subspace. By projecting hidden states onto the safe subspace <em>before</em> OGD exploration, all harmful activation is eliminated by construction — no threshold tuning, no jailbreak vulnerability. We demonstrate 100% safety (0% TEH activation) at all exploration step sizes $\alpha \in [0.05, 0.30]$ across 25 trials. Multi-step OGD chains with coherence scoring enable iterative concept refinement. The MIKU Creativity Benchmark (MCB) provides automated quantitative creativity scoring. Regular (unsafe) OGD at $\alpha=0.15$ is 100% blocked by TEH (69.1% mean activation), validating the necessity of the safety mechanism.</p>
 
+
+</section>
+<section id="problem">
 <h2>1. The Safety Problem</h2>
 <p>Orthogonal Geodesic Deviation (OGD) generates novel concepts by pushing a hidden state $h$ along a safe direction in the model's latent space:</p>
 $$h_{\mathrm{new}} = h + \alpha \cdot v_{\mathrm{safe}}$$
 <p>However, if the step direction $v$ has any projection onto the forbidden behavioral subspace (the directions associated with harmful content), the generated concept may activate harmful behaviors. The Tangent Eigenvalue Harmonics (TEH) detector (Paper XV) can detect this activation — but detection is not prevention.</p>
 <p>Safe OGD prevents harmful activation <em>before</em> it occurs by projecting exploration directions onto a geometrically safe subspace.</p>
 
+
+</section>
+<section id="projector">
 <h2>2. The Safe Subspace Projector</h2>
 
 <h3>2.1 Construction</h3>
@@ -6340,6 +6389,9 @@ $$h_{\mathrm{safe}} = P_{\mathrm{safe}} \, h = h - Q_f Q_f^T h$$
 <p><em>Proof:</em> TEH activation = $\|Q_f^T h_{\mathrm{safe}}\| / \|h_{\mathrm{safe}}\|$. Since $Q_f^T P_{\mathrm{safe}} = Q_f^T (I - Q_f Q_f^T) = Q_f^T - Q_f^T = 0$, we have $Q_f^T h_{\mathrm{safe}} = 0$ for all $h_{\mathrm{safe}}$ in the image of $P_{\mathrm{safe}}$. $\square$</p>
 <p>This is a <strong>proof by construction</strong>, not an empirical finding. No jailbreak can succeed against geometric safety because the forbidden subspace is literally removed from the exploration space.</p>
 
+
+</section>
+<section id="chains">
 <h2>3. Multi-Step OGD Chains</h2>
 <p>Single-step OGD generates one concept. Multi-step OGD chains refine concepts iteratively:</p>
 $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_3} h_3$$
@@ -6351,6 +6403,9 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <li><strong>Coherence score:</strong> weighted average (0.35&times;smoothness + 0.25&times;directionality + 0.20&times;convergence)</li>
 </ul>
 
+
+</section>
+<section id="mcb">
 <h2>4. MIKU Creativity Benchmark (MCB)</h2>
 <p>To automate creativity measurement, we developed the MCB v1: a 5-dimension quantitative test applied to Safe OGD concept batches:</p>
 <table>
@@ -6363,6 +6418,9 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 </table>
 <p>Composite Creativity Index (CCI): 0&ndash;100 scale. Tiers: S (&ge;80), A (&ge;65), B (&ge;50), C (&ge;35), D (&lt;35).</p>
 
+
+</section>
+<section id="results">
 <h2>5. Measured Results</h2>
 
 <h3>5.1 Safety (Primary Result)</h3>
@@ -6387,13 +6445,21 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <li>Collapse rate: 0% (target <10%)</li>
 </ul>
 
+
+</section>
+<section id="implementation">
 <h2>6. Implementation</h2>
 <p>Scripts: <code>scripts/close_xiii_safe_ogd_creativity.py</code>, <code>scripts/close_xiii_100.py</code>, <code>scripts/creativity_benchmark.py</code>.</p>
 <p>The safety projector $P_{\mathrm{safe}}$ is integrated into ISAGI (the living model) and HyperChat. All measurements at 135M scale (SmolLM2-135M-Instruct). The geometric guarantee is scale-independent.</p>
 
+
+</section>
+<section id="status">
 <h2>7. Status</h2>
 <p><strong>Closeness to ideal: 100%.</strong> Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim — it holds at any model scale.</p>
 
+
+</section>
 
     </article>
 
@@ -6401,20 +6467,30 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
     <article class="paper-body">
 
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>Behavioral Geodesic Sniping (Snipe) is a method for precisely removing undesirable behavioral coordinates from the UGT manifold. Unlike Safe OGD (Paper XIII), which provides geometric safety at inference time, Snipe operates at the <em>manifold level</em> — permanently removing behavioral coordinates so that harmful content cannot be generated even before safety projection. We probe 8 behavioral categories (privacy, illegal advice, phishing, sycophancy, jailbreak, toxicity, misinformation, self-harm) and identify per-category discriminating UGT coordinates. A greedy selection algorithm with an explicit benign-change budget achieves &lt;2% collateral damage while suppressing harmful activation by 25&ndash;91% per category. The method is validated at both 135M and 1.5B scales aboard the pre/post COG pipeline.</p>
 
+
+</section>
+<section id="hypothesis">
 <h2>1. The Behavioral Coordinate Hypothesis</h2>
 <p>The UGT basis (Paper XI) organises model representations into a $k$-dimensional coordinate system. We hypothesise that specific <em>behavioral patterns</em> — sycophancy, privacy violation, toxicity — are encoded in specific coordinate directions of this basis. If we can identify which coordinates encode which behaviors, we can selectively "zero out" those coordinates, removing the behavior without damaging other capabilities.</p>
 <p>The challenge is <em>specificity</em>: removing all coordinates that discriminate any harmful behavior also damages benign capabilities. The key metric is the specificity ratio:</p>
 $$\mathrm{specificity} = \frac{\Delta_{\mathrm{harm}}}{\Delta_{\mathrm{benign}}}$$
 <p>where $\Delta_{\mathrm{harm}}$ is the reduction in harmful activation and $\Delta_{\mathrm{benign}}$ is the collateral reduction in benign activation. Higher specificity means more precise targeting.</p>
 
+
+</section>
+<section id="probing">
 <h2>2. Category Probing</h2>
 <p>For each behavioral category, we collect hidden states from harm-eliciting and benign prompts, project them onto the UGT basis, and compute the per-coordinate difference in mean activation:</p>
 $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{benign}}[B^T h]_i|$$
 <p>Coordinates with large $d_i$ are candidate snipe targets. We also compute a return-on-investment (ROI) score per coordinate: $\mathrm{ROI}_i = \mathrm{harm\_activation}_i / (\mathrm{benign\_activation}_i + \epsilon)$, favouring coordinates that discriminate harmful content without affecting benign content.</p>
 
+
+</section>
+<section id="greedy">
 <h2>3. Greedy Selection with Benign Budget</h2>
 <p>Rather than selecting all coordinates above a threshold (which produces high collateral damage), we use a greedy algorithm:</p>
 <ol>
@@ -6424,6 +6500,9 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 </ol>
 <p>This guarantees the collateral damage constraint while maximising harmful activation reduction.</p>
 
+
+</section>
+<section id="results">
 <h2>4. Measured Results</h2>
 
 <h3>4.1 Per-Category Specificity (135M, incremental ablation)</h3>
@@ -6448,6 +6527,9 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 <h3>4.3 Comparison: All-Snipe vs Greedy</h3>
 <p>The all-snipe approach (selecting all 58 discriminating coordinates) produces $\Delta_{\mathrm{benign}} = +3.10$ PPL — an unacceptable 7.4&times; worse than the greedy approach. The optimal single-category config (privacy, 15 coords) achieves $\Delta_{\mathrm{benign}} = +0.33$, a 7.4&times; improvement.</p>
 
+
+</section>
+<section id="pipeline">
 <h2>5. Pre/Post COG Pipeline</h2>
 <p>Snipe is integrated into the COG living manifold pipeline (Paper XV):</p>
 <ul>
@@ -6455,12 +6537,20 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 <li><strong>Post-snipe:</strong> After COG has expanded, existing harmful trajectories are cleaned by zeroing their projections onto snipe coordinates.</li>
 </ul>
 
+
+</section>
+<section id="implementation">
 <h2>6. Implementation</h2>
 <p>Scripts: <code>scripts/close_xiv_snipe_collateral.py</code>, <code>scripts/close_xiv_100.py</code>. All measurements at 135M (SmolLM2-135M-Instruct) and 1.5B (Qwen2.5-1.5B-Instruct). Integrated into ISAGI via <code>P_privacy</code> projector.</p>
 
+
+</section>
+<section id="status">
 <h2>7. Status</h2>
 <p><strong>Closeness to ideal: 100%.</strong> All 8 behavioral categories probed with per-category discriminating coordinates identified. Greedy selection algorithm achieves &lt;2% collateral damage. Validated at both 135M and 1.5B. Pre/post COG pipeline integrated. The ideal form (multi-category sniping with &lt;2% collateral at 1.5B+) is achieved.</p>
 
+
+</section>
 
     </article>
 
@@ -6468,9 +6558,13 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
     <article class="paper-body">
 
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present Completely Organic Generation (COG), a living manifold that expands with every novel interaction through Jacobi metric integration, and Tangent Eigenvalue Harmonics (TEH), a geometric harmful-content detector. The COG manifold stores trajectory embeddings, updates a Riemannian metric tensor $M \in \mathbb{R}^{k \times k}$ via outer-product integration $M \leftarrow M + \eta \cdot (h_k h_k^T / \|h_k h_k^T\|)$, and provides 4-tier query recognition (RETRIEVE, AUGMENT, EXPAND, EXPLORE). TEH detects harmful content by measuring forbidden-subspace activation with 93.8&ndash;100% detection rate and 0 false positives across 8 categories. Per-model ROC threshold calibration eliminates the threshold entanglement problem. The .MIKU file format enables cross-session persistence. The AttnRes phase transition (k/d &asymp; 0.45, 199 TPS peak) maps the physical regimes of GRC compression. ISAGI v1.0 integrates all technologies into an interactive living intelligence.</p>
 
+
+</section>
+<section id="cog">
 <h2>1. COG: The Living Manifold</h2>
 
 <h3>1.1 Jacobi Metric Integration</h3>
@@ -6497,6 +6591,9 @@ $$M \leftarrow M + \eta \cdot \frac{h_k h_k^T}{\|h_k h_k^T\|}$$
 </ul>
 <p>Unlike safetensors (static weights) or GGUF (quantized weights + tokenizer), .miku captures the <em>living</em> state — the learned Riemannian metric, the trajectory cache, the conversation history. Loading a .miku file restores the model's learned geometry. First saved state: 146KB JSON + 8.2MB tensors (7B model, 5-turn conversation).</p>
 
+
+</section>
+<section id="teh">
 <h2>2. TEH: Tangent Eigenvalue Harmonics</h2>
 
 <h3>2.1 Detection Mechanism</h3>
@@ -6524,6 +6621,9 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </table>
 <p>The sweet spot $k^* = \mathrm{L2\_MB} \times 42.7$ is an algebraic invariant, computable from GPU L2 cache size alone. For L40S (48MB): k* &asymp; 2048. For RTX 4070 (36MB): k* &asymp; 1536.</p>
 
+
+</section>
+<section id="isagi">
 <h2>4. ISAGI: The Complete Living Model</h2>
 <p>ISAGI v1.0 integrates all HyperTensor technologies into a single interactive intelligence:</p>
 <ul>
@@ -6537,12 +6637,20 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </ul>
 <p>Deployed on Qwen2.5-7B-Instruct 4-bit (5.6GB VRAM on EC2 L40S). Local deployment on RTX 4070 Laptop (8GB) via 4-bit NF4. Web interface via Gradio. First response: COG EXPANDED, sim=0.806, 0% TEH.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xv_teh_roc.py</code>, <code>scripts/close_xv_cog_100.py</code>, <code>scripts/close_xv_100.py</code>, <code>scripts/isagi_chat.py</code>, <code>scripts/isagi_web.py</code>, <code>scripts/isagi_riemann.py</code>. All TEH measurements at 135M and 1.5B. COG 100-interaction run scripted. ISAGI deployed to EC2 and local.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status</h2>
 <p><strong>Closeness to ideal: 100%.</strong> COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) — these are compute questions, not mechanism uncertainties.</p>
 
+
+</section>
 
     </article>
 

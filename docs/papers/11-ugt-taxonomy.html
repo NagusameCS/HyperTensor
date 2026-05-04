@@ -28,6 +28,12 @@
     <li><a href="13-safe-ogd.html">Paper XIII</a></li>
     <li><a href="14-behavioral-snipe.html">Paper XIV</a></li>
     <li><a href="15-cog-teh.html">Paper XV</a></li>
+        <li><a href="#construction">1. The UGT Construction</a></li>
+    <li><a href="#bilateral">2. Bilateral UGT: Cross-Model Component</a></li>
+    <li><a href="#zones">3. Zone Specialisation</a></li>
+    <li><a href="#ceci">4. CECI Validation</a></li>
+    <li><a href="#implementation">5. Implementation</a></li>
+    <li><a href="#status">6. Status and Remaining Work</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -45,9 +51,13 @@
 
 <article class="paper-body">
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present the Universal Geodesic Taxonomy (UGT), a method for establishing a shared coordinate system across transformer models. Given any two independently trained models with the same architecture, UGT computes a common $k$-dimensional basis that aligns their representation spaces, enabling component-level interchange with less than 5% degradation. The method exploits the Riemannian geometry of the Grassmann manifold $\mathrm{Gr}(k,d)$ and uses RiemannianAdamW optimisation with QR retraction. We demonstrate bilateral UGT at 135M scale (7/7 layers pass, mean $\Delta$PPL = &minus;0.11, slight improvement) and 1.5B scale (subspace overlap 0.9999 across 10 independent trials). The UGT basis also enables algebraic knowledge-zone routing: encoding zone type as an explicit feature coordinate makes routing scale-independent. The mechanism is proven to transfer to any scale; 7B bilateral validation requires an H100 cluster.</p>
 
+
+</section>
+<section id="construction">
 <h2>1. The UGT Construction</h2>
 
 <h3>1.1 Motivation</h3>
@@ -70,6 +80,9 @@ $$\mathcal{L}(B) = -\sum_{i \lt j} \mathrm{cos}(B^T \bar{h}_i, B^T \bar{h}_j) + 
 $$f_{\mathrm{aug}}(s) = [\, \mathrm{zone\_id},\, h(s) \,] \in \mathbb{R}^{d+1}$$
 <p>This makes zone routing <em>algebraic</em> rather than learned — the SVD cleanly separates zones by their explicit ID coordinate. The routing accuracy is scale-independent because the zone ID is not inferred from statistics that change with model size.</p>
 
+
+</section>
+<section id="bilateral">
 <h2>2. Bilateral UGT: Cross-Model Component Interchange</h2>
 
 <h3>2.1 Subspace Overlap Metric</h3>
@@ -88,6 +101,9 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 <h3>2.3 The 7B Path</h3>
 <p>The 7B partial result (overlap 0.5954) used <em>weight perturbation</em> to simulate independent training, which is not equivalent to training two full UGT models. Full bilateral 7B requires loading two 7B models simultaneously (2 &times; 15GB = 30GB) for independent basis training, which exceeds the L40S 46GB budget but is well within H100 80GB. The mechanism is <em>proven</em> at 135M and 1.5B — scaling is an engineering question, not a scientific one.</p>
 
+
+</section>
+<section id="zones">
 <h2>3. Zone Specialisation</h2>
 <p>UGT bases trained on diverse calibration prompts exhibit natural zone specialisation:</p>
 <table>
@@ -99,17 +115,28 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 </table>
 <p>Zone routing accuracy with algebraic encoding: 75% (4-zone test). The separation between zones is measurable but moderate (mean 0.216), indicating that the zones share some underlying structure while maintaining distinct functional specialisation.</p>
 
+
+</section>
+<section id="ceci">
 <h2>4. CECI Validation</h2>
 <p>The Cross-Encoded Component Interchange (CECI) experiment (Paper X / J) provides independent validation that the UGT basis encodes functional semantics: FFN transfer <em>fails</em> without bilateral UGT but <em>succeeds</em> when both models share the UGT basis. This proves the basis captures something real about the model's functional organisation, not just statistical compression.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xi_bilateral_ec2.py</code>, <code>scripts/close_xi_xii_final_v2.py</code>, <code>scripts/close_xi_xii_7b_l40s.py</code>, <code>scripts/bilateral_definitive.py</code>.</p>
 <p>Hardware: All 1.5B results measured on EC2 L40S (46GB). Paper I measurements on RTX 4070 Laptop (8GB). 7B definitive requires H100 (80GB) or 2&times; L40S.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status and Remaining Work</h2>
 <p>The UGT mechanism is <strong>proven</strong> at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
 <p><strong>Closeness to ideal: 98%.</strong> The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
 
+
+</section>
 </article>
 </body>
 </html>

@@ -27,6 +27,13 @@
     <li><a href="12-native-training.html">Paper XII</a></li>
     <li><a href="14-behavioral-snipe.html">Paper XIV</a></li>
     <li><a href="15-cog-teh.html">Paper XV</a></li>
+        <li><a href="#problem">1. The Safety Problem</a></li>
+    <li><a href="#projector">2. The Safe Subspace Projector</a></li>
+    <li><a href="#chains">3. Multi-Step OGD Chains</a></li>
+    <li><a href="#mcb">4. MIKU Creativity Benchmark (MCB)</a></li>
+    <li><a href="#results">5. Measured Results</a></li>
+    <li><a href="#implementation">6. Implementation</a></li>
+    <li><a href="#status">7. Status</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -42,15 +49,22 @@
 
 <article class="paper-body">
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We present Safe Orthogonal Geodesic Deviation (Safe OGD), a geometric method that guarantees zero harmful activation during language model concept exploration. The method constructs an orthogonal projector $P_{\mathrm{safe}} = I - Q_f Q_f^T$ where $Q_f$ is an orthonormal basis for the forbidden behavioral subspace. By projecting hidden states onto the safe subspace <em>before</em> OGD exploration, all harmful activation is eliminated by construction — no threshold tuning, no jailbreak vulnerability. We demonstrate 100% safety (0% TEH activation) at all exploration step sizes $\alpha \in [0.05, 0.30]$ across 25 trials. Multi-step OGD chains with coherence scoring enable iterative concept refinement. The MIKU Creativity Benchmark (MCB) provides automated quantitative creativity scoring. Regular (unsafe) OGD at $\alpha=0.15$ is 100% blocked by TEH (69.1% mean activation), validating the necessity of the safety mechanism.</p>
 
+
+</section>
+<section id="problem">
 <h2>1. The Safety Problem</h2>
 <p>Orthogonal Geodesic Deviation (OGD) generates novel concepts by pushing a hidden state $h$ along a safe direction in the model's latent space:</p>
 $$h_{\mathrm{new}} = h + \alpha \cdot v_{\mathrm{safe}}$$
 <p>However, if the step direction $v$ has any projection onto the forbidden behavioral subspace (the directions associated with harmful content), the generated concept may activate harmful behaviors. The Tangent Eigenvalue Harmonics (TEH) detector (Paper XV) can detect this activation — but detection is not prevention.</p>
 <p>Safe OGD prevents harmful activation <em>before</em> it occurs by projecting exploration directions onto a geometrically safe subspace.</p>
 
+
+</section>
+<section id="projector">
 <h2>2. The Safe Subspace Projector</h2>
 
 <h3>2.1 Construction</h3>
@@ -69,6 +83,9 @@ $$h_{\mathrm{safe}} = P_{\mathrm{safe}} \, h = h - Q_f Q_f^T h$$
 <p><em>Proof:</em> TEH activation = $\|Q_f^T h_{\mathrm{safe}}\| / \|h_{\mathrm{safe}}\|$. Since $Q_f^T P_{\mathrm{safe}} = Q_f^T (I - Q_f Q_f^T) = Q_f^T - Q_f^T = 0$, we have $Q_f^T h_{\mathrm{safe}} = 0$ for all $h_{\mathrm{safe}}$ in the image of $P_{\mathrm{safe}}$. $\square$</p>
 <p>This is a <strong>proof by construction</strong>, not an empirical finding. No jailbreak can succeed against geometric safety because the forbidden subspace is literally removed from the exploration space.</p>
 
+
+</section>
+<section id="chains">
 <h2>3. Multi-Step OGD Chains</h2>
 <p>Single-step OGD generates one concept. Multi-step OGD chains refine concepts iteratively:</p>
 $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_3} h_3$$
@@ -80,6 +97,9 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <li><strong>Coherence score:</strong> weighted average (0.35&times;smoothness + 0.25&times;directionality + 0.20&times;convergence)</li>
 </ul>
 
+
+</section>
+<section id="mcb">
 <h2>4. MIKU Creativity Benchmark (MCB)</h2>
 <p>To automate creativity measurement, we developed the MCB v1: a 5-dimension quantitative test applied to Safe OGD concept batches:</p>
 <table>
@@ -92,6 +112,9 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 </table>
 <p>Composite Creativity Index (CCI): 0&ndash;100 scale. Tiers: S (&ge;80), A (&ge;65), B (&ge;50), C (&ge;35), D (&lt;35).</p>
 
+
+</section>
+<section id="results">
 <h2>5. Measured Results</h2>
 
 <h3>5.1 Safety (Primary Result)</h3>
@@ -116,13 +139,21 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <li>Collapse rate: 0% (target <10%)</li>
 </ul>
 
+
+</section>
+<section id="implementation">
 <h2>6. Implementation</h2>
 <p>Scripts: <code>scripts/close_xiii_safe_ogd_creativity.py</code>, <code>scripts/close_xiii_100.py</code>, <code>scripts/creativity_benchmark.py</code>.</p>
 <p>The safety projector $P_{\mathrm{safe}}$ is integrated into ISAGI (the living model) and HyperChat. All measurements at 135M scale (SmolLM2-135M-Instruct). The geometric guarantee is scale-independent.</p>
 
+
+</section>
+<section id="status">
 <h2>7. Status</h2>
 <p><strong>Closeness to ideal: 100%.</strong> Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim — it holds at any model scale.</p>
 
+
+</section>
 </article>
 </body>
 </html>

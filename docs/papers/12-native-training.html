@@ -27,6 +27,12 @@
     <li><a href="13-safe-ogd.html">Paper XIII</a></li>
     <li><a href="14-behavioral-snipe.html">Paper XIV</a></li>
     <li><a href="15-cog-teh.html">Paper XV</a></li>
+        <li><a href="#architecture">1. NativeLinear Architecture</a></li>
+    <li><a href="#kexpansion">2. KExpansion Scheduler</a></li>
+    <li><a href="#results">3. Measured Results</a></li>
+    <li><a href="#analytic-k">4. Analytic k* via AttnRes Phase Transit</a></li>
+    <li><a href="#implementation">5. Implementation</a></li>
+    <li><a href="#status">6. Status</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -42,9 +48,13 @@
 
 <article class="paper-body">
 
+<section id="abstract">
 <h2>Abstract</h2>
 <p>We introduce Native Geodesic Training, a method for training transformer components directly in a compressed $k$-dimensional manifold. The NativeLinear architecture replaces a standard weight matrix $W \in \mathbb{R}^{d \times d}$ with a learned core $C \in \mathbb{R}^{k \times k}$ and an orthonormal basis $B \in \mathbb{R}^{d \times k}$, where $k \ll d$. The effective weight is $W_{\mathrm{native}} = B C B^T$. At $k=128$ on a 1.5B model, this uses 9.1% of standard parameters. Training uses RiemannianAdamW with QR retraction to keep $B$ on the Stiefel manifold. We demonstrate KExpansion (automatic $k$ growth when training plateaus), validate on attention weights at 135M, 1.5B, and 7B scales, and show that loss decreases monotonically with $k$ at all scales. The optimal $k^*$ is predicted analytically via the AttnRes phase transition: $k^* = \mathrm{L2\_MB} \times 42.7$.</p>
 
+
+</section>
+<section id="architecture">
 <h2>1. NativeLinear Architecture</h2>
 
 <h3>1.1 Motivation</h3>
@@ -70,6 +80,9 @@ optimizer.step()  # RiemannianAdamW
 Q, R = torch.linalg.qr(B)
 B.data = Q</code></pre>
 
+
+</section>
+<section id="kexpansion">
 <h2>2. KExpansion Scheduler</h2>
 <p>Rather than fixing $k$ a priori, the KExpansionScheduler automatically grows $k$ when training plateaus:</p>
 <ol>
@@ -80,6 +93,9 @@ B.data = Q</code></pre>
 <li>Repeat until $k_{\max}$</li>
 </ol>
 
+
+</section>
+<section id="results">
 <h2>3. Measured Results</h2>
 
 <h3>3.1 1.5B Scale — Qwen2.5-1.5B FFN Down [1536, 8960] (rectangular)</h3>
@@ -115,17 +131,28 @@ B.data = Q</code></pre>
 </table>
 <p>At all scales, loss decreases monotonically with $k$ — the Native architecture is validated. Variance preservation at 7B (34.5% at k=768) is lower than at 1.5B because the 7B attention weight has higher effective rank. To achieve PPL parity (&gt;90% variance), k should approach the analytic optimum $k^* = \mathrm{L2\_MB} \times 42.7 \approx 1536$ (for RTX 4070) or the training should target a lower-rank component of the weight matrix.</p>
 
+
+</section>
+<section id="analytic-k">
 <h2>4. Analytic k* via AttnRes Phase Transition</h2>
 <p>The AttnRes phase transition (Paper III / C) reveals that GRC throughput peaks at $k/d \approx 0.45$. This sweet spot is an algebraic invariant determined by GPU L2 cache size: $k^* = \mathrm{L2\_MB} \times 42.7$. For Native Geodesic Training, the same invariant applies: the compression rank that maximises throughput while preserving quality is the same $k^*$ predicted by L2 cache residency.</p>
 <p>This insight, transferred from the Riemann Hypothesis research (Papers XVI&ndash;XVIII), eliminates trial-and-error $k$-selection. For any GPU, the optimal compression rank is computable from the L2 cache size alone.</p>
 
+
+</section>
+<section id="implementation">
 <h2>5. Implementation</h2>
 <p>Scripts: <code>scripts/close_xii_native_ec2.py</code>, <code>scripts/close_xi_xii_final_v2.py</code>, <code>scripts/native_long_train_ec2.py</code>, <code>scripts/native_ppl_parity.py</code>, <code>scripts/native_7b_final.py</code>.</p>
 <p>All 1.5B and 7B measurements on EC2 L40S (46GB). Cost: ~$0.06 per training run.</p>
 
+
+</section>
+<section id="status">
 <h2>6. Status</h2>
 <p><strong>Closeness to ideal: 85%.</strong> The ideal form is PPL parity with standard training at &lt;15% trainable parameters with automatic k-selection. NativeLinear architecture validated at all tested scales. KExpansionScheduler functional. Analytic k* from L2 cache proven. Remaining: achieving &gt;90% variance on full attention weights at 7B scale — needs either k&ge;1536 (H100 VRAM) or targeting a lower-rank weight component.</p>
 
+
+</section>
 </article>
 </body>
 </html>
