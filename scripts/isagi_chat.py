@@ -151,10 +151,15 @@ class GTCCache:
         q = F.normalize(query_emb.unsqueeze(0).float(), dim=1)
         # Move cache to query device (embeddings stored on CPU to save VRAM)
         cache_stack = F.normalize(torch.stack(self.embeddings).float().to(q.device), dim=1)
-        sims = (cache_stack @ q.T).squeeze()
+        sims = (cache_stack @ q.T).squeeze(-1)  # [N] or scalar if N=1
         
-        best_idx = torch.argmax(sims).item()
-        best_sim = sims[best_idx].item()
+        # Handle 0-dim case (single cached embedding)
+        if sims.dim() == 0:
+            best_sim = sims.item()
+            geo_dist = 1.0 - best_sim
+        else:
+            best_idx = torch.argmax(sims).item()
+            best_sim = sims[best_idx].item()
         
         # Geodesic distance ≈ 1 - cosine_similarity
         geo_dist = 1.0 - best_sim
