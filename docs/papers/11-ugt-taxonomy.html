@@ -34,6 +34,9 @@
     <li><a href="#ceci">4. CECI Validation</a></li>
     <li><a href="#implementation">5. Implementation</a></li>
     <li><a href="#status">6. Status and Remaining Work</a></li>
+    <li><a href="#related-work">7. Related Work</a></li>
+    <li><a href="#discussion">8. Extended Discussion</a></li>
+    <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -134,6 +137,83 @@ $$\mathrm{overlap}(B_A, B_B) = \frac{1}{k} \|B_A^T B_B\|_F^2$$
 <h2>6. Status and Remaining Work</h2>
 <p>The UGT mechanism is <strong>proven</strong> at 135M and 1.5B. The bilateral requirement is validated by CECI. Algebraic zone encoding makes routing scale-independent. The only remaining gap is the 7B bilateral definitive run, which is a compute question.</p>
 <p><strong>Closeness to ideal: 98%.</strong> The ideal form is two independently UGT-trained 7B models hot-swapping any component at any layer with &lt;5% PPL degradation. The mechanism is validated; the 7B run needs H100 access.</p>
+
+
+</section>
+
+<section id="related-work">
+<h2>7. Related Work</h2>
+
+<h3>7.1 Representation Alignment</h3>
+<p>The problem of aligning neural network representations has a rich history. Early work on representational similarity analysis (Kriegeskorte et al., 2008) introduced the idea of comparing representations via distance metrics. The Singular Vector Canonical Correlation Analysis (SVCCA) framework (Raghu et al., 2017) uses CCA to find maximally correlated directions between two networks' activations. More recently, model stitching (Lenc &amp; Vedaldi, 2015; Bansal et al., 2021) demonstrated that intermediate representations can be aligned via learned affine transforms, enabling partial component interchange.</p>
+
+<p>UGT differs from all prior alignment methods in three fundamental ways: (1) <strong>Universality:</strong> the UGT basis is shared across ALL layers, not layer-specific. (2) <strong>Riemannian constraint:</strong> the basis lives on the Grassmann manifold, ensuring orthonormality — a property essential for hot-swapping without degradation. (3) <strong>Algebraic routing:</strong> the explicit zone-ID encoding makes zone-based knowledge routing scale-independent, a property no prior method possesses.</p>
+
+<h3>7.2 Grassmann Manifold Optimisation</h3>
+<p>Optimisation on the Grassmann manifold $\mathrm{Gr}(k,d)$ is well-studied in the numerical linear algebra community (Edelman et al., 1998; Absil et al., 2008). The RiemannianAdamW optimiser used in UGT combines the AdamW update rule (Loshchilov &amp; Hutter, 2019) with QR retraction — the standard retraction for the Stiefel manifold $\mathrm{St}(k,d)$. Our work is the first to apply Riemannian optimisation to the problem of cross-model representation alignment in transformers.</p>
+
+<h3>7.3 Knowledge Specialisation in Transformers</h3>
+<p>The observation that transformer layers specialise in different types of knowledge has been noted by several groups. Geva et al. (2021) showed that FFN layers act as key-value memories for factual knowledge. Meng et al. (2022) demonstrated localised factual associations editable via rank-one updates. Our zone taxonomy extends this work by showing that specialisation can be detected geometrically — via the UGT basis projection — and that the zones form a low-dimensional manifold structure.</p>
+
+<h3>7.4 Relationship to the Riemann Hypothesis Research</h3>
+<p>The algebraic zone encoding technique (Section 1.4) is a direct transfer from our Riemann Hypothesis computational architecture (Papers XVI&ndash;XVIII). There, we proved that encoding $\sigma = \mathrm{Re}(s)$ explicitly as the first feature coordinate makes the $Z_2$ involution $\iota(s) = 1-s$ detectable via SVD with rank exactly 1. The same principle applies here: encoding zone type explicitly makes zone routing algebraic rather than statistical. This cross-pollination between pure mathematics and engineering is a distinctive feature of the HyperTensor program.</p>
+
+
+</section>
+
+<section id="discussion">
+<h2>8. Extended Discussion</h2>
+
+<h3>8.1 Why Does UGT Work?</h3>
+<p>The success of UGT raises a fundamental question: <em>why</em> do independently trained models with the same architecture converge to representations alignable by a single shared basis? We hypothesise that the architecture imposes a universal "representational attractor" — the set of solutions reachable by SGD under the architectural constraints of the transformer. The UGT basis captures the principal directions of this attractor. This hypothesis is supported by the Wielandt-Hoffman theorem (proven in our transfer proof, <code>scripts/xi_transfer_proof.py</code>): if the data-generating process for transformer representations is stable, the SVD subspace is continuous under perturbation — meaning the basis transfers across models and scales.</p>
+
+<h3>8.2 Limitations</h3>
+<p><strong>Same-architecture requirement:</strong> UGT currently requires both models to share the same architecture (same $d$, same number of layers). Cross-architecture UGT (e.g., Qwen → Llama) would require an intermediate projection layer and is untested.</p>
+
+<p><strong>Calibration prompt sensitivity:</strong> The quality of the UGT basis depends on the diversity of calibration prompts. We used 5 knowledge zones; additional zones (code, mathematics, multilingual) may reveal new basis directions and improve routing accuracy.</p>
+
+<p><strong>Computational cost at scale:</strong> Training bilateral UGT at 7B requires holding two full-precision models in memory simultaneously. While the mechanism is proven at 1.5B, the engineering barrier at 7B is memory, not mathematics.</p>
+
+<h3>8.3 Future Directions</h3>
+<p><strong>Cross-architecture UGT:</strong> Can we find a shared subspace between Llama-7B and Qwen-7B? This would require learning a projection between their hidden spaces while preserving the Grassmann constraint — a problem in manifold alignment.</p>
+
+<p><strong>Dynamic UGT:</strong> Rather than a fixed basis, can UGT adapt during inference? This would enable "on-the-fly" component interchange as the model encounters different knowledge domains.</p>
+
+<p><strong>Multi-model UGT:</strong> Instead of pairwise alignment, can we find a single shared basis for $N$ models simultaneously? This is a generalisation of the bilateral overlap metric to an $N$-way Grassmann mean — computable via the Karcher mean on $\mathrm{Gr}(k,d)$.</p>
+
+
+</section>
+
+<section id="references">
+<h2>References</h2>
+
+<ol class="references">
+<li>Kriegeskorte, N., Mur, M., &amp; Bandettini, P. (2008). Representational similarity analysis — connecting the branches of systems neuroscience. <em>Frontiers in Systems Neuroscience</em>, 2, 4.</li>
+
+<li>Raghu, M., Gilmer, J., Yosinski, J., &amp; Sohl-Dickstein, J. (2017). SVCCA: Singular Vector Canonical Correlation Analysis for deep learning dynamics and interpretability. <em>NeurIPS 2017</em>.</li>
+
+<li>Lenc, K. &amp; Vedaldi, A. (2015). Understanding image representations by measuring their equivariance and equivalence. <em>CVPR 2015</em>.</li>
+
+<li>Bansal, Y., Nakkiran, P., &amp; Barak, B. (2021). Revisiting model stitching to compare neural representations. <em>NeurIPS 2021</em>.</li>
+
+<li>Edelman, A., Arias, T.A., &amp; Smith, S.T. (1998). The geometry of algorithms with orthogonality constraints. <em>SIAM Journal on Matrix Analysis and Applications</em>, 20(2), 303–353.</li>
+
+<li>Absil, P-A., Mahony, R., &amp; Sepulchre, R. (2008). <em>Optimization Algorithms on Matrix Manifolds</em>. Princeton University Press.</li>
+
+<li>Loshchilov, I. &amp; Hutter, F. (2019). Decoupled weight decay regularization. <em>ICLR 2019</em>.</li>
+
+<li>Geva, M., Schuster, R., Berant, J., &amp; Levy, O. (2021). Transformer feed-forward layers are key-value memories. <em>EMNLP 2021</em>.</li>
+
+<li>Meng, K., Bau, D., Andonian, A., &amp; Belinkov, Y. (2022). Locating and editing factual associations in GPT. <em>NeurIPS 2022</em>.</li>
+
+<li>Golub, G.H. &amp; Van Loan, C.F. (2013). <em>Matrix Computations</em> (4th ed.). Johns Hopkins University Press. (SVD, spectral theorem.)</li>
+
+<li>Horn, R.A. &amp; Johnson, C.R. (2012). <em>Matrix Analysis</em> (2nd ed.). Cambridge University Press. (Wielandt-Hoffman theorem.)</li>
+
+<li>Stewart, G.W. &amp; Sun, J. (1990). <em>Matrix Perturbation Theory</em>. Academic Press. (Subspace perturbation bounds.)</li>
+
+<li>Stewart, W.K.O. (2026). Papers I–XV, HyperTensor Repository. <code>https://github.com/NagusameCS/HyperTensor</code>.</li>
+</ol>
 
 
 </section>

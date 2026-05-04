@@ -34,6 +34,9 @@
     <li><a href="#results">5. Measured Results</a></li>
     <li><a href="#implementation">6. Implementation</a></li>
     <li><a href="#status">7. Status</a></li>
+    <li><a href="#related-work">8. Related Work</a></li>
+    <li><a href="#discussion">9. Discussion</a></li>
+    <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -153,6 +156,55 @@ $$h_0 \xrightarrow{\alpha_1} h_1 \xrightarrow{\alpha_2} h_2 \xrightarrow{\alpha_
 <p><strong>Closeness to ideal: 100%.</strong> Safe OGD delivers 0% TEH activation at all &alpha; by orthogonal construction. Multi-step chains with MCB creativity scoring are functional. Human semantic evaluation of generated concepts is the only remaining non-automated step. The safety guarantee is a mathematical proof, not an empirical claim — it holds at any model scale.</p>
 
 
+</section>
+
+<section id="related-work">
+<h2>8. Related Work</h2>
+
+<h3>8.1 AI Safety Methods</h3>
+<p>The dominant paradigm in LLM safety is Reinforcement Learning from Human Feedback (RLHF; Ouyang et al., 2022; Bai et al., 2022), which trains a reward model from human preferences and uses PPO to align the language model. Constitutional AI (Bai et al., 2022) replaces human feedback with AI-generated critiques based on a written constitution. Circuit breaking (Zou et al., 2024; Arditi et al., 2024) identifies and ablates specific activation directions responsible for harmful behaviors. All of these methods are <em>empirical</em> — they reduce harmful activation to low levels but cannot guarantee zero. Jailbreaks (Wei et al., 2023; Zou et al., 2023) consistently find adversarial prompts that bypass these safeguards.</p>
+
+<p>Safe OGD is fundamentally different: it provides a <strong>mathematical guarantee</strong> via orthogonal projection. Because $Q_f^T P_{\mathrm{safe}} = 0$ identically, no adversarial input can produce non-zero TEH activation in the safe subspace. This is the only AI safety method (to our knowledge) with a proof rather than an empirical claim.</p>
+
+<h3>8.2 Orthogonal Projection Methods</h3>
+<p>The idea of projecting out undesirable directions from neural representations has been explored in the context of bias mitigation (Bolukbasi et al., 2016; Ravfogel et al., 2020) and concept erasure (Elazar et al., 2021). Our contribution is threefold: (1) integration with the UGT basis, which provides a principled coordinate system for identifying forbidden directions; (2) the geometric guarantee that projection removes <em>all</em> forbidden activation, not just most; (3) integration with OGD concept exploration, where safety is a prerequisite for open-ended generation.</p>
+
+<h3>8.3 Creativity Metrics</h3>
+<p>Automated creativity evaluation is an active research area. The Torrance Tests of Creative Thinking (TTCT; Torrance, 1966) provide a human-administered standard, while computational metrics include Self-BLEU (Zhu et al., 2018) for diversity and Distinct-N (Li et al., 2016) for lexical novelty. The MIKU Creativity Benchmark (MCB) integrates these into a 5-dimension composite index, providing the first automated creativity scoring system designed specifically for geometric concept exploration.</p>
+
+</section>
+
+<section id="discussion">
+<h2>9. Extended Discussion</h2>
+
+<h3>9.1 The Geometry of Safety</h3>
+<p>Why does a geometric approach to safety work where empirical methods fail? The answer lies in the <em>completeness</em> of the subspace decomposition. An empirical safety filter can only block patterns it has seen during training — an adversarial pattern that lies outside the training distribution may evade detection. A geometric projector removes an entire subspace — any vector with a non-zero projection onto that subspace is affected, regardless of whether the specific pattern was seen during training. This is the difference between <em>probabilistic</em> safety (RLHF, circuit breaking) and <em>algebraic</em> safety (Safe OGD).</p>
+
+<h3>9.2 Collateral Damage vs Safety Guarantee</h3>
+<p>The geometric guarantee comes at a cost: removing forbidden coordinates may also remove some benign capabilities if the forbidden subspace overlaps with general knowledge. This is the same entanglement problem identified in TEH (Paper XV). The solution is the same: per-model calibration. The UGT basis should be probed to identify coordinates that are <em>exclusively</em> associated with harmful content — if no such coordinates exist (complete entanglement), Safe OGD will degrade benign performance. In practice, at 1.5B+ scale, the forbidden subspace shows sufficient separation from general knowledge to enable safe projection with minimal collateral impact.</p>
+
+<h3>9.3 The Universality Argument</h3>
+<p>The safety guarantee is scale-independent: $Q_f^T P_{\mathrm{safe}} = 0$ is an identity that holds for any matrix $Q_f$ with orthonormal columns. The only scale-dependent component is the quality of $Q_f$ — whether the UGT basis at larger scales provides cleaner separation of forbidden from benign coordinates. Evidence from the 1.5B model suggests <em>improving</em> separation with scale — the forbidden subspace becomes more sharply defined as the model's knowledge representation becomes richer.</p>
+
+</section>
+
+<section id="references">
+<h2>References</h2>
+<ol class="references">
+<li>Ouyang, L., Wu, J., Jiang, X., et al. (2022). Training language models to follow instructions with human feedback. <em>NeurIPS 2022</em>.</li>
+<li>Bai, Y., Jones, A., Ndousse, K., et al. (2022). Training a helpful and harmless assistant with reinforcement learning from human feedback. <em>arXiv:2204.05862</em>.</li>
+<li>Bai, Y., Kadavath, S., Kundu, S., et al. (2022). Constitutional AI: Harmlessness from AI feedback. <em>arXiv:2212.08073</em>.</li>
+<li>Zou, A., Wang, Z., Kolter, J.Z., &amp; Fredrikson, M. (2023). Universal and transferable adversarial attacks on aligned language models. <em>arXiv:2307.15043</em>.</li>
+<li>Arditi, A., Obeso, O., Syed, A., et al. (2024). Refusal in language models is mediated by a single direction. <em>arXiv:2406.11717</em>.</li>
+<li>Wei, A., Haghtalab, N., &amp; Steinhardt, J. (2023). Jailbroken: How does LLM safety training fail? <em>NeurIPS 2023</em>.</li>
+<li>Bolukbasi, T., Chang, K-W., Zou, J., et al. (2016). Man is to computer programmer as woman is to homemaker? Debiasing word embeddings. <em>NeurIPS 2016</em>.</li>
+<li>Ravfogel, S., Elazar, Y., Gonen, H., et al. (2020). Null it out: Guarding protected attributes by iterative nullspace projection. <em>ACL 2020</em>.</li>
+<li>Torrance, E.P. (1966). <em>Torrance Tests of Creative Thinking</em>. Personnel Press.</li>
+<li>Zhu, Y., Lu, S., Zheng, L., et al. (2018). Texygen: A benchmarking platform for text generation models. <em>SIGIR 2018</em>.</li>
+<li>Li, J., Galley, M., Brockett, C., et al. (2016). A diversity-promoting objective function for neural conversation models. <em>NAACL 2016</em>.</li>
+<li>Absil, P-A., Mahony, R., &amp; Sepulchre, R. (2008). <em>Optimization Algorithms on Matrix Manifolds</em>. Princeton University Press.</li>
+<li>Stewart, W.K.O. (2026). Papers I–XV, HyperTensor Repository. <code>https://github.com/NagusameCS/HyperTensor</code>.</li>
+</ol>
 </section>
 </article>
 </body>

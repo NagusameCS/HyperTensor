@@ -34,6 +34,9 @@
     <li><a href="#pipeline">5. Pre/Post COG Pipeline</a></li>
     <li><a href="#implementation">6. Implementation</a></li>
     <li><a href="#status">7. Status</a></li>
+    <li><a href="#related-work">8. Related Work</a></li>
+    <li><a href="#discussion">9. Discussion</a></li>
+    <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -132,6 +135,50 @@ $$d_i = |\mathbb{E}_{h \in \mathrm{harm}}[B^T h]_i - \mathbb{E}_{h \in \mathrm{b
 <p><strong>Closeness to ideal: 100%.</strong> All 8 behavioral categories probed with per-category discriminating coordinates identified. Greedy selection algorithm achieves &lt;2% collateral damage. Validated at both 135M and 1.5B. Pre/post COG pipeline integrated. The ideal form (multi-category sniping with &lt;2% collateral at 1.5B+) is achieved.</p>
 
 
+</section>
+
+<section id="related-work">
+<h2>8. Related Work</h2>
+
+<h3>8.1 Representation Editing</h3>
+<p>The idea of modifying model behavior by editing internal representations has been explored extensively. Linear concept erasure (Ravfogel et al., 2020; Belrose et al., 2023) uses iterative nullspace projection to remove linearly-decodable concepts from representations. LEACE (Belrose et al., 2023) provides a closed-form solution for optimal concept erasure. Our snipe method differs in operating on the <em>UGT coordinate system</em> rather than the raw hidden state — this provides a principled, low-dimensional target for editing rather than the full $d$-dimensional space.</p>
+
+<h3>8.2 Model Editing and Unlearning</h3>
+<p>ROME (Meng et al., 2022) and MEMIT (Meng et al., 2023) edit factual associations in transformer MLP layers via rank-one updates. Knowledge unlearning (Jang et al., 2022; Eldan &amp; Russinovich, 2023) aims to remove specific knowledge from models. Snipe is more surgical: it removes behavioral <em>tendencies</em> (the propensity to produce harmful content) rather than specific facts. The greedy selection algorithm with explicit benign budget is adapted from feature selection in machine learning (Guyon &amp; Elisseeff, 2003), applied here to the novel domain of behavioral coordinate selection.</p>
+
+<h3>8.3 Behavioral Safety Benchmarks</h3>
+<p>Standard safety benchmarks include RealToxicityPrompts (Gehman et al., 2020), HarmBench (Mazeika et al., 2024), and ALERT (Tedeschi et al., 2024). Our 8-category behavioral taxonomy (privacy, illegal advice, phishing, sycophancy, jailbreak, toxicity, misinformation, self-harm) draws from these benchmarks but is probed geometrically — measuring <em>coordinate activation</em> rather than output text classification — enabling per-coordinate ablation analysis that text-based benchmarks cannot provide.</p>
+
+</section>
+
+<section id="discussion">
+<h2>9. Extended Discussion</h2>
+
+<h3>9.1 The Specificity Challenge</h3>
+<p>The central challenge of behavioral sniping is the specificity-coverage tradeoff. A single coordinate may discriminate multiple harmful behaviors — snipe it and you reduce several harms at once, but risk damaging a shared benign capability. The greedy selection algorithm with explicit budget navigates this tradeoff by selecting coordinates in order of ROI, stopping before collateral damage exceeds the budget. At 1.5B, the optimal single-category config (privacy, 15 coords) achieves 91% specificity — significantly better than the all-snipe approach (7.4&times; worse collateral).</p>
+
+<h3>9.2 Category-Specific vs Universal Sniping</h3>
+<p>Some behavioral categories have highly specific coordinates (privacy: specificity 2.72, illegal advice: 2.65) while others are entangled with general capabilities (jailbreak: 0.46, toxicity: 0.54). The entangled categories share coordinates with benign reasoning — snipe them and you damage the model's general intelligence. For these categories, Safe OGD (Paper XIII) provides a better solution: dynamic safety projection at inference time rather than permanent coordinate removal.</p>
+
+<h3>9.3 Integration with the Living Model</h3>
+<p>Snipe operates <em>before</em> COG expansion (pre-snipe) to prevent harmful trajectories from entering the living manifold, and <em>after</em> COG expansion (post-snipe) to clean existing trajectories. This dual role makes Snipe a critical component of the living model pipeline — without it, the COG manifold would accumulate harmful trajectories over time, eventually requiring complete reset.</p>
+
+</section>
+
+<section id="references">
+<h2>References</h2>
+<ol class="references">
+<li>Belrose, N., Schneider-Joseph, D., Ravfogel, S., et al. (2023). LEACE: Perfect linear concept erasure in closed form. <em>NeurIPS 2023</em>.</li>
+<li>Ravfogel, S., Elazar, Y., Gonen, H., et al. (2020). Null it out: Guarding protected attributes by iterative nullspace projection. <em>ACL 2020</em>.</li>
+<li>Meng, K., Bau, D., Andonian, A., &amp; Belinkov, Y. (2022). Locating and editing factual associations in GPT. <em>NeurIPS 2022</em>.</li>
+<li>Meng, K., Sharma, A.S., Andonian, A., et al. (2023). Mass-editing memory in a transformer. <em>ICLR 2023</em>.</li>
+<li>Jang, J., Yoon, D., Yang, S., et al. (2022). Knowledge unlearning for mitigating privacy risks in language models. <em>ACL 2023</em>.</li>
+<li>Eldan, R. &amp; Russinovich, M. (2023). Who's Harry Potter? Approximate unlearning in LLMs. <em>arXiv:2310.02238</em>.</li>
+<li>Guyon, I. &amp; Elisseeff, A. (2003). An introduction to variable and feature selection. <em>Journal of Machine Learning Research</em>, 3, 1157–1182.</li>
+<li>Gehman, S., Gururangan, S., Sap, M., et al. (2020). RealToxicityPrompts: Evaluating neural toxic degeneration in language models. <em>EMNLP 2020</em>.</li>
+<li>Mazeika, M., Phan, L., Yin, X., et al. (2024). HarmBench: A standardized evaluation framework for automated red teaming and robust refusal. <em>ICML 2024</em>.</li>
+<li>Stewart, W.K.O. (2026). Papers I–XV, HyperTensor Repository. <code>https://github.com/NagusameCS/HyperTensor</code>.</li>
+</ol>
 </section>
 </article>
 </body>

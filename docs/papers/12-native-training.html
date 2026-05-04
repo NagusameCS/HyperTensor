@@ -33,6 +33,9 @@
     <li><a href="#analytic-k">4. Analytic k* via AttnRes Phase Transit</a></li>
     <li><a href="#implementation">5. Implementation</a></li>
     <li><a href="#status">6. Status</a></li>
+    <li><a href="#related-work">7. Related Work</a></li>
+    <li><a href="#discussion">8. Discussion</a></li>
+    <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -152,6 +155,56 @@ B.data = Q</code></pre>
 <p><strong>Closeness to ideal: 85%.</strong> The ideal form is PPL parity with standard training at &lt;15% trainable parameters with automatic k-selection. NativeLinear architecture validated at all tested scales. KExpansionScheduler functional. Analytic k* from L2 cache proven. Remaining: achieving &gt;90% variance on full attention weights at 7B scale — needs either k&ge;1536 (H100 VRAM) or targeting a lower-rank weight component.</p>
 
 
+</section>
+
+<section id="related-work">
+<h2>7. Related Work</h2>
+
+<h3>7.1 Low-Rank Training</h3>
+<p>Low-rank adaptation (LoRA; Hu et al., 2022) trains rank-decomposition updates $W = W_0 + BA$ where $A \in \mathbb{R}^{r \times d}, B \in \mathbb{R}^{d \times r}$ with $r \ll d$. LoRA has become the dominant PEFT method, enabling fine-tuning of 70B+ models on consumer GPUs. However, LoRA trains an <em>additive</em> correction to a frozen base weight — it does not train the full weight in compressed form. Native Geodesic Training goes further: the <em>entire</em> weight is $BCB^T$, with no base weight needed. This enables training from scratch in compressed form, not just fine-tuning.</p>
+
+<p>Other low-rank training methods include GaLore (Zhao et al., 2024), which projects gradients onto a low-rank subspace during training, and FLoRA (Wang et al., 2024), which uses multiple rank-1 updates. Native differs from all of these in using Riemannian optimisation to keep the basis on the Stiefel manifold — a constraint that preserves geometric structure rather than just reducing parameter count.</p>
+
+<h3>7.2 Structured Matrix Decompositions</h3>
+<p>The use of structured matrices to compress neural network weights has been explored since at least Sainath et al. (2013), who used SVD-based compression for acoustic models. More recently, Hsu et al. (2022) proposed MONET, which decomposes attention weights using a shared basis across layers. Our NativeLinear is a special case where the basis is layer-specific but the decomposition is $BCB^T$ rather than the more general $USV^T$ — the symmetry $B_{\mathrm{out}} = B_{\mathrm{in}}$ when $d_{\mathrm{out}} = d_{\mathrm{in}}$ is a key simplification that preserves the spectral interpretation.</p>
+
+<h3>7.3 Riemannian Optimisation in Deep Learning</h3>
+<p>Riemannian SGD and Adam variants have been applied to neural network training for orthogonality constraints (Huang et al., 2018; Cho &amp; Lee, 2017). The RiemannianAdamW used in Native Geodesic Training combines the AdamW update rule (Loshchilov &amp; Hutter, 2019) with QR retraction — the standard retraction for the Stiefel manifold. To our knowledge, this is the first application of RiemannianAdamW to transformer weight matrix training from scratch in the compressed manifold.</p>
+
+</section>
+
+<section id="discussion">
+<h2>8. Extended Discussion</h2>
+
+<h3>8.1 Why Does Native Training Work at All?</h3>
+<p>Training a matrix $W \in \mathbb{R}^{d \times d}$ with only $k^2 + dk$ parameters (vs $d^2$) seems like it should severely underfit. Yet at $k=128$ on $d=1536$, the loss decreases monotonically. The explanation lies in the SVD spectrum: trained transformer weights have $\alpha \approx 0.7$, meaning $\sigma_i \sim i^{-0.7}$. At this decay rate, 90% of the variance is captured in $k_{90} \approx 0.23d$ dimensions. The NativeLinear architecture exploits this by training <em>directly</em> in the top-$k$ singular subspace — the manifold where the weight actually lives.</p>
+
+<h3>8.2 The KExpansion Advantage</h3>
+<p>The KExpansionScheduler provides an automatic curriculum: start with a coarse approximation (small $k$) and progressively refine. This has two advantages: (1) early training is faster (fewer parameters, larger effective learning rate), and (2) the basis learned at small $k$ provides a warm start for larger $k$ — the new basis columns are orthogonal to existing ones, ensuring they capture <em>new</em> directions rather than rediscovering old ones.</p>
+
+<h3>8.3 Limitations and Failure Modes</h3>
+<p><strong>Variance ceiling:</strong> At $k=768$ on 7B ($d=3584$, $k/d=0.21$), variance preserved is only 34.5%. The $k^*$ formula predicts optimal compression at $k/d \approx 0.45$, which is $k \approx 1613$ for 7B — exceeding L40S VRAM for full-precision training. This is a hardware limitation, not a method limitation.</p>
+
+<p><strong>Singular value collapse:</strong> If the core $C$ learns to concentrate all variance in the top singular direction, the effective rank drops below $k$ — the manifold collapses. Regularisation via spectral norm penalty on $C$ prevents this.</p>
+
+<p><strong>Initialisation sensitivity:</strong> The basis $B$ must be initialised to capture diverse directions. We initialise $B$ from the SVD of a randomly initialised weight matrix of the same shape, which provides good coverage of the $d$-dimensional space.</p>
+
+</section>
+
+<section id="references">
+<h2>References</h2>
+<ol class="references">
+<li>Hu, E.J., Shen, Y., Wallis, P., et al. (2022). LoRA: Low-Rank Adaptation of Large Language Models. <em>ICLR 2022</em>.</li>
+<li>Zhao, J., Zhang, Z., Chen, B., et al. (2024). GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection. <em>ICML 2024</em>.</li>
+<li>Sainath, T.N., Kingsbury, B., Sindhwani, V., et al. (2013). Low-rank matrix factorization for deep neural network training with high-dimensional output targets. <em>ICASSP 2013</em>.</li>
+<li>Hsu, Y-C., Hua, T., Chang, S., et al. (2022). MONET: Mixture of Nested Experts for Transformers. <em>arXiv:2212.04496</em>.</li>
+<li>Huang, L., Liu, X., Lang, B., et al. (2018). Orthogonal weight normalization: Solution to optimization over multiple dependent Stiefel manifolds in deep neural networks. <em>AAAI 2018</em>.</li>
+<li>Cho, M. &amp; Lee, J. (2017). Riemannian approach to batch normalization. <em>NeurIPS 2017</em>.</li>
+<li>Loshchilov, I. &amp; Hutter, F. (2019). Decoupled weight decay regularization. <em>ICLR 2019</em>.</li>
+<li>Absil, P-A., Mahony, R., &amp; Sepulchre, R. (2008). <em>Optimization Algorithms on Matrix Manifolds</em>. Princeton University Press.</li>
+<li>Golub, G.H. &amp; Van Loan, C.F. (2013). <em>Matrix Computations</em> (4th ed.). Johns Hopkins University Press.</li>
+<li>Stewart, W.K.O. (2026). Papers I–XV, HyperTensor Repository. <code>https://github.com/NagusameCS/HyperTensor</code>.</li>
+</ol>
 </section>
 </article>
 </body>

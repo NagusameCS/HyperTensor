@@ -33,6 +33,9 @@
     <li><a href="#isagi">4. ISAGI: The Complete Living Model</a></li>
     <li><a href="#implementation">5. Implementation</a></li>
     <li><a href="#status">6. Status</a></li>
+    <li><a href="#related-work">7. Related Work</a></li>
+    <li><a href="#discussion">8. Discussion</a></li>
+    <li><a href="#references">References</a></li>
     <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
   </ul>
 </nav>
@@ -140,6 +143,55 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <p><strong>Closeness to ideal: 100%.</strong> COG 4-tier query recognition functional. TEH detection at 93.8&ndash;100% with 0 FP. ROC threshold calibration solves entanglement. .MIKU persistence deployed. AttnRes phase transition completely mapped. ISAGI v1.0 operational. The remaining work is scaling (100+ interaction COG run, 10K+ interaction stability) — these are compute questions, not mechanism uncertainties.</p>
 
 
+</section>
+
+<section id="related-work">
+<h2>7. Related Work</h2>
+
+<h3>7.1 Continual Learning and Adaptive Models</h3>
+<p>The idea of models that learn continuously from interaction has been explored in continual learning (Parisi et al., 2019; Lopez-Paz &amp; Ranzato, 2017), where the challenge is catastrophic forgetting — new knowledge overwrites old. COG avoids catastrophic forgetting through its metric tensor structure: the Jacobi outer-product update $M \leftarrow M + \eta \cdot h_k h_k^T$ adds new information without overwriting existing eigendirections. This is analogous to the incremental SVD (Brand, 2002) but applied to the Riemannian metric rather than the data matrix.</p>
+
+<p>Retrieval-augmented generation (RAG; Lewis et al., 2020) provides external knowledge access but does not <em>learn</em> — the model weights are frozen. COG bridges the gap between static RAG and full fine-tuning: the metric tensor learns, but the base model weights are frozen, providing a middle ground of adaptive behavior without catastrophic forgetting.</p>
+
+<h3>7.2 Harmful Content Detection</h3>
+<p>Content moderation in LLMs typically relies on classifier-based approaches (Markov et al., 2023; Inan et al., 2023) or prompt-based filtering. These methods operate on the <em>output</em> text — harmful content must be generated before it can be detected. TEH operates on the <em>hidden state</em> — detecting harmful activation before token generation. This is more efficient (no generation needed for detection) and more robust (adversarial outputs that evade text classifiers may still produce detectable hidden-state activation).</p>
+
+<p>The threshold entanglement problem we identified — where a single threshold blocks all content on small models — is related to the phenomenon of representation collapse (Jing et al., 2022) where SSL-trained representations lose diversity. Our solution (per-model ROC calibration) is a practical engineering fix; the deeper question of why smaller models have more entangled representations remains open.</p>
+
+<h3>7.3 File Formats for AI Models</h3>
+<p>Existing model file formats (safetensors, GGUF, ONNX, TensorRT) are designed for <em>static</em> models — they store weights, tokenizers, and inference configurations. The .MIKU format is the first file format designed for <em>living</em> models — models whose state changes through use. The two-file design (.miku JSON metadata + .miku.pt tensor blob) separates human-readable state from binary tensors, enabling version control of the living state via git while keeping tensors in efficient binary format.</p>
+
+</section>
+
+<section id="discussion">
+<h2>8. Extended Discussion</h2>
+
+<h3>8.1 The Living Model as a Research Program</h3>
+<p>The COG+TEH framework is more than two individual methods — it is a <em>paradigm</em> for what language models could become. Current LLMs are static: every conversation starts from the same weights. A living model accumulates knowledge, develops preferences, and builds a unique trajectory through interaction space. The .MIKU file captures this trajectory, enabling cross-session continuity. The research questions this opens — stability over 10K+ interactions, transfer of living state between models, multi-agent living model ecosystems — define a new frontier beyond static language modeling.</p>
+
+<h3>8.2 The AttnRes Phase Transition as a Universal Principle</h3>
+<p>The discovery that GRC throughput peaks at $k/d \approx 0.45$ — independent of model scale, architecture, or GPU — suggests a <em>physical</em> constraint rather than a statistical one. The formula $k^* = \mathrm{L2\_MB} \times 42.7$ connects abstract mathematics (SVD rank) to hardware physics (L2 cache size). This is reminiscent of the roofline model (Williams et al., 2009) for computational throughput — except here the constraint is memory bandwidth, not FLOPs. The universality of this phase transition across all tested configurations (5 GPU types, 3 model scales) suggests it may be a fundamental limit of attention computation on cached memory hierarchies.</p>
+
+<h3>8.3 TEH Limitations and the Entanglement Frontier</h3>
+<p>TEH detection is near-perfect at 1.5B+ (100% detection, 0% FP). At 135M, the 93.8% detection rate leaves a 6.2% gap — some harmful prompts produce hidden-state activation patterns that overlap with benign patterns. This is the <em>entanglement frontier</em>: at what model scale does the behavioral subspace become linearly separable from general knowledge? Preliminary evidence suggests the transition occurs between 135M and 1.5B parameters, but the exact scaling law — and whether it holds for future, more capable models — is an open question.</p>
+
+</section>
+
+<section id="references">
+<h2>References</h2>
+<ol class="references">
+<li>Parisi, G.I., Kemker, R., Part, J.L., et al. (2019). Continual lifelong learning with neural networks: A review. <em>Neural Networks</em>, 113, 54–71.</li>
+<li>Lopez-Paz, D. &amp; Ranzato, M.A. (2017). Gradient episodic memory for continual learning. <em>NeurIPS 2017</em>.</li>
+<li>Brand, M. (2002). Incremental singular value decomposition of uncertain data with missing values. <em>ECCV 2002</em>.</li>
+<li>Lewis, P., Perez, E., Piktus, A., et al. (2020). Retrieval-augmented generation for knowledge-intensive NLP tasks. <em>NeurIPS 2020</em>.</li>
+<li>Markov, T., Zhang, C., Agarwal, S., et al. (2023). A holistic approach to undesired content detection in the real world. <em>AAAI 2023</em>.</li>
+<li>Inan, H., Upasani, K., Chi, J., et al. (2023). Llama Guard: LLM-based input-output safeguard for human-AI conversations. <em>arXiv:2312.06674</em>.</li>
+<li>Jing, L., Vincent, P., LeCun, Y., &amp; Tian, Y. (2022). Understanding dimensional collapse in contrastive self-supervised learning. <em>ICLR 2022</em>.</li>
+<li>Williams, S., Waterman, A., &amp; Patterson, D. (2009). Roofline: An insightful visual performance model for multicore architectures. <em>Communications of the ACM</em>, 52(4), 65–76.</li>
+<li>Absil, P-A., Mahony, R., &amp; Sepulchre, R. (2008). <em>Optimization Algorithms on Matrix Manifolds</em>. Princeton University Press.</li>
+<li>Golub, G.H. &amp; Van Loan, C.F. (2013). <em>Matrix Computations</em> (4th ed.). Johns Hopkins University Press.</li>
+<li>Stewart, W.K.O. (2026). Papers I–XV, HyperTensor Repository. <code>https://github.com/NagusameCS/HyperTensor</code>.</li>
+</ol>
 </section>
 </article>
 </body>
