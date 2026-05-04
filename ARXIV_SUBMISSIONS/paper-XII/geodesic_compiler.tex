@@ -19,9 +19,6 @@
 We introduce Native Geodesic Training, a method for training transformer components directly in a compressed $k$-dimensional manifold. The NativeLinear architecture replaces a standard weight matrix $W \in \mathbb{R}^{d \times d}$ with a learned core $C \in \mathbb{R}^{k \times k}$ and an orthonormal basis $B \in \mathbb{R}^{d \times k}$, where $k \ll d$. The effective weight is $W_{\mathrm{native}} = B C B^T$. At $k=128$ on a 1.5B model, this uses 9.1\% of standard parameters. Training uses RiemannianAdamW with QR retraction to keep $B$ on the Stiefel manifold. We demonstrate KExpansion (automatic $k$ growth when training plateaus), validate on attention weights at 135M, 1.5B, and 7B scales, and show that loss decreases monotonically with $k$ at all scales. The optimal $k^*$ is predicted analytically via the AttnRes phase transition: $k^* = \mathrm{L2\_MB} \times 42.7$.
 \end{abstract}
 
-\tableofcontents
-\newpage
-
 \section{NativeLinear Architecture}
 
 \subsection{Motivation}

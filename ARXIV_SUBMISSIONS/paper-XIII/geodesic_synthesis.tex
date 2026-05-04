@@ -20,9 +20,6 @@
 We present Safe Orthogonal Geodesic Deviation (Safe OGD), a geometric method that guarantees zero harmful activation during language model concept exploration. The method constructs an orthogonal projector $P_{\mathrm{safe}} = I - Q_f Q_f^T$ where $Q_f$ is an orthonormal basis for the forbidden behavioral subspace. By projecting hidden states onto the safe subspace before OGD exploration, all harmful activation is eliminated by construction---no threshold tuning, no jailbreak vulnerability. We demonstrate 100\% safety (0\% TEH activation) at all exploration step sizes $\alpha \in [0.05, 0.30]$ across 25 trials. Multi-step OGD chains with coherence scoring enable iterative concept refinement. The MIKU Creativity Benchmark (MCB) provides automated quantitative creativity scoring. The safety guarantee is a proof by construction, not an empirical finding---it holds at any model scale.
 \end{abstract}
 
-\tableofcontents
-\newpage
-
 \section{The Safety Problem}
 
 Orthogonal Geodesic Deviation (OGD) generates novel concepts by pushing a hidden state $h$ along a safe direction:

@@ -21,9 +21,6 @@
 We present the Universal Geodesic Taxonomy (UGT), a method for establishing a shared coordinate system across transformer models. Given any two independently trained models with the same architecture, UGT computes a common $k$-dimensional basis that aligns their representation spaces, enabling component-level interchange with less than 5\% degradation. The method exploits the Riemannian geometry of the Grassmann manifold $\mathrm{Gr}(k,d)$ and uses RiemannianAdamW optimisation with QR retraction. We demonstrate bilateral UGT at 135M scale (7/7 layers pass, $\Delta$PPL $= -0.11$, slight improvement) and 1.5B scale (subspace overlap 0.9999 across 10 independent trials). The UGT basis enables algebraic knowledge-zone routing: encoding zone type as an explicit feature coordinate makes routing scale-independent. The mechanism is proven to transfer to any scale via the Wielandt-Hoffman theorem.
 \end{abstract}
 
-\tableofcontents
-\newpage
-
 \section{The UGT Construction}
 
 \subsection{Motivation}
@@ -343,7 +340,6 @@ W.K.O. Stewart. Papers I--XV, HyperTensor Repository. \texttt{github.com/Nagusam
 \newpage
 
 \section*{Document Information}
-\addcontentsline{toc}{section}{Document Information}
 
 This paper is part of the HyperTensor research program, a fifteen-paper framework for geometric neural compression and living-model adaptation. The complete volume is available at \texttt{docs/papers/volume.html} (HTML) and \texttt{ARXIV\_SUBMISSIONS/volume.pdf} (PDF). All code and measurement data are in the repository at \texttt{https://github.com/NagusameCS/HyperTensor}.
 
