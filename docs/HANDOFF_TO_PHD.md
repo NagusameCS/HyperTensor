@@ -100,11 +100,11 @@ Therefore f(σ + it) = f(σ - it) for all σ, t. This is EXACT, not approximate.
 Define ι : ℂ -> ℂ by ι(s) = 1 - s. Equivalently, ι(σ + it) = (1-σ) - it.
 
 Lemma 1: ι is an involution: ι²(s) = s for all s ∈ ℂ.
-Proof: ι²(σ+it) = ι(1-σ-it) = 1-(1-σ)-(-it) = σ+it. ∎
+Proof: ι²(σ+it) = ι(1-σ-it) = 1-(1-σ)-(-it) = σ+it. 
 
 Lemma 2: The functional equation ζ(s) = χ(s)ζ(1-s) implies that if ζ(s) = 0,
 then ζ(ι(s)) = 0. I.e., zeros come in ι-pairs.
-Proof: ζ(ι(s)) = ζ(1-s) = ζ(s)/χ(s). If ζ(s)=0, then ζ(ι(s)) = 0/χ(s) = 0. ∎
+Proof: ζ(ι(s)) = ζ(1-s) = ζ(s)/χ(s). If ζ(s)=0, then ζ(ι(s)) = 0/χ(s) = 0. 
 
 ### 3.2 Induced Action on Feature Space
 
@@ -112,7 +112,7 @@ The involution ι induces an action on feature vectors:
 (T_ι f)(s) = f(ι(s)).
 
 Lemma 3: T_ι² = I (the identity operator on the feature space).
-Proof: (T_ι² f)(s) = T_ι f(ι(s)) = f(ι²(s)) = f(s). ∎
+Proof: (T_ι² f)(s) = T_ι f(ι(s)) = f(ι²(s)) = f(s). 
 
 Therefore T_ι is a representation of the cyclic group Z_2 on ℝ^D.
 
@@ -132,7 +132,7 @@ Proof:
 f₀(s) = f₀(ι(s)). But f₀(s) = σ and f₀(ι(s)) = 1-σ. Therefore σ = 1-σ, so σ = 1/2.
 
 (⇐) Suppose σ = 1/2. Then ι(s) = 1/2 - it. By Property 3 (t-symmetry),
-f(1/2 + it) = f(1/2 - it). Therefore D(s) = 0. ∎
+f(1/2 + it) = f(1/2 - it). Therefore D(s) = 0. 
 
 Corollary 1: The Z_2-invariant subspace {f : T_ι f = f} corresponds exactly
 to the critical line Re(s) = 1/2.
@@ -244,7 +244,7 @@ Theorem 4 (Riemann Hypothesis): If ζ(s) = 0 and 0 < Re(s) < 1, then Re(s) = 1/2
 
 7. Therefore σ = 1/2, contradicting the assumption that σ ≠ 1/2.
 
-8. Hence σ = 1/2 for all non-trivial zeros of ζ(s). ∎
+8. Hence σ = 1/2 for all non-trivial zeros of ζ(s). 
 
 ### 6.3 The Logical Chain
 
@@ -256,7 +256,7 @@ Theorem 4 (Riemann Hypothesis): If ζ(s) = 0 and 0 < Re(s) < 1, then Re(s) = 1/2
   -> SVD of D: SV₁ > 0, SV₂₊ = 0   (Theorem 2: rank-1 variance)
   -> P_k D(s) = 0 for k ≥ 2         (Theorem 3: spectral convergence)
   -> σ = 1/2                         (contradiction)
-∴ Re(s) = 1/2 for all zeros of ζ(s) ∎
+Therefore, Re(s) = 1/2 for all zeros of ζ(s) 
 ```
 
 ---

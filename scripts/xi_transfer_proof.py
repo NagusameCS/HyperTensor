@@ -121,13 +121,20 @@ else:
 
 report = {
     "paper": "XI",
-    "status": status,
+    "status": str(status),
     "proof": "Wielandt-Hoffman subspace perturbation + Monte Carlo",
-    "overlap_1_5B": round(float(mean_small), 4),
-    "overlap_7B_predicted": round(float(mean_large), 4),
-    "scale_invariant": abs(mean_small - mean_large) < 0.05,
+    "overlap_1_5B": float(mean_small),
+    "overlap_7B_predicted": float(mean_large),
+    "scale_invariant": bool(abs(mean_small - mean_large) < 0.05),
     "conclusion": "7B bilateral UGT transfers from 1.5B by mathematical proof",
 }
+import numpy as np
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.bool_,)): return bool(obj)
+        if isinstance(obj, (np.integer,)): return int(obj)
+        if isinstance(obj, (np.floating,)): return float(obj)
+        return super().default(obj)
 with open("benchmarks/xi_transfer_proof.json", "w") as f:
-    json.dump(report, f, indent=2)
+    json.dump(report, f, indent=2, cls=NpEncoder)
 print(f"\n  Report: benchmarks/xi_transfer_proof.json")
