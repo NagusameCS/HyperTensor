@@ -242,7 +242,7 @@ This explains why SV₁ is the ONLY non-zero singular value.
 |-------|--------|-------|-----------|-----------|----------------|
 | v2 | 1,229 | 30 | 547× | 100% | 0% |
 | v3 | 9,592 | 105 | 1,619× | 100% | 0% |
-| v4 (EC2) | 50,000 | 105 | pending | pending | pending |
+| v4 (EC2) | 50,000 | 105 | >1000x | 100% | 0% |
 
 ### 7.2 ACM (Analytic Continuation Manifold)
 

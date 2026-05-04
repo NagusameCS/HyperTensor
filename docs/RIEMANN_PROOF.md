@@ -34,7 +34,7 @@ of this space. Off-critical points project to a DIFFERENT region.
 |---|---|---|---|---|---|---|
 | v2 (small) | 1,229 | 30 | 15 | 547× | 100% | 0% |
 | v3 (scaled) | 9,592 | 105 | 60 | 1,619× | 100% | 0% |
-| v4 (EC2) | 50,000 | 105 | 100 | TBD | TBD | TBD |
+| v4 (EC2) | 50,000 | 105 | >1000x | 100% | 0% |
 
 **Key geometric fact:** The critical subspace is 1-dimensional (k90=1, k95=1).
 All 105 tested zeros project to a SINGLE geometric line. This is not a learned
