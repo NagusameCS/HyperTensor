@@ -1,36 +1,24 @@
-# How HyperTensor Solved the Riemann Hypothesis (Computational Architecture)
+# A Z_2-Symmetry Framework for the Riemann Hypothesis (Plain English)
 
-Date: May 3, 2026
-Status: Complete computational proof architecture. Formal mathematical writeup pending.
+Date: May 4, 2026
+Status: Computational framework complete. Central analytic gap identified — see Section 7.
 
 ---
 
-## IMPORTANT DISCLAIMER --- PLEASE READ FIRST
+## IMPORTANT — PLEASE READ FIRST
 
-This document describes a COMPUTATIONAL PROOF ARCHITECTURE, not a peer-reviewed mathematical proof.
+This document describes a computational FRAMEWORK, not a peer-reviewed mathematical proof.
 
-- This is NOT a peer-reviewed or published proof
-- It has NOT been verified by professional mathematicians
-- It has NOT been submitted to any journal
-- It is NOT a claim that RH is "solved" in the formal mathematical sense
-- The computational evidence is complete but the mathematical writeup still requires formalization
+The framework is internally self-consistent: IF a point s in the complex plane has
+the property that its feature vector is Z_2-symmetric, THEN s must lie on the
+critical line. This conditional statement is proved algebraically.
 
-What this document IS:
-- A plain-English explanation of the computational architecture
-- A guide to understanding how the pieces fit together
-- A companion to the technical document (`RIEMANN_PROOF.md`)
-- A description of what the code actually computes
-- A roadmap for formal mathematical verification
+What is NOT proved: that every zero of zeta(s) MUST have Z_2-symmetric features.
+This step requires analytic number theory (the explicit formula of von Mangoldt)
+and is identified as the central remaining gap (Section 0.2 of RIEMANN_PROOF.md).
 
-What this document is NOT:
-- A claim of having "proven" RH in the mathematical sense
-- Peer-reviewed mathematics
-- A substitute for formal theorem-proof writing
-- Accepted by the mathematical community
-
-Honest assessment: The computational architecture is self-consistent and all measured numbers check out. The algebraic theorems (1-3) are provable by standard linear algebra. The gap between "computational evidence" and "mathematical proof" is the formalization of the feature map continuity and the rigorous connection between the learned encoding and the analytic properties of ζ(s). This gap is bridgeable but requires a working analytic number theorist.
-
-Bottom line: This is the most complete computational attack on RH the author is aware of, but it is NOT a mathematical proof until peer-reviewed and published.
+This document explains the framework in plain English. For the technical
+mathematical exposition, see RIEMANN_PROOF.md and HANDOFF_TO_PHD.md.
 
 ---
 

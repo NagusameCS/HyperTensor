@@ -1,28 +1,39 @@
-# HyperTensor Riemann Proof: Handoff Document for Peer Review
+# A Z_2-Symmetry Framework for the Riemann Hypothesis: Technical Handoff
 
-Version: 1.0 --- For distribution to qualified mathematicians
+Version: 1.1 --- For distribution to qualified mathematicians
 Date: May 4, 2026
 Repository: [github.com/NagusameCS/HyperTensor](https://github.com/NagusameCS/HyperTensor)
 Contact: William Ken Ohara Stewart (NagusameCS Independent Research)
+
+IMPORTANT: This document presents a computational FRAMEWORK, not a completed
+mathematical proof. The internal algebraic machinery (rank-1 D(s), Z_2-invariant
+subspace = critical line) is mathematically sound. However, the bridge from
+"zeta(s)=0" to "f(s) lies in the Z_2-invariant subspace" has NOT been rigorously
+proved — this is the central analytic gap. We formulate this as a conjectural
+"zeta zero encoding" property and invite analytic number theorists to examine
+whether the explicit formula (von Mangoldt) can close this gap.
 
 ---
 
 ## Abstract
 
-We present a geometric proof architecture for the Riemann Hypothesis based on the
-Z_2 symmetry of the functional equation ζ(s) = χ(s)ζ(1-s). The method constructs
+We present a Z_2-symmetry framework for the Riemann Hypothesis based on the
+Z_2 symmetry of the functional equation zeta(s) = chi(s)zeta(1-s). The method constructs
 a feature map from the complex plane to a finite-dimensional real vector space
-using prime number relationships (gaps, residues, Chebyshev theta, prime counting).
-The involution ι(s) = 1-s acts on this feature space as a Z_2 group action. The
-Z_2-invariant subspace is exactly the critical line Re(s) = 1/2. Singular Value
-Decomposition cleanly separates the Z_2-invariant directions (singular values = 0)
-from the Z_2-variant directions (singular values > 0). Spectral convergence proves
-that the truncated basis approximation becomes exact as the basis dimension
-approaches the full feature dimension. An algebraic argument shows that no
-pathological exceptions can exist at arbitrarily large height t. The logical
-chain from "ζ(s) = 0" to "Re(s) = 1/2" is computationally validated at every step.
-What remains is formal mathematical writeup in the language of spectral theory
-and representation theory of finite groups.
+using prime number relationships. The involution iota(s) = 1-s acts on this feature
+space as a Z_2 group action. Within the feature space, the Z_2-invariant subspace
+corresponds exactly to the critical line Re(s) = 1/2. The difference operator
+D(s) = f(s) - f(iota(s)) has rank exactly 1 because only the sigma-coordinate
+contributes to Z_2 variance. SVD cleanly separates invariant from variant directions
+with exact convergence at k >= 2.
+
+The framework is internally self-consistent and computationally validated
+(19/19 tests passed). The central remaining analytic step is to rigorously derive,
+from the explicit formula connecting primes and zeros of zeta(s), that zeros
+necessarily lie in the Z_2-invariant subspace. We formulate this as a conjectural
+"zeta zero encoding" property and invite the analytic number theory community
+to examine whether this gap can be closed. If closed, the framework would
+constitute a proof of RH.
 
 ---
 
@@ -489,25 +500,23 @@ HyperTensor/
 
 ## 10. Conclusion
 
-The HyperTensor framework provides a complete computational proof architecture
-for the Riemann Hypothesis based on the Z_2 symmetry of the functional equation.
-The critical line Re(s) = 1/2 is identified as the fixed-point set of the
-involution ι(s) = 1-s acting on a prime-number feature space. SVD spectral
-convergence proves faithfulness at finite dimension. An algebraic argument
-eliminates the possibility of pathological counterexamples at extreme t.
+The HyperTensor framework provides a computationally validated Z_2-symmetry
+framework for the Riemann Hypothesis. The critical line Re(s) = 1/2 is identified
+as the fixed-point set of the involution iota(s) = 1-s acting on a prime-number
+feature space. SVD spectral convergence is exact at finite dimension. An algebraic
+argument eliminates pathological counterexamples at extreme t.
 
-The computational work is complete. 19/19 verification tests passed.
-All measured numbers are exact (not approximate). The rank-1 structure
-of D(s) is an algebraic consequence of explicit sigma encoding, not a
-statistical artifact.
+The computational work is complete: 19/19 verification tests passed.
+The internal algebraic machinery (Theorems 1-3) is mathematically sound.
 
-What remains is formal mathematical writeup by a qualified mathematician.
-The core insight --- that the first feature coordinate encodes σ explicitly,
-making Z_2 variance algebraic rather than asymptotic --- is simple enough
-to be explained in a single paragraph.
+The central remaining step is analytic: proving via the explicit formula
+(von Mangoldt) that zeta zeros necessarily lie in the Z_2-invariant subspace.
+We CONJECTURE that this gap can be closed and invite the analytic number
+theory community to examine the question.
 
-We believe this approach constitutes a valid proof of the Riemann Hypothesis.
-We invite the mathematical community to review, formalize, and publish.
+We believe this framework is a significant step toward a proof of RH.
+We invite the mathematical community to review, formalize, and determine
+whether the analytic gap can be closed.
 
 ---
 
