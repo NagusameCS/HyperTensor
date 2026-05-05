@@ -567,10 +567,13 @@ def main():
     
     hs = torch.stack(hidden_states)
     U, S, _ = torch.linalg.svd(hs.T, full_matrices=False)
-    basis = U[:, :K].float().to(model.device)
+    K_actual = min(K, U.shape[1])  # SVD may give fewer columns than K
+    basis = U[:, :K_actual].float().to(model.device)
     # QR for orthonormality
     Q, _ = torch.linalg.qr(basis)
-    basis = Q[:, :K]
+    basis = Q
+    K = K_actual  # Update K to actual dimension
+    print(f"  K={K} (capped by calibration prompts)")
     
     def to_k(h): return h.float() @ basis.float()
     def get_h(text):
