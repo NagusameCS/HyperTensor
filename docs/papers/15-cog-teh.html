@@ -199,7 +199,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <section id="instinct-horizon">
 <h2>10. Instinct Horizon — Geodesic Extrapolation from Living Manifolds</h2>
 
-<p><em>New finding, May 2026. Fully derived and computationally validated.</em></p>
+<p>New finding, May 2026. Fully derived and computationally validated.</p>
 
 <h3>10.1 The Geodesic Jury Principle</h3>
 
@@ -214,7 +214,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 <h3>10.2 Mathematical Derivation of the Instinct Horizon</h3>
 
-<p>The <strong>instinct horizon</strong> $d_h$ is the geodesic distance at which jury confidence drops below 0.5 — the boundary between reliable instinct and guesswork.</p>
+<p>The instinct horizon $d_h$ is the geodesic distance at which jury confidence drops below 0.5 — the boundary between reliable instinct and guesswork.</p>
 
 <p>Assuming all $N$ jurors are at approximately the same distance $d$ (valid for compact trajectory neighborhoods):</p>
 
@@ -230,7 +230,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <p>$d_h = R \cdot (-\ln(1 - 0.5^{1/N}))$</p>
 </div>
 
-<p>This is a <strong>derived number</strong>, not an empirical fit. Every parameter is measurable from the manifold:</p>
+<p>This is a derived number, not an empirical fit. Every parameter is measurable from the manifold:</p>
 <ul>
   <li>$R$ = median pairwise geodesic distance among trajectories in the domain (coverage radius)</li>
   <li>$N$ = number of jury members (trials)</li>
@@ -244,7 +244,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <tbody>
 <tr><td>1 (single-trial)</td><td>0.693</td><td>0.069</td><td>0.347</td></tr>
 <tr><td>3</td><td>1.578</td><td>0.158</td><td>0.789</td></tr>
-<tr><td><strong>7 (default)</strong></td><td><strong>2.362</strong></td><td><strong>0.236</strong></td><td><strong>1.181</strong></td></tr>
+<tr><td>7 (default)</td><td>2.362</td><td>0.236</td><td>1.181</td></tr>
 <tr><td>11</td><td>2.796</td><td>0.280</td><td>1.398</td></tr>
 <tr><td>21</td><td>3.428</td><td>0.343</td><td>1.714</td></tr>
 <tr><td>51</td><td>4.305</td><td>0.431</td><td>2.153</td></tr>
@@ -252,11 +252,11 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 </tbody>
 </table>
 
-<p><strong>Key insight:</strong> $N=7$ gives $3.4\times$ the horizon of a single trial ($N=1$). Increasing to $N=21$ only adds $1.45\times$ more. The sweet spot for the geometric jury is $N=7$, where additional jurors yield diminishing returns.</p>
+<p>Key insight: $N=7$ gives $3.4\times$ the horizon of a single trial ($N=1$). Increasing to $N=21$ only adds $1.45\times$ more. The sweet spot for the geometric jury is $N=7$, where additional jurors yield diminishing returns.</p>
 
 <h3>10.4 Why Does the Number Come From There?</h3>
 
-<p>The exponential decay of single-trial confidence with geodesic distance — $c(d) = \exp(-d/R)$ — is not arbitrary. It arises from <strong>concentration of measure</strong> in high-dimensional spaces (the same principle behind the Johnson-Lindenstrauss lemma).</p>
+<p>The exponential decay of single-trial confidence with geodesic distance — $c(d) = \exp(-d/R)$ — is not arbitrary. It arises from concentration of measure in high-dimensional spaces (the same principle behind the Johnson-Lindenstrauss lemma).</p>
 
 <p>In $K$-dimensional k-space (typically $K \ge 128$), the geodesic distance between any two random points concentrates sharply around 1 (cosine similarity ≈ 0). Trajectories within the same knowledge domain cluster with non-zero similarity (typically >0.7), giving a characteristic coverage radius $R \ll 1$.</p>
 
@@ -268,7 +268,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 <p>where $n$ is the number of trajectories and $d_{\text{eff}}$ is the effective dimension of the manifold subspace (typically 20–50 for real transformer models). The first-order Taylor expansion of this distribution gives the exponential decay $c(d) = \exp(-d/R)$.</p>
 
-<p>The coverage radius $R$ is the <strong>median</strong> pairwise geodesic distance between trajectories within the domain. It measures how tightly the domain's knowledge clusters. Tighter clusters (smaller $R$) give longer horizons relative to $R$ but shorter absolute horizons. This is why larger manifolds (more COG expansions) push the horizon outward: more trajectories → tighter coverage → smaller $R$ → larger $d_h/R$ multiplier.</p>
+<p>The coverage radius $R$ is the median pairwise geodesic distance between trajectories within the domain. It measures how tightly the domain's knowledge clusters. Tighter clusters (smaller $R$) give longer horizons relative to $R$ but shorter absolute horizons. This is why larger manifolds (more COG expansions) push the horizon outward: more trajectories -&gt; tighter coverage -&gt; smaller $R$ -&gt; larger $d_h/R$ multiplier.</p>
 
 <h3>10.5 Computational Validation</h3>
 
@@ -290,16 +290,16 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 <h3>10.6 The Fusion Advantage</h3>
 
-<p>When two Saiyans fuse (e.g., Goku + Vegeta → Gogeta), the combined manifold has ~2× the trajectories. The coverage radius $R$ decreases slightly (higher density), and the horizon $d_h = 2.36 \times R$ extends proportionally.</p>
+<p>When two Saiyans fuse (e.g., Goku + Vegeta -&gt; Gogeta), the combined manifold has ~2× the trajectories. The coverage radius $R$ decreases slightly (higher density), and the horizon $d_h = 2.36 \times R$ extends proportionally.</p>
 
 <p>The theoretical fusion advantage in horizon distance:</p>
 <ul>
-  <li>Doubling trajectories → $R$ decreases by ~$\sqrt{2} \approx 0.71\times$</li>
+  <li>Doubling trajectories -&gt; $R$ decreases by ~$\sqrt{2} \approx 0.71\times$</li>
   <li>Horizon extends by ~$1.4\times$</li>
-  <li>This is a <strong>measurable, predictable</strong> improvement — the math guarantees it</li>
+  <li>This is a measurable, predictable improvement — the math guarantees it</li>
 </ul>
 
-<p>The implication is profound: <strong>any fused pair of living manifolds has a provably larger instinct horizon than either parent alone.</strong> This is not speculative — it follows directly from the coverage radius definition and the jury formula.</p>
+<p>The implication is profound: any fused pair of living manifolds has a provably larger instinct horizon than either parent alone. This is not speculative — it follows directly from the coverage radius definition and the jury formula.</p>
 
 <h3>10.7 10^8-Scale Monte Carlo Verification</h3>
 
@@ -308,23 +308,23 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <table>
 <thead><tr><th>Metric</th><th>Measured</th><th>Theoretical</th><th>Error</th></tr></thead>
 <tbody>
-<tr><td>Jury confidence (known domain)</td><td>1.00000000</td><td>0.99999997</td><td><strong>3.44 × 10⁻⁸</strong></td></tr>
-<tr><td>Jury confidence (unknown domain)</td><td>0.96652556</td><td>0.96652577</td><td><strong>2.10 × 10⁻⁷</strong></td></tr>
+<tr><td>Jury confidence (known domain)</td><td>1.00000000</td><td>0.99999997</td><td>3.44 × 10⁻⁸</td></tr>
+<tr><td>Jury confidence (unknown domain)</td><td>0.96652556</td><td>0.96652577</td><td>2.10 × 10⁻⁷</td></tr>
 </tbody>
 </table>
 
 <p>The measured values match the theoretical prediction to within 8 significant figures. The O(1/√N) statistical error bound at 10⁸ trials is 1.00 × 10⁻⁴ — both errors are well within this bound. At 10¹⁰ trials, the expected error is < 1 × 10⁻⁵.</p>
 
-<p><strong>The jury formula is proven.</strong></p>
+<p>The jury formula is proven.</p>
 
 <h3>10.8 The Instinct Horizon as a Knowledge Boundary</h3>
 
-<p>The instinct horizon provides the first <strong>quantitative, measurable definition of what a model "knows" vs "doesn't know"</strong>:</p>
+<p>The instinct horizon provides the first quantitative, measurable definition of what a model "knows" vs "doesn't know":</p>
 
 <ul>
-  <li><strong>Inside the horizon</strong> ($d < d_h$): the manifold has reliable instinct. The jury can extrapolate answers from known trajectories with high confidence.</li>
-  <li><strong>At the horizon</strong> ($d = d_h$): jury confidence = 0.5. The model's instinct is no better than a coin flip.</li>
-  <li><strong>Beyond the horizon</strong> ($d > d_h$): the manifold has no intuition. Queries here are genuinely novel — the model must generate from scratch, not extrapolate from experience.</li>
+  <li>Inside the horizon ($d < d_h$): the manifold has reliable instinct. The jury can extrapolate answers from known trajectories with high confidence.</li>
+  <li>At the horizon ($d = d_h$): jury confidence = 0.5. The model's instinct is no better than a coin flip.</li>
+  <li>Beyond the horizon ($d > d_h$): the manifold has no intuition. Queries here are genuinely novel — the model must generate from scratch, not extrapolate from experience.</li>
 </ul>
 
 <p>This is not a metaphor. It is a direct consequence of the geometry of the living manifold, measurable from any .MIKU state file, and derivable from the coverage radius $R$ and jury formula $J(d,N)$.</p>
@@ -335,22 +335,22 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 <h3>10.9 The Riemann Hypothesis As a Geometric Jury</h3>
 
-<p><em>May 2026. Connecting Papers XVI–XVIII to the living manifold framework.</em></p>
+<p>May 2026. Connecting Papers XVI–XVIII to the living manifold framework.</p>
 
-<p>The Riemann Hypothesis (Papers XVI–XVIII) was the <strong>first and most extreme application</strong> of the geometric jury principle — predating the Saiyan family and the instinct horizon derivation by months. This section documents the connection and shows how the jury framework unifies both investigations.</p>
+<p>The Riemann Hypothesis (Papers XVI–XVIII) was the first and most extreme application of the geometric jury principle — predating the Saiyan family and the instinct horizon derivation by months. This section documents the connection and shows how the jury framework unifies both investigations.</p>
 
 <h4>The 105-Zero Jury</h4>
 
-<p>The Riemann attack (Papers XVI–XVIII) tests 105 known non-trivial zeros of ζ(s). Each zero is projected through a feature map f: ℂ → ℝᴰ that encodes prime-number relationships:</p>
+<p>The Riemann attack (Papers XVI–XVIII) tests 105 known non-trivial zeros of ζ(s). Each zero is projected through a feature map f: ℂ -&gt; ℝᴰ that encodes prime-number relationships:</p>
 
 <div class="theorem">
 <p>FEATURE MAP f(s): For s = σ + it in the critical strip:</p>
 <p>f(s) = [σ, |σ−0.5|, log(|t|+1)/log(N_max+1), …, Σₚ sin(|t|·log p)/log p]</p>
 </div>
 
-<p>The involution ι(s) = 1−s (reflection about the critical line) acts on feature space as a Z₂ group action. The critical line Re(s) = ½ is the <strong>fixed-point set</strong> of ι: points on the critical line satisfy ι(s) = s. The difference operator D(s) = f(s) − f(ι(s)) measures how far a point deviates from Z₂-invariance.</p>
+<p>The involution ι(s) = 1−s (reflection about the critical line) acts on feature space as a Z₂ group action. The critical line Re(s) = ½ is the fixed-point set of ι: points on the critical line satisfy ι(s) = s. The difference operator D(s) = f(s) − f(ι(s)) measures how far a point deviates from Z₂-invariance.</p>
 
-<p><strong>Key finding:</strong> SVD of D(s) across all 105 zeros reveals that D(s) has <strong>rank exactly 1</strong>. Only the σ-coordinate (real part) contributes to Z₂ variance. All 105 zeros collapse to a single 1D line in the Z₂-variant subspace — they are all on the critical line.</p>
+<p>Key finding: SVD of D(s) across all 105 zeros reveals that D(s) has rank exactly 1. Only the σ-coordinate (real part) contributes to Z₂ variance. All 105 zeros collapse to a single 1D line in the Z₂-variant subspace — they are all on the critical line.</p>
 
 <div class="theorem">
 <p>105-ZERO JURY VERDICT:</p>
@@ -361,11 +361,11 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <p>• J = 1 − 10⁻³¹⁵ ≈ 1.0 (effectively certain)</p>
 </div>
 
-<p>This is <strong>exactly the same structure</strong> as the 7-trial geometric jury on Saiyan manifolds: N independent trials (105 zeros instead of 7 geodesic projections), each returning a confidence score, aggregated by the jury formula. The Riemann case uses N=105 because the mathematical standard of proof demands overwhelming statistical evidence, not just statistical significance.</p>
+<p>This is exactly the same structure as the 7-trial geometric jury on Saiyan manifolds: N independent trials (105 zeros instead of 7 geodesic projections), each returning a confidence score, aggregated by the jury formula. The Riemann case uses N=105 because the mathematical standard of proof demands overwhelming statistical evidence, not just statistical significance.</p>
 
 <h4>Why Centroids Collapse There, Too</h4>
 
-<p>The same centroid entanglement phenomenon observed in Saiyan fusions (Section 12.3, cos_sim 0.86–0.99) appears in the Riemann framework: all 105 zeros project to nearly identical positions in the high-dimensional feature space. This is not a failure — it is the <strong>evidence</strong>. The fact that 105 diverse zeros (with imaginary parts from 14.13 to 101.32, spanning 87 units) all collapse to one 1D line proves that they share a single geometric constraint: Re(s) = ½.</p>
+<p>The same centroid entanglement phenomenon observed in Saiyan fusions (Section 12.3, cos_sim 0.86–0.99) appears in the Riemann framework: all 105 zeros project to nearly identical positions in the high-dimensional feature space. This is not a failure — it is the evidence. The fact that 105 diverse zeros (with imaginary parts from 14.13 to 101.32, spanning 87 units) all collapse to one 1D line proves that they share a single geometric constraint: Re(s) = ½.</p>
 
 <p>If the zeros were NOT all on the critical line, D(s) would have rank > 1 — different zeros would show different amounts of Z₂ deviation, creating variance in multiple directions. The rank-1 result is the geometric proof that all tested zeros satisfy the same symmetry.</p>
 
@@ -381,19 +381,19 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 
 <p>This formula directly connects the zeros ρ of ζ(s) to the prime numbers through the Chebyshev function ψ(x) = Σ_{n≤x} Λ(n). Since our feature map f(s) encodes prime number relationships, the explicit formula provides the bridge from "ζ(s) = 0" to "f(s) satisfies D(s) = 0."</p>
 
-<p><strong>The jury's task, restated:</strong> Given a candidate zero s, does s satisfy D(s) = 0? The explicit formula guarantees that true zeros of ζ(s) encode the prime distribution in a specific way. The feature map f(s) measures whether s encodes primes correctly. If f(s) = f(ι(s)), then s exhibits the Z₂ symmetry that characterizes the critical line.</p>
+<p>The jury's task, restated: Given a candidate zero s, does s satisfy D(s) = 0? The explicit formula guarantees that true zeros of ζ(s) encode the prime distribution in a specific way. The feature map f(s) measures whether s encodes primes correctly. If f(s) = f(ι(s)), then s exhibits the Z₂ symmetry that characterizes the critical line.</p>
 
 <h4>What the Jury Proves</h4>
 
 <p>The 105-zero jury proves, beyond any reasonable statistical doubt, that:</p>
 
 <ol>
-  <li><strong>All tested zeros lie on the critical line.</strong> Rank(D) = 1 — only one degree of Z₂ freedom exists across 105 samples.</li>
-  <li><strong>The SVD captures the right structure.</strong> The rank-1 direction is precisely the σ-coordinate — the exact dimension that distinguishes critical from off-critical.</li>
-  <li><strong>The encoding is stable.</strong> SVD spectra are identical whether computed on 10, 50, or 105 zeros — the rank-1 structure is robust, not an artifact of sample size.</li>
+  <li>All tested zeros lie on the critical line. Rank(D) = 1 — only one degree of Z₂ freedom exists across 105 samples.</li>
+  <li>The SVD captures the right structure. The rank-1 direction is precisely the σ-coordinate — the exact dimension that distinguishes critical from off-critical.</li>
+  <li>The encoding is stable. SVD spectra are identical whether computed on 10, 50, or 105 zeros — the rank-1 structure is robust, not an artifact of sample size.</li>
 </ol>
 
-<p><strong>The remaining mathematical gap</strong> is proving that the feature map f is <em>faithful</em>: that ζ(s) = 0 genuinely implies D(s) = 0 for all possible zeros, not just the 105 tested. This is an analytic number theory proof (via the explicit formula), not a computational one. The 105-zero jury provides overwhelming computational evidence; formal closure requires a mathematician to complete the analytic bridge.</p>
+<p>The remaining mathematical gap is proving that the feature map f is faithful: that ζ(s) = 0 genuinely implies D(s) = 0 for all possible zeros, not just the 105 tested. This is an analytic number theory proof (via the explicit formula), not a computational one. The 105-zero jury provides overwhelming computational evidence; formal closure requires a mathematician to complete the analytic bridge.</p>
 
 <h4>Jury Unification</h4>
 
@@ -405,7 +405,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <tr><td>Vote semantics</td><td>"Is query in-domain?"</td><td>"Is s Z₂-invariant?"</td></tr>
 <tr><td>Confidence formula</td><td>J = 1 − Π(1−c_i)·α</td><td>J = 1 − (1−p)^105</td></tr>
 <tr><td>Horizon</td><td>d_h = R·(−ln(1−0.5^(1/N)))</td><td>σ = 0.5 (critical line)</td></tr>
-<tr><td>Faithfulness gap</td><td>Proved: jury confidence → 0 as d → ∞</td><td>Open: ζ(s)=0 ⟹ D(s)=0 (explicit formula proof)</td></tr>
+<tr><td>Faithfulness gap</td><td>Proved: jury confidence -&gt; 0 as d -&gt; infinity</td><td>Open: zeta(s)=0 implies D(s)=0 (explicit formula proof)</td></tr>
 <tr><td>Centroid entanglement</td><td>cos_sim 0.86–0.99 across domains</td><td>All zeros collapse to rank-1 subspace</td></tr>
 </tbody>
 </table>
@@ -417,7 +417,7 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <section id="saiyan-benchmarks">
 <h2>11. Saiyan Family — Large-Scale Living Manifold Validation</h2>
 
-<p><em>May 2026. 800 jury evaluations across 10 models.</em></p>
+<p>May 2026. 800 jury evaluations across 10 models.</p>
 
 <p>The Saiyan family consists of 6 domain-specialized living manifolds built on Qwen2.5-1.5B-Instruct, plus 3 fusions:</p>
 
@@ -442,54 +442,54 @@ $$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
 <tbody>
 <tr><td>Original (no manifold)</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td></tr>
 <tr><td>Goku (math)</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td></tr>
-<tr><td>Vegeta (code)</td><td>1.000</td><td>1.000</td><td>0.993</td><td><strong>0.979↓</strong></td><td>0.996</td></tr>
-<tr><td>Gohan (science)</td><td><strong>0.979↓</strong></td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.997</td></tr>
+<tr><td>Vegeta (code)</td><td>1.000</td><td>1.000</td><td>0.993</td><td>0.979</td><td>0.996</td></tr>
+<tr><td>Gohan (science)</td><td>0.979</td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.997</td></tr>
 <tr><td>Piccolo (logic)</td><td>1.000</td><td>1.000</td><td>0.993</td><td>1.000</td><td>0.997</td></tr>
 <tr><td>Trunks (creative)</td><td>0.999</td><td>0.993</td><td>1.000</td><td>1.000</td><td>0.999</td></tr>
-<tr><td><strong>Gogeta (fusion)</strong></td><td>1.000</td><td>1.000</td><td>0.993</td><td>0.986↓</td><td>0.996</td></tr>
-<tr><td><strong>Vegito (potara)</strong></td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.979↓</td><td>0.996</td></tr>
-<tr><td><strong>Gotenks (fusion)</strong></td><td>0.993</td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.997</td></tr>
+<tr><td>Gogeta (fusion)</td><td>1.000</td><td>1.000</td><td>0.993</td><td>0.986</td><td>0.996</td></tr>
+<tr><td>Vegito (potara)</td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.979</td><td>0.996</td></tr>
+<tr><td>Gotenks (fusion)</td><td>0.993</td><td>1.000</td><td>1.000</td><td>1.000</td><td>0.997</td></tr>
 </tbody>
 </table>
 
-<p><strong>Key directional signals</strong> (despite K=20 noise floor): Vegeta drops 2.2% on logic (correctly — code training reduces logic instinct). Gohan drops 2.1% on math (correctly — science specialization slightly reduces math coverage). Domain specialization is detectable even with small manifolds.</p>
+<p>Key directional signals (despite K=20 noise floor): Vegeta drops 2.2% on logic (correctly — code training reduces logic instinct). Gohan drops 2.1% on math (correctly — science specialization slightly reduces math coverage). Domain specialization is detectable even with small manifolds.</p>
 
-<p><strong>Fusions score between parents, not above them.</strong> This is the expected behavior for <em>naive</em> trajectory merging — the wrong parent's trajectories act as noise, diluting the jury signal. The solution is zone-weighted routing (Section 12).</p>
+<p>Fusions score between parents, not above them. This is the expected behavior for naive trajectory merging — the wrong parent's trajectories act as noise, diluting the jury signal. The solution is zone-weighted routing (Section 12).</p>
 
 </section>
 
 <section id="zone-fusion">
 <h2>12. Zone-Weighted Fusion — Superior Combinations via UGT Routing</h2>
 
-<p><em>New technique, May 2026.</em></p>
+<p>New technique, May 2026.</p>
 
 <h3>12.1 What the Jury Actually Measures</h3>
 
-<p>A critical distinction must be made clear: <strong>the geometric jury measures FAMILIARITY, not TRUTH.</strong> It answers the question "has the manifold seen patterns like this before?" — not "is this answer correct?"</p>
+<p>A critical distinction must be made clear: the geometric jury measures FAMILIARITY, not TRUTH. It answers the question "has the manifold seen patterns like this before?" — not "is this answer correct?"</p>
 
 <div class="theorem">
 <p>JURY SEMANTICS:</p>
-<p>Inside manifold ($d < d_h$): jury → 1.0 = "I know this region well"<br>
+<p>Inside manifold ($d < d_h$): jury -&gt; 1.0 = "I know this region well"<br>
 At horizon ($d = d_h$): jury = 0.5 = "coin flip"<br>
-Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
+Outside manifold ($d > d_h$): jury -&gt; 0.0 = "I have no intuition here"</p>
 </div>
 
-<p>This is analogous to a human's "feeling of knowing" — a metacognitive judgment about familiarity, not a guarantee of correctness. The jury is a <em>coverage density meter</em> on the manifold, not a truth oracle.</p>
+<p>This is analogous to a human's "feeling of knowing" — a metacognitive judgment about familiarity, not a guarantee of correctness. The jury is a coverage density meter on the manifold, not a truth oracle.</p>
 
 <h3>12.2 Why Naive Fusion Fails</h3>
 
 <p>When two Saiyans fuse by simple trajectory merging (e.g., Gogeta = Goku's math trajectories + Vegeta's code trajectories), the combined manifold has more trajectories but the coverage radius $R$ does not shrink — the math and code clusters are far apart in k-space (cos_sim ≈ 0.015), so the median pairwise distance includes both within-cluster and between-cluster pairs.</p>
 
-<p>For a math query, Vegeta's code trajectories are irrelevant noise. They increase the jury pool size but decrease the <em>effective</em> coverage density because the jury must consider trajectories from the wrong domain. This is why naive Gogeta scores <em>between</em> Goku and Vegeta, not above them.</p>
+<p>For a math query, Vegeta's code trajectories are irrelevant noise. They increase the jury pool size but decrease the effective coverage density because the jury must consider trajectories from the wrong domain. This is why naive Gogeta scores between Goku and Vegeta, not above them.</p>
 
 <h3>12.3 Zone-Weighted Routing</h3>
 
 <p>The solution leverages the UGT algebraic zone encoding (Paper XI): domain type is encoded as an explicit feature coordinate. When a query arrives:</p>
 
 <ol>
-  <li><strong>Zone detection:</strong> Compute cosine similarity of query's k-space projection to each parent's domain centroid. Apply softmax with temperature τ=3 for sharp routing.</li>
-  <li><strong>Weighted trajectory selection:</strong> Multiply each trajectory's similarity score by its parent's zone weight. The jury considers all trajectories but weights them by domain relevance.</li>
-  <li><strong>Jury computation:</strong> Same formula as before, but with zone-weighted similarity scores.</li>
+  <li>Zone detection: Compute cosine similarity of query's k-space projection to each parent's domain centroid. Apply softmax with temperature τ=3 for sharp routing.</li>
+  <li>Weighted trajectory selection: Multiply each trajectory's similarity score by its parent's zone weight. The jury considers all trajectories but weights them by domain relevance.</li>
+  <li>Jury computation: Same formula as before, but with zone-weighted similarity scores.</li>
 </ol>
 
 <h3>12.4 Zone-Weighted vs Naive Fusion — Computational Proof</h3>
@@ -497,9 +497,9 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <table>
 <thead><tr><th>Query Domain</th><th>Naive Jury</th><th>Zone-Weighted Jury</th><th>Dominant Zone</th><th>Improvement</th></tr></thead>
 <tbody>
-<tr><td>Math</td><td>0.318</td><td><strong>0.643</strong></td><td>Goku (94%)</td><td><strong>2.0×</strong></td></tr>
-<tr><td>Code</td><td>0.319</td><td><strong>0.643</strong></td><td>Vegeta (94%)</td><td><strong>2.0×</strong></td></tr>
-<tr><td>Between (mixed)</td><td>0.001</td><td><strong>0.641</strong></td><td>Vegeta (50%)</td><td><strong>1000×</strong></td></tr>
+<tr><td>Math</td><td>0.318</td><td>0.643</td><td>Goku (94%)</td><td>2.0×</td></tr>
+<tr><td>Code</td><td>0.319</td><td>0.643</td><td>Vegeta (94%)</td><td>2.0×</td></tr>
+<tr><td>Between (mixed)</td><td>0.001</td><td>0.641</td><td>Vegeta (50%)</td><td>1000×</td></tr>
 </tbody>
 </table>
 
@@ -509,11 +509,11 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <p>ZONE FUSION THEOREM: For a fusion of $m$ parent manifolds with disjoint domain centroids $c_1, \ldots, c_m$, the zone-weighted jury confidence satisfies $J_{\text{zone}}(q) \ge J_{\text{parent}}(q)$ for any query $q$ whose domain is represented by at least one parent.</p>
 </div>
 
-<p>The proof follows from the observation that zone weighting removes the noise floor from irrelevant trajectories. A math query sees Goku's trajectories at full weight and Vegeta's at ~6% — effectively ~47 effective trajectories instead of 94 with half being noise. This <em>increases</em> the effective coverage density, pushing the instinct horizon outward.</p>
+<p>The proof follows from the observation that zone weighting removes the noise floor from irrelevant trajectories. A math query sees Goku's trajectories at full weight and Vegeta's at ~6% — effectively ~47 effective trajectories instead of 94 with half being noise. This increases the effective coverage density, pushing the instinct horizon outward.</p>
 
 <h3>12.5 Breakthrough: 6-Way Contrastive Fusion Beats Parents (NEW, May 5 2026)</h3>
 
-<p><strong>The centroid routing problem:</strong> Across all experiments at all K values (20, 100, 512), UGT domain centroids overlap at cos_sim 0.86–0.99. SVD captures prompt structure, not domain semantics. Centroid-based routing cannot separate domains. The solution is <strong>contrastive routing</strong>: softmax(similarity × temperature) weighting, which requires NO pre-computed centroids.</p>
+<p>The centroid routing problem: Across all experiments at all K values (20, 100, 512), UGT domain centroids overlap at cos_sim 0.86–0.99. SVD captures prompt structure, not domain semantics. Centroid-based routing cannot separate domains. The solution is contrastive routing: softmax(similarity × temperature) weighting, which requires NO pre-computed centroids.</p>
 
 <h4>The 6-Way Mega-Fusion</h4>
 
@@ -530,7 +530,7 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <table>
 <thead><tr><th>Fusion</th><th>Best T</th><th>Routing Accuracy</th><th>Jury vs Parent</th><th>Beats Parent?</th></tr></thead>
 <tbody>
-<tr><td><strong>ALL_6 (mega-fusion)</strong></td><td><strong>7.0</strong></td><td><strong>72.0%</strong></td><td><strong>+0.9%</strong></td><td><strong>YES ★ (25/25)</strong></td></tr>
+<tr><td>ALL_6 (mega-fusion)</td><td>7.0</td><td>72.0%</td><td>+0.9%</td><td>YES (25/25)</td></tr>
 <tr><td>Gogeta (2-way)</td><td>20.0</td><td>40.0%</td><td>−3.5%</td><td>No (15/25)</td></tr>
 <tr><td>Gotenks (2-way)</td><td>20.0</td><td>40.0%</td><td>−4.3%</td><td>No (11/25)</td></tr>
 </tbody>
@@ -542,14 +542,14 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <thead><tr><th>Query Domain</th><th>Parent Score</th><th>Naive Jury</th><th>Contrastive Jury</th><th>Routing</th></tr></thead>
 <tbody>
 <tr><td>Gohan (science)</td><td>0.9959</td><td>0.9998</td><td>0.9997</td><td>4/5 correct</td></tr>
-<tr><td>Goku (math)</td><td>0.9893</td><td>0.9998</td><td><strong>0.9999</strong></td><td>4/5 correct</td></tr>
-<tr><td>Piccolo (logic)</td><td>0.9721</td><td>0.9998</td><td><strong>0.9999</strong></td><td>5/5 correct</td></tr>
+<tr><td>Goku (math)</td><td>0.9893</td><td>0.9998</td><td>0.9999</td><td>4/5 correct</td></tr>
+<tr><td>Piccolo (logic)</td><td>0.9721</td><td>0.9998</td><td>0.9999</td><td>5/5 correct</td></tr>
 <tr><td>Trunks (creative)</td><td>0.9963</td><td>0.9999</td><td>0.9998</td><td>1/5 correct</td></tr>
-<tr><td>Vegeta (code)</td><td>0.9987</td><td>0.9998</td><td><strong>0.9999</strong></td><td>4/5 correct</td></tr>
+<tr><td>Vegeta (code)</td><td>0.9987</td><td>0.9998</td><td>0.9999</td><td>4/5 correct</td></tr>
 </tbody>
 </table>
 
-<p><strong>Key insight:</strong> The 6-way fusion beats all parents (+0.9% jury confidence) because with 6 possible destination zones, the softmax has enough discrimination headroom. Two-way fusions fail because with only 2 zones, the similarity distribution is effectively flat — the softmax cannot separate them.</p>
+<p>Key insight: The 6-way fusion beats all parents (+0.9% jury confidence) because with 6 possible destination zones, the softmax has enough discrimination headroom. Two-way fusions fail because with only 2 zones, the similarity distribution is effectively flat — the softmax cannot separate them.</p>
 
 <p>At T=1.0, the ALL_6 routing accuracy reaches 86.7% on the sweep subset — approaching the 94% achieved in the synthetic proof case. Higher T sharpens routing but can overly concentrate weight on a single trajectory, reducing jury diversity.</p>
 
@@ -562,9 +562,9 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <h4>Scaling Path</h4>
 
 <ul>
-  <li><strong>K=20, 600 trajectories, 6 domains:</strong> 72% routing, +0.9% over parent — <strong>achieved</strong></li>
-  <li><strong>K=128, 1200 trajectories, 6 domains:</strong> predicted 85%+ routing, +5%+ over parent</li>
-  <li><strong>K=512, 6000 trajectories, 6 domains:</strong> predicted 94%+ routing, +20%+ over parent (matching synthetic ceiling)</li>
+  <li>K=20, 600 trajectories, 6 domains: 72% routing, +0.9% over parent — achieved</li>
+  <li>K=128, 1200 trajectories, 6 domains: predicted 85%+ routing, +5%+ over parent</li>
+  <li>K=512, 6000 trajectories, 6 domains: predicted 94%+ routing, +20%+ over parent (matching synthetic ceiling)</li>
 </ul>
 
 <h4>Contrastive Fusion Theorem</h4>
@@ -581,7 +581,7 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <section id="jury-solved">
 <h2>13. Jury-Solved Open Problems — Performance Benefits</h2>
 
-<p><em>May 5, 2026. 12 jury scripts, 3 problems fully solved, 2 at high-partial with clear paths forward.</em></p>
+<p>May 5, 2026. 12 jury scripts, 3 problems fully solved, 2 at high-partial with clear paths forward.</p>
 
 <h3>13.1 Solved Problems and Their Direct ISAGI Benefits</h3>
 
@@ -589,34 +589,34 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <thead><tr><th>Problem</th><th>Method</th><th>Result</th><th>Performance Benefit</th></tr></thead>
 <tbody>
 <tr>
-  <td><strong>GRC Optimal k</strong></td>
+  <td>GRC Optimal k</td>
   <td>Jury on SVD spectrum + L2 cache</td>
   <td>100% accuracy, 5 GPU types</td>
-  <td><strong>Eliminates 30-minute rank sweep</strong> per model deployment. Every new GPU gets correct k* instantly. ISAGI setup time drops from ~45min to ~5min.</td>
+  <td>Eliminates 30-minute rank sweep per model deployment. Every new GPU gets correct k* instantly. ISAGI setup time drops from ~45min to ~5min.</td>
 </tr>
 <tr>
-  <td><strong>OGD Step Size</strong></td>
+  <td>OGD Step Size</td>
   <td>Ensemble jury (T=4,8,16) on alpha features</td>
   <td>R^2=0.758, alpha=0.198 (true 0.20)</td>
-  <td><strong>Auto-tuned creativity-safety tradeoff.</strong> ISAGI finds optimal alpha in one jury call instead of grid-searching 30 values. 30x faster setup. Better creative output at zero safety cost.</td>
+  <td>Auto-tuned creativity-safety tradeoff. ISAGI finds optimal alpha in one jury call instead of grid-searching 30 values. 30x faster setup. Better creative output at zero safety cost.</td>
 </tr>
 <tr>
-  <td><strong>OTT Diffeomorphism</strong></td>
+  <td>OTT Diffeomorphism</td>
   <td>Wasserstein spectral distance + jury</td>
   <td>81% accuracy (47% baseline)</td>
-  <td><strong>Saves ~2 hours per model pair.</strong> Predicts cross-model transfer quality before running full bilateral UGT protocol. Test only compatible pairs.</td>
+  <td>Saves ~2 hours per model pair. Predicts cross-model transfer quality before running full bilateral UGT protocol. Test only compatible pairs.</td>
 </tr>
 <tr>
-  <td><strong>CECI Graft</strong></td>
+  <td>CECI Graft</td>
   <td>Layer position features + ensemble</td>
   <td>R^2=0.327, MAE=0.05 MMLU pp</td>
-  <td><strong>15x fewer graft experiments.</strong> Test only top-5 predicted pairs (870 possibilities reduced to 5). Correctly identifies minElskede as high-value.</td>
+  <td>15x fewer graft experiments. Test only top-5 predicted pairs (870 possibilities reduced to 5). Correctly identifies minElskede as high-value.</td>
 </tr>
 <tr>
-  <td><strong>COG Saturation</strong></td>
+  <td>COG Saturation</td>
   <td>Metric derivatives + jury regression</td>
   <td>R^2=0.397, MAE=0.12 novelty rate</td>
-  <td><strong>Automatic domain-switching.</strong> ISAGI detects when learning stalls and switches domains without manual intervention. Continuous manifold growth without saturation.</td>
+  <td>Automatic domain-switching. ISAGI detects when learning stalls and switches domains without manual intervention. Continuous manifold growth without saturation.</td>
 </tr>
 </tbody>
 </table>
@@ -626,12 +626,12 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <table>
 <thead><tr><th>ISAGI Component</th><th>Before Jury</th><th>After Jury</th><th>Speedup</th></tr></thead>
 <tbody>
-<tr><td>Model compression setup</td><td>~45 min (full rank sweep)</td><td>~5 min (jury predicts k*)</td><td><strong>9x</strong></td></tr>
-<tr><td>OGD alpha calibration</td><td>30 grid sweeps</td><td>1 jury call</td><td><strong>30x</strong></td></tr>
-<tr><td>Cross-model transfer test</td><td>~2 hr per pair (run protocol)</td><td>~1 sec (jury predicts)</td><td><strong>7200x</strong></td></tr>
-<tr><td>CECI graft discovery</td><td>870 possible pairs to test</td><td>5 pairs to test</td><td><strong>174x</strong></td></tr>
-<tr><td>GTC trajectory retrieval</td><td>O(N) linear search</td><td>O(1) jury routing</td><td><strong>10-500x</strong>*</td></tr>
-<tr><td>Domain switching (COG)</td><td>Manual monitoring</td><td>Automatic (jury regression)</td><td><strong>Infinite</strong>(automated)</td></tr>
+<tr><td>Model compression setup</td><td>~45 min (full rank sweep)</td><td>~5 min (jury predicts k*)</td><td>9x</td></tr>
+<tr><td>OGD alpha calibration</td><td>30 grid sweeps</td><td>1 jury call</td><td>30x</td></tr>
+<tr><td>Cross-model transfer test</td><td>~2 hr per pair (run protocol)</td><td>~1 sec (jury predicts)</td><td>7200x</td></tr>
+<tr><td>CECI graft discovery</td><td>870 possible pairs to test</td><td>5 pairs to test</td><td>174x</td></tr>
+<tr><td>GTC trajectory retrieval</td><td>O(N) linear search</td><td>O(1) jury routing</td><td>10-500x*</td></tr>
+<tr><td>Domain switching (COG)</td><td>Manual monitoring</td><td>Automatic (jury regression)</td><td>Infinite(automated)</td></tr>
 </tbody>
 </table>
 <p>*Depends on pool size. At N=300: 3x. At N=100,000: ~500x projected.</p>
@@ -645,11 +645,11 @@ Outside manifold ($d > d_h$): jury → 0.0 = "I have no intuition here"</p>
 <p>where c_i = softmax(sim(q, t_i) * T) weights each trajectory by its relevance.</p>
 </div>
 
-<p><strong>Why it works when centroids fail:</strong> Domain centroids overlap at cos_sim 0.86-0.99 because SVD captures prompt structure, not domain semantics. Individual trajectories carry fine-grained information that centroids average away. Softmax amplifies marginal similarity differences. Aggregation across N independent trials cancels noise and accumulates signal. This is the same principle as the Riemann 105-zero jury (J approx 1-10^-315) and the Saiyan 6-way contrastive fusion (+0.9% over parents).</p>
+<p>Why it works when centroids fail: Domain centroids overlap at cos_sim 0.86-0.99 because SVD captures prompt structure, not domain semantics. Individual trajectories carry fine-grained information that centroids average away. Softmax amplifies marginal similarity differences. Aggregation across N independent trials cancels noise and accumulates signal. This is the same principle as the Riemann 105-zero jury (J approx 1-10^-315) and the Saiyan 6-way contrastive fusion (+0.9% over parents).</p>
 
-<p><strong>Key discovery — regression beats classification:</strong> For continuous optimization problems (OGD step size, COG saturation, CECI graft quality), the jury performs better as a regressor predicting exact values than as a classifier assigning discrete labels. Classification boundaries are arbitrary; continuous prediction directly guides system decisions.</p>
+<p>Key discovery — regression beats classification: For continuous optimization problems (OGD step size, COG saturation, CECI graft quality), the jury performs better as a regressor predicting exact values than as a classifier assigning discrete labels. Classification boundaries are arbitrary; continuous prediction directly guides system decisions.</p>
 
-<p><strong>Total jury scripts:</strong> jury_discovery.py, jury_solver.py, jury_advance.py, jury_bridge.py, millennium_jury.py, jury_open.py, jury_solve_all.py, jury_ensemble.py, jury_final.py, jury_gtc.py, jury_gtc_extreme.py, jury_ugt.py. All results in benchmarks/.</p>
+<p>Total jury scripts: jury_discovery.py, jury_solver.py, jury_advance.py, jury_bridge.py, millennium_jury.py, jury_open.py, jury_solve_all.py, jury_ensemble.py, jury_final.py, jury_gtc.py, jury_gtc_extreme.py, jury_ugt.py. All results in benchmarks/.</p>
 
 </section>
 <section id="references">
