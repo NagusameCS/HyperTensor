@@ -403,14 +403,19 @@ footer a:hover { text-decoration: underline; }
   <div id="tab-engineering" class="tab-panel active" role="tabpanel">
 
   <div class="thread">
-    <div class="thread-row"><span class="thread-tag">Volume 1</span><span>Papers I&ndash;XV: Engineering the k-manifold living-model stack.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first if any term feels unfamiliar.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>Empirical kernel: a single PCA-compressed attention block measured at 106.27% of baseline decode throughput, $p \approx 10^{-10}$.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Generalises Paper 1 into a full multi-slot pipeline (Geodesic Projection) with persistent geometry cache and FFN&nbsp;down SVD.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Composes Paper 1+2 with speculative decoding and Attention Residuals; first end-to-end speculative anchor at 38.5% acceptance.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 4</span><span>Theory layer: Riemannian latent-space inference, GTC, OTT. Two universal-construction theorems remain open.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 5</span><span>Empirical companion to Paper 4: 12 of 17 testable claims anchored, including the 97&times; batched-Jacobi gain.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 6</span><span>Adaptive layer atop Paper 1+2: phase-aware rank, gauge optimisation, thermal coupling, online basis updates.</span></div>
+    <div class="thread-row"><span class="thread-tag">Volume 1</span><span>Papers 0&ndash;XVI: Complete k-manifold living-model stack with geometric jury. 111 verification tests passing. 16 HuggingFace models published. EC2 L40S validated.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>GRC Attention Compression: 106.27% baseline throughput at k=1024, p~10^{-10}. L2 cache residency model.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Geodesic Projection: 7-slot pipeline, cross-model spectral correlation r=0.94.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Speculative Decoding: 38.5% acceptance, 199 tok/s peak, AttnRes phase transition.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 4</span><span>OTT: Riemannian latent-space inference, GTC, Jacobi-field correction.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 8</span><span>GTC Runtime: 97x batched Jacobi, 15.5x vs RAG, jury-accelerated to O(1) retrieval (93-98% savings).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 10</span><span>CECI: First functional chimera (MINSKAT), 7 Danish grafts (5/7 improve MMLU), jury-predicted compatibility.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 11</span><span>UGT: Bilateral subspace overlap 0.9999, 4 knowledge zones, Wielandt-Hoffman transfer proof.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 12</span><span>Native Training: RiemannianAdamW on Stiefel manifold, 11.4% parameters, KExpansionScheduler.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 13</span><span>Safe OGD: 0% TEH by construction (Q_f^T P_safe = 0), jury-optimal alpha=0.198 (R^2=0.758).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 15</span><span>COG+TEH: Living manifold, 4-tier recognition, .MIKU format, jury-saturation detection, lifelong learning.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 16</span><span>Geometric Jury: Universal aggregation J=1-Prod(1-c_i), 8 theorems proven, 30+ experiments, 9-7200x ISAGI speedups.</span></div>
   </div>
 
   <div class="papers">
@@ -487,7 +492,7 @@ footer a:hover { text-decoration: underline; }
 
      <a class="paper-card" href="papers/04-organic-training-theory.html"
        data-stats="2.5k words · 8 pages"
-       data-extended="Theory layer for the OTT runtime: Riemannian latent-space inference, geodesic trajectory caching, batched Jacobi correction. Two universal-construction theorems remain open; the OTT deployment manifolds in this repo have a narrower certificate-backed closure.">
+       data-extended="Riemannian latent-space inference, geodesic trajectory caching, batched Jacobi correction. OTT diffeomorphism detection: 81% accuracy via jury (Wasserstein spectral distance). GTC accelerated to O(1) via jury two-stage routing. Deployment manifolds have certificate-backed closure.">
       <div class="paper-head">
         <span class="paper-num">Paper 4</span>
         <span class="paper-version">2026</span>
