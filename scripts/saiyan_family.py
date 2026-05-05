@@ -515,13 +515,14 @@ class LivingManifold:
         """COG expansion: integrate trajectory into metric."""
         h_norm = F.normalize(h_k.unsqueeze(0).float(), dim=1).squeeze(0)
         J = torch.outer(h_norm, h_norm)
-        self.metric = self.metric + self.eta * J + 0.001 * torch.eye(self.K)
+        self.metric = self.metric.to(h_k.device) + self.eta * J + 0.001 * torch.eye(self.K, device=h_k.device)
         self.trajectories.append({"proj": h_k.detach().cpu(), "label": label[:80]})
         self.n_expansions += 1
     
     def growth(self):
         """Measure how much the metric has grown from identity."""
-        return torch.norm(self.metric - torch.eye(self.K)).item()
+        eye = torch.eye(self.K, device=self.metric.device)
+        return torch.norm(self.metric - eye).item()
     
     def save(self, path):
         torch.save({"metric": self.metric, "trajectories": self.trajectories,
