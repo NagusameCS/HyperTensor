@@ -546,7 +546,13 @@ print(f"  d={d_model}, VRAM used={vram:.1f}GB")
 
 # Build UGT basis
 print(f"\n[2] Building UGT basis (K={K_TARGET})...")
-cal_prompts = TRAIN_DATA["general"][:K_TARGET]
+# Pool all training prompts for calibration to get K=512 SVD output
+all_cal_prompts = []
+for domain_prompts in TRAIN_DATA.values():
+    all_cal_prompts.extend(domain_prompts)
+random.shuffle(all_cal_prompts)
+cal_prompts = all_cal_prompts[:K_TARGET]
+print(f"  Pooling {len(all_cal_prompts)} prompts from all domains for calibration, using {len(cal_prompts)}")
 hidden_states = []
 for p in cal_prompts:
     enc = tok(p, return_tensors="pt", truncation=True, max_length=64).to(DEVICE)
