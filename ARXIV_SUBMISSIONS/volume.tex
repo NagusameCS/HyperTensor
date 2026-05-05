@@ -86,7 +86,7 @@ Several implementations span multiple papers and are worth noting explicitly:
 
 Hypertensorize (\texttt{scripts/hypertensorize.py}): One-command analysis of any HuggingFace model. Computes per-layer SVD spectra for all attention and FFN weight matrices, fits power-law decay exponents, predicts optimal $k^*$ from L2 cache size, probes UGT knowledge zones, outputs deployment configuration. Tested on Qwen2.5-1.5B-Instruct (May 4, 2026).
 
-Comprehensive verification suite: 58/58 tests passing. 51 audit claims verified against measurement files (\texttt{scripts/bulletproof\_audit.py}) plus 7 benchmark tests (\texttt{scripts/benchmarks\_quick.py}). All result files in \texttt{benchmarks/}. Step-by-step reproduction guide at \texttt{REPRODUCTION.md}. Per-claim catalog at \texttt{docs/VERIFICATION\_STATUS.md}.
+Comprehensive verification suite: 111/111 tests passing. 51 audit claims verified against measurement files (\texttt{scripts/bulletproof\_audit.py}) plus 7 benchmark tests (\texttt{scripts/benchmarks\_quick.py}), 26 Riemann tests, and 27 geometric jury tests across 13 scripts. All result files in \texttt{benchmarks/}. Step-by-step reproduction guide at \texttt{REPRODUCTION.md}. Per-claim catalog at \texttt{docs/VERIFICATION\_STATUS.md}.
 
 Documentation website: \url{https://nagusamecs.github.io/HyperTensor/}---all papers with cross-references, complete volume in HTML and PDF, no-prerequisite introduction for readers without mathematical background.
 

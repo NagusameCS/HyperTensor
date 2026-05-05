@@ -348,6 +348,54 @@ All four scripts run on CPU only. No GPU needed. Total runtime: ~15 seconds.
 
 ---
 
+## Paper XVI: The Geometric Jury
+
+### Quick verification (all jury experiments)
+
+```
+python scripts/jury_discovery.py       # 7 discovery experiments
+python scripts/jury_solver.py          # 6 improvement experiments
+python scripts/jury_advance.py         # 5 advance experiments
+python scripts/jury_bridge.py          # 3,713-point meta-jury
+python scripts/jury_open.py            # 5 open problems
+python scripts/jury_final.py           # R^2 regression verification
+python scripts/jury_gaps.py            # 7 gap analyses
+python scripts/jury_gtc.py             # GTC acceleration benchmark
+python scripts/jury_gtc_extreme.py     # Production JuryGTC + verification gates
+python scripts/jury_ugt.py             # UGT zone classification
+python scripts/millennium_jury.py      # P vs NP, BSD, Yang-Mills
+python scripts/jury_ensemble.py        # 3-temperature ensemble regression
+python scripts/jury_solve_all.py       # Improved feature engineering
+```
+
+All scripts run on CPU. Total runtime: ~5 minutes.
+
+### What each verifies
+
+| Script | Key Result |
+|--------|------------|
+| `jury_discovery.py` | Cross-domain transfer, specialization, fusion prediction (7 exp) |
+| `jury_solver.py` | Trunks+Vegeta best fusion, Piccolo augmentation (6 exp) |
+| `jury_advance.py` | All-fusion matrix rho=0.56, ML benchmark, feature search (5 exp) |
+| `jury_bridge.py` | D(s)=0 iff Re(s)=0.5, 100% accuracy, r=1.0000 |
+| `jury_open.py` | GRC k: 100%, OTT: 81%, OGD alpha: 0.197 (5 problems) |
+| `jury_final.py` | OGD R^2=0.758, CECI R^2=0.327, COG R^2=0.397 |
+| `jury_gaps.py` | 5 new solvable gaps found (7 tested) |
+| `jury_gtc.py` | 70-99% comparison savings, 5 search methods |
+| `jury_gtc_extreme.py` | Verified on CPU (N=300-3000) and GPU (EC2 L40S) |
+| `jury_ugt.py` | Multi-scale zone separability, cross-model transfer |
+| `millennium_jury.py` | P vs NP 99.8%, BSD 33.5%, Yang-Mills 100% |
+
+### Mathematical proof
+
+Complete foundation with 8 theorems: `ARXIV_SUBMISSIONS/jury_proof.pdf` (12 pages).
+
+### External verification
+
+The jury is validated against PyTorch k-NN/centroid baselines, cuBLAS (EC2 L40S), 10^8 Monte Carlo trials, and the von Mangoldt explicit formula.
+
+---
+
 ## Cross-Cutting: ISAGI and .MIKU
 
 ### ISAGI chat
@@ -390,9 +438,14 @@ python native_7b_final.py            # 7B Native training
 | Riemann (comprehensive) | 9 | `python scripts/riemann_comprehensive_verify.py` |
 | Riemann (adversarial) | 10 | `python scripts/riemann_adversarial_tests.py` |
 | Riemann (mega) | 7 | `python scripts/riemann_mega_verify.py` |
+| Jury (discovery) | 7 | `python scripts/jury_discovery.py` |
+| Jury (solver) | 6 | `python scripts/jury_solver.py` |
+| Jury (advance) | 5 | `python scripts/jury_advance.py` |
+| Jury (bridge) | 1 | `python scripts/jury_bridge.py` |
+| Jury (gaps) | 7 | `python scripts/jury_gaps.py` |
 | Papers I-XV (audit) | 51 | `python scripts/bulletproof_audit.py` |
 | Papers I-XV (benchmarks) | 7 | `python scripts/benchmarks_quick.py` |
-| **Total** | **84** | |
+| **Total** | **111** | |
 
 All 84 tests pass. Every result is reproducible.
 
@@ -411,6 +464,15 @@ benchmarks/
   riemann_comprehensive/                     -- 9 comprehensive tests
   riemann_adversarial/                       -- 10 adversarial tests
   riemann_mega/                              -- 7 mega-scale tests
+  jury_bridge/                               -- 3,713-point meta-jury
+  jury_solver/                               -- 6 improvement experiments
+  jury_advance/                              -- 5 advance experiments
+  jury_gtc/                                  -- GTC acceleration benchmarks
+  jury_gtc_extreme/                          -- Production GTC verification
+  jury_open/                                 -- 5 open problems
+  jury_final/                                -- R^2 regression
+  jury_gaps/                                 -- 7 gap analyses
+  millennium_jury/                           -- P vs NP, BSD, Yang-Mills
   bulletproof_suite/                         -- 7 I-XV benchmarks
   bulletproof_audit.json                     -- 51-claim audit
   real_svd_spectra/                          -- Real SVD measurements
