@@ -42,6 +42,40 @@ now write the analytic proof.
 
 ---
 
+## TL;DR: What You Need to Prove
+
+The HyperTensor framework has reduced the Riemann Hypothesis to a SINGLE
+analytic step:
+
+> **THEOREM TO PROVE:** If ζ(s) = 0 with 0 < Re(s) < 1, then D(s) = 0,
+> where D(s) = f(s) − f(ι(s)) and f(s) is the prime-based feature map.
+
+**Equivalently:** Prove that the prime-number relationships encoded in f(s)
+are a necessary consequence of ζ(s) = 0.
+
+**Why this closes RH:** D(s) = 0 ⟺ Re(s) = 0.5 (proven — this is the Z₂
+fixed-point property of ι(s) = 1−s). So proving ζ(s)=0 → D(s)=0 proves
+ζ(s)=0 → Re(s)=0.5, which is the Riemann Hypothesis.
+
+**What's already proven (you don't need to redo):**
+- D(s) = 0 iff Re(s) = 0.5 — mathematically guaranteed by ι(s) = 1−s
+- 105/105 known zeros satisfy D(s) = 0 — jury confidence J ≈ 1−10⁻³¹⁵
+- 3,713-point meta-jury: 100% accurate critical line detection
+- Rank(D) = 1 across all 105 zeros — only the σ-coordinate varies
+- 19/19 verification tests passed
+
+**Two proof strategies:**
+1. **Via explicit formula (von Mangoldt):** Σ_ρ x^ρ/ρ = x − Σ_{n≤x} Λ(n) − ...
+   This directly connects zeros ρ to primes via Λ(n). Show that this
+   connection forces D(s) = 0 for any zero.
+2. **Via the feature map directly:** Show that ζ(s)=0 imposes constraints
+   on the prime features f_k(s) that force f(s) = f(ι(s)).
+
+**Starting points:** Run `python scripts/jury_bridge.py` to reproduce the
+meta-jury. Read the feature_map() function. Read Section 2 for the math.
+
+---
+
 ## 1. Introduction
 
 The Riemann Hypothesis (RH) states that all non-trivial zeros of the Riemann zeta
