@@ -853,59 +853,46 @@ footer a:hover { text-decoration: underline; }
 
   <div id="tab-models" class="tab-panel" role="tabpanel" aria-hidden="true">
     <p style="max-width:62ch;color:var(--text-soft);margin-bottom:1.4rem">
-      Pre-computed model artefacts published as GitHub Releases. Each entry
-      lists the underlying base model, the rank or training preset, the
-      file size, and the resource requirements (VRAM, host RAM, calibration
-      time elided). Drop the cache file next to the matching GGUF and the
-      runtime will detect and use it on next launch; first-run calibration
-      is skipped entirely.
+      Published models on HuggingFace and Ollama. 7 Danish grafted models, 9 Saiyan living manifolds, plus GRC compression caches.
     </p>
 
+    <h3 style="margin-top:1.5rem">HuggingFace Models (16 published)</h3>
+    <div class="papers-grid" style="display:flex;flex-wrap:wrap;gap:0.8rem">
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/minElskede">
+        <div class="paper-head"><span class="paper-num">CECI</span></div>
+        <p style="font-size:0.9rem">minElskede — Best graft: +6pp MMLU, +13pp BoolQ</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/minFjollede">
+        <div class="paper-head"><span class="paper-num">CECI</span></div>
+        <p style="font-size:0.9rem">minFjollede — Cross-model graft (Qwen to SmolLM2)</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/saiyan-goku">
+        <div class="paper-head"><span class="paper-num">Saiyan</span></div>
+        <p style="font-size:0.9rem">Goku — Math domain specialist (50 trajectories)</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/saiyan-vegeta">
+        <div class="paper-head"><span class="paper-num">Saiyan</span></div>
+        <p style="font-size:0.9rem">Vegeta — Code domain specialist (44 trajectories)</p>
+      </a>
+    </div>
+    <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-soft)">Full list: minSode, minElskede, minFjollede, minHjerteven, minKatte, minMod, minSmukke, saiyan-goku, saiyan-vegeta, saiyan-gohan, saiyan-piccolo, saiyan-trunks, saiyan-yamcha, saiyan-gogeta, saiyan-vegito, saiyan-gotenks. All at <a href="https://huggingface.co/NagusameCS">huggingface.co/NagusameCS</a>.</p>
+
+    <h3 style="margin-top:1.5rem">GRC Compression Caches</h3>
     <div class="papers-grid">
       <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-FFBC2BB6">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1024</span></div>
-        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1024 cache</h3>
-        <p>Pre-computed shared-basis projection cache for a Paper&nbsp;A
-        super-baseline configuration. 729&nbsp;MB. VRAM at decode:
-        +36&nbsp;MiB over baseline. Skip first-run calibration
-        (60-120&nbsp;s on Ryzen&nbsp;9 7940HS).</p>
+        <p style="font-size:0.9rem">Llama-3.1-8B-Instruct Q4_K_M, 729 MB</p>
       </a>
       <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-2405A3B6">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536</span></div>
-        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 cache</h3>
-        <p>Headline configuration: throughput statistically indistinguishable
-        from baseline at +13.30% perplexity (6.79 -&gt; 7.69). 1.09&nbsp;GB.
-        VRAM same as above.</p>
-      </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-626D1BB6">
-        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=2048</span></div>
-        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=2048 cache</h3>
-        <p>Higher-rank reference point used in the multi-k NCU sweep
-        (Paper&nbsp;A sec:falsification). 1.46&nbsp;GB. Working set still
-        below the 32&nbsp;MiB L2 budget.</p>
-      </a>
-      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-D4DB0E08">
-        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536*</span></div>
-        <h3>Llama-3.1-8B-Instruct Q4_K_M, GRC k=1536 (alt. preset)</h3>
-        <p>Alternate calibration preset (heavier W_proj footprint) at the same
-        nominal rank. 1.31&nbsp;GB. Useful for ablating calibration-corpus
-        sensitivity.</p>
+        <p style="font-size:0.9rem">Llama-3.1-8B-Instruct Q4_K_M, 1.09 GB (headline config)</p>
       </a>
       <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-3C2C89D7">
         <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">small</span></div>
-        <h3>SmolLM2-135M-Instruct Q8_0, GRC k=512 cache</h3>
-        <p>Cross-model transfer check from Paper&nbsp;A (1.45&times; decode
-        ratio). 59&nbsp;MB.</p>
+        <p style="font-size:0.9rem">SmolLM2-135M-Instruct Q8_0, k=512, 59 MB</p>
       </a>
     </div>
 
-    <p style="max-width:62ch;color:var(--text-soft);margin-top:2rem;font-size:0.92rem">
-      Each release page documents: file SHA256, exact base-model commit,
-      rank parameter, peak VRAM during build, peak VRAM during decode,
-      build time, runtime version, and the matching binary commit hash.
-      A full machine-readable manifest lives at
-      <a href="https://github.com/NagusameCS/HyperTensor/blob/main/docs/data/release_manifest.json">docs/data/release_manifest.json</a>.
-    </p>
   </div><!-- /#tab-models -->
 
 </section>
