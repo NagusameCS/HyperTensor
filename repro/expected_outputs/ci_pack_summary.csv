@@ -1,0 +1,3 @@
+"case_name","baseline_decode_mean","baseline_decode_ci95","grc_decode_mean","grc_decode_ci95","decode_pct_of_baseline_mean","baseline_overall_mean","baseline_overall_ci95","grc_overall_mean","grc_overall_ci95","overall_pct_of_baseline_mean"
+"coding_256","35.68","0.347312884874721","34.86","2.02041682828074","97.7017937219731","33.06","0.319666326033881","31.94","1.90695006751619","96.6122202056866"
+"reasoning_256","35.58","0.312372598029983","35.22","2.42311812341041","98.9881956155144","32.98","0.272996410232809","32.24","2.28203263780341","97.7562158884172"

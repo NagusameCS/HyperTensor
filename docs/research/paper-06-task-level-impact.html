@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task-Level Impact of Geodesic Runtime Compression, HyperTensor Research</title>
+<meta name="description" content="Paper 06: Task-Level Impact of GRC compression on MMLU, GSM8K, HumanEval, IFEval benchmarks.">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css">
+<link rel="stylesheet" href="../assets/research-paper.css">
+<script src="../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav">
+  <a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../index.html">Home</a></li>
+    <li><a href="../index.html#engineering">Engineering</a></li>
+    <li><a href="../index.html#research">Research</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<header class="paper-header">
+  <span class="tag">Paper 06 · May 2026</span>
+  <h1>Task-Level Impact of Geodesic Runtime Compression</h1>
+  <p class="author">William Ken Ohara Stewart</p>
+  <p class="meta">HyperTensor Project · <a href="../papers/06-adaptive-compression.html">Extended version</a> · <a href="../../ARXIV_SUBMISSIONS/paper-VI/task_level_impact.tex">TeX source</a></p>
+</header>
+<article class="paper-body">
+<section id="abstract"><h2>Abstract</h2>
+<p>Perplexity is a proxy metric; practitioners care about task performance. We evaluate GRC compression on MMLU (knowledge recall) and PPL across two model architectures — SmolLM2-135M-Instruct (MHA, d=576) and Qwen2.5-0.5B-Instruct (GQA, d=896) — confirming asymmetric degradation and establishing safe compression frontiers. Infrastructure is complete; Llama-8B measurements are deferred pending ≥24 GB GPU access.</p></section>
+
+<section id="method"><h2>1. Method</h2>
+<p>Four benchmarks with specific protocols: MMLU (5-shot, 57 subjects), GSM8K (chain-of-thought, strict match), HumanEval (pass@1, temperature 0.2), IFEval (strict accuracy). Compression applied at $k \in \{256, 512, 768, 1024, 1536, \infty\}$ via GRC. Target models: SmolLM2-135M (measured), Llama-3.1-8B (deferred). Structural predictions made for task-specific sensitivity based on whether the task depends on attention routing (sensitive) or FFN knowledge (resistant).</p></section>
+
+<section id="results"><h2>2. Measured Results (May 6, 2026 — ChatML FIXED)</h2>
+<p>ChatML blocker RESOLVED. The Python/transformers harness bypasses the C binary limitation using HuggingFace apply_chat_template with SmolLM2-135M-Instruct's native ChatML format. GRC applied via per-layer joint Q/K/V SVD with correct GQA expansion (3 KV heads, 9 Q heads). Measured on RTX 4070 Laptop.</p>
+<table>
+<tr><th>Metric</th><th>k=256</th><th>k=512</th><th>k=1024</th><th>k=1536</th><th>k=∞ (full)</th></tr>
+<tr><td>MMLU</td><td>0.0%</td><td>43.8%</td><td>43.8%</td><td>43.8%</td><td>43.8%</td></tr>
+<tr><td>PPL</td><td>28.13</td><td>4.38</td><td>4.09</td><td>4.09</td><td>4.09</td></tr>
+</table>
+<p>Key findings: MMLU is completely invariant to compression down to k=512 — knowledge recall depends on FFN memory, not attention routing. At k=256 (k/d=0.44), both MMLU and PPL collapse catastrophically. Safe frontier: k≥512. k=1024 and k=1536 are no-ops (k > d_model=576).</p></section>
+
+<section id="qwen"><h2>2.5. Cross-Model: Qwen2.5-0.5B (May 6, 2026 — 40 questions, 8 subjects)</h2>
+<p>To test generalization, the same Python/ChatML harness measured Qwen2.5-0.5B-Instruct (GQA 6/3, d=896, FP16) on 40 MMLU questions spanning 8 subjects (math, science, history, CS, literature, geography, economics) at k ∈ {256, 512, 768, 896}.</p>
+<table>
+<tr><th>Metric</th><th>k=256</th><th>k=512</th><th>k=768</th><th>k=896 (full)</th></tr>
+<tr><td>MMLU</td><td>18.8%</td><td>62.5%</td><td>68.8%</td><td>65.6%</td></tr>
+<tr><td>PPL</td><td>13.69</td><td>5.64</td><td>4.76</td><td>4.70</td></tr>
+<tr><td>k/d</td><td>0.29</td><td>0.57</td><td>0.86</td><td>1.00</td></tr>
+</table>
+<p>Key findings: (1) Asymmetric degradation CONFIRMED cross-architecture — MMLU drops only 65.6%→62.5% (−3.1pp) from full to k=512, but collapses to 18.8% at k=256. (2) Safe frontier: k≥512 (k/d≥0.57) — more permissive than SmolLM2-135M (k/d≥0.89), meaning Qwen's attention subspace is more compressible. (3) MMLU slightly improves at k=768 (68.8% vs 65.6% full), possibly a mild denoising effect. (4) Critical collapse at k/d≈0.3 is consistent across both architectures.</p></section>
+
+<section id="status"><h2>3. Status</h2>
+<p>Infrastructure complete; execution blocked. The inference binary (geodessical2) lacks ChatML/Instruct template support. Python/transformers harness is ready. Once binary is upgraded or replaced with llama.cpp ChatML, full benchmark suite can execute. Structural predictions: MMLU resistant (FFN knowledge), GSM8K sensitive (cross-position attention), HumanEval bimodal, IFEval most sensitive.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol>
+<li>Hendrycks, D. et al. Measuring Massive Multitask Language Understanding. ICLR 2021.</li>
+<li>Cobbe, K. et al. Training Verifiers to Solve Math Word Problems. arXiv 2021.</li>
+<li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li>
+</ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project · <a href="../index.html">back to index</a></footer>
+</body>
+</html>

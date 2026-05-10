@@ -1,0 +1,36 @@
+{
+  "model": "Gemma4-27B",
+  "blob": "C:\\Users\\legom\\.ollama\\models\\blobs\\sha256-280af6832eca23cb322c4dcc65edfea98a21b8f8ab07dc7553bd6f7e6e7a3313",
+  "n_layers": 60,
+  "d": 5376,
+  "threshold": 0.95,
+  "requested_layers": [
+    0,
+    12,
+    24,
+    36,
+    48,
+    58
+  ],
+  "used_layers": [
+    0,
+    12,
+    24,
+    36,
+    48,
+    58
+  ],
+  "skipped_layers": [],
+  "per_layer_kint": [
+    3416,
+    3165,
+    3896,
+    3998,
+    4342,
+    4002
+  ],
+  "mean_kint": 3803.1666666666665,
+  "mean_kint_over_d": 0.7074342757936508,
+  "min_kint": 3165,
+  "max_kint": 4342
+}

@@ -1,0 +1,86 @@
+{
+  "models": [
+    "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "H1_raw": {
+    "n_prompts": 400,
+    "k_neighbors": 10,
+    "mutual_knn_raw": 0.46875200650742443,
+    "linear_cka_raw": 0.8662014603614807,
+    "shuffle_null_knn_mean": 0.013615884072927414,
+    "shuffle_null_knn_std": 0.0019239032443433876,
+    "z_score_vs_null": 236.56913297104566
+  },
+  "H2_projected": {
+    "k=16": {
+      "svd": {
+        "mutual_knn": 0.45764291650901556,
+        "cka": 0.8623318672180176
+      },
+      "random": {
+        "mutual_knn": 0.3243871071309152,
+        "cka": 0.5849445098828611
+      }
+    },
+    "k=32": {
+      "svd": {
+        "mutual_knn": 0.48102645398117533,
+        "cka": 0.8644529581069946
+      },
+      "random": {
+        "mutual_knn": 0.3838685718736028,
+        "cka": 0.7424080246062494
+      }
+    },
+    "k=64": {
+      "svd": {
+        "mutual_knn": 0.49778153713331735,
+        "cka": 0.8657402396202087
+      },
+      "random": {
+        "mutual_knn": 0.43311200710194514,
+        "cka": 0.8052491662371081
+      }
+    },
+    "k=128": {
+      "svd": {
+        "mutual_knn": 0.4971732728485824,
+        "cka": 0.8661211133003235
+      },
+      "random": {
+        "mutual_knn": 0.45394339299331554,
+        "cka": 0.8461722554982316
+      }
+    }
+  },
+  "H3_procrustes": {
+    "k=32": {
+      "svd_mean": 0.8696836034456888,
+      "svd_std": 0.0012881258914715346,
+      "random_mean": 0.8787491635760003,
+      "random_std": 0.005275097247674286,
+      "ratio_random_over_svd": 1.0104239749885977
+    },
+    "k=64": {
+      "svd_mean": 0.86788543065389,
+      "svd_std": 0.0010257163271033649,
+      "random_mean": 0.8788085629514538,
+      "random_std": 0.0015476815925739755,
+      "ratio_random_over_svd": 1.0125859150433416
+    },
+    "k=128": {
+      "svd_mean": 0.8686289588610331,
+      "svd_std": 0.0009932305852125014,
+      "random_mean": 0.8595987329124335,
+      "random_std": 0.006167576023905315,
+      "ratio_random_over_svd": 0.9896040468643363
+    }
+  },
+  "summary": {
+    "interpretation": "H1: if mutual_knn_raw >> shuffle_null, the two independently trained models share structural agreement on the same prompts (the Platonic-representation reading); H2: if svd preserves that agreement at low k while random does not, an SVD-derived basis B captures real structure rather than just rank; H3: lower Procrustes residual under SVD vs random means UGT's alignment construction does work at the level of the basis directions.",
+    "verdict_h1_universal_structure": true,
+    "verdict_h2_svd_preserves_structure": true,
+    "verdict_h3_alignment_uses_directions": false
+  }
+}

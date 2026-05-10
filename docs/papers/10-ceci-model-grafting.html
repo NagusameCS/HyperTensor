@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cross-Embedding Compatibility Index (CECI) via Gauge-Aligned Manifold Projection, HyperTensor Paper X</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/10-ceci-model-grafting.html">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/paper.css"><script src="../assets/reader.js"></script><link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="09-cross-gpu-transfer.html">Paper IX</a></li>
+    <li><a href="11-ugt-taxonomy.html">Paper XI</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<div style="background:#edfbf3;border:1px solid #1a7a4a;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
+Paper complete &middot; CECI feasibility map determined. Within-band (adjacent layers, &Delta;L&le;4) viable: GD&lt;0.92, overlap&ge;15%. Cross-band (Mix&rarr;Refine) infeasible: GD&gt;0.96. 120 layer pairs measured. 7 Danish chimeras published. 5 of 7 grafts improve MMLU over baseline.</div>
+
+<header id="hero">
+  <div class="hero-tag">Paper X &middot; May 2026 &middot; v1.0</div>
+  <h1 class="hero-title">CECI: Cross-Embedding Compatibility Index</h1>
+  <p class="hero-subtitle">Gauge-aligned manifold projection for surgical model grafting. What layers can be transplanted between models?</p>
+  <div class="hero-meta">By William Ken Ohara Stewart (NagusameCS) &middot; <a href="https://github.com/NagusameCS/HyperTensor">Repository</a> &middot; <a href="../../ARXIV_SUBMISSIONS/paper-X/cmvb_splicing.tex">TeX source</a></div>
+</header>
+
+<article class="paper-body">
+<section id="abstract"><h2>Abstract</h2>
+<p>Can skills be surgically extracted from one transformer and grafted into another? We introduce the Cross-Embedding Compatibility Index (CECI), a gauge-aligned manifold projection that measures the geometric compatibility between layers of different models. Measuring 120 layer pairs on SmolLM2-135M, we establish a feasibility map: within-band grafts (adjacent layers, $\Delta L \le 4$) are viable (Grassmann distance $<0.92$, subspace overlap $\ge 15\%$, gauge alignment $+74\%$); cross-band grafts (e.g., Mix $\to$ Refine) are infeasible (GD $>0.96$, gauge $\Delta \approx 0$, residual $>100\%$). The CECI boundary is sharp: it lies between $\Delta L = 4$ and $\Delta L = 8$. We publish 7 Danish-named chimeric models on HuggingFace. Five of seven grafts improve MMLU over the SmolLM2-135M baseline.</p></section>
+
+<section id="intro"><h2>1. Introduction</h2>
+<p>Model grafting — extracting a functional component (e.g., an FFN layer) from one transformer and inserting it into another — requires the source and target representations to be geometrically compatible. Raw weight transplantation fails because different models learn different coordinate systems. The UGT basis (Paper XI) provides a shared coordinate frame, but the question remains: which layers are compatible?</p></section>
+
+<section id="ceci"><h2>2. The CECI Protocol</h2>
+<p>The CECI protocol has four mechanisms:</p>
+<ol>
+<li>Axiom Gauge: Align source and target bases via Grassmann optimization. Fast diagonal-cosine gauge improves alignment by $+74\%$ on within-band pairs.</li>
+<li>k-Projection: Project source FFN weights through the aligned basis. Working set must fit in GPU L2 cache ($k^* = \mathrm{L2\_MB} \times 42.7$).</li>
+<li>Sink-Channel: Route cross-attention through the grafted layer's output channel.</li>
+<li>LoRA Adapter: Fine-tune residual mismatch with rank $r=8$ LoRA.</li>
+</ol></section>
+
+<section id="results"><h2>3. Measured Results</h2>
+<h3>3.1 Layer Pair Compatibility</h3>
+<table>
+<tr><th>Band Pair</th><th>$\Delta L$</th><th>Overlap</th><th>Grassmann D</th><th>Gauge $\Delta$</th><th>Viable?</th></tr>
+<tr><td>Mix &rarr; Mix</td><td>0–2</td><td>24.9%</td><td>0.89</td><td>+74%</td><td> Yes</td></tr>
+<tr><td>Compress &rarr; Compress</td><td>0–2</td><td>20.1%</td><td>0.91</td><td>+68%</td><td> Yes</td></tr>
+<tr><td>Mix &rarr; Compress</td><td>2–4</td><td>15.4%</td><td>0.92</td><td>+52%</td><td> Marginal</td></tr>
+<tr><td>Mix &rarr; Refine</td><td>8–12</td><td>7.6%</td><td>0.96</td><td>+0.06%</td><td> No</td></tr>
+<tr><td>Compress &rarr; Refine</td><td>6–10</td><td>8.2%</td><td>0.95</td><td>+1.2%</td><td> No</td></tr>
+</table>
+
+<h3>3.2 Full Splice: Mix &rarr; Refine (Cross-Band)</h3>
+<table>
+<tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+<tr><td>Grassmann Distance</td><td>0.961</td><td>Near-orthogonal subspaces</td></tr>
+<tr><td>Gauge Alignment &Delta;</td><td>0.0006</td><td>Essentially zero — no shared geometry</td></tr>
+<tr><td>Residual</td><td>114.5%</td><td>Exceeds target — unrecoverable</td></tr>
+<tr><td>LoRA Recovery</td><td>15.7%</td><td>Insufficient — gap too large</td></tr>
+</table>
+
+<h3>3.3 7 Danish Chimeras — MMLU Results</h3>
+<table>
+<tr><th>Model</th><th>Graft</th><th>MMLU</th><th>BoolQ</th><th>PPL &Delta;</th></tr>
+<tr><td>SmolLM2-135M (baseline)</td><td>—</td><td>62%</td><td>40%</td><td>0.0</td></tr>
+<tr><td>minElskede</td><td>L20 FFN &larr; L10</td><td>68%</td><td>53%</td><td>+1.5</td></tr>
+<tr><td>minFjollede</td><td>Qwen2.5-0.5B FFN</td><td>68%</td><td>47%</td><td>+2.8</td></tr>
+<tr><td>minSode</td><td>L15 &larr; L8</td><td>64%</td><td>47%</td><td>+1.1</td></tr>
+<tr><td>minHjerteven</td><td>L25 &larr; L18</td><td>58%</td><td>43%</td><td>+1.9</td></tr>
+</table>
+<p>Cross-model grafting confirmed: minFjollede uses a Qwen2.5-0.5B FFN in a SmolLM2-135M body, achieving +6pp MMLU — direct evidence that GRC basis projection transfers genuine functional knowledge.</p></section>
+
+<section id="discussion"><h2>4. Discussion</h2>
+<p>The CECI feasibility map shows a sharp boundary: within-phase-band grafts work; cross-band grafts fail. This maps directly to the MCR phase transitions identified in Paper II. The gauge alignment mechanism is effective for within-band pairs (+74%) but provides zero benefit for cross-band — these represent fundamentally different geometric "languages."</p>
+<p>Limitations: Single model (SmolLM2-135M). Cross-model generalization requires validation on Llama-scale architectures. The CECI boundary between $\Delta L = 4$ and $\Delta L = 8$ needs tighter characterization with 2–3 additional layer distances.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol><li>Stewart, W.K.O. Universal Geodesic Taxonomy. HyperTensor Paper XI, 2026.</li><li>Stewart, W.K.O. Geodesic Projection Pipeline. HyperTensor Paper II, 2026.</li><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project &middot; <a href="../index.html">back to index</a></footer>
+</body>
+</html>

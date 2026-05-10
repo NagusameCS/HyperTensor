@@ -1,0 +1,91 @@
+"""Round 2 audit: deeper sweep for AI-marketing tells and hyperbolic claims."""
+import pathlib, re
+
+P = pathlib.Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+t = P.read_text(encoding='utf-8')
+
+patterns = [
+    # hyperbolic / corny
+    r'\bworld[- ]first\b',
+    r'\bworld[- ]class\b',
+    r'\bbreakthrough\b',
+    r'\bgame[- ]chang(er|ing)\b',
+    r'\bredefin(e|es|ed|ing)\b',
+    r'\brevolutionar(y|ily|ize|izes|ized|izing)\b',
+    r'\bunparalleled\b',
+    r'\bunmatched\b',
+    r'\bcompletely\s+(?:new|novel|different)\b',
+    r'\bentirely\s+(?:new|novel|different)\b',
+    r'\b100\s*%\s+(?:safe|reliable|guaranteed|effective|accurate)\b',
+    r'\bzero[- ]flaw\b',
+    r'\bperfect(ly)?\b',
+    r'\bmagical(ly)?\b',
+    r'\bsurpris(ing|ingly|e|ed)\b',
+    r'\bimpressively?\b',
+    r'\binterestingly\b',
+    r'\bcuriously\b',
+    r'\bnaturally\b',
+    r'\bclearly\b',
+    r'\bobvious(ly)?\b',
+    r'\bsimply\b',
+    r'\bmerely\b',
+    r'\bnotably\b',
+    r'\bcrucially\b',
+    r'\bimportantly\b',
+    # phrases
+    r'\bin\s+conclusion\b',
+    r'\bto\s+sum(?:\s+|-)up\b',
+    r'\bin\s+summary\b',
+    r'\bgoing\s+forward\b',
+    r'\bmoving\s+forward\b',
+    r'\ball\s+in\s+all\b',
+    r'\bat\s+the\s+end\s+of\s+the\s+day\b',
+    r'\bnonetheless\b',
+    r'\bmoreover\b',
+    r'\bfurthermore\b',
+    # vague intensifiers
+    r'\bquite\b',
+    r'\brather\b',
+    r'\bfairly\b',
+    r'\bsomewhat\b',
+    r'\bin\s+a\s+sense\b',
+    # boasts
+    r'\bfirst\s+ever\b',
+    r'\bonly\s+method\s+(?:that\s+)?(?:can|with)\b',
+    r'\bno\s+other\s+method\b',
+    r'\bnever\s+before\b',
+    r'\bunique(?:ly)?\b',
+    # filler academic
+    r'\bin\s+order\s+to\b',
+    r'\bdue\s+to\s+the\s+fact\s+that\b',
+    r'\ba\s+number\s+of\b',
+    r'\bin\s+terms\s+of\b',
+    # AI-paper tells
+    r'\bin\s+the\s+era\s+of\b',
+    r'\bwith\s+the\s+advent\s+of\b',
+    r'\brecent\s+years\s+have\s+seen\b',
+    r'\bthe\s+rise\s+of\b',
+    r'\bbeacon\b',
+    r'\btapestry\b',
+    r'\bsymphony\b',
+    r'\bmosaic\b',
+    r'\bessential(ly)?\b',
+    r'\bfundamental(ly)?\b',
+    r'\bmeticulous(ly)?\b',
+    r'\bdiligent(ly)?\b',
+]
+
+print('=== ROUND 2 AUDIT ===\n')
+for pat in patterns:
+    ms = list(re.finditer(pat, t, re.IGNORECASE))
+    if not ms:
+        continue
+    print(f'{pat!r}: {len(ms)} hits')
+    for m in ms[:5]:
+        line = t[:m.start()].count('\n') + 1
+        s = max(0, m.start() - 60); e = min(len(t), m.end() + 60)
+        snippet = t[s:e].replace('\n', ' ')
+        print(f'  L{line}: ...{snippet}...')
+    if len(ms) > 5:
+        print(f'  (+{len(ms)-5} more)')
+    print()

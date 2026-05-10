@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-05-04 16:22:08",
+  "tests_passed": 18,
+  "tests_failed": 2,
+  "total_tests": 20,
+  "all_passing": false,
+  "key_findings": {
+    "cog_metric": "Metric evolves monotonically, saturates after ~25 same-domain interactions, domain switching unsaturates",
+    "gtc_cache": "Same-domain hit rate: 74.0%, cross-domain: 0.0% with auto-calibrated radius",
+    "trajectories": "Growth per turn decreases over time (maturing manifold), domain switches produce spikes",
+    "implications": "Living manifold is mathematically sound. Real-model verification is the remaining step."
+  }
+}

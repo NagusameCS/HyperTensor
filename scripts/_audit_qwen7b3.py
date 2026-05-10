@@ -1,0 +1,17 @@
+import json, numpy as np
+d = json.load(open('benchmarks/ugt_random_basis_layerwise_qwen7b_k200_ext_n3.json', encoding='utf-8'))
+ps = d['per_seed']
+print(f"purity_B per seed: {[s['purity_B'] for s in ps]}")
+print()
+# Algorithmic row anomaly - check raw deltas
+for cat in ['syntax','algorithmic','factual']:
+    print(f'== category={cat} ==')
+    for z in ['syntax','algorithmic','factual']:
+        all_B = []
+        all_R = []
+        for s in ps:
+            rB = s['B']['raw_deltas_by_category_then_zone'][cat][z]
+            rR = s['B_random']['raw_deltas_by_category_then_zone'][cat][z]
+            all_B.extend(rB); all_R.extend(rR)
+        all_B = np.array(all_B); all_R = np.array(all_R)
+        print(f'  zone={z:<12} n={len(all_B)}  B: min={all_B.min():+.4f} max={all_B.max():+.4f} mean={all_B.mean():+.4f} | B_rand: min={all_R.min():+.4f} max={all_R.max():+.4f} mean={all_R.mean():+.4f}')

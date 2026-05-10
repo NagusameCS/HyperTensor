@@ -1,0 +1,62 @@
+Metadata-Version: 2.4
+Name: hypertensor-analysis
+Version: 0.1.0
+Summary: Reproducibility scripts for the HyperTensor / Geodesic Runtime Compression report (NagusameCS).
+Author-email: William Ken Ohara Stewart <noreply@nagusamecs.dev>
+License: MIT
+Project-URL: Homepage, https://nagusamecs.github.io/HyperTensor
+Project-URL: Source, https://github.com/NagusameCS/HyperTensor
+Project-URL: Issues, https://github.com/NagusameCS/HyperTensor/issues
+Keywords: llm,compression,low-rank,svd,inference,transformer
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.11
+Requires-Dist: matplotlib>=3.7
+Requires-Dist: gguf>=0.10
+
+# hypertensor-analysis
+
+Reproducibility scripts for the HyperTensor / Geodesic Runtime Compression (GRC) report
+by **William Ken Ohara Stewart** (NagusameCS).
+
+This is a small companion package that bundles the three analysis scripts used to produce
+the spectral, statistical, and Eckart\u2013Young figures in the report.
+
+## Install (editable, from the repo)
+
+```bash
+git clone https://github.com/NagusameCS/HyperTensor.git
+cd HyperTensor/scripts/analysis
+pip install -e .
+```
+
+## Console entry points
+
+After installation the following commands are available on `PATH`:
+
+| Command                | Source script              | Purpose |
+| ---                    | ---                        | --- |
+| `hypertensor-spectra`  | `compute_spectra.py`       | SVD all attention + FFN matrices for layers 0/7/15/23/31; emits 3 PNGs and `spectra_summary.json`. |
+| `hypertensor-stats`    | `statistical_tests.py`     | Paired t-test, Wilcoxon, bootstrap CI on `rank_sweep_relative_to_baseline.csv`. |
+| `hypertensor-eckart`   | `eckart_young_bound.py`    | Eckart\u2013Young oracle vs GRC shared-basis comparison; layers 0/15/31; ranks 512\u20132048. |
+
+Each script also remains runnable as a plain module: `python compute_spectra.py`, etc.
+
+## Inputs
+
+The scripts expect the GGUF model file path and the benchmark CSVs at the locations described
+in `repro/QUICKSTART.md` at the repo root. See the report's
+[Reproduce section](https://nagusamecs.github.io/HyperTensor/#reproduce) for the full recipe.
+
+## Licence
+
+MIT. See repository root.

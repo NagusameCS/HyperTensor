@@ -1,0 +1,27 @@
+{
+    "pack_dir":  "C:\\Users\\legom\\HyperTensor\\benchmarks\\whitepaper_pack_20260427_121815",
+    "rank_dir":  "C:\\Users\\legom\\HyperTensor\\benchmarks\\whitepaper_pack_20260427_121815",
+    "ci_dir":  "C:\\Users\\legom\\HyperTensor\\benchmarks\\whitepaper_pack_20260427_121815",
+    "generated_at":  "2026-04-27T12:59:28",
+    "metrics":  {
+                    "k1024_decode_pct":  106.267061135683,
+                    "k1536_decode_pct":  97.5472887747866,
+                    "k2048_decode_pct":  101.039173868203,
+                    "k2048_prefill_pct":  108.481636229234,
+                    "coding_decode_lower95_pct":  86.6030914141529,
+                    "reasoning_decode_lower95_pct":  85.6399338901507,
+                    "ppl_delta_pct":  13.304468204176612
+                },
+    "gates":  {
+                  "k1024_decode_ge_95":  true,
+                  "k1536_decode_ge_75":  true,
+                  "k2048_decode_ge_75":  true,
+                  "k2048_prefill_le_225":  true,
+                  "ci_decode_lower95_ge_67":  true,
+                  "ppl_delta_le_15":  true
+              },
+    "missing_or_invalid_inputs":  [
+
+                                  ],
+    "strong_claim_ready":  true
+}

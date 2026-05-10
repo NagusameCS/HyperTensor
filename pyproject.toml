@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypertensor"
+version = "1.1.0"
+description = "Riemannian geometry for transformer compression, speculative decoding, safety, and the Riemann Hypothesis"
+authors = [{name = "William 'Nagusame' Ken Ohara Stewart"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+torch = ["torch>=2.0"]
+full = ["torch>=2.0", "transformers>=4.40", "bitsandbytes>=0.43"]
+
+[tool.setuptools]
+py-modules = ["hypertensor"]

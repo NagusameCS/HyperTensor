@@ -1,0 +1,138 @@
+"""Loader for cached LMFDB and Odlyzko data.
+
+This module reads the JSON / text files saved under ``data/lmfdb/`` and
+``data/odlyzko/`` by ``scripts/pull_lmfdb.py`` and the Odlyzko download
+step. It exposes a small, dependency-free API:
+
+    load_riemann_zeros(n=...)       -> list[float]   (imaginary parts on σ=1/2)
+    load_lmfdb_lfunctions(degree=)  -> list[dict]    (full records)
+    load_lmfdb_zeros(label=...)     -> list[float]
+    load_lmfdb_number_fields()      -> list[dict]
+    load_lmfdb_dirichlet()          -> list[dict]
+
+If the cache files are missing the loaders return empty lists rather than
+raising, so callers can fall back to synthetic generators.
+"""
+from __future__ import annotations
+
+import gzip
+import json
+from pathlib import Path
+from typing import Iterable
+
+ROOT = Path(__file__).resolve().parent.parent
+ODLYZKO_DIR = ROOT / "data" / "odlyzko"
+LMFDB_DIR = ROOT / "data" / "lmfdb"
+
+
+# ---------------------------------------------------------------------------
+# Odlyzko: Riemann ζ zeros
+# ---------------------------------------------------------------------------
+
+def load_riemann_zeros(n: int | None = None, source: str = "zeros1") -> list[float]:
+    """Return the first ``n`` imaginary parts of non-trivial ζ-zeros (σ=1/2).
+
+    ``source`` selects the Odlyzko table:
+      * ``zeros1`` – first 100 000 zeros, ~9 dp accuracy (default).
+      * ``zeros2`` – first 100 zeros, >1000 dp accuracy.
+      * ``zeros6`` – first 2 001 052 zeros (large file).
+    """
+    path = ODLYZKO_DIR / source
+    if not path.exists():
+        gz = ODLYZKO_DIR / f"{source}.gz"
+        if gz.exists():
+            with gzip.open(gz, "rt", encoding="ascii") as f:
+                lines = f.readlines()
+        else:
+            return []
+    else:
+        with path.open("r", encoding="ascii", errors="ignore") as f:
+            lines = f.readlines()
+
+    out: list[float] = []
+    for line in lines:
+        s = line.strip()
+        if not s or any(c.isalpha() for c in s):
+            continue  # skip header / commentary lines (zeros2 has them)
+        try:
+            out.append(float(s.split()[0]))
+        except ValueError:
+            continue
+        if n is not None and len(out) >= n:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
+# LMFDB
+# ---------------------------------------------------------------------------
+
+def _read_json(name: str) -> list[dict]:
+    p = LMFDB_DIR / f"{name}.json"
+    if not p.exists() or p.stat().st_size < 10:
+        return []
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def load_lmfdb_lfunctions(degree: int | None = None) -> list[dict]:
+    if degree == 1:
+        return _read_json("lfunctions_deg1")
+    if degree == 2:
+        return _read_json("lfunctions_deg2")
+    if degree is None:
+        return _read_json("lfunctions_deg1") + _read_json("lfunctions_deg2")
+    return []
+
+
+def load_lmfdb_zeros(label: str | None = None, degree: int | None = None,
+                     limit: int | None = None) -> list[float]:
+    """Flatten ``positive_zeros`` from one or all matching L-function records."""
+    records = load_lmfdb_lfunctions(degree=degree)
+    out: list[float] = []
+    for r in records:
+        if label is not None and r.get("label") != label:
+            continue
+        for z in r.get("positive_zeros") or []:
+            try:
+                out.append(float(z))
+            except (TypeError, ValueError):
+                continue
+            if limit is not None and len(out) >= limit:
+                return out
+    return out
+
+
+def load_lmfdb_number_fields() -> list[dict]:
+    return _read_json("nf_fields_low_degree")
+
+
+def load_lmfdb_dirichlet() -> list[dict]:
+    return _read_json("dirichlet_small")
+
+
+def load_lmfdb_modular_forms() -> list[dict]:
+    return _read_json("mf_gamma1_wt2")
+
+
+def load_lmfdb_maass() -> list[dict]:
+    return _read_json("maass_newforms")
+
+
+# ---------------------------------------------------------------------------
+# CLI smoke test
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    rz = load_riemann_zeros(10)
+    print(f"Riemann zeros (first 10): {rz}")
+    deg1 = load_lmfdb_lfunctions(degree=1)
+    print(f"LMFDB degree-1 records:   {len(deg1)}")
+    if deg1:
+        print(f"  sample label:           {deg1[0].get('label')}")
+    nfs = load_lmfdb_number_fields()
+    print(f"LMFDB number fields:      {len(nfs)}")
+    print(f"LMFDB Dirichlet chars:    {len(load_lmfdb_dirichlet())}")
+    print(f"LMFDB modular forms:      {len(load_lmfdb_modular_forms())}")
+    print(f"LMFDB Maass forms:        {len(load_lmfdb_maass())}")

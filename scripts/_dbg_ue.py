@@ -1,0 +1,15 @@
+import re
+t=open('ARXIV_SUBMISSIONS/volume_extended.tex',encoding='utf-8').read()
+ue_re = re.compile(
+    r'(\\subsection\{Updated Evidence \(May 2026\)\}\s*\n.*?)'
+    r'(?=\\subsection|\\section|\\chapter|\\clearpage|\\printbibliography|\\end\{document\})',
+    re.DOTALL,
+)
+ms=list(ue_re.finditer(t))
+print('count:', len(ms))
+for i,m in enumerate(ms):
+    body=m.group(1)
+    line_no = t[:m.start()].count('\n')+1
+    print(f'-- {i:02d} line={line_no} len={len(body)}')
+    print('  HEAD:', body[:160].replace('\n','|'))
+    print('  TAIL:', body[-80:].replace('\n','|'))

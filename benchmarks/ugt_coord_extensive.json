@@ -1,0 +1,718 @@
+{
+  "models": [
+    "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "Qwen/Qwen2.5-0.5B-Instruct"
+  ],
+  "n_prompts": 400,
+  "k": 64,
+  "experiments": {
+    "E4_top_coords": {
+      "smol135m": {
+        "per_domain": {
+          "factual": {
+            "top_coords": [
+              0,
+              1,
+              7,
+              4,
+              5
+            ],
+            "top_aurocs": [
+              0.9823885918003565,
+              0.7589601901366607,
+              0.6666488413547237,
+              0.6443523469994058,
+              0.633888888888889
+            ]
+          },
+          "code": {
+            "top_coords": [
+              3,
+              0,
+              2,
+              5,
+              32
+            ],
+            "top_aurocs": [
+              0.9472935234699941,
+              0.9123885918003564,
+              0.742792632204397,
+              0.6254248366013072,
+              0.5896078431372549
+            ]
+          },
+          "math": {
+            "top_coords": [
+              3,
+              0,
+              1,
+              4,
+              2
+            ],
+            "top_aurocs": [
+              0.9545573380867499,
+              0.7165656565656566,
+              0.6751544860368389,
+              0.6570915032679738,
+              0.6121598336304218
+            ]
+          },
+          "creative": {
+            "top_coords": [
+              1,
+              2,
+              0,
+              31,
+              7
+            ],
+            "top_aurocs": [
+              0.993802733214498,
+              0.698048128342246,
+              0.6451099227569816,
+              0.598475935828877,
+              0.5958437314319668
+            ]
+          }
+        },
+        "top5_overlap": {
+          "factual-math": 3,
+          "code-factual": 2,
+          "code-math": 3,
+          "code-creative": 2,
+          "creative-factual": 3,
+          "creative-math": 3
+        }
+      },
+      "qwen500m": {
+        "per_domain": {
+          "factual": {
+            "top_coords": [
+              0,
+              1,
+              3,
+              6,
+              4
+            ],
+            "top_aurocs": [
+              0.9913547237076648,
+              0.8938740344622698,
+              0.6085888294711824,
+              0.5906327985739751,
+              0.5786155674390968
+            ]
+          },
+          "code": {
+            "top_coords": [
+              0,
+              2,
+              1,
+              4,
+              6
+            ],
+            "top_aurocs": [
+              0.9704575163398692,
+              0.7760190136660725,
+              0.7382768865121806,
+              0.6943285799168152,
+              0.5860724896019013
+            ]
+          },
+          "math": {
+            "top_coords": [
+              2,
+              4,
+              0,
+              1,
+              10
+            ],
+            "top_aurocs": [
+              0.9674747474747475,
+              0.7763487819370173,
+              0.680650623885918,
+              0.6611081402257872,
+              0.6123648247177659
+            ]
+          },
+          "creative": {
+            "top_coords": [
+              1,
+              2,
+              0,
+              7,
+              16
+            ],
+            "top_aurocs": [
+              0.9709180035650623,
+              0.7333333333333334,
+              0.6637759952465835,
+              0.61805109922757,
+              0.5983363042186571
+            ]
+          }
+        },
+        "top5_overlap": {
+          "factual-math": 3,
+          "code-factual": 4,
+          "code-math": 4,
+          "code-creative": 3,
+          "creative-factual": 2,
+          "creative-math": 3
+        }
+      }
+    },
+    "E5_bootstrap": {
+      "smol135m": {
+        "n_boot": 200,
+        "capture_ci_lo_med_hi": [
+          0.8850025201260484,
+          0.899650534958295,
+          0.916993941098061
+        ],
+        "drop_ci_lo_med_hi": [
+          0.04331963813816146,
+          0.06585795275333171,
+          0.08740219319529267
+        ]
+      },
+      "qwen500m": {
+        "n_boot": 200,
+        "capture_ci_lo_med_hi": [
+          0.9085011590515437,
+          0.9222959713882017,
+          0.9349673601505835
+        ],
+        "drop_ci_lo_med_hi": [
+          0.004678146141440866,
+          0.011400368609105857,
+          0.021146130197171903
+        ]
+      }
+    },
+    "E6_layerwise": {
+      "smol135m": [
+        {
+          "layer": 0,
+          "svd_capture": 0.99990646623939,
+          "random_capture": 0.12118865045643391,
+          "svd_best_drop": 0.10536393345216871,
+          "random_best_drop": -0.0012288324420677288
+        },
+        {
+          "layer": 1,
+          "svd_capture": 0.7896652928575976,
+          "random_capture": 0.11720886791931093,
+          "svd_best_drop": 0.013588086749851458,
+          "random_best_drop": 0.003732174688057116
+        },
+        {
+          "layer": 2,
+          "svd_capture": 0.6701531368557943,
+          "random_capture": 0.10027644919745336,
+          "svd_best_drop": 0.01823009506833037,
+          "random_best_drop": 0.007855020796197265
+        },
+        {
+          "layer": 3,
+          "svd_capture": 0.7479247170806659,
+          "random_capture": 0.10309510039097361,
+          "svd_best_drop": 0.017915923945335727,
+          "random_best_drop": 0.004904188948306576
+        },
+        {
+          "layer": 4,
+          "svd_capture": 0.8439441898972873,
+          "random_capture": 0.12922442047899613,
+          "svd_best_drop": 0.014021836007130167,
+          "random_best_drop": 0.006024212715389221
+        },
+        {
+          "layer": 5,
+          "svd_capture": 0.8380862387978301,
+          "random_capture": 0.10587583720591989,
+          "svd_best_drop": 0.06676544860368394,
+          "random_best_drop": 0.005219845513963206
+        },
+        {
+          "layer": 6,
+          "svd_capture": 0.7788921650814805,
+          "random_capture": 0.11678623372217886,
+          "svd_best_drop": 0.03452168746286391,
+          "random_best_drop": 0.014688799762329174
+        },
+        {
+          "layer": 7,
+          "svd_capture": 0.785898499589427,
+          "random_capture": 0.10925728811653505,
+          "svd_best_drop": 0.021314616755793242,
+          "random_best_drop": 0.002133095662507495
+        },
+        {
+          "layer": 8,
+          "svd_capture": 0.7646371636915346,
+          "random_capture": 0.10679476552217201,
+          "svd_best_drop": 0.028331105169340426,
+          "random_best_drop": 0.006122251931075434
+        },
+        {
+          "layer": 9,
+          "svd_capture": 0.7641710153723644,
+          "random_capture": 0.1144480635414526,
+          "svd_best_drop": 0.030051990493167008,
+          "random_best_drop": -0.0011861259655376877
+        },
+        {
+          "layer": 10,
+          "svd_capture": 0.7728773313537458,
+          "random_capture": 0.13210126996945554,
+          "svd_best_drop": 0.042733957219251384,
+          "random_best_drop": 0.0034387997623291644
+        },
+        {
+          "layer": 11,
+          "svd_capture": 0.7730273000834856,
+          "random_capture": 0.1241309895901002,
+          "svd_best_drop": 0.08645870469399883,
+          "random_best_drop": 0.003527183600713052
+        },
+        {
+          "layer": 12,
+          "svd_capture": 0.7944560291304216,
+          "random_capture": 0.12275452688675689,
+          "svd_best_drop": 0.08948380867498515,
+          "random_best_drop": 0.0022875816993463693
+        },
+        {
+          "layer": 13,
+          "svd_capture": 0.8735901738098686,
+          "random_capture": 0.11095514361266569,
+          "svd_best_drop": 0.03264408793820553,
+          "random_best_drop": 0.002202911467617419
+        },
+        {
+          "layer": 14,
+          "svd_capture": 0.8768110629896747,
+          "random_capture": 0.10466165822037535,
+          "svd_best_drop": 0.02988933452168749,
+          "random_best_drop": 0.0017179144385026657
+        },
+        {
+          "layer": 15,
+          "svd_capture": 0.9032103509930567,
+          "random_capture": 0.10387365175457558,
+          "svd_best_drop": 0.02530897207367791,
+          "random_best_drop": 0.005091354723707697
+        },
+        {
+          "layer": 16,
+          "svd_capture": 0.8914084456040119,
+          "random_capture": 0.09805033885877269,
+          "svd_best_drop": 0.030446375519904922,
+          "random_best_drop": 0.003413547237076653
+        },
+        {
+          "layer": 17,
+          "svd_capture": 0.9007259151402369,
+          "random_capture": 0.11465734827882904,
+          "svd_best_drop": 0.04098039215686278,
+          "random_best_drop": 0.0007442067736185276
+        },
+        {
+          "layer": 18,
+          "svd_capture": 0.8931835224978004,
+          "random_capture": 0.13396034934728232,
+          "svd_best_drop": 0.030101010101010073,
+          "random_best_drop": 0.0007040998217468786
+        },
+        {
+          "layer": 19,
+          "svd_capture": 0.9166139204737113,
+          "random_capture": 0.11554808152449206,
+          "svd_best_drop": 0.06463829471182408,
+          "random_best_drop": 0.00027777777777779344
+        },
+        {
+          "layer": 20,
+          "svd_capture": 0.9415574236256558,
+          "random_capture": 0.11228721994304912,
+          "svd_best_drop": 0.06643122400475343,
+          "random_best_drop": -5.199049316673143e-06
+        },
+        {
+          "layer": 21,
+          "svd_capture": 0.9405171544061028,
+          "random_capture": 0.1051169630048931,
+          "svd_best_drop": 0.050913547237076695,
+          "random_best_drop": 0.0006342840166369823
+        },
+        {
+          "layer": 22,
+          "svd_capture": 0.9391141658655467,
+          "random_capture": 0.10419770088565299,
+          "svd_best_drop": 0.11371583481877601,
+          "random_best_drop": -7.650029708858308e-05
+        },
+        {
+          "layer": 23,
+          "svd_capture": 0.9377011653256728,
+          "random_capture": 0.1277595734418051,
+          "svd_best_drop": 0.10979649435531788,
+          "random_best_drop": -0.00021836007130118795
+        },
+        {
+          "layer": 24,
+          "svd_capture": 0.8870403951216459,
+          "random_capture": 0.11378835963164968,
+          "svd_best_drop": 0.12848039215686272,
+          "random_best_drop": 0.0008296197266785821
+        },
+        {
+          "layer": 25,
+          "svd_capture": 0.9067953094574448,
+          "random_capture": 0.12252489762606797,
+          "svd_best_drop": 0.200462715389186,
+          "random_best_drop": 0.0002235591206179166
+        },
+        {
+          "layer": 26,
+          "svd_capture": 0.9166723523497846,
+          "random_capture": 0.10871667684364905,
+          "svd_best_drop": 0.17798202614379083,
+          "random_best_drop": 0.00038695781342837354
+        },
+        {
+          "layer": 27,
+          "svd_capture": 0.9075584763428363,
+          "random_capture": 0.10997950764891132,
+          "svd_best_drop": 0.17663621509209743,
+          "random_best_drop": 0.001316844919786092
+        },
+        {
+          "layer": 28,
+          "svd_capture": 0.9065638328892736,
+          "random_capture": 0.09326405852634766,
+          "svd_best_drop": 0.20427287581699344,
+          "random_best_drop": 0.0017543077837195997
+        },
+        {
+          "layer": 29,
+          "svd_capture": 0.9137829153993917,
+          "random_capture": 0.09158526930213713,
+          "svd_best_drop": 0.12109105763517528,
+          "random_best_drop": 0.00021761734997027826
+        },
+        {
+          "layer": 30,
+          "svd_capture": 0.9008627764890192,
+          "random_capture": 0.10180512081151061,
+          "svd_best_drop": 0.10709670231729057,
+          "random_best_drop": -0.00012700534759355064
+        }
+      ],
+      "qwen500m": [
+        {
+          "layer": 0,
+          "svd_capture": 0.9999838540323978,
+          "random_capture": 0.07457180009703308,
+          "svd_best_drop": 0.10645573380867492,
+          "random_best_drop": 0.0017643345216874218
+        },
+        {
+          "layer": 1,
+          "svd_capture": 0.968953136237791,
+          "random_capture": 0.06698814270160076,
+          "svd_best_drop": 0.015674390968508645,
+          "random_best_drop": 0.002081847890671451
+        },
+        {
+          "layer": 2,
+          "svd_capture": 0.9649557404609498,
+          "random_capture": 0.07608850242775822,
+          "svd_best_drop": 0.07844548425430775,
+          "random_best_drop": 0.002586898395721904
+        },
+        {
+          "layer": 3,
+          "svd_capture": 0.8574382274990212,
+          "random_capture": 0.06077280649154032,
+          "svd_best_drop": 0.07163027332144975,
+          "random_best_drop": 0.005168597742127079
+        },
+        {
+          "layer": 4,
+          "svd_capture": 0.8521682832120305,
+          "random_capture": 0.06063011880389684,
+          "svd_best_drop": 0.0552243018419489,
+          "random_best_drop": 0.0024338978015448764
+        },
+        {
+          "layer": 5,
+          "svd_capture": 0.9159398546993762,
+          "random_capture": 0.07713568956289306,
+          "svd_best_drop": 0.11499480095068321,
+          "random_best_drop": 0.002316547831253707
+        },
+        {
+          "layer": 6,
+          "svd_capture": 0.9491136757975587,
+          "random_capture": 0.06970135312632322,
+          "svd_best_drop": 0.08404486036838973,
+          "random_best_drop": 0.0019251336898395421
+        },
+        {
+          "layer": 7,
+          "svd_capture": 0.9480953456104183,
+          "random_capture": 0.07510039324369905,
+          "svd_best_drop": 0.04399361259655382,
+          "random_best_drop": 0.0024546939988116523
+        },
+        {
+          "layer": 8,
+          "svd_capture": 0.9597922331939499,
+          "random_capture": 0.06614024637761164,
+          "svd_best_drop": 0.017338829471182454,
+          "random_best_drop": 0.0039319667260844515
+        },
+        {
+          "layer": 9,
+          "svd_capture": 0.9636547297098812,
+          "random_capture": 0.07727954915214919,
+          "svd_best_drop": 0.04127599524658343,
+          "random_best_drop": 0.001455733808674975
+        },
+        {
+          "layer": 10,
+          "svd_capture": 0.9633868231117877,
+          "random_capture": 0.08986180052952501,
+          "svd_best_drop": 0.0664141414141414,
+          "random_best_drop": 0.0017580213903743147
+        },
+        {
+          "layer": 11,
+          "svd_capture": 0.9650407528680223,
+          "random_capture": 0.06663115476991532,
+          "svd_best_drop": 0.06922459893048119,
+          "random_best_drop": 0.002452465834818812
+        },
+        {
+          "layer": 12,
+          "svd_capture": 0.9677341520281837,
+          "random_capture": 0.07486877296899093,
+          "svd_best_drop": 0.11933155080213897,
+          "random_best_drop": -8.095662507423551e-05
+        },
+        {
+          "layer": 13,
+          "svd_capture": 0.9729402185307425,
+          "random_capture": 0.06946198006695611,
+          "svd_best_drop": 0.11748366013071898,
+          "random_best_drop": 0.0009098336304218524
+        },
+        {
+          "layer": 14,
+          "svd_capture": 0.9683621850418257,
+          "random_capture": 0.06206406286769267,
+          "svd_best_drop": 0.11524584076054667,
+          "random_best_drop": 0.0024695484254308453
+        },
+        {
+          "layer": 15,
+          "svd_capture": 0.9631931647185068,
+          "random_capture": 0.08541260236913686,
+          "svd_best_drop": 0.1682107843137255,
+          "random_best_drop": 0.0
+        },
+        {
+          "layer": 16,
+          "svd_capture": 0.9624206978129354,
+          "random_capture": 0.06829209806663601,
+          "svd_best_drop": 0.19830065359477125,
+          "random_best_drop": -5.050505050505083e-05
+        },
+        {
+          "layer": 17,
+          "svd_capture": 0.9520426211625095,
+          "random_capture": 0.06938228159027734,
+          "svd_best_drop": 0.15694964349376112,
+          "random_best_drop": 0.0001530005941770829
+        },
+        {
+          "layer": 18,
+          "svd_capture": 0.933374001414773,
+          "random_capture": 0.06541527413554594,
+          "svd_best_drop": 0.17319518716577542,
+          "random_best_drop": 0.0005251039809862634
+        },
+        {
+          "layer": 19,
+          "svd_capture": 0.942826194648516,
+          "random_capture": 0.07459837135748076,
+          "svd_best_drop": 0.06369949494949492,
+          "random_best_drop": 8.02139037432148e-05
+        },
+        {
+          "layer": 20,
+          "svd_capture": 0.9373139252548832,
+          "random_capture": 0.06318637080655298,
+          "svd_best_drop": 0.10479203802733209,
+          "random_best_drop": 0.0026032382650029717
+        },
+        {
+          "layer": 21,
+          "svd_capture": 0.9348361196858588,
+          "random_capture": 0.0722283689835959,
+          "svd_best_drop": 0.19531565656565658,
+          "random_best_drop": 0.00022281639928697916
+        },
+        {
+          "layer": 22,
+          "svd_capture": 0.924724817844149,
+          "random_capture": 0.0639315295816738,
+          "svd_best_drop": 0.1163851752822341,
+          "random_best_drop": 0.00024806892453946294
+        },
+        {
+          "layer": 23,
+          "svd_capture": 0.9328974908350536,
+          "random_capture": 0.06569733975108058,
+          "svd_best_drop": 0.18028074866310154,
+          "random_best_drop": 0.0015879382055852542
+        },
+        {
+          "layer": 24,
+          "svd_capture": 0.9290844969327785,
+          "random_capture": 0.06496898092246206,
+          "svd_best_drop": 0.013400178253119455,
+          "random_best_drop": 7.352941176472227e-05
+        }
+      ]
+    },
+    "E7_cross_model_axes": {
+      "per_domain_cosine_after_procrustes": {
+        "factual": 0.8339908495855208,
+        "code": 0.6828538573672703,
+        "math": 0.8656201025237611,
+        "creative": 0.7660545581575904
+      },
+      "mean_cosine": 0.7871298419085356,
+      "null_mean_cosine_mean": 0.45973069718873283,
+      "null_mean_cosine_std": 0.04614409851910077,
+      "z_score": 7.095146621713284
+    },
+    "E8_held_out_domain": {
+      "smol135m": {
+        "factual": {
+          "capture_in_B_held_out": 0.3312272561003814,
+          "capture_in_random_B": 0.1016370503985888,
+          "ratio": 3.25892235952747,
+          "best_coord_drop_in_B_held_out": 0.0005050505050505638,
+          "best_coord_drop_in_random_B": 0.0002020202020200923
+        },
+        "code": {
+          "capture_in_B_held_out": 0.3134499285601162,
+          "capture_in_random_B": 0.09087097684302195,
+          "ratio": 3.449395389482778,
+          "best_coord_drop_in_B_held_out": 0.001711229946523951,
+          "best_coord_drop_in_random_B": 0.0
+        },
+        "math": {
+          "capture_in_B_held_out": 0.3005256232377206,
+          "capture_in_random_B": 0.11369467707153069,
+          "ratio": 2.643269069216369,
+          "best_coord_drop_in_B_held_out": 0.0007011289364230455,
+          "best_coord_drop_in_random_B": 0.00020202020202031434
+        },
+        "creative": {
+          "capture_in_B_held_out": 0.3769157013276295,
+          "capture_in_random_B": 0.09802484327610832,
+          "ratio": 3.8451038403189726,
+          "best_coord_drop_in_B_held_out": 0.0005882352941177782,
+          "best_coord_drop_in_random_B": 0.0016666666666665941
+        }
+      },
+      "qwen500m": {
+        "factual": {
+          "capture_in_B_held_out": 0.2656972988205052,
+          "capture_in_random_B": 0.08665770022315825,
+          "ratio": 3.0660552742144054,
+          "best_coord_drop_in_B_held_out": 0.002183600713012601,
+          "best_coord_drop_in_random_B": 0.0
+        },
+        "code": {
+          "capture_in_B_held_out": 0.3438090543826196,
+          "capture_in_random_B": 0.06992098567960565,
+          "ratio": 4.917108233542835,
+          "best_coord_drop_in_B_held_out": 0.0003951277480688242,
+          "best_coord_drop_in_random_B": 0.00010101010101015717
+        },
+        "math": {
+          "capture_in_B_held_out": 0.2665150525567377,
+          "capture_in_random_B": 0.07090194058354408,
+          "ratio": 3.7589246551397526,
+          "best_coord_drop_in_B_held_out": 0.0021212121212123014,
+          "best_coord_drop_in_random_B": 0.0008080808080807023
+        },
+        "creative": {
+          "capture_in_B_held_out": 0.37092763038825616,
+          "capture_in_random_B": 0.06828499565560182,
+          "ratio": 5.432051753492742,
+          "best_coord_drop_in_B_held_out": 0.00019607843137270375,
+          "best_coord_drop_in_random_B": 9.803921568618534e-05
+        }
+      }
+    },
+    "E9_random_rotation": {
+      "smol135m": {
+        "k": 64,
+        "B_capture": 0.9008627764890192,
+        "B_best_drop": 0.10722147950089131,
+        "B_rot_capture_mean": 0.9008627661351042,
+        "B_rot_capture_std": 2.1259152388627147e-16,
+        "B_rot_best_drop_mean": 0.0,
+        "B_rot_best_drop_std": 0.0,
+        "predicts_capture_equal": true,
+        "predicts_drop_collapses_to_random": true
+      },
+      "qwen500m": {
+        "k": 64,
+        "B_capture": 0.9290844969327785,
+        "B_best_drop": 0.014481580510992242,
+        "B_rot_capture_mean": 0.9290844896166691,
+        "B_rot_capture_std": 1.5700924586837752e-16,
+        "B_rot_best_drop_mean": 0.0,
+        "B_rot_best_drop_std": 0.0,
+        "predicts_capture_equal": true,
+        "predicts_drop_collapses_to_random": true
+      }
+    },
+    "E10_paraphrase_robustness": {
+      "factual": {
+        "orig_best_coord": 0,
+        "rank_in_para1": 0,
+        "rank_in_para2": 0
+      },
+      "code": {
+        "orig_best_coord": 3,
+        "rank_in_para1": 0,
+        "rank_in_para2": 0
+      },
+      "math": {
+        "orig_best_coord": 3,
+        "rank_in_para1": 0,
+        "rank_in_para2": 0
+      },
+      "creative": {
+        "orig_best_coord": 1,
+        "rank_in_para1": 0,
+        "rank_in_para2": 0
+      }
+    }
+  },
+  "summary": {
+    "E5_drop_CIs_exclude_random_baseline": false,
+    "E7_cross_model_axes_align_above_null": true,
+    "E8_held_out_capture_above_random": true,
+    "E9_axes_not_subspace_carry_signal": true,
+    "E9_subspace_capture_unchanged": true,
+    "E10_para_top10_persistence": 1.0
+  }
+}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CECI: Cross-Embedding Compatibility Index for Model Grafting, HyperTensor Research</title>
+<meta name="description" content="Paper 10: CECI feasibility map. Within-band grafts viable. 7 Danish chimeras published.">
+<meta name="robots" content="index, follow"><meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/research-paper.css"><script src="../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav"><a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a><ul class="nav-links"><li><a href="../index.html">Home</a></li><li><a href="../index.html#engineering">Engineering</a></li><li><a href="../index.html#research">Research</a></li><li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li></ul></nav>
+<header class="paper-header"><span class="tag">Paper 10 · May 2026</span><h1>CECI: Cross-Embedding Compatibility Index for Model Grafting</h1><p class="author">William Ken Ohara Stewart</p><p class="meta">HyperTensor Project · <a href="../papers/10-ceci-model-grafting.html">Extended version</a> · <a href="../../ARXIV_SUBMISSIONS/paper-X/cmvb_splicing.tex">TeX source</a></p></header>
+<article class="paper-body">
+<section><h2>Abstract</h2><p>Can skills be surgically extracted from one transformer and grafted into another? We introduce CECI, a gauge-aligned manifold projection measuring geometric compatibility between layers. 120 layer pairs measured on SmolLM2-135M. Within-band grafts (adjacent layers, $\Delta L \le 4$) are viable: Grassmann distance $<0.92$, subspace overlap $\ge 15\%$, gauge alignment $+74\%$. Cross-band grafts (Mix→Refine) are infeasible: GD $>0.96$, gauge $\Delta \approx 0$, residual $>100\%$. Seven Danish-named chimeric models published on HuggingFace. Five of seven improve MMLU over baseline. Cross-model grafting confirmed: Qwen2.5-0.5B FFN in SmolLM2-135M body achieves +6pp MMLU.</p></section>
+<section><h2>1. CECI Feasibility Map</h2><table><tr><th>Band Pair</th><th>ΔL</th><th>Overlap</th><th>GD</th><th>Viable?</th></tr><tr><td>Mix→Mix</td><td>0–2</td><td>24.9%</td><td>0.89</td><td></td></tr><tr><td>Compress→Compress</td><td>0–2</td><td>20.1%</td><td>0.91</td><td></td></tr><tr><td>Mix→Compress</td><td>2–4</td><td>15.4%</td><td>0.92</td><td></td></tr><tr><td>Mix→Refine</td><td>8–12</td><td>7.6%</td><td>0.96</td><td></td></tr></table></section>
+<section><h2>2. 7 Danish Chimeras</h2><table><tr><th>Model</th><th>MMLU</th><th>BoolQ</th></tr><tr><td>SmolLM2-135M (baseline)</td><td>62%</td><td>40%</td></tr><tr><td>minElskede</td><td>68%</td><td>53%</td></tr><tr><td>minFjollede (cross-model)</td><td>68%</td><td>47%</td></tr></table><p>Cross-model grafting: minFjollede uses Qwen2.5-0.5B FFN in SmolLM2-135M body — direct evidence GRC basis transfers functional knowledge.</p></section>
+<section><h2>References</h2><ol><li>Stewart, W.K.O. Universal Geodesic Taxonomy. HyperTensor Paper XI, 2026.</li><li>Stewart, W.K.O. Geodesic Projection Pipeline. HyperTensor Paper II, 2026.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project · <a href="../index.html">back to index</a></footer>
+</body>
+</html>

@@ -1,0 +1,13 @@
+$p = 'c:\Users\legom\HyperTensor\ARXIV_SUBMISSIONS\volume_extended.tex'
+$t = [IO.File]::ReadAllText($p)
+$old = '\usepackage{amsmath,amssymb,graphicx,booktabs,enumitem,setspace}'
+$new = '\usepackage{amsmath,amssymb,graphicx,booktabs,enumitem,setspace,longtable}'
+if ($t.Contains($old)) {
+  $t = $t.Replace($old, $new)
+  [IO.File]::WriteAllText($p, $t, [System.Text.UTF8Encoding]::new($false))
+  Write-Host 'Added longtable package.'
+} elseif ($t.Contains('longtable')) {
+  Write-Host 'longtable already loaded.'
+} else {
+  Write-Error 'Could not find package line to patch.'
+}

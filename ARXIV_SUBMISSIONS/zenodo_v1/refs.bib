@@ -1,0 +1,639 @@
+% Shared bibliography for HyperTensor arXiv papers.
+% Cite freely across A/B/C/D; biber will only emit entries actually used.
+
+% ---------------- Foundational architecture ----------------
+@inproceedings{vaswani2017attention,
+  title  = {Attention is All You Need},
+  author = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan N. and Kaiser, {\L}ukasz and Polosukhin, Illia},
+  booktitle = {Advances in Neural Information Processing Systems 30 (NeurIPS)},
+  year   = {2017},
+}
+
+@misc{grattafiori2024llama3,
+  title  = {The {Llama}~3 Herd of Models},
+  author = {Grattafiori, Aaron and others},
+  year   = {2024},
+  eprint = {2407.21783},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@misc{ainslie2023gqa,
+  title  = {{GQA}: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints},
+  author = {Ainslie, Joshua and Lee-Thorp, James and de Jong, Michiel and Zemlyanskiy, Yury and Lebr{\'o}n, Federico and Sanghai, Sumit},
+  year   = {2023},
+  eprint = {2305.13245},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@inproceedings{geva2021ffn,
+  title  = {Transformer Feed-Forward Layers Are Key--Value Memories},
+  author = {Geva, Mor and Schuster, Roei and Berant, Jonathan and Levy, Omer},
+  booktitle = {EMNLP},
+  year   = {2021},
+}
+
+@misc{xiao2023streamingllm,
+  title  = {Efficient Streaming Language Models with Attention Sinks},
+  author = {Xiao, Guangxuan and Tian, Yuandong and Chen, Beidi and Han, Song and Lewis, Mike},
+  year   = {2023},
+  eprint = {2309.17453},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+% ---------------- Compression / quantization ----------------
+@misc{frantar2022gptq,
+  title  = {{GPTQ}: Accurate Post-Training Quantization for Generative Pre-trained Transformers},
+  author = {Frantar, Elias and Ashkboos, Saleh and Hoefler, Torsten and Alistarh, Dan},
+  year   = {2022},
+  eprint = {2210.17323},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@misc{lin2023awq,
+  title  = {{AWQ}: Activation-Aware Weight Quantization for {LLM} Compression and Acceleration},
+  author = {Lin, Ji and Tang, Jiaming and Tang, Haotian and Yang, Shang and Dang, Xingyu and Han, Song},
+  year   = {2023},
+  eprint = {2306.00978},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@inproceedings{ashkboos2024slicegpt,
+  title  = {{SliceGPT}: Compress Large Language Models by Deleting Rows and Columns},
+  author = {Ashkboos, Saleh and Croci, Maximilian L. and do Nascimento, Marcelo Gennari and Hoefler, Torsten and Hensman, James},
+  booktitle = {ICLR},
+  year   = {2024},
+}
+
+@misc{yuan2023asvd,
+  title  = {{ASVD}: Activation-Aware Singular Value Decomposition for Compressing Large Language Models},
+  author = {Yuan, Zhihang and Shang, Yuzhang and Song, Yang and Wu, Qiang and Yan, Yan and Sun, Guangyu},
+  year   = {2023},
+  eprint = {2312.05821},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@inproceedings{hsu2022fwsvd,
+  title  = {Language Model Compression with Weighted Low-Rank Factorization},
+  author = {Hsu, Yen-Chang and Hua, Ting and Chang, Sungen and Lou, Qian and Shen, Yilin and Jin, Hongxia},
+  booktitle = {ICLR},
+  year   = {2022},
+}
+
+@misc{frantar2023sparsegpt,
+  title  = {{SparseGPT}: Massive Language Models Can Be Accurately Pruned in One Shot},
+  author = {Frantar, Elias and Alistarh, Dan},
+  year   = {2023},
+  eprint = {2301.00774},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@misc{xiao2022smoothquant,
+  title  = {{SmoothQuant}: Accurate and Efficient Post-Training Quantization for Large Language Models},
+  author = {Xiao, Guangxuan and Lin, Ji and Seznec, Mickael and Wu, Hao and Demouth, Julien and Han, Song},
+  year   = {2022},
+  eprint = {2211.10438},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@misc{dettmers2022llmint8,
+  title  = {{LLM.int8()}: 8-bit Matrix Multiplication for Transformers at Scale},
+  author = {Dettmers, Tim and Lewis, Mike and Belkada, Younes and Zettlemoyer, Luke},
+  year   = {2022},
+  eprint = {2208.07339},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@misc{hu2021lora,
+  title  = {{LoRA}: Low-Rank Adaptation of Large Language Models},
+  author = {Hu, Edward and Shen, Yelong and Wallis, Phillip and Allen-Zhu, Zeyuan and Li, Yuanzhi and Wang, Shean and Chen, Weizhu},
+  year   = {2021},
+  eprint = {2106.09685},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@misc{kobayashi2024lowrankattn,
+  title  = {Weight Decay Induces Low-Rank Attention Layers},
+  author = {Kobayashi, Seijin and Akram, Ali and Yamashita, Kohei},
+  year   = {2024},
+  eprint = {2410.23819},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@misc{dettmers2023qlora,
+  title  = {{QLoRA}: Efficient Finetuning of Quantized {LLMs}},
+  author = {Dettmers, Tim and Pagnoni, Artidoro and Holtzman, Ari and Zettlemoyer, Luke},
+  year   = {2023},
+  eprint = {2305.14314},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+% ---------------- Speculative decoding ----------------
+@inproceedings{leviathan2023speculative,
+  title  = {Fast Inference from Transformers via Speculative Decoding},
+  author = {Leviathan, Yaniv and Kalman, Matan and Matias, Yossi},
+  booktitle = {ICML},
+  year   = {2023},
+}
+
+@inproceedings{chen2023speculative,
+  title  = {Accelerating Large Language Model Decoding with Speculative Sampling},
+  author = {Chen, Charlie and Borgeaud, Sebastian and Irving, Geoffrey and Lespiau, Jean-Baptiste and Sifre, Laurent and Jumper, John},
+  booktitle = {arXiv preprint},
+  year   = {2023},
+  eprint = {2302.01318},
+  archivePrefix = {arXiv},
+}
+
+@misc{cai2024medusa,
+  title  = {{Medusa}: Simple {LLM} Inference Acceleration Framework with Multiple Decoding Heads},
+  author = {Cai, Tianle and Li, Yuhong and Geng, Zhengyang and Peng, Hongwu and Lee, Jason D. and Chen, Deming and Dao, Tri},
+  year   = {2024},
+  eprint = {2401.10774},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@misc{li2024eagle,
+  title  = {{EAGLE}: Speculative Sampling Requires Rethinking Feature Uncertainty},
+  author = {Li, Yuhui and Wei, Fangyun and Zhang, Chao and Zhang, Hongyang},
+  year   = {2024},
+  eprint = {2401.15077},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+% ---------------- Hardware / performance models ----------------
+@article{williams2009roofline,
+  title   = {Roofline: An Insightful Visual Performance Model for Multicore Architectures},
+  author  = {Williams, Samuel and Waterman, Andrew and Patterson, David},
+  journal = {Communications of the ACM},
+  volume  = {52},
+  number  = {4},
+  pages   = {65--76},
+  year    = {2009},
+}
+
+@misc{yuan2024llmroofline,
+  title  = {{LLM} Inference Unveiled: Survey and Roofline Model Insights},
+  author = {Yuan, Zhihang and Shang, Yuzhang and Zhou, Yang and Dong, Zhen and Xue, Chenhao and Wu, Bingzhe and Li, Zhikai and Gu, Qingyi and Lee, Yong Jae and Yan, Yan and Chen, Beidi and Sun, Guangyu and Keutzer, Kurt},
+  year   = {2024},
+  eprint = {2402.16363},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+@techreport{nvidia2022ada,
+  title  = {{NVIDIA Ada GPU} Architecture Whitepaper},
+  author = {{NVIDIA Corporation}},
+  year   = {2022},
+  institution = {NVIDIA},
+}
+
+@manual{nvidia2022nsight,
+  title        = {{Nsight Compute} Profiling Guide},
+  author       = {{NVIDIA Corporation}},
+  year         = {2024},
+  organization = {NVIDIA},
+  note         = {Version 2026.1},
+}
+
+% ---------------- Numerical linear algebra / geometry ----------------
+@book{trefethen1997nla,
+  title     = {Numerical Linear Algebra},
+  author    = {Trefethen, Lloyd N. and Bau III, David},
+  publisher = {SIAM},
+  year      = {1997},
+}
+
+@article{eckart1936,
+  title   = {The Approximation of One Matrix by Another of Lower Rank},
+  author  = {Eckart, Carl and Young, Gale},
+  journal = {Psychometrika},
+  volume  = {1},
+  number  = {3},
+  pages   = {211--218},
+  year    = {1936},
+}
+
+@article{oja1982,
+  title   = {Simplified Neuron Model as a Principal Component Analyzer},
+  author  = {Oja, Erkki},
+  journal = {Journal of Mathematical Biology},
+  volume  = {15},
+  number  = {3},
+  pages   = {267--273},
+  year    = {1982},
+}
+
+@article{robbins1951sa,
+  title   = {A Stochastic Approximation Method},
+  author  = {Robbins, Herbert and Monro, Sutton},
+  journal = {The Annals of Mathematical Statistics},
+  volume  = {22},
+  number  = {3},
+  pages   = {400--407},
+  year    = {1951},
+}
+
+@book{golub2013matrix,
+  title     = {Matrix Computations},
+  author    = {Golub, Gene H. and Van Loan, Charles F.},
+  edition   = {4th},
+  publisher = {Johns Hopkins University Press},
+  year      = {2013},
+}
+
+% ---------------- File formats / runtimes ----------------
+@misc{ggerganov2023gguf,
+  title  = {{GGUF} Binary Format Specification},
+  author = {Gerganov, Georgi and {{\tt llama.cpp} contributors}},
+  year   = {2023},
+  howpublished = {\url{https://github.com/ggerganov/ggml/blob/master/docs/gguf.md}},
+}
+
+@misc{ggerganov2023kquants,
+  title  = {{llama.cpp} k-quants ({Q4\_K\_M}, {Q5\_K\_M}, {Q6\_K}) Format Specification},
+  author = {Gerganov, Georgi and {{\tt llama.cpp} contributors}},
+  year   = {2023},
+  howpublished = {\url{https://github.com/ggerganov/llama.cpp/pull/1684}},
+}
+
+@misc{kwon2023vllm,
+  title  = {Efficient Memory Management for Large Language Model Serving with {PagedAttention}},
+  author = {Kwon, Woosuk and Li, Zhuohan and Zhuang, Siyuan and Sheng, Ying and Zheng, Lianmin and Yu, Cody Hao and Gonzalez, Joseph E. and Zhang, Hao and Stoica, Ion},
+  year   = {2023},
+  eprint = {2309.06180},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+}
+
+% ---------------- Datasets / training science ----------------
+@misc{merity2016wikitext,
+  title  = {Pointer Sentinel Mixture Models},
+  author = {Merity, Stephen and Xiong, Caiming and Bradbury, James and Socher, Richard},
+  year   = {2016},
+  eprint = {1609.07843},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+@misc{elhage2022superposition,
+  title  = {Toy Models of Superposition},
+  author = {Elhage, Nelson and Hume, Tristan and Olsson, Catherine and Schiefer, Nicholas and others},
+  year   = {2022},
+  howpublished = {Anthropic Transformer Circuits Thread},
+}
+
+% ---------------- Statistical methods ----------------
+@article{wilcoxon1945,
+  title   = {Individual Comparisons by Ranking Methods},
+  author  = {Wilcoxon, Frank},
+  journal = {Biometrics Bulletin},
+  volume  = {1},
+  number  = {6},
+  pages   = {80--83},
+  year    = {1945},
+}
+
+% ---------------- Aliases / additions for cross-paper consistency ----------------
+@misc{llama3,
+  title  = {The {Llama} 3 Herd of Models},
+  author = {Grattafiori, Aaron and others},
+  year   = {2024},
+  eprint = {2407.21783},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+}
+
+@misc{nakkiran2021deep,
+  title  = {Deep Double Descent: Where Bigger Models and More Data Hurt},
+  author = {Nakkiran, Preetum and Kaplun, Gal and Bansal, Yamini and Yang, Tristan and Barak, Boaz and Sutskever, Ilya},
+  year   = {2021},
+  eprint = {1912.02292},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  note   = {ICLR 2020; journal version 2021.},
+}
+
+@inproceedings{leviathan2023fast,
+  title     = {Fast Inference from Transformers via Speculative Decoding},
+  author    = {Leviathan, Yaniv and Kalman, Matan and Matias, Yossi},
+  booktitle = {ICML},
+  year      = {2023},
+}
+
+@misc{chen2023accelerating,
+  title  = {Accelerating Large Language Model Decoding with Speculative Sampling},
+  author = {Chen, Charlie and Borgeaud, Sebastian and Irving, Geoffrey and Lespiau, Jean-Baptiste and Sifre, Laurent and Jumper, John},
+  year   = {2023},
+  eprint = {2302.01318},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+% ---------------- Cross-references to companion HyperTensor papers ----------------
+@misc{papers2geodesic_projection,
+  title  = {Geodesic Projection: A Multi-Slot Compression Pipeline with Adaptive Extensions},
+  author = {{HyperTensor Project}},
+  year   = {2025},
+  note   = {Companion paper~B in this series.},
+}
+
+@misc{papers3specdec,
+  title  = {Geodesic Speculative Decoding under Compression},
+  author = {{HyperTensor Project}},
+  year   = {2025},
+  note   = {Companion paper~C in this series.},
+}
+
+@inproceedings{assran2023ijepa,
+  title={Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture},
+  author={Assran, Mahmoud and Duval, Quentin and Misra, Ishan and Bojanowski, Piotr and Vincent, Pascal and Rabbat, Michael and LeCun, Yann and Ballas, Nicolas},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2023},
+  eprint={2301.08243},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV}
+}
+
+@misc{bardes2024vjepa,
+  title={Revisiting Feature Prediction for Learning Visual Representations from Video},
+  author={Bardes, Adrien and Garrido, Quentin and Ponce, Jean and Chen, Xinlei and Rabbat, Michael and LeCun, Yann and Assran, Mahmoud and Ballas, Nicolas},
+  year={2024},
+  eprint={2404.08471},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  note={Introduces the {V-JEPA} video representation model.}
+}
+
+@inproceedings{behrouz2025hope,
+  title={Nested Learning: The Illusion of Deep Learning Architectures},
+  author={Behrouz, Ali and Razaviyayn, Meisam and Zhong, Peilin and Mirrokni, Vahab},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2025},
+  eprint={2512.24695},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  note={Introduces the {HOPE} self-modifying continual-learning architecture.}
+}
+
+@article{stewart2026gp,
+  title={Geodesic Projection: a multi-slot compression pipeline with adaptive phase, gauge, thermal, and drift extensions},
+  author={Stewart, William Ken Ohara},
+  journal={HyperTensor companion paper, to appear},
+  year={2026}
+}
+
+@misc{sun2024massive,
+  title  = {Massive Activations in Large Language Models},
+  author = {Sun, Mingjie and Chen, Xinlei and Kolter, J. Zico and Liu, Zhuang},
+  year   = {2024},
+  eprint = {2402.17762},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+}
+
+% ============================================================
+% Added 2026-05 in response to peer review (William Stewart):
+%   prior-art for concept erasure, representation steering,
+%   intrinsic-dim estimation, serving systems, safety
+%   benchmarks, and the Pearl Noisy-OR original.
+% ============================================================
+
+@inproceedings{belrose2023leace,
+  title     = {{LEACE}: Perfect linear concept erasure in closed form},
+  author    = {Belrose, Nora and Schneider-Joseph, David and Ravfogel, Shauli and Cotterell, Ryan and Raff, Edward and Biderman, Stella},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023},
+  eprint    = {2306.03819},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@inproceedings{ravfogel2020inlp,
+  title     = {Null It Out: Guarding Protected Attributes by Iterative Nullspace Projection},
+  author    = {Ravfogel, Shauli and Elazar, Yanai and Gonen, Hila and Twiton, Michael and Goldberg, Yoav},
+  booktitle = {Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL)},
+  year      = {2020},
+  pages     = {7237--7256}
+}
+
+@inproceedings{ravfogel2022rlace,
+  title     = {Linear Adversarial Concept Erasure},
+  author    = {Ravfogel, Shauli and Twiton, Michael and Goldberg, Yoav and Cotterell, Ryan},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2022}
+}
+
+@misc{zou2023repe,
+  title  = {Representation Engineering: A Top-Down Approach to {AI} Transparency},
+  author = {Zou, Andy and Phan, Long and Chen, Sarah and Campbell, James and Guo, Phillip and Ren, Richard and Pan, Alexander and Yin, Xuwang and Mazeika, Mantas and Dombrowski, Ann-Kathrin and Goel, Shashwat and Li, Nathaniel and Byun, Michael J. and Wang, Zifan and Mallen, Alex and Basart, Steven and Koyejo, Sanmi and Song, Dawn and Fredrikson, Matt and Kolter, J. Zico and Hendrycks, Dan},
+  year   = {2023},
+  eprint = {2310.01405},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@misc{arditi2024abliteration,
+  title  = {Refusal in Language Models Is Mediated by a Single Direction},
+  author = {Arditi, Andy and Obeso, Oscar and Sygurev, Aaquib and Pan, Wes Gurnee Daniel and Belrose, Nora and Hubinger, Evan and Smith, Aengus Lynch and Lieberum, Tom and Marks, Samuel and Turner, Alexander Matt and Nanda, Neel},
+  year   = {2024},
+  eprint = {2406.11717},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@inproceedings{mazeika2024harmbench,
+  title     = {{HarmBench}: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal},
+  author    = {Mazeika, Mantas and Phan, Long and Yin, Xuwang and Zou, Andy and Wang, Zifan and Mu, Norman and Sakhaee, Elham and Li, Nathaniel and Basart, Steven and Li, Bo and Forsyth, David and Hendrycks, Dan},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2024},
+  eprint    = {2402.04249},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{suzgun2023bbh,
+  title     = {Challenging {BIG-Bench} Tasks and Whether Chain-of-Thought Can Solve Them},
+  author    = {Suzgun, Mirac and Scales, Nathan and Sch{\"a}rli, Nathanael and Gehrmann, Sebastian and Tay, Yi and Chung, Hyung Won and Chowdhery, Aakanksha and Le, Quoc V. and Chi, Ed H. and Zhou, Denny and Wei, Jason},
+  booktitle = {Findings of the Association for Computational Linguistics (ACL)},
+  year      = {2023},
+  eprint    = {2210.09261},
+  archivePrefix = {arXiv}
+}
+
+% --- additional prior-art keys cited in Papers XIII / XIV (added 2026-05) ---
+
+@inproceedings{ouyang2022rlhf,
+  title     = {Training language models to follow instructions with human feedback},
+  author    = {Ouyang, Long and Wu, Jeff and Jiang, Xu and Almeida, Diogo and Wainwright, Carroll L. and Mishkin, Pamela and Zhang, Chong and Agarwal, Sandhini and Slama, Katarina and Ray, Alex and Schulman, John and Hilton, Jacob and Kelton, Fraser and Miller, Luke and Simens, Maddie and Askell, Amanda and Welinder, Peter and Christiano, Paul and Leike, Jan and Lowe, Ryan},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2022},
+  eprint    = {2203.02155},
+  archivePrefix = {arXiv}
+}
+
+@misc{bai2022constitutional,
+  title  = {Constitutional {AI}: Harmlessness from {AI} Feedback},
+  author = {Bai, Yuntao and Kadavath, Saurav and Kundu, Sandipan and Askell, Amanda and Kernion, Jackson and Jones, Andy and Chen, Anna and Goldie, Anna and Mirhoseini, Azalia and McKinnon, Cameron and others},
+  year   = {2022},
+  eprint = {2212.08073},
+  archivePrefix = {arXiv}
+}
+
+@misc{wei2023jailbroken,
+  title  = {Jailbroken: How Does {LLM} Safety Training Fail?},
+  author = {Wei, Alexander and Haghtalab, Nika and Steinhardt, Jacob},
+  year   = {2023},
+  eprint = {2307.02483},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{bolukbasi2016man,
+  title     = {Man is to Computer Programmer as Woman is to Homemaker? Debiasing Word Embeddings},
+  author    = {Bolukbasi, Tolga and Chang, Kai-Wei and Zou, James Y. and Saligrama, Venkatesh and Kalai, Adam T.},
+  booktitle = {Advances in Neural Information Processing Systems (NIPS)},
+  year      = {2016}
+}
+
+@inproceedings{meng2022rome,
+  title     = {Locating and Editing Factual Associations in {GPT}},
+  author    = {Meng, Kevin and Bau, David and Andonian, Alex and Belinkov, Yonatan},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2022}
+}
+
+@inproceedings{meng2023memit,
+  title     = {Mass-Editing Memory in a Transformer},
+  author    = {Meng, Kevin and Sharma, Arnab Sen and Andonian, Alex and Belinkov, Yonatan and Bau, David},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2023}
+}
+
+@inproceedings{gehman2020realtoxicityprompts,
+  title     = {{RealToxicityPrompts}: Evaluating Neural Toxic Degeneration in Language Models},
+  author    = {Gehman, Samuel and Gururangan, Suchin and Sap, Maarten and Choi, Yejin and Smith, Noah A.},
+  booktitle = {Findings of the Association for Computational Linguistics (EMNLP)},
+  year      = {2020}
+}
+
+@inproceedings{huh2024platonic,
+  title={The Platonic Representation Hypothesis},
+  author={Huh, Minyoung and Cheung, Brian and Wang, Tongzhou and Isola, Phillip},
+  booktitle={Proceedings of the 41st International Conference on Machine Learning (ICML)},
+  year={2024}
+}
+
+% --------------------------------------------------------------------
+% Stubs added 2026-05-09 to resolve missing citation keys reported by
+% biber. Where a HyperTensor self-cite alias was used inconsistently
+% (e.g. \cite{stewart2026grc}) we point it at the canonical entry
+% already present in this file.
+% --------------------------------------------------------------------
+
+@misc{stewart2026grc,
+  title={GRC Attention Compression (Paper~I in this volume)},
+  author={Stewart, William Ken Ohara},
+  howpublished={\texttt{https://github.com/NagusameCS/HyperTensor}, Paper~I of the HyperTensor Extended Volume},
+  year={2026},
+}
+
+@misc{stewart2026ott,
+  title={Organic Training Theory (Paper~IV in this volume)},
+  author={Stewart, William Ken Ohara},
+  howpublished={\texttt{https://github.com/NagusameCS/HyperTensor}, Paper~IV of the HyperTensor Extended Volume},
+  year={2026},
+}
+
+@misc{stewart2026distill,
+  title={GRC Light Distillation (Paper~V in this volume)},
+  author={Stewart, William Ken Ohara},
+  howpublished={\texttt{https://github.com/NagusameCS/HyperTensor}, Paper~V of the HyperTensor Extended Volume},
+  year={2026},
+}
+
+@misc{stewart2026ffn,
+  title={FFN Cluster Compression (Paper~VII in this volume)},
+  author={Stewart, William Ken Ohara},
+  howpublished={\texttt{https://github.com/NagusameCS/HyperTensor}, Paper~VII of the HyperTensor Extended Volume},
+  year={2026},
+}
+
+@article{shamir2015fast,
+  title={A Stochastic PCA and SVD Algorithm with an Exponential Convergence Rate},
+  author={Shamir, Ohad},
+  journal={Proceedings of the International Conference on Machine Learning (ICML)},
+  year={2015},
+}
+
+@article{krasulina1969,
+  title={The Method of Stochastic Approximation for the Determination of the Least Eigenvalue of a Symmetric Matrix},
+  author={Krasulina, T. P.},
+  journal={USSR Computational Mathematics and Mathematical Physics},
+  volume={9},
+  number={6},
+  pages={189--195},
+  year={1969},
+}
+
+@inproceedings{allen2017first,
+  title={First-Order Methods Almost Always Avoid Saddle Points},
+  author={Allen-Zhu, Zeyuan and Li, Yuanzhi},
+  booktitle={Proceedings of the International Conference on Machine Learning (ICML)},
+  year={2017},
+}
+
+@article{jain2016streaming,
+  title={Streaming PCA: Matching Matrix Bernstein and Near-Optimal Finite Sample Guarantees for Oja's Algorithm},
+  author={Jain, Prateek and Jin, Chi and Kakade, Sham M. and Netrapalli, Praneeth and Sidford, Aaron},
+  journal={Conference on Learning Theory (COLT)},
+  year={2016},
+}
+
+@article{ansuini2019intrinsic,
+  title={Intrinsic Dimension of Data Representations in Deep Neural Networks},
+  author={Ansuini, Alessio and Laio, Alessandro and Macke, Jakob H. and Zoccolan, Davide},
+  journal={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2019},
+}
+
+@article{pope2021intrinsic,
+  title={The Intrinsic Dimension of Images and Its Impact on Learning},
+  author={Pope, Phil and Zhu, Chen and Abdelkader, Ahmed and Goldblum, Micah and Goldstein, Tom},
+  journal={International Conference on Learning Representations (ICLR)},
+  year={2021},
+}
+
+@misc{ilharco2022editing,
+  title={Editing Models with Task Arithmetic},
+  author={Ilharco, Gabriel and Ribeiro, Marco Tulio and Wortsman, Mitchell and Gururangan, Suchin and Schmidt, Ludwig and Hajishirzi, Hannaneh and Farhadi, Ali},
+  howpublished={arXiv:2212.04089},
+  year={2022},
+}
+
+@inproceedings{wortsman2022task,
+  title={Robust Fine-Tuning of Zero-Shot Models},
+  author={Wortsman, Mitchell and Ilharco, Gabriel and Kim, Jong Wook and Li, Mike and Kornblith, Simon and Roelofs, Rebecca and Lopes, Raphael Gontijo and Hajishirzi, Hannaneh and Farhadi, Ali and Namkoong, Hongseok and Schmidt, Ludwig},
+  booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2022},
+}
+
+@misc{papC2026spec,
+  title={Geodesic Speculative Decoding (Paper~III in this volume)},
+  author={Stewart, William Ken Ohara},
+  howpublished={\texttt{https://github.com/NagusameCS/HyperTensor}, Paper~III of the HyperTensor Extended Volume},
+  year={2026},
+}
+
+}

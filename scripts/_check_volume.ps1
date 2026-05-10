@@ -1,0 +1,7 @@
+$p = 'c:\Users\legom\HyperTensor\ARXIV_SUBMISSIONS\volume_extended.tex'
+$b = [IO.File]::ReadAllBytes($p)
+Write-Host ('Bytes: ' + $b.Length)
+$t = [IO.File]::ReadAllText($p)
+Write-Host ('Chars: ' + $t.Length)
+if ($t -match 'Volume Limitations') { Write-Host 'HAS Limitations' } else { Write-Host 'NO Limitations' }
+Write-Host ('LastWrite: ' + (Get-Item $p).LastWriteTime)

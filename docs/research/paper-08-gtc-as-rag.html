@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTC Runtime: Measured Cache Coverage and Batch Jacobi, HyperTensor Research</title>
+<meta name="description" content="Paper 08: Empirical validation of GTC. 97x batched-Jacobi, 15.5x faster than RAG.">
+<meta name="robots" content="index, follow"><meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/research-paper.css"><script src="../assets/reader.js"></script>
+</head>
+<body>
+<nav class="site-nav"><a href="../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a><ul class="nav-links"><li><a href="../index.html">Home</a></li><li><a href="../index.html#engineering">Engineering</a></li><li><a href="../index.html#research">Research</a></li><li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li></ul></nav>
+<header class="paper-header"><span class="tag">Paper 08 · May 2026</span><h1>GTC Runtime: Measured Cache Coverage and Batch Jacobi</h1><p class="author">William Ken Ohara Stewart</p><p class="meta">HyperTensor Project · <a href="../papers/08-gtc-as-rag.html">Extended version</a> · <a href="../../ARXIV_SUBMISSIONS/paper-VIII/gtc_as_rag.tex">TeX source</a></p></header>
+<article class="paper-body">
+<section><h2>Abstract</h2><p>Empirical validation of the Geodesic Trajectory Cache (GTC) proposed in Paper IV. On three model scales (135M–1.5B parameters), GTC achieves cache hit rates of 90.4–91.5% at a 25%-fraction coverage budget — scale-invariant within ±0.5%. Batch Jacobi evaluation reaches 97× speedup at B=10. GTC is 15.5× faster than disk-based RAG. Compressed trajectory records occupy 5.96 KB each. End-to-end speculative decode with GTC drafts achieves 76.5 tok/s (1.53× baseline).</p></section>
+<section><h2>1. Key Results</h2><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Cache coverage (3-model avg)</td><td>91.0% at 25% budget</td></tr><tr><td>Batch Jacobi peak</td><td>97.9× at B=10</td></tr><tr><td>vs. disk-based RAG</td><td>15.5× faster</td></tr><tr><td>Record size</td><td>5.96 KB (rank-5 exact)</td></tr><tr><td>Query latency</td><td>30.9 μs</td></tr><tr><td>OTT end-to-end</td><td>76.5 tok/s (1.53× baseline)</td></tr></table></section>
+<section><h2>2. Scale Invariance</h2><p>Cache coverage is independent of model size: 91.0% (135M), 90.4% (360M), 91.5% (1.5B) — within ±0.5% across a 33× parameter range. The manifold structure is scale-invariant, confirming the intrinsic dimension hypothesis from Paper IV.</p></section>
+<section><h2>References</h2><ol><li>Stewart, W.K.O. Organic Training Theory. HyperTensor Paper IV, 2026.</li><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project · <a href="../index.html">back to index</a></footer>
+</body>
+</html>

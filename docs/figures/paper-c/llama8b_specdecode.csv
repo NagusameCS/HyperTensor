@@ -1,0 +1,9 @@
+prompt,tokens,geo_accepted,xfmr,od_drafts,acceptance_rate_pct
+Explain the difference between a list and a tuple in Python.,64,30,34,0,46.9
+Write a short poem about the autumn moon.,64,30,34,0,46.9
+What is the capital of Australia and why was it chosen?,64,30,34,0,46.9
+Describe how a transformer decoder generates tokens.,64,30,34,0,46.9
+Summarize the plot of Hamlet in three sentences.,64,30,34,0,46.9
+How does spaced-repetition learning work?,64,30,34,0,46.9
+Compare HTTP/1.1 and HTTP/2 in terms of multiplexing.,64,30,34,0,46.9
+What is the cosmic microwave background?,64,30,34,0,46.9

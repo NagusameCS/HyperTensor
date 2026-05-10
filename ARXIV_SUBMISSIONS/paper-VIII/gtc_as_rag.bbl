@@ -1,0 +1,128 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{lewis2020rag}{article}{}{}
+      \name{author}{12}{}{%
+        {{hash=ecbe786a5668bf643d74bb24fe1c3cfe}{%
+           family={Lewis},
+           familyi={L\bibinitperiod},
+           given={Patrick},
+           giveni={P\bibinitperiod}}}%
+        {{hash=79978685fd7b37606022b06c0f6419a1}{%
+           family={Perez},
+           familyi={P\bibinitperiod},
+           given={Ethan},
+           giveni={E\bibinitperiod}}}%
+        {{hash=d205faec67355b6e0ec49f82a492324c}{%
+           family={Piktus},
+           familyi={P\bibinitperiod},
+           given={Aleksandra},
+           giveni={A\bibinitperiod}}}%
+        {{hash=e1c32989a78998fe3c03c981d0da2dc7}{%
+           family={Petroni},
+           familyi={P\bibinitperiod},
+           given={Fabio},
+           giveni={F\bibinitperiod}}}%
+        {{hash=b24392ebfb2c0a35979fc689c389c649}{%
+           family={Karpukhin},
+           familyi={K\bibinitperiod},
+           given={Vladimir},
+           giveni={V\bibinitperiod}}}%
+        {{hash=78a420900f50a8470ad085fb05231bf6}{%
+           family={Goyal},
+           familyi={G\bibinitperiod},
+           given={Naman},
+           giveni={N\bibinitperiod}}}%
+        {{hash=b2e0f8c7e3713c1429efaef33a765086}{%
+           family={Kuttler},
+           familyi={K\bibinitperiod},
+           given={Heinrich},
+           giveni={H\bibinitperiod}}}%
+        {{hash=c97f53fdeeb04c28de19e3324cb4bc0a}{%
+           family={Lewis},
+           familyi={L\bibinitperiod},
+           given={Mike},
+           giveni={M\bibinitperiod}}}%
+        {{hash=d4d56d3d370b3afd4ad2ebf985fbd3f8}{%
+           family={Yih},
+           familyi={Y\bibinitperiod},
+           given={Wen-tau},
+           giveni={W\bibinithyphendelim t\bibinitperiod}}}%
+        {{hash=bf6bd1fe5980a054333a40bb94be2383}{%
+           family={Rocktaschel},
+           familyi={R\bibinitperiod},
+           given={Tim},
+           giveni={T\bibinitperiod}}}%
+        {{hash=6cd024b217f3f2f8126e253b8c84d24d}{%
+           family={Riedel},
+           familyi={R\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+        {{hash=ca01c762f4a52dd8a8548508f8d727c9}{%
+           family={Kiela},
+           familyi={K\bibinitperiod},
+           given={Douwe},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{f238c3bfc4b30650dd17e65c4aadfc66}
+      \strng{fullhash}{2679e873d06671d191f16ea70f965605}
+      \strng{fullhashraw}{2679e873d06671d191f16ea70f965605}
+      \strng{bibnamehash}{aa6cbfbfada4b209505238d4429dc4a3}
+      \strng{authorbibnamehash}{aa6cbfbfada4b209505238d4429dc4a3}
+      \strng{authornamehash}{f238c3bfc4b30650dd17e65c4aadfc66}
+      \strng{authorfullhash}{2679e873d06671d191f16ea70f965605}
+      \strng{authorfullhashraw}{2679e873d06671d191f16ea70f965605}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{NeurIPS}
+      \field{title}{Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks}
+      \field{year}{2020}
+    \endentry
+    \entry{stewart2026ott}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=b6c8d4849b57881531fe4c3b717b554e}{%
+           family={Project},
+           familyi={P\bibinitperiod},
+           given={HyperTensor},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{fullhash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{fullhashraw}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{bibnamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorbibnamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authornamehash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorfullhash}{b6c8d4849b57881531fe4c3b717b554e}
+      \strng{authorfullhashraw}{b6c8d4849b57881531fe4c3b717b554e}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{HyperTensor Part IV, to appear}
+      \field{title}{Organic Training Theory and the Manifold Hypothesis}
+      \field{year}{2026}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

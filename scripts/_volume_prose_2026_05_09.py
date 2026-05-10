@@ -1,0 +1,64 @@
+"""Cosmetic prose pass: drop 'Honest scope' framing and the 'bulletproof' marketing
+verb across the volume; keep real artifact filenames intact.
+
+Idempotent: re-running on a cleaned file produces zero edits.
+"""
+import pathlib, re
+
+P = pathlib.Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+src = P.read_text(encoding='utf-8')
+orig = src
+
+edits: list[tuple[str, str, str]] = []
+
+def sub(label: str, old: str, new: str, expected: int | None = None):
+    n = src.count(old)
+    if expected is not None and n != expected:
+        print(f'! {label}: expected {expected} hits, found {n}')
+    if n:
+        edits.append((label, old, new))
+
+# ---- "Honest scope" -> "Scope"
+# Prose forms only (preserve sentence punctuation that follows).
+for old, new in [
+    ('Honest scope.',  'Scope.'),
+    ('Honest scope ',  'Scope '),    # e.g. "Honest scope of specificity (...)."
+    ('honest scope ',  'scope '),
+    ('Honest Scope',   'Scope'),
+]:
+    sub(f'honest scope: {old!r}', old, new)
+
+# ---- "Bulletproof" / "bulletproof" prose
+# Section/subsection headers
+for old, new in [
+    ('\\subsection{Bulletproof Benchmarks}',          '\\subsection{End-to-End Benchmarks}'),
+    ('\\subsection{Bulletproof Verification Protocol}', '\\subsection{Verification Protocol}'),
+    ('\\section{Bulletproof Benchmarks}',             '\\section{End-to-End Benchmarks}'),
+]:
+    sub(f'header: {old!r}', old, new)
+
+# Inline prose
+for old, new in [
+    ('Cross-paper bulletproof audit.', 'Cross-paper consistency audit.'),
+]:
+    sub(f'prose: {old!r}', old, new)
+
+# NOTE: keep the literal filename `benchmarks/bulletproof_audit.json` alone — it
+# is a real artifact path and must continue to resolve.
+
+# ---- A couple of corny-language touch-ups picked up in the scan.
+for old, new in [
+    ('The result is remarkable:',           'The result is the following:'),
+    ('reveals a striking result:',          'reveals the following:'),
+]:
+    sub(f'corny: {old!r}', old, new)
+
+for label, old, new in edits:
+    src = src.replace(old, new)
+    print(f'EDIT {label}: {src.count(new) - orig.count(new)} new occurrences')
+
+if src != orig:
+    P.write_text(src, encoding='utf-8', newline='\n')
+    print('WROTE', P)
+else:
+    print('no changes')

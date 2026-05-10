@@ -1,0 +1,122 @@
+"""Audit volume_extended.tex for corny / AI-marketing language."""
+import pathlib, re
+
+P = pathlib.Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+t = P.read_text(encoding='utf-8')
+
+# Patterns that are commonly AI-marketing tells. Some are also legitimate
+# academic words; we'll show context and let a human decide.
+patterns = [
+    # strong tells
+    r'\bbulletproof\b',
+    r'\bremarkable(ly)?\b',
+    r'\bstriking(ly)?\b',
+    r'\bgame[- ]changing\b',
+    r'\brevolutionary\b',
+    r'\bunprecedented\b',
+    r'\bgroundbreaking\b',
+    r'\bcutting[- ]edge\b',
+    r'\bstate[- ]of[- ]the[- ]art\b',
+    r'\bworld[- ]class\b',
+    r'\bbest[- ]in[- ]class\b',
+    r'\bnext[- ]generation\b',
+    r'\bnext[- ]gen\b',
+    r'\bseamless(ly)?\b',
+    r'\beffortless(ly)?\b',
+    r'\bdelve(s|d)?\b',
+    r'\bdelving\b',
+    r'\bshowcase(s|d)?\b',
+    r'\bshowcasing\b',
+    r'\bshed(s|ding)? light\b',
+    r'\btestament\b',
+    r'\bjourney\b',
+    r'\bunlock(s|ed|ing)?\b',
+    r'\bharness(es|ed|ing)?\b',
+    r'\bempower(s|ed|ing)?\b',
+    r'\brobust\b',
+    r'\bcomprehensive(ly)?\b',
+    r'\bextensive(ly)?\b',
+    r'\bsophisticated\b',
+    r'\belegant(ly)?\b',
+    r'\bpowerful(ly)?\b',
+    r'\bremarkably\b',
+    r'\bhighly\s+effective\b',
+    r'\bsignificantly\b',
+    r'\bnotably\b',
+    r'\bincredibl(y|e)\b',
+    r'\bamazing(ly)?\b',
+    r'\bphenomenal(ly)?\b',
+    r'\boutstanding(ly)?\b',
+    r'\bsuperior(ly)?\b',
+    r'\bexcellent(ly)?\b',
+    # phrases
+    r'In this work, we\b',
+    r'In this paper, we\b',
+    r'It is worth noting\b',
+    r'It is important to note\b',
+    r'It should be noted\b',
+    r'\bnavigate the\b',
+    r'\btap(s|ped|ping)? into\b',
+    r'\bleverag(e|es|ed|ing)\b',
+    r'\bparadigm\s+shift\b',
+    r'\bdemonstrate(s|d)?\b',  # very common — useful to flag count only
+    r'\bchallenging\s+landscape\b',
+    r'\bvast\s+landscape\b',
+    r'\bever[- ]evolving\b',
+    r'\bever[- ]growing\b',
+    r'\bin\s+today',
+    r'\bat\s+the\s+heart\s+of\b',
+    r'\bat\s+the\s+core\s+of\b',
+    r'\bplay(s)?\s+a\s+(crucial|key|pivotal|vital)\s+role\b',
+    r'\bcrucial(ly)?\b',
+    r'\bpivotal\b',
+    r'\bvital\b',
+    r'\bgame\b.{0,20}\bchanger\b',
+    r'\bnovel\b',  # heavily overused
+    r'\bvery\s+(?:large|small|good|bad|important)\b',
+    r'\bthe magic\b',
+    r'\bworks like a charm\b',
+    r'\bunder the hood\b',
+    r'\bdeep dive\b',
+    r'\bjust works\b',
+    r'\bfirst[- ]of[- ]its[- ]kind\b',
+    r'\bworld[- ]first\b',
+    r'\bfully[- ]fledged\b',
+    r"\bstate of the art\b",
+    r'\bend[- ]to[- ]end\b',  # often legitimate; flag for review
+    r"\bonly\s+\w+\s+method\s+\(to our knowledge\)\b",
+    r"\bto our knowledge\b",
+    r"\bfirst\s+functional\b",
+]
+
+# Categorise: high-priority vs low-priority (where legitimate use is common).
+LOW = {
+    r'\bsignificantly\b', r'\bdemonstrate(s|d)?\b', r'\bcrucial(ly)?\b',
+    r'\brobust\b', r'\bcomprehensive(ly)?\b', r'\bextensive(ly)?\b',
+    r'\bnotably\b', r'\bend[- ]to[- ]end\b', r'\bnovel\b',
+}
+
+results = {}
+for pat in patterns:
+    matches = list(re.finditer(pat, t, re.IGNORECASE))
+    if matches:
+        results[pat] = matches
+
+print('=== HIGH-PRIORITY TELLS ===')
+for pat, ms in sorted(results.items(), key=lambda kv: len(kv[1]), reverse=True):
+    if pat in LOW:
+        continue
+    print(f'\n{pat!r}: {len(ms)} hits')
+    for m in ms[:8]:
+        line = t[:m.start()].count('\n') + 1
+        s = max(0, m.start() - 50)
+        e = min(len(t), m.end() + 50)
+        snippet = t[s:e].replace('\n', ' ')
+        print(f'  L{line}: ...{snippet}...')
+    if len(ms) > 8:
+        print(f'  (+{len(ms)-8} more)')
+
+print('\n=== LOW-PRIORITY (counts only) ===')
+for pat in LOW:
+    if pat in results:
+        print(f'  {pat!r}: {len(results[pat])} hits')

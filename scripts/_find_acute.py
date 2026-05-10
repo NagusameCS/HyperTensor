@@ -1,0 +1,7 @@
+from pathlib import Path
+import re
+p = Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+t = p.read_text(encoding='utf-8')
+for m in re.finditer(r"\\'", t):
+    s = max(0, m.start()-30); e = min(len(t), m.end()+30)
+    print(repr(t[s:e]))

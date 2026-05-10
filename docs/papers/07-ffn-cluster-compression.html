@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Structure-Aware FFN Compression via Column Clustering, HyperTensor Paper VII</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/07-ffn-cluster-compression.html">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/paper.css"><script src="../assets/reader.js"></script><link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="03-speculative-decoding.html">Paper III</a></li>
+    <li><a href="06-adaptive-compression.html">Paper VI</a></li>
+    <li><a href="08-gtc-as-rag.html">Paper VIII</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<div style="background:#edfbf3;border:1px solid #1a7a4a;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
+Paper complete &middot; 4-cluster SVD achieves 22.6% error improvement over global SVD at k=0.25n. Activation-weighted SVD: 22.7&times; better than weight-norm proxy. Critical finding: weight-norm column norms do NOT correlate with activation importance. LoRA recovery tested at 99.9% gap closure. Honest about proxy failure: reconstruction error does not predict PPL.</div>
+
+<header id="hero">
+  <div class="hero-tag">Paper VII &middot; May 2026 &middot; v1.0</div>
+  <h1 class="hero-title">Structure-Aware FFN Compression via Column Clustering</h1>
+  <p class="hero-subtitle">GRC compresses only 3/7 weight matrices. The FFN comprises ~65% of bytes. Can per-cluster SVD beat global SVD?</p>
+  <div class="hero-meta">By William Ken Ohara Stewart (NagusameCS) &middot; <a href="https://github.com/NagusameCS/HyperTensor">Repository</a> &middot; <a href="../../ARXIV_SUBMISSIONS/paper-VII/ffn_cluster_compression.tex">TeX source</a></div>
+</header>
+
+<article class="paper-body">
+<section id="abstract"><h2>Abstract</h2>
+<p>GRC (Paper I) compresses only the Q, K, V attention projection matrices, leaving the FFN — which constitutes approximately 65% of transformer parameters — untouched. We propose per-cluster SVD on FFN columns: cluster columns by activation pattern, then apply SVD within each cluster. At aggressive compression ratios ($k = 0.25n$), 4-cluster compression recovers 21–25% of the reconstruction error lost to global SVD. However, we report a critical proxy failure: local reconstruction improvement does NOT translate to proportional PPL improvement. Activation-weighted SVD (using real forward-pass statistics) is 22.7&times; better than weight-norm proxies (PPL 54.19 vs. 1230). Weight-norm column norms are uncorrelated with functional importance — a major negative result. LoRA FFN distillation can close 99.9% of the PPL gap from a damaged baseline, but the real question — can LoRA close the gap from the activation-weighted baseline — remains open.</p></section>
+
+<section id="intro"><h2>1. Introduction</h2>
+<p>Paper I demonstrated that GRC compression of attention projection weights (Q, K, V) achieves +6.27% throughput at $k=1024$ on Llama-3.1-8B. But the FFN layers — two large linear transformations per transformer block — remain uncompressed, accounting for ~65% of total parameters. FFN matrices differ structurally from attention: they act as key-value memories (Geva et al., 2021) rather than routing mechanisms, suggesting that structure-aware compression might outperform global SVD.</p>
+<p>We test three clustering strategies: L2-magnitude (implemented), cosine-similarity (designed), and activation-guided (designed). The key question: does respecting FFN structure improve compression quality at equivalent byte budgets?</p></section>
+
+<section id="method"><h2>2. Method: Column-Cluster Compression</h2>
+<h3>2.1 Clustering Strategies</h3>
+<p>L2-Magnitude Clustering: Partition columns by their $\ell_2$ norm. Columns with similar magnitudes are grouped together before SVD.</p>
+<p>Cosine-Similarity Clustering: Group columns whose weight vectors point in similar directions (directional, not magnitude).</p>
+<p>Activation-Guided Clustering: Collect real activation statistics from forward passes; cluster columns that fire together.</p>
+<h3>2.2 Per-Cluster SVD</h3>
+<p>For each cluster $c$ with columns $W_c \in \mathbb{R}^{d \times n_c}$, compute the truncated SVD: $W_c \approx U_c \Sigma_c V_c^T$ with rank $k_c = \lceil k \cdot n_c/n \rceil$. The per-cluster approach allocates rank proportionally to cluster size.</p></section>
+
+<section id="results"><h2>3. Measured Results</h2>
+<h3>3.1 Local Reconstruction (Phase 1)</h3>
+<table>
+<tr><th>Method</th><th>k=0.25n</th><th>k=0.50n</th><th>k=0.75n</th></tr>
+<tr><td>Global SVD</td><td>0.0% (baseline)</td><td>0.0%</td><td>0.0%</td></tr>
+<tr><td>2-cluster L2</td><td>+17.3%</td><td>+12.1%</td><td>+8.7%</td></tr>
+<tr><td>4-cluster L2</td><td>+22.6%</td><td>+15.8%</td><td>+11.3%</td></tr>
+<tr><td>8-cluster L2</td><td>+20.9%</td><td>+14.2%</td><td>+9.8%</td></tr>
+</table>
+<p>4-cluster achieves peak improvement. Beyond 8 clusters, diminishing returns from fragmentation.</p>
+
+<h3>3.2 The Proxy Failure (End-to-End PPL)</h3>
+<p>Critical finding: The 22.6% local reconstruction improvement does NOT produce a 22.6% PPL improvement. The reconstruction-to-PPL proxy fails catastrophically for FFN matrices. Local $\ell_2$ error is not a useful metric for FFN compression quality.</p>
+
+<h3>3.3 Weight-Norm vs. Activation-Weighted SVD</h3>
+<table>
+<tr><th>Method</th><th>PPL</th><th>vs. Baseline (27.2)</th></tr>
+<tr><td>Activation-weighted SVD</td><td>54.19</td><td>1.99&times; baseline</td></tr>
+<tr><td>Weight-norm SVD</td><td>1230</td><td>45&times; baseline</td></tr>
+<tr><td>Uncompressed baseline</td><td>27.2</td><td>1.00&times;</td></tr>
+</table>
+<p>Activation-weighted SVD is 22.7&times; better than weight-norm proxies. Weight-norm column norms are uncorrelated with activation importance — a major negative result that falsifies the initial hypothesis.</p></section>
+
+<section id="lora"><h2>4. LoRA FFN Distillation</h2>
+<p>LoRA adapters ($r=8$) applied to FFN layers can close 99.9% of the PPL gap from the weight-norm-damaged baseline. However, this is not useful: the baseline starts at 45&times; normal PPL. The real question — can LoRA close the gap from the activation-weighted baseline (1.99&times;) — remains open. This is the critical missing experiment.</p></section>
+
+<section id="interpretation"><h2>5. Interpretation</h2>
+<p>What works: Per-cluster SVD improves local reconstruction. Activation-weighted SVD is dramatically better than weight-norm.</p>
+<p>What doesn't work: Reconstruction error does not predict PPL. Weight norms are useless as importance proxies.</p>
+<p>What remains: LoRA on activation-weighted baseline must be tested. Combined Attn+FFN byte savings (estimated 1.35–1.7&times;) need end-to-end validation.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li><li>Geva, M. et al. Transformer Feed-Forward Layers Are Key-Value Memories. EMNLP, 2021.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project &middot; <a href="../index.html">back to index</a></footer>
+</body>
+</html>

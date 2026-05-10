@@ -1,0 +1,17 @@
+{
+  "model": "smollm2-135m",
+  "n_intrinsic": 8,
+  "T": 16,
+  "dl": 0.1,
+  "phi_rank": 5,
+  "n_records": 24,
+  "build_wall_s": 6.087,
+  "save_bytes": 146401,
+  "save_kb_per_record": 5.96,
+  "phi_lowrank_relerr_first_record": 0.0,
+  "n_lookups": 1000,
+  "lookup_wall_s": 0.031,
+  "lookup_us_per_query": 30.9,
+  "hit_rate_eps3": 0.962,
+  "mean_lookup_g_dist": 1.9837
+}

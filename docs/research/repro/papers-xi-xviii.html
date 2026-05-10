@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce Papers XI–XVIII — HyperTensor Research</title>
+<meta name="description" content="Step-by-step reproduction guide for HyperTensor Papers XI–XVIII: UGT, Native Geodesic Training, Safe OGD, Snipe, COG+TEH, AGT, ACM, Bridge Protocol.">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/reader.css">
+<link rel="stylesheet" href="../../assets/research-paper.css">
+<script src="../../assets/reader.js"></script>
+<style>
+  .repro-toc { background: var(--bg-soft, #f7f5f1); border: 1px solid var(--border, #e0d8c8); border-radius: 8px; padding: 1rem 1.4rem; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  .repro-toc ol { margin: 0.4rem 0 0; padding-left: 1.4rem; columns: 2; column-gap: 2rem; }
+  .repro-toc a { text-decoration: none; color: var(--text, #1a1a1a); }
+  .repro-toc a:hover { color: var(--accent, #c0392b); }
+  .paper-block { margin: 2.2rem 0; padding: 1.4rem 1.6rem; border: 1px solid var(--border, #e0d8c8); border-radius: 8px; background: #fff; }
+  .paper-block h2 { margin-top: 0; }
+  .spec-table { width: 100%; font-size: 0.88rem; margin: 0.8rem 0 1.2rem; border-collapse: collapse; }
+  .spec-table td { padding: 0.4rem 0.8rem; border: 1px solid var(--border, #e0d8c8); }
+  .spec-table td:first-child { font-weight: 600; background: var(--bg-soft, #f7f5f1); width: 28%; }
+  .verifies { background: var(--green-bg, #e8f5e8); border-left: 3px solid var(--green, #2c7a3a); padding: 0.7rem 1rem; border-radius: 0 4px 4px 0; margin: 0.8rem 0; font-size: 0.92rem; }
+  .verifies strong { color: var(--green, #2c7a3a); }
+  .caveat { background: var(--red-bg, #fdeeed); border-left: 3px solid var(--accent, #c0392b); padding: 0.7rem 1rem; border-radius: 0 4px 4px 0; margin: 0.8rem 0; font-size: 0.92rem; }
+  @media (max-width: 700px) { .repro-toc ol { columns: 1; } }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="../../index.html" class="nav-brand">HyperTensor<span style="color:var(--accent)">.</span></a>
+  <ul class="nav-links">
+    <li><a href="../../index.html">Home</a></li>
+    <li><a href="../../index.html#research">Research</a></li>
+    <li><a href="../../index.html#reproduce">Reproduce</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="paper-header">
+  <span class="tag">Reproduce XI–XVIII · Living Stack + Riemann</span>
+  <h1>Reproduce Papers XI–XVIII</h1>
+  <p class="author">William Ken Ohara Stewart (NagusameCS Independent Research)</p>
+  <p class="meta">
+    HyperTensor Project · May 2026
+    · <a href="https://github.com/NagusameCS/HyperTensor/blob/main/REPRODUCTION.md">REPRODUCTION.md</a>
+    · <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/HARDWARE.md">HARDWARE.md</a>
+    · <a href="https://doi.org/10.5281/zenodo.20077378">Zenodo DOI</a>
+  </p>
+</header>
+
+<article class="paper-body">
+
+<h2>Scope</h2>
+<p>
+  This guide reproduces the eight papers that form the second half of the HyperTensor volume:
+  the k-manifold living-model stack (Papers XI–XV) and the geometric Riemann framework
+  (Papers XVI–XVIII). Most paths run on a consumer GPU; the four Riemann verification
+  scripts are CPU-only and finish in 15 seconds.
+</p>
+
+<p>
+  Every command below is meant to be run from the repository root after the
+  <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/QUICKSTART.md">Path A or Path B</a>
+  setup. The hardware tier (T1 / T2 / T3) for each paper is in the spec table at the
+  top of its block. T3 (datacenter GPU) results all ship pre-computed in
+  <code>benchmarks/</code> — you can verify the JSON outputs without re-running.
+</p>
+
+<div class="repro-toc">
+  <strong>Jump to:</strong>
+  <ol>
+    <li><a href="#xi">Paper XI — UGT</a></li>
+    <li><a href="#xii">Paper XII — Native Training</a></li>
+    <li><a href="#xiii">Paper XIII — Safe OGD</a></li>
+    <li><a href="#xiv">Paper XIV — Snipe</a></li>
+    <li><a href="#xv">Paper XV — COG + TEH</a></li>
+    <li><a href="#xvi">Paper XVI — AGT</a></li>
+    <li><a href="#xvii">Paper XVII — ACM</a></li>
+    <li><a href="#xviii">Paper XVIII — Bridge Protocol</a></li>
+    <li><a href="#jury">Jury Foundation (auxiliary)</a></li>
+    <li><a href="#audit">Cross-cutting audits</a></li>
+  </ol>
+</div>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li>Python 3.10–3.12 in a clean venv</li>
+  <li>Tier A install: <code>pip install numpy scipy mpmath sympy matplotlib</code></li>
+  <li>Tier B install (adds GPU paths): <code>pip install torch transformers safetensors</code></li>
+  <li>Tier C install (adds 4-bit ISAGI runtime): <code>pip install bitsandbytes accelerate</code></li>
+  <li>For T3 (7B bilateral, 50K AGT, 10K COG): EC2 g6e.xlarge or equivalent L40S. See
+      <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/HARDWARE.md">HARDWARE.md</a>.</li>
+</ul>
+
+<div class="caveat">
+  <strong>Disclaimer (Papers XVI–XVIII).</strong> The Riemann papers are presented as a
+  geometric visualisation of the functional equation's Z<sub>2</sub> symmetry, not as a
+  contribution to analytic number theory. See the explicit disclaimers in each paper's
+  abstract.
+</div>
+
+<!-- ============================================================ XI -->
+<section class="paper-block" id="xi">
+<h2>Paper XI — Universal Geodesic Taxonomy (UGT)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1 (zone analysis) · T2 (1.5B bilateral) · T3 (7B bilateral)</td></tr>
+  <tr><td>Tier</td><td>A / B</td></tr>
+  <tr><td>Wall-clock</td><td>5 min (T1) · 90 min (T2) · 90 min (T3)</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/xi_transfer_proof.json</code> · <code>benchmarks/bilateral_*/</code></td></tr>
+</table>
+
+<pre><code class="language-bash"># Bench 1 — zone separation analysis (T1, 60 s)
+python scripts/benchmarks_quick.py
+
+# Bilateral UGT at 1.5B (T2)
+python scripts/close_xi_bilateral_ec2.py
+
+# Wielandt–Hoffman transfer proof (T1, 30 s)
+python scripts/xi_transfer_proof.py
+
+# Bilateral UGT at 7B (T3, L40S, 28-32 GB VRAM)
+python scripts/bilateral_7b.py --quick</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> 4 knowledge zones (syntax / factual / reasoning / creative)
+  are measurably separated; mean zone separation ≈ 0.114; bilateral subspace overlap
+  <strong>0.968</strong> at 1.5B; principal angles <strong>0.01°–0.11°</strong> at 7B
+  (4-bit + checkpointing on L40S).
+</div>
+</section>
+
+<!-- ============================================================ XII -->
+<section class="paper-block" id="xii">
+<h2>Paper XII — Native Geodesic Training</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1 (ratio analysis) · T2 (1.5B run) · T3 (7B run)</td></tr>
+  <tr><td>Tier</td><td>A / B</td></tr>
+  <tr><td>Wall-clock</td><td>1 min (T1) · 60 min (T2) · 4 h (T3)</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/native_15b_v2/</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/benchmarks_quick.py        # Bench 5: ratio analysis (T1)
+python scripts/native_15b.py              # Initial 1.5B run
+python scripts/native_15b_v2.py           # Production 1.5B run (recommended)
+python scripts/native_7b_final.py         # 7B run (T3, L40S)</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> Compression ratios analytically match
+  <code>W_native = B C Bᵀ</code>. At <code>k=768</code> on <code>d=1536</code>: 26%
+  parameters (3.8× compression), <strong>34.5% variance preserved</strong>. Loss
+  decreases monotonically. KExpansionScheduler auto-grows <code>k</code> from initial
+  budget. PPL parity at <code>k ≥ 256</code> requires H100-class VRAM (or 2× L40S).
+</div>
+</section>
+
+<!-- ============================================================ XIII -->
+<section class="paper-block" id="xiii">
+<h2>Paper XIII — Safe Orthogonal Geodesic Deviation (Safe OGD)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1</td></tr>
+  <tr><td>Tier</td><td>A</td></tr>
+  <tr><td>Wall-clock</td><td>90 s</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/safe_ogd_results.json</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/benchmarks_quick.py    # Bench 2 — safety guarantee
+python scripts/safe_ogd.py
+python scripts/ogd_cog_loop.py
+python scripts/close_xiii_safe_ogd_creativity.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> Maximum forbidden leakage is exactly
+  <code>0.000000000000</code>. The geometric identity
+  <code>Q<sub>f</sub><sup>T</sup>·P<sub>safe</sub> = 0</code> holds identically for 1,000
+  random vectors. <strong>0% TEH at all α ∈ {0.05, 0.10, …, 0.30}</strong> by
+  mathematical construction. Multi-step OGD chains preserve coherence.
+</div>
+</section>
+
+<!-- ============================================================ XIV -->
+<section class="paper-block" id="xiv">
+<h2>Paper XIV — Behavioral Geodesic Sniping (Snipe)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T2</td></tr>
+  <tr><td>Tier</td><td>B</td></tr>
+  <tr><td>Wall-clock</td><td>15 min</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/snipe_specificity_*/</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/benchmarks_quick.py        # Bench 3 (T1 quick check)
+python scripts/snipe_specificity.py
+python scripts/multi_snipe.py
+python scripts/close_xiv_snipe_collateral.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> Per-category specificity (harm/benign ratio) > 2.0 for
+  privacy, illegal advice, toxicity, sycophancy. Greedy selection with 2% benign budget
+  achieves <strong>7.4× better specificity</strong> than all-snipe. 8 behavioural
+  categories probed at 1.5B. Pre/post-COG pipeline integration.
+</div>
+</section>
+
+<!-- ============================================================ XV -->
+<section class="paper-block" id="xv">
+<h2>Paper XV — COG + TEH (Living Model)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1 (TEH) · T3 (10K-interaction COG)</td></tr>
+  <tr><td>Tier</td><td>A / B</td></tr>
+  <tr><td>Wall-clock</td><td>90 s (T1 TEH) · 6 h (T3 COG)</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/teh_roc/</code> · <code>benchmarks/cog_10k_results.json</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/benchmarks_quick.py        # Bench 4 — TEH detection
+python scripts/teh_roc.py
+python scripts/teh_15b_500.py
+python scripts/teh_15b_probed.py
+
+# 10,000-interaction COG run (T3)
+python scripts/cog_10k.py --n 10000
+
+# 50-loop safe OGD + COG integration
+python scripts/close_xv_cog_100.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> TEH detection rate <strong>&gt; 90% at FP rate = 0%</strong>;
+  optimal threshold via ROC calibration. 4-tier query recognition. .MIKU persistence
+  format. ISAGI v1.0 living manifold. Mann–Kendall test on 10K-interaction COG run:
+  <strong>p = 0.015</strong> — metric saturates, lifelong learning convergence confirmed
+  across 14 trajectories.
+</div>
+</section>
+
+<!-- ============================================================ XVI -->
+<section class="paper-block" id="xvi">
+<h2>Paper XVI — Algebraic Geometric Topology (AGT)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1 (2K primes) · T2 (10K) · T3 (50K)</td></tr>
+  <tr><td>Tier</td><td>A</td></tr>
+  <tr><td>Wall-clock</td><td>5 min · 20 min · 22 min (T3)</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/agt_v3_results.json</code> · <code>benchmarks/agt_50k_results.json</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/agt_10k.py --quick           # 2K primes (T1, 5 min)
+python scripts/agt_10k.py                   # 10K primes (T2, 20 min)
+python scripts/agt_10k.py --scale 50000     # 50K primes (T3, 22 min)
+python scripts/agt_scale_ec2.py             # EC2 wrapper, 50K primes</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> 100% off-critical detection across 50,000 primes and 1,030
+  zeta zeros. <code>k90 = k95 = 1</code> (1D critical subspace at all scales).
+  <strong>800× separation</strong> between on-critical and off-critical points.
+</div>
+</section>
+
+<!-- ============================================================ XVII -->
+<section class="paper-block" id="xvii">
+<h2>Paper XVII — Analytic Continuation Manifold (ACM)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1</td></tr>
+  <tr><td>Tier</td><td>A (numpy + scipy)</td></tr>
+  <tr><td>Wall-clock</td><td>30 s</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/acm_prototype_results.json</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/acm_prototype.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> Learned involution
+  <code>ι(s) = 1 − s</code> in latent space:
+  <code>ι² ≈ id</code> (error 0.009);
+  critical-line zeros are fixed points (error 0.008);
+  off-critical deviation 0.81.
+  <strong>14/15 off-critical zeros detected, 0/10 false positives.</strong>
+  Faithfulness gap: error 0.009, limit convergence unproven.
+</div>
+</section>
+
+<!-- ============================================================ XVIII -->
+<section class="paper-block" id="xviii">
+<h2>Paper XVIII — Bridge Protocol</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1</td></tr>
+  <tr><td>Tier</td><td>A</td></tr>
+  <tr><td>Wall-clock</td><td>60 s</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/jury_bridge/</code> · <code>benchmarks/faithfulness_rigorous.json</code></td></tr>
+</table>
+
+<pre><code class="language-bash"># Core proof: D(s) is rank-1
+python scripts/faithfulness_rigorous.py
+
+# 27-test Riemann verification suite (15 s total)
+python scripts/riemann_comprehensive_verify.py
+python scripts/riemann_adversarial_tests.py
+python scripts/riemann_mega_verify.py
+
+# 3,713-point meta-jury
+python scripts/jury_bridge.py
+
+# Full Riemann attack pipeline
+python scripts/close_xvii_xviii_riemann.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> 5-step pipeline (AGT → ACM → Safe OGD → TEH → Contradiction).
+  <strong>105/105 known zeros detected, 0 FP / 0 FN</strong>.
+  Pearson r(D, |σ−0.5|) = <strong>1.0000</strong>.
+  Meta-jury (3,713 points): 100% accuracy.
+  D(s) rank-1: SV<sub>1</sub>=8.94, SV<sub>2..12</sub>=0.000000.
+</div>
+
+<div class="caveat">
+  <strong>Honest reporting.</strong> The jury confidence figure
+  <code>J ≈ 1 − 10<sup>−315</sup></code> treats the 105 known zeros as independent jurors,
+  but they are consequences of the same classical theorem-and-computation pipeline (Hardy
+  1914; Selberg; van de Lune et al.; Platt &amp; Trudgian 2021). Computed in extended
+  precision (mpmath, dps ≥ 400). This is a geometric visualisation of the functional
+  equation's Z<sub>2</sub> symmetry, not a proof-search protocol.
+</div>
+</section>
+
+<!-- ============================================================ JURY -->
+<section class="paper-block" id="jury">
+<h2>Geometric Jury Foundation (auxiliary suite)</h2>
+
+<table class="spec-table">
+  <tr><td>Hardware</td><td>T1</td></tr>
+  <tr><td>Tier</td><td>A</td></tr>
+  <tr><td>Wall-clock</td><td>~5 min total</td></tr>
+  <tr><td>Output</td><td><code>benchmarks/jury_*/</code></td></tr>
+</table>
+
+<pre><code class="language-bash">python scripts/jury_discovery.py        # 7 discovery experiments
+python scripts/jury_solver.py           # 6 improvement experiments
+python scripts/jury_advance.py          # 5 advance experiments
+python scripts/jury_open.py             # 5 open problems
+python scripts/jury_final.py            # R² regression
+python scripts/jury_gaps.py             # 7 gap analyses
+python scripts/jury_gtc.py              # GTC acceleration
+python scripts/jury_gtc_extreme.py      # production gates
+python scripts/jury_ugt.py              # UGT zone classification
+python scripts/millennium_jury.py       # P vs NP, BSD, Yang–Mills
+python scripts/jury_ensemble.py         # ensemble regression
+python scripts/jury_solve_all.py        # improved feature engineering</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> Jury formula <code>J = 1 − ∏(1−c<sub>i</sub>)</code> is the
+  unique aggregation rule (8 theorems with full proofs in
+  <code>jury_proof.pdf</code>). Cross-domain transfer; jury-solved framework problems
+  (GRC k 100%, OTT 81%, OGD α R² = 0.758). 9–7200× ISAGI speedups.
+  Millennium prototypes: P vs NP 99.8%, BSD 33.5%, Yang–Mills 100%.
+</div>
+</section>
+
+<!-- ============================================================ AUDIT -->
+<section class="paper-block" id="audit">
+<h2>Cross-cutting audits and external verification</h2>
+
+<pre><code class="language-bash"># 51-claim bulletproof audit across papers I-XV
+python scripts/bulletproof_audit.py
+
+# 7-benchmark quick suite
+python scripts/benchmarks_quick.py
+
+# Performance optimisations (12 of them)
+python scripts/benchmark_optimizations.py
+
+# External verification (synthetic baselines)
+python scripts/verify_external.py
+
+# External verification on real 1.5B model (14/14)
+python scripts/verify_external_15b.py
+
+# Millennium WIP prototypes
+python scripts/bench_millennium_wip.py</code></pre>
+
+<div class="verifies">
+  <strong>Verifies.</strong> 51/51 published claims survive line-by-line audit.
+  External verification 14/14 against PyTorch k-NN/centroid baselines, cuBLAS (EC2 L40S),
+  10⁸ Monte Carlo trials, and the von Mangoldt explicit formula.
+  Performance optimisations: randomised SVD 9×, svd_lowrank 10.6×, batch cosine 220×.
+</div>
+</section>
+
+<h2>What success looks like</h2>
+<p>
+  After running the full T1 path (~30 minutes) you should have <strong>111 passing tests</strong>
+  across the four Riemann suites, the jury foundation, and the bulletproof audit. After
+  the T2 paths (~90 minutes) you have re-derived every per-layer geometric measurement.
+  The remaining T3 results ship pre-computed in <code>benchmarks/</code> and can be
+  verified by inspecting the JSON without re-running.
+</p>
+
+<p>
+  For the canonical end-to-end document with hardware tiers, dependency tiers,
+  determinism notes, troubleshooting, EC2 setup, and the full result inventory, see
+  <a href="https://github.com/NagusameCS/HyperTensor/blob/main/REPRODUCTION.md">REPRODUCTION.md</a>
+  in the repository root.
+</p>
+
+</article>
+
+<footer class="paper-footer">
+  &copy; HyperTensor Project · CC BY 4.0 ·
+  <a href="../../index.html">back to index</a> ·
+  <a href="https://doi.org/10.5281/zenodo.20077378">Zenodo DOI</a>
+</footer>
+
+</body>
+</html>

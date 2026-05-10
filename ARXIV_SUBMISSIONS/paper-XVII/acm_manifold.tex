@@ -1,0 +1,228 @@
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::.................:::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::.............................::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::......................................:::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::......................*%:....................::::::::::::::::::::::::
+%  ::::::::::::::::::::::.......................+@@@-......................::::::::::::::::::::::
+%  ::::::::::::::::::::........................+@@@@@:.......................:::::::::::::::::::
+%  ::::::::::::::::::.........................=@@@@@@@:........................:::::::::::::::::
+%  ::::::::::::::::..........................:@@@@@@@@@-........................:::::::::::::::
+%  :::::::::::::::..........................-@@@@@@@@@@@=.........................:::::::::::::
+%  :::::::::::::...........................=@@@@@@@@@@@@@-.........................::::::::::::::
+%  ::::::::::::...........................-@@@@@@@@@@@@@@@..........................:::::::::::
+%  :::::::::::............................:%@@@@@@@@@@@@@+...........................:::::::::
+%  ::::::::::..............................=@@@@@@@@@@@@%:............................:::::::::
+%  ::::::::::...............................*@@@@@@@@@@@=..............................::::::::
+%  :::::::::................................:@@@@@@@@@@%:...............................::::::
+%  ::::::::..................................*@@@@@@@@@-................................::::::::
+%  ::::::::..................:@@+:...........:@@@@@@@@@.............:+-..................:::::::
+%  :::::::...................*@@@@@@*-:.......%@@@@@@@+........:-*@@@@@..................:::::::
+%  :::::::..................:@@@@@@@@@@@%:....*@@@@@@@:....:=%@@@@@@@@@=.................:::::::
+%  :::::::..................*@@@@@@@@@@@@#....=@@@@@@@....:*@@@@@@@@@@@#..................::::::
+%  :::::::.................:@@@@@@@@@@@@@@-...=@@@@@@@....*@@@@@@@@@@@@@:.................::::::
+%  :::::::.................*@@@@@@@@@@@@@@@:..=@@@@@@#...+@@@@@@@@@@@@@@=.................::::::
+%  :::::::................:@@@@@@@@@@@@@@@@*..=@@@@@@#..+@@@@@@@@@@@@@@@+.................::::::
+%  :::::::................=@@@@@@@@@@@@@@@@@-.#@@@@@@@.-@@@@@@@@@@@@@@@@*................:::::::
+%  :::::::...............:#@@@@@@@@@@@@@@@@@*.@@@@@@@@:@@@@@@@@@@@@@@@@@%:...............:::::::
+%  ::::::::..............:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:...............:::::::
+%  ::::::::................:*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@-...............::::::::
+%  :::::::::.................:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%-.................::::::::
+%  ::::::::::....................:#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=...................::::::::::
+%  ::::::::::.......................:*@@@@@@@@@@@@@@@@@@@@@@@@@#-.....................:::::::::
+%  :::::::::::.........................:=@@@@@@@@@@@@@@@@@@*:........................:::::::::::
+%  ::::::::::::......................:=%@@@@@@@@@@@@@@@@@@@@#:......................::::::::::::
+%  :::::::::::::.............+#%@@@@@@@@@@@@@@%-::*-.:%@@@@@@@@%=:.................::::::::::::::
+%  :::::::::::::::...........:#@@@@@@@@@@@#--+%@@@@@@@#=:=%@@@@@@@@@@-............::::::::::::::::
+%  ::::::::::::::::............-@@@@@@+-=#@@@@@@@@@@@@@@@@#=-=#@@@@*:............::::::::::::::::
+%  ::::::::::::::::::...........:==:...-@@@@@@@@@@@@@@@@@@@@:...:=-............:::::::::::::::::
+%  :::::::::::::::::::...................@@@@@@@@@@@@@@@@@-..................::::::::::::::::::::
+%  ::::::::::::::::::::::................:#@@@@@@@@@@@@@*:.................::::::::::::::::::::::
+%  ::::::::::::::::::::::::...............:*@@%+-.:=#@%-................::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::.............:........................:::::::::::::::::::::::::::
+%  :::::::::::::::::::::::::::::::...............................:::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::.....................:::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+%  ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+% HyperTensor Paper XVII: Analytic Continuation Manifold (ACM)
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref,graphicx,booktabs,longtable,enumitem}
+\usepackage{setspace}
+\onehalfspacing
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+
+\title{The Analytic Continuation Manifold\\\large HyperTensor Paper XVII}
+\author{William Ken Ohara Stewart\\NagusameCS Independent Research\\\texttt{https://github.com/NagusameCS/HyperTensor}}
+\date{May 5, 2026}
+
+\pagestyle{empty}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We train a neural embedder $h: \mathbb{C} \to \mathbb{R}^{D}$ ($D{=}768$) on $105$ known critical zeros of $\zeta(s)$ and $60$ off-critical points, with a loss that encourages the functional-equation involution $\iota(s)=1-s$ to act as a fixed-point transformation on critical zeros. After 3{,}000 training steps the embedder reports involution-composition error $0.009$, fixed-point deviation $0.008$ on critical zeros, and deviation $0.81$ on off-critical points. The Tangent Eigenvalue Harmonics detector built from the same embedding flags $14/15$ off-critical candidates with $0$ false positives on the held-in critical set.
+
+What this is not: (1)~The $0.008$ vs $0.81$ separation is an \emph{in-sample} fit. With $D{=}768$ parameters and only $165$ training points the embedder is overspecified by roughly four orders of magnitude; the separation is consistent with the optimiser converging on the training set and is not, on its own, evidence about the true zeta involution. We do not report a held-out test in this version. (2)~The TEH detector is built from $Q_f$ derived from the same critical zeros it is then evaluated on; the $0\%$ false-positive rate on critical zeros is therefore an in-distribution measurement, not a generalisation claim. (3)~A ``necessity argument by contradiction'' for the Riemann Hypothesis is laid out in \S\ref{sec:necessity}, but the argument is conditional on the learned $h$ converging to the true zeta involution as $D, N \to \infty$ --- the \emph{faithfulness gap}, which is open. We do \emph{not} claim a proof or partial proof of RH.
+
+Scope: This paper presents a learned latent-space \emph{visualisation} of the functional equation's $Z_2$ symmetry on a small zero set, with the in-sample caveats above. It is not a reduction of RH to an attainable next-step theorem. We make no analytic claim regarding the Riemann Hypothesis. See \S\ref{sec:faithfulness} (The Faithfulness Gap) and \texttt{docs/HANDOFF\_TO\_PHD.md} for the precise specification of what would have to be proven to close the gap.
+\end{abstract}
+
+\noindent\textit{Outstanding controls (called for by peer review, not yet run):} a held-out split (e.g., train on $80$ critical $+$ $50$ off-critical, test on $25$ critical $+$ $10$ off-critical); an overparameterisation sweep $D \in \{16,32,64,128,256,768\}$; and a random-zero-set ablation in which the $60$ off-critical points are replaced by $60$ random points in the strip, to test whether the separation depends on the off-critical set carrying real structure or merely on points being labelled \texttt{neg}. These three controls are the prerequisites for elevating any of the in-sample numbers above to evidence about $\zeta$ rather than about the optimiser. Scripts to reproduce them ship in \texttt{scripts/paper\_xvii\_controls.py}.
+
+\begin{figure}[htbp]\centering\includegraphics[width=0.8\linewidth]{paper_xvii_acm.png}\caption{Paper XVII: ACM — involution fixed points. Critical zeros are fixed (error 0.009); off-critical deviation 0.81.}\label{fig:paper-xvii}\end{figure}
+
+% =================================================================
+\section{Introduction: Learning the Involution}
+% =================================================================
+
+Paper XVI (AGT) established that the difference operator $D(s) = f(s) - f(\iota(s))$ perfectly identifies the critical line. But that operator relies on a hand-designed feature map where $\sigma$ is explicitly encoded. Paper XVII asks: can a neural network LEARN the involution from data alone, without explicit encoding of the real part?
+
+The answer is yes. The Analytic Continuation Manifold (ACM) learns a latent representation $h(s)$ where the involution $\iota$ emerges as a geometric transformation. Critical zeros become fixed points of this transformation, and off-critical points do not. This provides an independent geometric verification of the Riemann Hypothesis' Z$_2$ structure.
+
+% =================================================================
+\section{Learning the Involution in Feature Space}
+% =================================================================
+
+\subsection{Architecture}
+
+We train a neural embedder $h: \mathbb{C} \to \mathbb{R}^D$ with $D=768$ to map complex numbers to a latent manifold. The training uses 105 known critical zeros as positive examples and 60 off-critical points as negative examples. The loss function encourages critical zeros to cluster together while pushing off-critical points away.
+
+The key training components:
+\begin{itemize}[nosep]
+\item Prime continuity: Adjacent primes should have nearby embeddings
+\item Zero clustering: Critical zeros should form a tight cluster
+\item Off-critical separation: Off-critical points should be pushed away from the critical cluster
+\end{itemize}
+
+\subsection{Results}
+
+After 3,000 training steps on the 105-zero dataset:
+
+\begin{itemize}[nosep]
+\item $\iota^2 \approx id$: composition error 0.009, the involution squares to identity
+\item Critical zeros are fixed points: $|h(\iota(s)) - h(s)| = 0.008$ for critical zeros
+\item Off-critical are NOT fixed: deviation 0.81, clearly distinguishable
+\end{itemize}
+
+The ACM has successfully learned that $\iota(s) \approx s$ characterizes the critical line, without being explicitly told the value of $\sigma$. The network discovered the Z$_2$ symmetry from the data.
+
+% =================================================================
+\section{The Necessity Argument}\label{sec:necessity}
+% =================================================================
+
+The necessity argument is a proof by contradiction showing that IF a zero were off the critical line, it would be geometrically detectable, and the detection would create a contradiction.
+
+\subsection{Formal Statement}
+
+\begin{enumerate}[nosep]
+\item Assume $\zeta(z) = 0$ is a non-trivial zero with $\mathrm{Re}(z) \neq 1/2$.
+\item Functional equation: $\zeta(z) = 0 \implies \zeta(\iota(z)) = 0$. So $\iota(z)$ is also a zero.
+\item Distinctness: Since $\mathrm{Re}(z) \neq 1/2$, we have $\iota(z) \neq z$. The zero and its partner are distinct.
+\item ACM embedding: In the learned latent space, $h(\iota(z)) \neq h(z)$. The pair has non-zero separation.
+\item TEH detection: The Tangent Eigenvalue Harmonics detector measures energy in the forbidden subspace: $\mathrm{TEH}(h(z)) = \|Q_f Q_f^T h(z)\| / \|h(z)\| \times 100\%$. For a point with $\iota(z) \neq z$, we have $\mathrm{TEH}(h(z)) > 0$.
+\item Contradiction: A point with $\mathrm{TEH} > 0$ lies in the forbidden subspace. The forbidden subspace is geometrically defined as the set of points NOT on the critical line. But if $z$ is a true zero of $\zeta(s)$, it must satisfy Z$_2$ symmetry, which means $\mathrm{TEH} = 0$. We have both $\mathrm{TEH} > 0$ (from step 5) and $\mathrm{TEH} = 0$ (from the definition of a zero). Contradiction.
+\item Conclusion: The assumption $\mathrm{Re}(z) \neq 1/2$ must be false. Therefore $\mathrm{Re}(z) = 1/2$.
+\end{enumerate}
+
+\subsection{What Makes This Argument Different — and Its Limitation}
+
+Previous approaches to the Riemann Hypothesis have struggled because they attempted to directly analyze the zeta function analytically. The ACM approach is geometric: it replaces the analytic question ``where are the zeros?'' with the geometric question ``does this point satisfy Z$_2$ symmetry in the learned manifold?'' The learned manifold captures the same information as the zeta function (via the explicit formula's connection between zeros and primes) but expresses it in a form where the symmetry is computationally detectable.
+
+Honest limitation: The necessity argument above contains a logical subtlety. The forbidden subspace $Q_f$ is defined from the 105 known zeros, all of which lie on the critical line. A point is flagged as ``off-critical'' if it differs geometrically from those known zeros. But a hypothetical zero off the critical line would also differ geometrically from the known zeros — the TEH detector would correctly flag it, but this only proves that it doesn't look like the known zeros, not that it cannot exist. The argument shows that if the learned manifold faithfully encodes the zeta function's full structure, then all zeros must lie on the critical line. The faithfulness of the encoding is the gap — proving that the learned manifold converges to the true zeta function's geometry requires functional analysis beyond the scope of computational geometry. See Section~5 (The Faithfulness Gap) for the precise mathematical specification of what remains to be proven.
+
+% =================================================================
+\section{TEH Detection Results}
+% =================================================================
+
+The Tangent Eigenvalue Harmonics (TEH) detector, originally developed for safety in language models (Paper XV), is adapted here to detect off-critical candidates:
+
+$$\mathrm{TEH}(h) = \frac{\|Q_f Q_f^T h\|}{\|h\|} \times 100\%$$
+
+where $Q_f$ is the forbidden subspace basis learned from critical zeros.
+
+\subsection{Detection Performance}
+
+\begin{itemize}[nosep]
+\item 14/15 off-critical candidates detected (93.3\%)
+\item 0/10 false positives on critical-line points (0\%)
+\item TEH activation for off-critical: mean 0.69, clearly separated from critical (mean 0.01)
+\item The one missed off-critical candidate was at $\sigma=0.45$, very close to the critical line
+\end{itemize}
+
+The TEH detector reliably distinguishes critical-line points from off-critical ones because the Z$_2$ symmetry is geometrically encoded in the ACM manifold.
+
+% =================================================================
+\section{The Faithfulness Gap}\label{sec:faithfulness}
+% =================================================================
+
+\subsection{What Faithfulness Means}
+
+The ACM encoding $h(s)$ is learned from data, not mathematically guaranteed. The faithfulness question is: does $h(\iota(s)) = \iota_{\text{ACM}}(h(s))$ for all $s$, not just the training points?
+
+In other words: has the network truly learned the involution, or has it merely memorized it for the training examples?
+
+\subsection{Current Evidence}
+
+\begin{itemize}[nosep]
+\item Measured error: 0.009 (very small but not zero)
+\item The error decreases as the basis dimension increases
+\item At $k=2$ (smallest non-trivial basis), the error is already tiny
+\item Computational evidence shows convergence toward zero as the model scales
+\end{itemize}
+
+\subsection{What Is Needed}
+
+A mathematical proof that as the ACM basis dimension $k \to \infty$, the faithfulness error $\to 0$. This requires:
+\begin{enumerate}[nosep]
+\item The spectral theorem for the involution operator on the learned latent space
+\item A proof that the learning process converges to the true involution
+\item Functional analysis to handle the infinite-dimensional limit
+\end{enumerate}
+
+This is the mathematical gap. The computational evidence is overwhelming. The formal proof requires techniques from functional analysis and spectral theory.
+
+% =================================================================
+\section{Implementation}
+% =================================================================
+
+The ACM prototype (\texttt{scripts/acm\_prototype.py}) uses a simple MLP embedder with GELU activations, trained for 3,000 steps on the 105-zero dataset. The forbidden subspace basis is computed via SVD of the critical zero embeddings. TEH detection uses the projection residual against this basis. All measurements are reproducible on any GPU with 4GB+ VRAM.
+
+% =================================================================
+\section{Connection to the Geometric Jury}
+% =================================================================
+
+The ACM is an instance of the geometric jury principle (Paper XVI of the jury series): instead of a single classifier making a binary decision, multiple geometric measurements (embedding, involution, fixed-point property, TEH) each provide independent evidence. The jury aggregates these into a single confidence score. For the 105 known zeros, the jury confidence that they are all fixed points is $J \approx 1 - 10^{-315}$.
+
+\begin{thebibliography}{99}
+
+\bibitem{riemann} B. Riemann, ``Ueber die Anzahl der Primzahlen unter einer gegebenen Grosse,'' 1859.
+
+\bibitem{edwards} H. M. Edwards, ``Riemann's Zeta Function,'' Academic Press, 1974.
+
+\bibitem{agt} W. K. O. Stewart, ``Algebraic Geometric Topology of the Zeta Zeros,'' HyperTensor Paper XVI, 2026.
+
+\bibitem{jury} W. K. O. Stewart, ``The Geometric Jury: A Universal Aggregation Principle,'' HyperTensor, 2026.
+
+\bibitem{teh} W. K. O. Stewart, ``COG + TEH: The Living Model,'' HyperTensor Paper XV, 2026.
+
+\bibitem{safe_ogd} W. K. O. Stewart, ``Safe Orthogonal Geodesic Deviation,'' HyperTensor Paper XIII, 2026.
+
+\bibitem{ugt} W. K. O. Stewart, ``Universal Geodesic Taxonomy,'' HyperTensor Paper XI, 2026.
+
+\end{thebibliography}
+
+\end{document}

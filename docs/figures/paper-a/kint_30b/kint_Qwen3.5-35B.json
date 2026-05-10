@@ -1,0 +1,33 @@
+{
+  "model": "Qwen3.5-35B",
+  "blob": "C:\\Users\\legom\\.ollama\\models\\blobs\\sha256-900dde62fb7ebe8a5a25e35d5b7633f403f226a310965fed51d50f5238ba145a",
+  "n_layers": 40,
+  "d": 2048,
+  "threshold": 0.95,
+  "requested_layers": [
+    0,
+    10,
+    20,
+    30,
+    39
+  ],
+  "used_layers": [
+    0,
+    10,
+    20,
+    30,
+    39
+  ],
+  "skipped_layers": [],
+  "per_layer_kint": [
+    1382,
+    1391,
+    1352,
+    1325,
+    1475
+  ],
+  "mean_kint": 1385.0,
+  "mean_kint_over_d": 0.67626953125,
+  "min_kint": 1325,
+  "max_kint": 1475
+}

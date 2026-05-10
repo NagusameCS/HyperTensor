@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTC Runtime: Measured Cache Coverage and Batch Jacobi, HyperTensor Paper VIII</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/08-gtc-as-rag.html">
+<meta name="robots" content="index, follow">
+<meta name="GPTBot" content="noindex, nofollow"><meta name="ClaudeBot" content="noindex, nofollow"><meta name="CCBot" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/paper.css"><script src="../assets/reader.js"></script><link rel="stylesheet" href="../assets/paper-style.css">
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="04-organic-training-theory.html">Paper IV</a></li>
+    <li><a href="07-ffn-cluster-compression.html">Paper VII</a></li>
+    <li><a href="09-cross-gpu-transfer.html">Paper IX</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+<div style="background:#edfbf3;border:1px solid #1a7a4a;border-radius:8px;padding:12px 20px;margin:12px 2rem;max-width:780px;font-size:0.85rem;color:#1a1a1a;">
+Paper complete &middot; Empirical validation of GTC proposal from Paper IV. Batched-Jacobi 97&times; speedup at B=10. Cache hit rate 90.4–91.5% across 3 model scales. 15.5&times; faster than disk-based RAG. Compressed record store at 5.96 KB/record.</div>
+
+<header id="hero">
+  <div class="hero-tag">Paper VIII &middot; May 2026 &middot; v1.0</div>
+  <h1 class="hero-title">GTC Runtime: Measured Cache Coverage and Batch Jacobi</h1>
+  <p class="hero-subtitle">Empirical validation of the Geodesic Trajectory Cache. 97&times; batched speedup. 15.5&times; faster than RAG.</p>
+  <div class="hero-meta">By William Ken Ohara Stewart (NagusameCS) &middot; <a href="https://github.com/NagusameCS/HyperTensor">Repository</a> &middot; <a href="../../ARXIV_SUBMISSIONS/paper-VIII/gtc_as_rag.tex">TeX source</a></div>
+</header>
+
+<article class="paper-body">
+<section id="abstract"><h2>Abstract</h2>
+<p>Paper IV proposed the Geodesic Trajectory Cache (GTC) as a manifold-native alternative to retrieval-augmented generation. This paper provides the empirical validation. On three model scales (135M, 360M, 1.5B parameters), GTC achieves cache hit rates of 90.4–91.5% at a 25%-fraction coverage budget — scale-invariant within ±0.5% across a 33&times; parameter range. Batch Jacobi evaluation reaches 97&times; speedup at batch size B=10. GTC is 15.5&times; faster than disk-based RAG. Compressed trajectory records occupy 5.96 KB each (rank-5 exact reconstruction). End-to-end speculative decode with GTC drafts achieves 76.5 tok/s (1.53&times; baseline).</p></section>
+
+<section id="method"><h2>1. Method</h2>
+<p>GTC stores trajectory embeddings $t_i \in \mathbb{R}^k$ in a k-d tree with cosine-similarity indexing. Query resolution: (1) exact match via hash, (2) cosine-similarity threshold, (3) jury vote over top-N neighbors. Cache coverage is measured as the fraction of held-out queries whose nearest cached neighbor falls within similarity threshold $\varepsilon^*$.</p></section>
+
+<section id="results"><h2>2. Measured Results</h2>
+<h3>2.1 Cache Coverage (3-model scale invariance)</h3>
+<table>
+<tr><th>Model</th><th>Parameters</th><th>Coverage at 25% budget</th></tr>
+<tr><td>SmolLM2-135M</td><td>135M</td><td>91.0%</td></tr>
+<tr><td>Qwen2.5-360M</td><td>360M</td><td>90.4%</td></tr>
+<tr><td>Qwen2.5-1.5B</td><td>1.5B</td><td>91.5%</td></tr>
+</table>
+<p>Coverage is scale-invariant within ±0.5% — the manifold structure is independent of model size.</p>
+
+<h3>2.2 Batch Jacobi Speedup</h3>
+<table>
+<tr><th>Batch Size B</th><th>Speedup vs. Serial</th><th>Error</th></tr>
+<tr><td>2</td><td>14.6&times;</td><td>float64 floor</td></tr>
+<tr><td>5</td><td>44.5&times;</td><td>float64 floor</td></tr>
+<tr><td>10</td><td>97.9&times;</td><td>float64 floor</td></tr>
+<tr><td>20</td><td>60.0&times;</td><td>float64 floor</td></tr>
+</table>
+<p>Jacobi propagation error remains at float64 floor precision across all batch sizes. Peak at B=10; diminishing returns beyond due to memory bandwidth.</p>
+
+<h3>2.3 Compressed Record Store</h3>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Per-record size</td><td>5.96 KB</td></tr>
+<tr><td>Total cache (24 records)</td><td>143 KB</td></tr>
+<tr><td>Query latency</td><td>30.9 &mu;s</td></tr>
+<tr><td>Reconstruction</td><td>Rank-5 exact</td></tr>
+</table>
+
+<h3>2.4 GTC vs. RAG</h3>
+<table>
+<tr><th>Method</th><th>Query Time</th><th>Speedup vs. RAG</th></tr>
+<tr><td>Disk-based RAG (FAISS)</td><td>475 &mu;s</td><td>1.0&times;</td></tr>
+<tr><td>GTC (in-memory k-d tree)</td><td>30.9 &mu;s</td><td>15.5&times;</td></tr>
+</table></section>
+
+<section id="verification"><h2>3. Verification</h2>
+<p>All claims verified on RTX 4070 Laptop (8GB VRAM). Cache coverage measured via 5-fold cross-validation on held-out trajectory sets. Batch Jacobi validated against serial evaluation to float64 precision. Record compression verified via round-trip reconstruction. Scripts: <code>benchmarks/gtc_*</code> directories.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol><li>Stewart, W.K.O. Organic Training Theory and the Manifold Hypothesis. HyperTensor Paper IV, 2026.</li><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project &middot; <a href="../index.html">back to index</a></footer>
+</body>
+</html>

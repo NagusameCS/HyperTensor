@@ -1,0 +1,30 @@
+{
+  "format": "kaisen-v4",
+  "version": "4.0.0",
+  "created": "2026-05-06T20:02:53Z",
+  "config": {
+    "k": 12,
+    "k_effective": 12,
+    "n_jurors": 7,
+    "jury_threshold": 0.5,
+    "creativity": 0.5,
+    "coverage_radius": 0.5,
+    "instinct_horizon": 1.1807625337150358,
+    "d_model": 896
+  },
+  "memory": {
+    "total": 0
+  },
+  "gtc": {
+    "size": 0,
+    "hits": 0,
+    "misses": 1,
+    "hit_rate": 0.0,
+    "radius": 0.3
+  },
+  "scouts": {
+    "total": 1,
+    "verified": 1
+  },
+  "trajectories": []
+}

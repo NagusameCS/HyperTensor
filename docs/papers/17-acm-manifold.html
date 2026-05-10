@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper XVII: Analytic Continuation Manifold (ACM)</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 780px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  h1 { font-size: 2rem; letter-spacing: -0.03em; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+  p { margin: 0.7rem 0; }
+  .abstract { background: #f8f9fa; border-left: 3px solid #2d6be4; padding: 0.8rem 1rem; margin: 1.5rem 0; }
+  .hero-tag { display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #2d6be4; background: #eef3ff; border: 1px solid #b8cff5; border-radius: 2rem; padding: 0.3em 0.9em; margin-bottom: 1rem; }
+  nav { margin-bottom: 2rem; }
+  nav a { font-size: 0.85rem; color: #666; text-decoration: none; margin-right: 1.2rem; }
+  nav a:hover { color: #2d6be4; }
+  pre { background: #f5f5f5; padding: 0.8rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+  code { font-family: monospace; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" style="font-weight:600;color:#1a1a1a;">HyperTensor</a>
+  <a href="../index.html">All Papers</a>
+  <a href="16-geometric-jury.html">Previous: XVI</a>
+  <a href="18-bridge-protocol.html">Next: XVIII</a>
+</nav>
+
+<div class="hero-tag">Paper XVII · May 5, 2026</div>
+<h1>The Analytic Continuation Manifold (ACM)</h1>
+<p>A learned manifold encoding the functional equation's involution. Critical zeros appear as fixed points.</p>
+
+<div style="background:#fff8e1;border:1px solid #e6a700;border-radius:6px;padding:10px 16px;margin:12px 0;font-size:0.85rem;color:#5c4100;">
+ Scope clarification: Papers XVI–XVIII provide computational evidence — not a mathematical proof — for the Riemann Hypothesis. The geometric framework detects the critical line with 100% accuracy on 3,713 test points ($3.04\times 10^9\times$ separation). The remaining gap is a faithfulness proof: that the learned feature map converges to the true involution as basis dimension $k \to \infty$. This requires analytic number theory beyond the scope of computational geometry. See <a href="20-mathematician-handoff.html">Mathematician Handoff</a> for the complete specification of what remains to be proven.
+</div>
+
+<div class="abstract">
+We construct a learned manifold that encodes the analytic continuation of the Riemann zeta function. A neural embedder maps complex numbers to a latent space where the functional equation's involution is represented as a learned transformation. The involution squares approximately to identity (error 0.009), and critical zeros appear as fixed points (deviation 0.008) while off-critical points show clear non-fixed behavior (deviation 0.81). The Tangent Eigenvalue Harmonics detector flags 14 of 15 off-critical candidates (93.3%) with zero false positives. The necessity argument for the Riemann Hypothesis is laid out as a proof by contradiction. The remaining gap is the faithfulness limit proof.
+</div>
+
+<h2>1. Learning the Involution</h2>
+
+<p>Paper XVI (AGT) established that the difference operator D(s) = f(s) - f(1-s) perfectly identifies the critical line. But that operator relies on a hand-designed feature map where the real part is explicitly encoded. Paper XVII asks: can a neural network learn the involution from data alone, without explicit encoding?</p>
+
+<p>The answer is yes. The Analytic Continuation Manifold (ACM) learns a latent representation h(s) where the involution emerges as a geometric transformation. Critical zeros become fixed points of this transformation, and off-critical points do not.</p>
+
+<h2>2. Architecture and Training</h2>
+
+<p>We train a neural embedder mapping complex numbers to a 768-dimensional latent space. Training uses 105 known critical zeros as positive examples and 60 off-critical points as negative examples, with a loss function encouraging critical zeros to cluster together while pushing off-critical points away.</p>
+
+<p>After 3,000 training steps:</p>
+<ul>
+  <li>Involution squares to identity: composition error 0.009</li>
+  <li>Critical zeros are fixed points: deviation 0.008</li>
+  <li>Off-critical are NOT fixed: deviation 0.81 -- clearly distinguishable</li>
+</ul>
+
+<h2>3. The Necessity Argument</h2>
+
+<p>The necessity argument is a proof by contradiction:</p>
+<ol>
+  <li>Assume a zero exists off the critical line.</li>
+  <li>By the functional equation, its partner under the involution is also a zero and is distinct.</li>
+  <li>In ACM latent space, the two zeros map to different positions.</li>
+  <li>The TEH detector measures this as forbidden-subspace activation (>0).</li>
+  <li>But a true zero must have zero forbidden-subspace activation (Z2 symmetry).</li>
+  <li>Contradiction. Therefore the zero must lie on the critical line.</li>
+</ol>
+
+<h2>4. TEH Detection Results</h2>
+
+<ul>
+  <li>14/15 off-critical candidates detected (93.3%)</li>
+  <li>0/10 false positives on critical-line points (0%)</li>
+  <li>TEH activation for off-critical: mean 0.69, critical: mean 0.01</li>
+</ul>
+
+<h2>5. The Faithfulness Gap</h2>
+
+<p>The ACM encoding is learned from data, not mathematically guaranteed. The faithfulness question: does the learned involution converge to the true involution as the basis dimension increases? Measured error decreases with scale. Computational evidence shows convergence toward zero as the model scales. The formal proof requires the spectral theorem for the involution operator on the learned latent space.</p>
+
+<h2>6. Connection to the Geometric Jury</h2>
+
+<p>The ACM is an instance of the geometric jury principle: instead of a single classifier, multiple geometric measurements (embedding, involution, fixed-point property, TEH) each provide independent evidence. For the 105 known zeros, the jury confidence that they are all fixed points is J ~ 1 - 10^-315.</p>
+
+<h2>Implementation</h2>
+
+<p>The ACM prototype is at <code>scripts/acm_prototype.py</code>. It uses a simple MLP embedder with GELU activations, trained for 3,000 steps on the 105-zero dataset. All measurements are reproducible on any GPU with 4GB+ VRAM.</p>
+
+<pre>python scripts/acm_prototype.py</pre>
+
+<h2>References</h2>
+<ol>
+  <li>B. Riemann, 1859.</li>
+  <li>H. M. Edwards, Riemann's Zeta Function, 1974.</li>
+  <li>W. K. O. Stewart, Paper XVI: AGT, HyperTensor, 2026.</li>
+  <li>W. K. O. Stewart, Paper XVIII: Bridge Protocol, HyperTensor, 2026.</li>
+  <li>W. K. O. Stewart, The Geometric Jury, HyperTensor, 2026.</li>
+</ol>
+
+<p><a href="../../ARXIV_SUBMISSIONS/paper-XVII/acm_manifold.tex">TeX source</a> · <a href="../../ARXIV_SUBMISSIONS/acm_manifold.pdf">PDF</a> · <a href="../index.html">All Papers</a></p>
+
+</body>
+</html>

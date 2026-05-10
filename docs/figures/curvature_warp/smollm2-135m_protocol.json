@@ -1,0 +1,20 @@
+{
+  "model": "smollm2-135m",
+  "n_intrinsic": 8,
+  "n_facts": 50,
+  "strength": 0.4,
+  "sigma": 0.5,
+  "T": 16,
+  "dl": 0.1,
+  "wall_s": 13.7,
+  "pre_err_mean": 19.208590746195192,
+  "post_err_mean": 18.86924417401152,
+  "improvement": 0.017666396075979085,
+  "pre_err_p95": 51.80979337473045,
+  "post_err_p95": 51.782330370333305,
+  "spillover_p95": 0.11252829977668694,
+  "spillover_mean": 0.08885116852243288,
+  "n_spillover": 771,
+  "success_50pct_reduction": false,
+  "success_spillover_under_5pct": false
+}

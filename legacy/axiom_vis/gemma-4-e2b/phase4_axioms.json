@@ -1,0 +1,17 @@
+{
+  "phase": 4,
+  "title": "Axiom Formalization",
+  "model_name": "Gemma 4 E2B It",
+  "model_arch": "gemma4",
+  "model_dim": 1536,
+  "model_layers": 35,
+  "model_vocab": 262144,
+  "model_heads": 8,
+  "quant_type": "unknown",
+  "axiom_count": 23,
+  "consistency_score": 0.961437,
+  "candidates_tested": 96,
+  "candidates_accepted": 92,
+  "oracle_calls_used": 10,
+  "information_gain": 2.855283
+}

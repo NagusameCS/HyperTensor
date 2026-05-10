@@ -1,0 +1,87 @@
+# HyperTensor — Explained Terms Glossary
+# =======================================
+# Chapters introduce terms once; later chapters can assume prior knowledge.
+# Format: "term: one-sentence plain-English definition (chapter introduced)"
+
+#  Jury Proof 
+trajectory: a compressed point on the knowledge surface that stores what the system knows about one piece of information
+manifold: a curved surface in many dimensions where knowledge lives — like the surface of a high-dimensional sphere
+geodesic distance: the shortest path along a curved surface between two points, not a straight line through empty space
+coverage radius (R): the typical distance between two knowledge points in the same category — how "spread out" that category is
+single-trial confidence (c): how sure one knowledge point is about a question, dropping exponentially with distance: e^(-d/R)
+jury confidence (J): the combined confidence from multiple knowledge points: J = 1 - (1-c₁)(1-c₂)...(1-c_N)
+instinct horizon: the geodesic distance d_h at which the jury of N trajectories falls to 50% confidence. Under the equal-distance idealisation, d_h = R \cdot (-\ln(1-0.5^{1/N})), which gives d_h \approx 2.36R at N=7 (a ~3.4x improvement over N=1). Real trajectories deviate from this idealisation; measured horizons fall between 1.0R and 1.5R.
+centroid: the simple average of all points in a category — useless for routing because different categories' centroids overlap
+contrastive routing: comparing a question to individual knowledge points instead of to category averages
+temperature (T): a volume knob for how aggressive the jury is — higher T amplifies tiny differences between categories
+knowledge boundary: the line between "the system knows this" and "the system is guessing" — measurable, not a guess
+
+#  Paper I: GRC 
+attention: the part of a transformer that figures out which words in a sentence relate to which other words
+hidden state: a list of numbers (vector) inside the neural network that represents the meaning of a word at a particular layer
+SVD (Singular Value Decomposition): a way to find the most important directions in a pile of data — like finding which way the data varies most
+Gram matrix: multiply a matrix by its own transpose — captures how different dimensions relate to each other
+eigenspace: the directions found by SVD — the "important directions" in the data
+L2 cache: the fastest memory on a GPU, about 36 megabytes on a laptop GPU — data that fits here runs much faster
+k (compression rank): how many important directions you keep — smaller k = more compression, less quality
+perplexity (PPL): a measure of how "surprised" a language model is — lower PPL = better predictions
+Q4_K_M: a file format for storing compressed model weights on disk
+
+#  Paper II: GP Pipeline 
+feed-forward network (FFN): the "thinking" part of a transformer layer — where facts, reasoning, and patterns are stored
+MCR (Manifold-Curvature-Driven Rank Allocation): giving each layer its own compression budget based on how "curved" its geometry is
+QR retraction: a way to keep a matrix orthonormal (all columns perpendicular and unit length) after each training step
+Stiefel manifold: the set of all matrices with orthonormal columns — like all possible coordinate systems that are properly aligned
+
+#  Paper III: Speculative Decoding 
+speculative decoding: a draft model guesses several words ahead, then the main model checks them all at once — faster than one-at-a-time
+verification step: the main model checking whether the draft model's guesses are correct
+drafter: the small, fast model that guesses ahead
+
+#  Paper IV: OTT/GTC 
+Jacobi field: how nearby geodesics spread apart or come together — measures the "curvature" of the knowledge space
+Jacobi propagator Φ(λ): a matrix that tells you how to adjust a cached geodesic for a slightly different question
+Magnus expansion: a series formula for computing how things change along a curved path — Magnus-3 means keeping the first three terms
+batch resonance: when many similar queries are processed together, the math simplifies and throughput multiplies
+record store: a compressed database of past geodesics at about 6 KB each
+SHF (Spectral Hamiltonian Flow): a training penalty that encourages hidden states to flow along geodesic curves
+geodicity: how "geodesic-like" a trajectory is — lower numbers mean smoother, more natural flow
+
+#  Papers V-VII: Distillation, Task Impact, FFN Clusters 
+LoRA: a tiny trainable add-on that corrects a compressed model's errors without changing the compressed weights themselves
+teacher-student distillation: a big frozen model (teacher) guides a smaller or compressed model (student) to recover lost quality
+MMLU: a benchmark testing knowledge across 57 subjects — measures how much a model knows
+GSM8K: a benchmark of grade-school math word problems — measures reasoning ability
+HumanEval: a benchmark of programming problems — measures code generation ability
+column-cluster compression: grouping FFN columns that respond to similar inputs, then compressing each group separately
+
+#  Paper XI: UGT 
+UGT (Universal Geometric Taxonomy): a shared coordinate system that translates between the internal representations of different models
+bilateral UGT: verifying UGT works by training the basis independently twice and checking they agree (0.9999 overlap)
+zone encoding: prepending a zone ID number to each data point so the SVD automatically separates knowledge categories
+Grassmann manifold: the space of all possible k-dimensional subspaces — optimizing on it means optimizing the subspace, not a specific basis
+
+#  Paper XIII: Safe OGD 
+Safe OGD: a geometric projector that removes forbidden directions from model output — mathematically guaranteed safety
+forbidden subspace: the directions in hidden-state space that correspond to harmful content — removed by Safe OGD
+orthogonal projector: a matrix P where P² = P and applying P removes certain directions — like a filter
+
+#  Paper XIV: Snipe/TEH 
+TEH (Tangent Eigenvalue Harmonics): measuring how much of a hidden state lies in forbidden directions — a harmfulness detector
+entanglement frontier: the model size (around 135M parameters) where harmful and benign directions become distinguishable
+
+#  Paper XV: COG 
+COG (Continuous Organic Growth): a knowledge manifold that grows with every interaction, learning forever without forgetting
+.MIKU file: a file format for storing a living model's accumulated knowledge — unlike static weights, it changes with use
+TEH detector: see Paper XIV — used in COG to check whether new knowledge is harmful before storing it
+
+#  Papers XVI-XVIII: Riemann 
+Riemann zeta function ζ(s): a function of complex numbers whose zeros encode the distribution of prime numbers
+critical line: the vertical line at real part = 1/2 — the Riemann Hypothesis says all non-trivial zeros lie here
+involution ι(s) = 1−s: a flip operation — on the critical line, s and ι(s) are the same point; off it, they differ
+Z₂ symmetry: a two-element symmetry group — the involution applied twice gives back the original
+functional equation: ζ(s) = χ(s)·ζ(1−s) — connects values on the left and right halves of the complex plane
+von Mangoldt explicit formula: a formula directly connecting zeta zeros to prime numbers — the bridge needed for a full proof
+D(s) = f(s) − f(ι(s)): the difference operator — zero exactly on the critical line, non-zero off it
+ACM (Analytic Continuation Manifold): a learned surface where the involution becomes a geometric transformation
+faithfulness gap: the gap between "the learned encoding works for tested points" and "it works for ALL possible points"

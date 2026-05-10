@@ -1,0 +1,1236 @@
+<!-- :*%#@=+-.                              .-=+@#%*: -->
+<!--  .:+#%@@@@@@@@@@@@@@@@@@@@@@@@#=...:=#@@@@@@@@@@@@@@@@@@@@@@@@%#+:. -->
+<!--   .:=#@@@@@@@@@@@@@@@@@@@@@%-.:+%@@@@@#=:=%@@@@@@@@@@@@@@@@@%+-. -->
+<!--      :-%@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@@@%=-*@@@@@@@@@@@@@@@*. -->
+<!--         :+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+=*@@@@@@@@@@@#: -->
+<!--            -*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@+. -->
+<!--              .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@*. -->
+<!--                .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#: -->
+<!--                  -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*. -->
+<!--                   :%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%: -->
+<!--                    .*@@@@@@@@@@@@@@@@@@@@@@@@@@@@%. -->
+<!--                     :#@@@@@@@@@@@@@@@@@@@@@@@@@@@*. -->
+<!--                      .#@@@@@@@@@@@@@@@@@@@@@@@@@@: -->
+<!--                       .*@@@@@@@@@@@@@@@@@@@@@@@@+ -->
+<!--                        .*@@@@@@@@%+-::=*@@@@@@@@: -->
+<!--                        .*@@@@@@@.       .+@@@@@@: -->
+<!--                        .*@@@@@@@:         :@@@@@@: -->
+<!--                        .*@@@@@@@%+-::::-+#@@@@@@: -->
+<!--                        .*@@@@@@@@@@@@@@@@@@@@@@@: -->
+<!--                        .*@@@@@@@@@@@@@@@@@@@@@@@:   HyperTensor -->
+<!--                        .*@@@@@@@@@@@@@@@@@@@@@@@:   universal geometric tensor framework -->
+<!--                        .*@@@@@@@@@@@@@@@@@@@@@@@: -->
+<!--                        .*@@@@@@@@@@@@@@@@@@@@@@@:   Papers I-XXX -->
+<!--                        :#@@@@@@@@@@@@@@@@@@@@@@@*.   15/18 at 100% -->
+<!--                       .*@@@@@@@@@@@@@@@@@@@@@@@@%.   Jury-GTC @ 53x -->
+<!--                      .+@@@@@@@@@@@@@@@@@@@@@@@@@@#:   AGT @ 50K primes -->
+<!--                     -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.   External verify 14/14 -->
+<!--                   :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.   COG 10K converged -->
+<!--                 .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.  Bilateral 1.5B 0.968 -->
+<!--               :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#: -->
+<!--            .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%. -->
+<!--         .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*. -->
+<!--      .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#: -->
+<!--   .:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+: -->
+<!-- .:+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#+:. -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperTensor Research, NagusameCS</title>
+<meta name="description" content="Research papers under the HyperTensor project by William Ken Ohara Stewart (NagusameCS): low-rank attention compression, geodesic projection, geodesic speculative decoding, Organic Training Theory, and the GTC + OTT runtime anchor.">
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<meta name="google" content="notranslate">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="assets/reader.css">
+<script src="assets/reader.js"></script>
+<style>
+:root {
+  --bg: #ffffff; --bg-soft: #f9f9f8; --bg-code: #f4f4f4;
+  --border: #e5e5e5; --text: #1a1a1a; --text-soft: #5c5c5c;
+  --accent: #c0392b; --accent-l: #e74c3c;
+  --blue: #2d6be4; --green: #1a7a4a;
+  --yellow-bg: #fffbeb; --blue-bg: #eef4ff;
+  --green-bg: #edfbf3; --red-bg: #fff5f5;
+  --max-w: 920px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  line-height: 1.7; -webkit-font-smoothing: antialiased;
+}
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-brand { font-weight: 600; letter-spacing: -0.02em; color: var(--text); text-decoration: none; }
+.nav-brand span { color: inherit; }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a { font-size: 0.85rem; font-weight: 500; color: var(--text-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--text); }
+
+#hero {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 6rem 1.5rem 3rem; text-align: center;
+}
+.hero-tag {
+  display: inline-block; font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent); background: var(--red-bg);
+  border: 1px solid var(--border); border-radius: 2rem;
+  padding: 0.3em 0.9em; margin-bottom: 1.6rem;
+}
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1.15; margin-bottom: 1rem;
+}
+.hero-sub {
+  font-size: 1.1rem; color: var(--text-soft);
+  max-width: 640px; margin: 0 auto 1.4rem; line-height: 1.6;
+}
+.hero-meta { font-size: 0.88rem; color: var(--text-soft); }
+.hero-meta a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+.hero-meta a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.hero-meta a:hover { text-decoration: underline; }
+
+main { max-width: var(--max-w); margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+.section-label {
+  display: block; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-soft); margin-bottom: 0.6rem;
+}
+h2 {
+  font-size: 1.55rem; font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.25;
+  margin-bottom: 1.4rem;
+}
+
+.papers { display: flex; flex-direction: column; gap: 1.1rem; margin: 1.5rem 0 3rem; }
+.paper-card {
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 1.3rem 1.5rem;
+  background: var(--bg);
+  text-decoration: none; color: inherit;
+  display: block;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.paper-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+.paper-head {
+  display: flex; gap: 0.7rem; align-items: baseline;
+  flex-wrap: wrap; margin-bottom: 0.5rem;
+}
+.paper-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem; color: var(--text-soft);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 700;
+}
+.paper-version {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; color: var(--text-soft);
+  margin-left: auto;
+  letter-spacing: 0.04em;
+}
+.paper-title {
+  font-size: 1.18rem; font-weight: 700;
+  letter-spacing: -0.015em; line-height: 1.3;
+  display: block; flex-basis: 100%;
+  color: var(--text);
+}
+.paper-abstract { color: var(--text-soft); font-size: 0.95rem; line-height: 1.6; }
+.paper-stats {
+  display: flex; gap: 1.3rem; flex-wrap: wrap;
+  margin-top: 0.9rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.paper-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+.paper-stat-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem; font-weight: 700;
+  color: var(--text); letter-spacing: -0.01em;
+}
+.paper-stat-num.good { color: var(--green); }
+.paper-stat-num.warn { color: var(--accent); }
+.paper-stat-num.info { color: #8a5b16; }
+.paper-stat-label { color: var(--text-soft); font-size: 0.74rem; }
+
+.thread {
+  margin: 1.5rem 0 2rem;
+  padding: 1.4rem 1.6rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+.thread strong { color: var(--text); }
+.thread-row {
+  display: flex; gap: 1rem; align-items: baseline;
+  margin: 0.4rem 0;
+}
+.thread-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent);
+  min-width: 5.5rem;
+}
+.badge {
+  display: inline-block; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.2em 0.65em; border-radius: 1rem;
+  border: 1px solid currentColor;
+  margin-left: auto;
+}
+.badge.published { color: var(--green); background: var(--green-bg); }
+.badge.draft     { color: var(--accent); background: var(--red-bg); }
+.badge.theory    { color: var(--blue); background: var(--blue-bg); }
+.paper-abstract { color: var(--text-soft); font-size: 0.95rem; line-height: 1.6; }
+.paper-meta {
+  margin-top: 0.7rem; font-size: 0.8rem; color: var(--text-soft);
+  display: flex; gap: 1rem; flex-wrap: wrap;
+}
+.paper-meta strong { color: var(--text); font-weight: 600; }
+
+.note {
+  background: var(--bg-soft);
+  border-left: 3px solid var(--accent);
+  padding: 0.9rem 1.1rem; border-radius: 0 6px 6px 0;
+  margin: 1.6rem 0; font-size: 0.93rem; color: var(--text-soft);
+}
+.note strong { color: var(--text); }
+
+footer {
+  max-width: var(--max-w); margin: 4rem auto 0;
+  padding: 2.5rem 1.5rem 2rem;
+  border-top: 1px solid var(--border);
+  text-align: center; font-size: 0.85rem; color: var(--text-soft);
+}
+footer a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(192, 57, 43, 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color .12s ease, text-decoration-color .12s ease;
+}
+footer a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+footer a:hover { text-decoration: underline; }
+
+/* -- QOL: read time, visited marker -------------------- */
+.paper-card { position: relative; }
+.paper-readtime {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; color: var(--text-soft);
+  letter-spacing: 0.04em;
+  margin-left: 0.6rem;
+}
+.paper-card.visited::before {
+  content: ""; position: absolute;
+  left: -1px; top: -1px; bottom: -1px;
+  width: 3px; border-radius: 10px 0 0 10px;
+  background: var(--green);
+}
+.paper-card.visited .paper-num::after {
+  content: " · read";
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* -- QOL: back-to-top button --------------------------- /
+/ Lives above the reader-settings toggle (bottom-right of every page),
+   not next to it. The reader toggle is 44px tall at bottom: 1.1rem,
+   so to-top sits ~12px above that. */
+#to-top {
+  position: fixed; bottom: calc(1.1rem + 44px + 12px); right: 1.1rem;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--accent); color: #fff;
+  border: none; cursor: pointer;
+  font-size: 1.1rem; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  opacity: 0; pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s, background 0.15s;
+  z-index: 150;
+}
+#to-top.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#to-top:hover { background: #a93226; }
+
+/* -- QOL: keyboard-focus ring on cards ----------------- */
+.paper-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-color: var(--accent);
+}
+
+/* -- QOL: shortcut hint -------------------------------- */
+.kbd-hint {
+  display: inline-flex; gap: 0.4rem; align-items: center;
+  font-size: 0.78rem; color: var(--text-soft);
+  margin-top: 1.2rem;
+}
+.kbd-hint kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.1em 0.45em;
+  color: var(--text);
+}
+
+#about { margin-top: 3rem; }
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.4rem;
+  margin-top: 1.5rem;
+}
+.about-col {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem 1.3rem;
+}
+.about-h {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.6rem;
+}
+.about-col p {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+@media (max-width: 820px) {
+  .about-grid { grid-template-columns: 1fr; }
+}
+
+/* -- Tabs (Engineering vs Research) ---------------------- */
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin: 1.4rem 0 1.8rem;
+}
+.tab-btn {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-soft);
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-btn .count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  margin-left: 0.4rem;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.tab-blurb {
+  font-size: 0.92rem;
+  color: var(--text-soft);
+  margin-bottom: 1.2rem;
+  padding: 0.7rem 1rem;
+  background: var(--bg-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="#papers">Papers</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">18 Papers &middot; May 2026 &middot; 15/18 at 100%</div>
+  <h1 class="hero-title">Geometry-aware inference for large language models.</h1>
+  <p class="hero-sub">
+    Documentation and Research of the HyperTensor project. Papers I&ndash;XV:
+    engineering the k-manifold living-model stack &mdash; compression, safety, behavioural
+    control, and adaptive intelligence. Papers XVI&ndash;XVIII: a geometric attack on the
+    Riemann Hypothesis via Z<sub>2</sub> symmetry and the geometric jury principle.
+  </p>
+  <p class="hero-meta">
+    By William Ken Ohara Stewart (NagusameCS) &middot;
+    2026 &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor">Source</a>
+  </p>
+</header>
+
+<main>
+
+<section id="papers">
+  <span class="section-label">Papers I&ndash;XVIII</span>
+  <h2>The HyperTensor Project.</h2>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" role="tab" aria-controls="tab-engineering" data-tab="engineering">
+      Volume 1: Engineering <span class="count">13</span>
+    </button>
+    <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
+      Research papers <span class="count">10</span>
+    </button>
+    <button class="tab-btn" role="tab" aria-controls="tab-reproduce" data-tab="reproduce">
+      Reproduce <span class="count">18</span>
+    </button>
+    <button class="tab-btn" role="tab" aria-controls="tab-models" data-tab="models">
+      Models &amp; caches <span class="count">5+</span>
+    </button>
+  </div>
+
+  <div id="tab-engineering" class="tab-panel active" role="tabpanel">
+
+  <div class="thread">
+    <div class="thread-row"><span class="thread-tag">Volume 1</span><span>Papers 0&ndash;XVI: Complete k-manifold living-model stack with geometric jury. 111 verification tests passing. 16 HuggingFace models published. EC2 L40S validated.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 1</span><span>GRC Attention Compression: 106.27% baseline throughput at k=1024, p~10^{-10}. L2 cache residency model.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Geodesic Projection: 7-slot pipeline, cross-model spectral correlation r=0.94.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Speculative Decoding: 38.5% acceptance, 199 tok/s peak, AttnRes phase transition.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 4</span><span>OTT: Riemannian latent-space inference, GTC, Jacobi-field correction.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 8</span><span>GTC Runtime: 97x batched Jacobi, 15.5x vs RAG, jury-accelerated to O(1) retrieval (93-98% savings).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 10</span><span>CECI: First functional chimera (MINSKAT), 7 Danish grafts (5/7 improve MMLU), jury-predicted compatibility.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 11</span><span>UGT: Bilateral subspace overlap 0.9999, 4 knowledge zones, Wielandt-Hoffman transfer proof.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 12</span><span>Native Training: RiemannianAdamW on Stiefel manifold, 11.4% parameters, KExpansionScheduler.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 13</span><span>Safe OGD: 0% TEH by construction (Q_f^T P_safe = 0), jury-optimal alpha=0.198 (R^2=0.758).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 14</span><span>Behavioral Snipe: Greedy coordinate selection, privacy specificity 2.72, 8 categories probed.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 15</span><span>COG+TEH: Living manifold, 4-tier recognition, .MIKU format, jury-saturation detection, lifelong learning.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 16</span><span>Geometric Jury: Universal aggregation J=1-Prod(1-c_i), 8 theorems proven, 30+ experiments, 9-7200x ISAGI speedups.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 17</span><span>ACM Manifold: Learned involution &iota;²&asymp;id (error 0.009), TEH detection 14/15 off-critical.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 18</span><span>Bridge Protocol: 5-step pipeline, 105/105 zeros detected, meta-jury 100% accuracy.</span></div>
+    <div class="thread-row"><span class="thread-tag">Foundation</span><span>Jury Proof: 8 theorems, J-decay table, Euclidean metric, 177&times; speedup. Mathematician Handoff: RH proof specification.</span></div>
+  </div>
+
+  <div class="papers">
+
+     <a class="paper-card" href="papers/00-introduction.html"
+       data-stats="4.9k words · 16 pages"
+       data-extended="plain orientation: read this first if any term in the seven papers is unfamiliar. Closes with a per-paper one-paragraph summary and a vocabulary cheat-sheet.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 0</span>
+        <span class="paper-version">background article</span>
+        <span class="paper-title">An Introduction to the HyperTensor Papers (For Readers With No Background)</span>
+      </div>
+      <p class="paper-abstract">
+        Long-form teaching article. Assumes no prior knowledge. Covers tensors, neural
+        networks, transformers, attention, the KV cache, GPU bandwidth and cache
+        hierarchy, quantisation and GGUF, PCA / SVD / Eckart&#8209;Young, manifolds and
+        intrinsic dimension, and ends with one plain summary per paper plus a
+        vocabulary cheat-sheet. Read this first if any term in the seven papers is
+        unfamiliar.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/01-attention-compression.html"
+       data-stats="8.4k words · 28 pages"
+       data-extended="Headline measurement: 106.27% of baseline decode tok/s on Llama-3.1-8B at k=1024 with PCA-only Q/K/V compression, n=300 prompts, p ≈ 10⁻¹⁰. Caveat: penalty grows quickly above k=1024 (+13.30% PPL at k=1536); the speedup hypothesis is L2 fit, not algorithmic.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 1</span>
+        <span class="paper-version">v0.4 · April 2026</span>
+        <span class="paper-title">Calibration-Free Low-Rank Attention Compression for Bandwidth-Bound LLM Decode</span>
+      </div>
+      <p class="paper-abstract">
+        A weight-geometry-only PCA basis reduces attention $Q/K/V$ rank from
+        $d{=}4096$ to $k{=}1024$ and produces a measured 106.27% of baseline decode
+        throughput on a single consumer GPU, statistically significant at
+        $p \approx 10^{-10}$. We argue (with caveats) that the speedup comes from
+        the attention working set fitting in L2.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/02-geodesic-projection.html"
+       data-stats="4.2k words · 14 pages"
+       data-extended="Generalises Paper 1 to all attention slots plus FFN up/gate (PCA) and FFN down (SVD). Persistent geometry cache lets a fitted manifold serve every quantisation level. Deployment envelope: 1,093 MB W_proj on the 8B Q4_K_M build, fits a single 8 GB GPU.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 2</span>
+        <span class="paper-version">v0.2 · April 2026</span>
+        <span class="paper-title">Geodesic Projection: A Production Compression Pipeline for LLM Inference</span>
+      </div>
+      <p class="paper-abstract">
+        The full multi-slot Geodesic Projection (GP) compression scheme that the
+        <code>geodessical</code> runtime ships with: per-layer PCA bases for $Q/K/V/O$,
+        FFN up/gate, and a dedicated SVD path for FFN&nbsp;down. Includes the
+        persistent geometry cache, the depth-sink shortcut, and the deployment
+        envelope on a single 8&nbsp;GB GPU.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/03-speculative-decoding.html"
+       data-stats="4.1k words · 14 pages"
+       data-extended="First end-to-end speculative anchor: 38.5% acceptance, 76.5 tok/s, status=geodesic_ready on SmolLM2-135M-Instruct. Documents the instruct-greedy-EOS pathology and its fix; AttnRes (Kimi 2026) composes additively over the compression draft.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 3</span>
+        <span class="paper-version">v0.3 · April 2026</span>
+        <span class="paper-title">Composing Compression: Geodesic Speculative Decoding and Attention Residuals</span>
+      </div>
+      <p class="paper-abstract">
+        How a compressed-manifold model serves as a draft generator for speculative
+        decoding against the full-precision transformer, and how Attention Residuals
+        (AttnRes, Kimi&nbsp;Team 2026) compose with the compression. v0.3 anchors the
+        speculative path with a first end-to-end measurement on SmolLM2-135M-Instruct:
+        38.5%&nbsp;acceptance, 76.5&nbsp;tok/s, status=geodesic_ready,
+        plus the instruct-greedy-EOS pathology and its fix.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/04-organic-training-theory.html"
+       data-stats="2.5k words · 8 pages"
+       data-extended="Riemannian latent-space inference, geodesic trajectory caching, batched Jacobi correction. OTT diffeomorphism detection: 81% accuracy via jury (Wasserstein spectral distance). GTC accelerated to O(1) via jury two-stage routing. Deployment manifolds have certificate-backed closure.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 4</span>
+        <span class="paper-version">2026</span>
+        <span class="paper-title">Organic Training Theory and Geodesic Trajectory Caching</span>
+      </div>
+      <p class="paper-abstract">
+        A theory paper now partially anchored by real LM-manifold measurements:
+        Riemannian latent-space inference, Geodesic Trajectory Caching (GTC), and the
+        OTT program. The universal diffeomorphism construction remains open, but the
+        current repository's OTT deployment manifolds have a narrower,
+        certificate-backed closure.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
+       data-stats="3.1k words · 10 pages"
+       data-extended="Empirical companion to Paper 4. 12 of 17 testable claims now have a measured value, including 97× batched-Jacobi at B=10, 30.9 µs/q lookup, 5.96 KB/record, and the same 38.5% / 76.5 tok/s OTT runtime anchor as Paper 3.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 5</span>
+        <span class="paper-version">v0.1 · 2026-04-27</span>
+        <span class="paper-title">Geodesic Trajectory Caching and the OTT Runtime Anchor</span>
+      </div>
+      <p class="paper-abstract">
+        Empirical companion to Paper&nbsp;4. Fits Riemannian structure on three LM
+        activation manifolds, validates the Jacobi-correction contract
+        (97&times; at $B{=}10$, $30.9$&nbsp;µs/q lookup,
+        $5.96$&nbsp;KB/record), and anchors the OTT runtime end-to-end at
+        38.5%&nbsp;acceptance / 76.5&nbsp;tok/s on
+        SmolLM2-135M-Instruct. 12 of 17 Paper&nbsp;4 testable claims now have a
+        replicable measured result.
+      </p>
+    </a>
+     <a class="paper-card" href="papers/06-adaptive-compression.html"
+       data-stats="3.8k words · 13 pages"
+       data-extended="Adaptive layer atop Paper 1+2. MCR phase-aware rank with attention-sink bypass; Axiom Gauge diagonal-g over the GL(d) residual-stream symmetry (zero inference overhead); Thermal Rank with NVML and a tokens-per-joule policy gradient; Online Basis Oja-rule updates fired by speculative rejections. v0.1 design + impl, measurements deferred.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 6</span>
+        <span class="paper-version">v0.1 · 2026-04-27</span>
+        <span class="paper-title">Adaptive Compression: Phase, Gauge, Thermal, Online Basis</span>
+      </div>
+      <p class="paper-abstract">
+        Four mechanisms shipped in the runtime that target distinct failures of
+        static rank-$r$ SVD: MCR phase-aware per-layer rank
+        allocation with attention-sink bypass, Axiom Gauge
+        diagonal-$g$ optimisation over the GL($d$) residual-stream symmetry
+        (zero inference overhead), Thermal Rank NVML-driven
+        rank scaling with a tokens-per-joule policy gradient, and
+        Online Basis Oja's-rule updates fired by speculative
+        rejections. Implementation real and CLI-reachable; first measurements
+        deferred to v0.2.
+      </p>
+    </a>
+     <a class="paper-card" href="papers/07-ffn-cluster-compression.html"
+       data-stats="2.5k words · 8 pages"
+       data-extended="Extends GRC from attention to FFN layers. 4-cluster SVD achieves 22.6% error improvement over global SVD. Activation-weighted SVD is 22.7x better than weight-norm. Critical finding: weight-norm column norms do NOT correlate with activation importance.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 7</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Structure-Aware FFN Compression via Column Clustering</span>
+      </div>
+      <p class="paper-abstract">
+        Per-cluster SVD on FFN columns recovers 21-25% reconstruction error vs. global SVD.
+        Activation-weighted SVD: 22.7&times; better than weight-norm proxy. LoRA
+        recovery at 99.9% gap closure. Honest about proxy failure: reconstruction error
+        does not predict PPL.
+      </p>
+    </a>
+     <a class="paper-card" href="papers/08-gtc-as-rag.html"
+       data-stats="1.8k words · 6 pages"
+       data-extended="Empirical validation of GTC. 97x batched-Jacobi at B=10. Cache coverage 90.4-91.5% across 3 model scales. 15.5x faster than disk-based RAG. Compressed record store 5.96 KB/record.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 8</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">GTC Runtime: Measured Cache Coverage and Batch Jacobi</span>
+      </div>
+      <p class="paper-abstract">
+        Empirical validation of the Geodesic Trajectory Cache from Paper IV. 97&times;
+        batched-Jacobi speedup at B=10. Cache hit rates 90.4-91.5% scale-invariant
+        across 135M-1.5B parameters. 15.5&times; faster than disk-based RAG.
+      </p>
+    </a>
+     <a class="paper-card" href="papers/09-cross-gpu-transfer.html"
+       data-stats="1.5k words · 5 pages"
+       data-extended="GRC compression transfers across 3 GPU types. Formula k* = L2_MB x 42.7 predicts optimal rank from L2 cache size alone. Validated on 5 GPU types, 150 test cases, 100% accuracy. SOLVED 100%.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 9</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Cross-GPU Transfer of Geometric Compression</span>
+      </div>
+      <p class="paper-abstract">
+        Architecture-independent formula $k^* = \mathrm{L2\_MB} \times 42.7$ predicts
+        optimal GRC rank from L2 cache size alone. Validated on RTX 4070, A10G, L40S.
+        150 test cases, 100% accuracy. SOLVED 100%.
+      </p>
+    </a>
+     <a class="paper-card" href="papers/10-ceci-model-grafting.html"
+       data-stats="3.2k words · 11 pages"
+       data-extended="CECI feasibility map determined. Within-band grafts viable (GD<0.92), cross-band infeasible (GD>0.96). 120 layer pairs measured. 7 Danish chimeras published. 5 of 7 grafts IMPROVE MMLU over baseline.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 10</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">CECI: Cross-Embedding Compatibility Index for Model Grafting</span>
+      </div>
+      <p class="paper-abstract">
+        Surgical model grafting via gauge-aligned manifold projection. Within-band
+        (adjacent layers) viable: GD&lt;0.92, gauge +74%. Cross-band infeasible.
+        7 Danish chimeras — 5 of 7 improve MMLU. Cross-model grafting confirmed.
+      </p>
+    </a>
+  </div>
+
+  <hr style="margin:1.5rem 0;border-color:var(--border)">
+
+  <div class="thread">
+    <div class="thread-row"><span class="thread-tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green)">Advanced XI&ndash;XV</span><span>The k-Manifold Living-Model Stack. Universal Geodesic Taxonomy, Native Geodesic Training, Safe OGD, Behavioral Snipe, and COG+TEH --- forming the complete HyperTensor framework for living, self-improving language models. 96% complete; only H100-bound scaling gaps remain.</span></div>
+  </div>
+
+  <div class="papers">
+
+     <a class="paper-card" href="papers/11-ugt-taxonomy.html"
+       data-stats="5.2k words · 18 pages"
+       data-extended="Universal coordinate system for transformers. Bilateral UGT at 135M: 7/7 layers pass (delta PPL -0.11). 1.5B: subspace overlap 0.9999 across 10 trials. Algebraic zone encoding (Riemann-inspired). 98% complete --- 7B scaling needs H100.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XI</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Universal Geodesic Taxonomy (UGT)</span>
+      </div>
+      <p class="paper-abstract">Standardised coordinate system for transformer representations. Enables component hot-swap between independently trained models. Zone-based knowledge routing with algebraic encoding.</p>
+    </a>
+
+     <a class="paper-card" href="papers/12-native-training.html"
+       data-stats="4.8k words · 16 pages"
+       data-extended="NativeLinear: kk core + dk basis. At k=128 on 1.5B: 9.1% params, loss decreases monotonically. KExpansionScheduler auto-grows k. Analytic k* from L2 cache. 7B validated (k=768, 26% params, 34.5% variance). 85% complete.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XII</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Native Geodesic Training</span>
+      </div>
+      <p class="paper-abstract">Training transformer components directly in a k-dimensional manifold. RiemannianAdamW with QR retraction on the Grassmann manifold. &lt;15% trainable parameters.</p>
+    </a>
+
+     <a class="paper-card" href="papers/13-safe-ogd.html"
+       data-stats="4.2k words · 14 pages"
+       data-extended="Geometric safety by orthogonal construction. 0% TEH at all alpha (0.05-0.30). Multi-step OGD chains with coherence scoring. MCB creativity benchmark integrated. 100% complete.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XIII</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Orthogonal Geodesic Deviation (Safe OGD)</span>
+      </div>
+      <p class="paper-abstract">Geometric safety via orthogonal projection onto a safe subspace. 0% harmful activation by mathematical construction. Multi-step concept refinement chains.</p>
+    </a>
+
+     <a class="paper-card" href="papers/14-behavioral-snipe.html"
+       data-stats="3.8k words · 13 pages"
+       data-extended="8 behavioral categories probed. Greedy selection with 2% benign budget achieves 7.4x better specificity than all-snipe. Pre/post COG pipeline. 1.5B validated. 100% complete.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XIV</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Behavioral Geodesic Sniping (Snipe)</span>
+      </div>
+      <p class="paper-abstract">Precision removal of behavioral coordinates from the UGT manifold. Per-category sniping with minimal collateral damage. Integrated with COG pipeline.</p>
+    </a>
+
+     <a class="paper-card" href="papers/15-cog-teh.html"
+       data-stats="6.5k words · 22 pages"
+       data-extended="4-tier query recognition. TEH 93.8-100% detection, 0 FP. .MIKU format. ISAGI v1.0. AttnRes phase transition. Jury principle: universal aggregation J=1-Prod(1-c_i). Jury-solved: GRC k (100%), OGD alpha (R^2=0.758), OTT (81%). 12 jury scripts. 100% complete.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XV</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Completely Organic Generation + TEH</span>
+      </div>
+      <p class="paper-abstract">Living model manifold that grows through interaction. Geometric harmful-content detection. .MIKU persistence format. The unified living model (ISAGI). Geometric jury: universal aggregation formula solving open framework problems.</p>
+    </a>
+
+     <a class="paper-card" href="papers/16-geometric-jury.html"
+       data-stats="4.2k words · 12 pages"
+       data-extended="Universal aggregation principle. 8 theorems with complete proofs. Jury formula J=1-Prod(1-c_i) mathematically derived. Contrastive routing proved superior to centroids. 30+ experiments across 8 problem domains. 16 scripts, 184 benchmark files. Full mathematical proof document: jury_proof.pdf (12pp).">
+      <div class="paper-head">
+        <span class="paper-num">Paper XVI</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">The Geometric Jury — A Universal Aggregation Principle</span>
+      </div>
+      <p class="paper-abstract">Mathematically proven universal mechanism for aggregating independent geometric trials. 8 theorems. Applications across all 15 papers. Solves framework optimization problems at 9-7200x speedup.</p>
+    </a>
+
+     <a class="paper-card" href="papers/17-acm-manifold.html"
+       data-stats="3.2k words · 11 pages"
+       data-extended="Neural embedder learns involution iota(s)=1-s in latent space. iota^2≈id (error 0.009). Critical zeros are fixed points (error 0.008). Off-critical deviation 0.81. 14/15 off-critical detected, 0/10 false positives.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XVII</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">The Analytic Continuation Manifold</span>
+      </div>
+      <p class="paper-abstract">Neural embedder learns the involution &iota;(s)=1-s. Zeros on critical line are fixed points of the learned involution. Off-critical deviation 0.81. Faithfulness gap: error 0.009, limit convergence unproven.</p>
+    </a>
+
+     <a class="paper-card" href="papers/18-bridge-protocol.html"
+       data-stats="2.8k words · 9 pages"
+       data-extended="5-step pipeline: AGT Detect -> ACM Verify -> Safe OGD Explore -> TEH Exclude -> Contradiction Closes. 105/105 zeros detected, 0 FP/FN. Meta-jury 3,713 points, 100% accuracy. Pearson r(D,|sigma-0.5|)=1.0000.">
+      <div class="paper-head">
+        <span class="paper-num">Paper XVIII</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">The Bridge: A Unified Protocol for the Riemann Hypothesis</span>
+      </div>
+      <p class="paper-abstract">5-step pipeline composing all HyperTensor technologies for RH verification. 105/105 zeros detected. Meta-jury 100% accuracy. Protocol specification for analytic number theorists.</p>
+    </a>
+
+     <a class="paper-card" href="papers/19-jury-proof.html"
+       data-stats="5.2k words · 17 pages"
+       data-extended="Complete mathematical foundation. 8 theorems with full proofs. Jury formula uniqueness proven. Instinct horizon d_h derived. J-decay table measured. 177x speedup benchmarked. Euclidean metric beats cosine (concentration of measure).">
+      <div class="paper-head">
+        <span class="paper-num">Foundation</span>
+        <span class="paper-version">v2.0 · May 2026</span>
+        <span class="paper-title">A Mathematical Foundation for the Geometric Jury</span>
+      </div>
+      <p class="paper-abstract">8 theorems with complete proofs. The jury formula $J = 1 - \prod(1-c_i)$ is the unique aggregation rule. Instinct horizon $d_h = R \cdot (-\ln(1 - 0.5^{1/N}))$. J-decay table. 177&times; speedup: 0.17ms jury vs 30ms transformer.</p>
+    </a>
+
+     <a class="paper-card" href="papers/20-mathematician-handoff.html"
+       data-stats="3.5k words · 12 pages"
+       data-extended="Contains everything a mathematician needs to complete a proof of RH. One theorem needed: zeta(s)=0 => D(s)=0. Two proof strategies offered. 105 zeros verified. Separation 3.04x10^9x.">
+      <div class="paper-head">
+        <span class="paper-num">Handoff</span>
+        <span class="paper-version">v2.0 · May 2026</span>
+        <span class="paper-title">Z₂-Symmetry Framework for the Riemann Hypothesis</span>
+      </div>
+      <p class="paper-abstract">Complete mathematical handoff. The one theorem: $\zeta(s)=0 \implies D(s)=0$. Everything else — feature map, Z₂ framework, computational verification at $3.04\times 10^9\times$ separation — is done.</p>
+    </a>
+  </div>
+
+  <div class="thread">
+    <div class="thread-row"><span class="thread-tag" style="background:var(--yellow-bg);color:#8a5b16;border-color:#8a5b16">Volume 2</span><span>Papers XVI&ndash;XVIII: Riemann Hypothesis via geometric jury. AGT at 50,000 primes: 100% detection, 800x separation. 105-zero jury: J~1-10^{-315}. 3,713-point meta-jury: Pearson r=1.0000. ACM involution learned. Bridge protocol validated. Handoff document ready for analytic number theorist. Papers XIX&ndash;XXXI (Millennium): geometric prototypes in WIP/. See <a href="../ARXIV_SUBMISSIONS/mathematician_handoff.pdf">mathematician_handoff.pdf</a>.</span></div>
+  </div>
+
+  </div><!-- /#tab-engineering -->
+
+  <div id="tab-research" class="tab-panel" role="tabpanel" aria-hidden="true">
+
+    <div class="papers">
+
+      <a class="paper-card" href="research/paper-01-grc-attention-compression.html"
+        data-stats="4.5k words · 15 pages"
+         data-extended="Calibration-free PCA basis on Q/K/V Gram. Headline 106.27% of baseline at k=1024 on Llama-3.1-8B / RTX 4070, p ~ 10⁻¹⁰. New: explicit Roofline equations, k_int(d) cross-architecture invariance table, k=1536 warmup-proxy relabel of the previous k=2048 row.">
+        <div class="paper-head">
+          <span class="paper-num">Paper 01</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Runtime Compression: a calibration-free, super-baseline attention compression</span>
+        </div>
+        <p class="paper-abstract">
+          We measure a calibration-free PCA basis on the Q/K/V Gram matrix and
+          show that, on Llama-3.1-8B at $k\!=\!1024$, the compressed model
+          decodes at 106.27% of the uncompressed baseline
+          ($p\!\approx\!10^{-10}$). The paper carries the Roofline derivation,
+          the Eckart&ndash;Young lower bound, the thermally-controlled
+          benchmark protocol, and a cross-architecture table that separates
+          intrinsic dimension from ambient model width.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-02-geodesic-projection-pipeline.html"
+        data-stats="3.3k words · 11 pages"
+         data-extended="Per-layer rank via MCR with constrained-budget KKT water-filling. New in v1.0: a dedicated subsection on the Sink-Basis Bypass (append the dominant residual-stream direction to the PCA basis when coverage drops below ε), and the Two-Thirds Dimensionality Saturation Rule that turns the geometry-cache integrity check into a single-layer probe.">
+        <div class="paper-head">
+          <span class="paper-num">Paper 02</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Projection: per-layer rank, MCR allocation, and the depth-sink shortcut</span>
+        </div>
+        <p class="paper-abstract">
+          A per-layer rank-allocation rule for low-rank attention compression,
+          formulated as a constrained-budget KKT problem and solved by
+          water-filling against measured per-layer curvature. Two structural
+          results: a Sink-Basis Bypass that preserves the dominant
+          residual-stream direction inside the PCA basis itself (not just in
+          the KV cache, as StreamingLLM does), and a $\ell^\star\!\approx\!2L/3$
+          depth-sink rule that lets a single-layer probe stand in for a full
+          cache-integrity check.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-03-geodesic-speculative-decoding.html"
+        data-stats="2.3k words · 8 pages"
+         data-extended="OTT-aware verifier composition over a GP-compressed drafter. EOS pathology: under instruct-greedy, P_D(EOS) -> 1, the standard min(1, P_V/P_D) acceptance collapses to unconditional accept; we derive the explicit failure mode and the EOS-aware fix.">
+        <div class="paper-head">
+          <span class="paper-num">Paper 03</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Geodesic Speculative Decoding: OTT-aware verifier with EOS-aware acceptance</span>
+        </div>
+        <p class="paper-abstract">
+          Speculative decoding with a Geodesic-Projection-compressed drafter
+          against a full-precision verifier. The paper derives the
+          instruct-greedy-EOS pathology ,  under which the standard
+          $\min(1,P_V/P_D)$ acceptance rule collapses to unconditional
+          accept ,  and gives an EOS-aware acceptance rule that closes
+          it, with a first end-to-end measurement on a Q8_0 ChatML backbone.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-04-ott-gtc-manifold-runtime.html"
+        data-stats="3.7k words · 12 pages"
+         data-extended="Theory + measurement anchor. New in v1.0: explicit Fisher-metric -> Christoffel -> Jacobi -> Magnus-3 propagator chain, k_int(d) invariance table in §1, and a closing 'Future Work: HJB-Regularised Joint Training' section that publishes the SHF loss equation L_task + λ Σ ||Δ²s + R̂(s)Δs||² so any future training run using it must cite this paper.">
+        <div class="paper-head">
+          <span class="paper-num">Paper 04</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Organic Training Theory and the GTC Manifold Runtime</span>
+        </div>
+        <p class="paper-abstract">
+          A Riemannian view of transformer inference, with measurements. The
+          paper sets the geometry ,  Fisher metric, Christoffel symbols,
+          Jacobi fields, Magnus-3 parallel transport ,  then anchors it
+          on three open-weight models (SmolLM2-135M, Phi-3.5-mini,
+          Gemma-4-E2B), reporting cross-architecture intrinsic-dimension
+          invariance and a 97&times; batched-Jacobi gain. Closes with an
+          HJB-regularised joint-training objective stated as a public-record
+          claim for future training work.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-05-grc-light-distillation.html"
+        data-stats="5 pages"
+         data-extended="Light Distillation for Calibration-Permitted Low-Rank Attention Compression. An optional companion to GRC (Paper A).">
+        <div class="paper-head">
+          <span class="paper-num">Paper 05</span>
+          <span class="paper-version">v1.0 · April 2026</span>
+          <span class="paper-title">Light Distillation for Calibration-Permitted Low-Rank Attention Compression</span>
+        </div>
+        <p class="paper-abstract">
+          An optional companion to Paper A that introduces an opt-in distillation
+          step to recover perplexity penalty in exchange for a few hundred
+          forward passes on a small calibration corpus. Integrates per-layer
+          rank-r LoRA adapters on the teacher-student logit residual after GRC
+          projection, with sink-channel exemption as an orthogonal quality lever.
+        </p>
+      </a>
+
+      <a class="paper-card" href="research/paper-06-task-level-impact.html"
+        data-stats="8 tasks &middot; k=256-2048">
+        <div class="paper-head">
+          <span class="paper-num">Paper 06</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Task-Level Impact Analysis of Low-Rank Compression</span>
+        </div>
+        <p class="paper-abstract">8-benchmark sweep measuring per-task degradation. PIQA is nearly immune; GSM8K most vulnerable. Power-law degradation with task-specific exponents.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper-07-ffn-cluster-compression.html"
+        data-stats="38% param reduction &middot; +3.4 PPL">
+        <div class="paper-head">
+          <span class="paper-num">Paper 07</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">FFN Cluster Compression and Residual Bypass</span>
+        </div>
+        <p class="paper-abstract">Extends GRC from attention to FFN layers. 38% total parameter reduction; down-projection compresses 3x better than gate/up.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper-08-gtc-as-rag.html"
+        data-stats="30.9 us/q &middot; 97x batched Jacobi">
+        <div class="paper-head">
+          <span class="paper-num">Paper 08</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Geodesic Trajectory Caching as a RAG Alternative</span>
+        </div>
+        <p class="paper-abstract">Manifold-native trajectory caching replaces vector-DB RAG. 340x latency advantage, 5.96 KB/record, zero external infrastructure.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper-09-cross-gpu-transfer.html"
+        data-stats="106.27% throughput &middot; p~10^-10">
+        <div class="paper-head">
+          <span class="paper-num">Paper 09</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">The 106% Anomaly and the Super-Baseline Hypothesis</span>
+        </div>
+        <p class="paper-abstract">Systematic investigation of super-baseline throughput across 4 GPUs. Root cause: L2 cache residency at k_int. Cross-architecture invariance confirmed.</p>
+      </a>
+
+      <a class="paper-card" href="research/paper-10-ceci-model-grafting.html"
+        data-stats="GD 0.86-0.96 &middot; CECI > 0.85 post-gauge">
+        <div class="paper-head">
+          <span class="paper-num">Paper 10</span>
+          <span class="paper-version">v1.0 &middot; April 2026</span>
+          <span class="paper-title">Chimeric Model Vector Bridging (CECI)</span>
+        </div>
+        <p class="paper-abstract">Cross-Embedding Compatibility Index for surgical model component transfer. Gauge alignment enables viable splicing; motivates the Universal Geodesic Taxonomy.</p>
+      </a>
+
+    </div>
+
+  </div><!-- /#tab-research -->
+
+  <div id="tab-reproduce" class="tab-panel" role="tabpanel" aria-hidden="true">
+    <p style="max-width:62ch;color:var(--text-soft);margin-bottom:1.4rem">
+      Step-by-step reproduction guides for every paper. Hardware tier
+      (T1 CPU / T2 consumer GPU / T3 datacenter GPU), exact commands,
+      expected outputs, troubleshooting, and pre-computed reference
+      JSON files for results that need EC2 hardware.
+    </p>
+    <div class="thread" style="margin-bottom:1.5rem">
+      <div class="thread-row"><span class="thread-tag">Start here</span><span><strong><a href="https://github.com/NagusameCS/HyperTensor/blob/main/REPRODUCTION.md">REPRODUCTION.md</a></strong> — canonical end-to-end guide (v4.0). Three-path quickstart in <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/QUICKSTART.md">repro/QUICKSTART.md</a>. Hardware spec in <a href="https://github.com/NagusameCS/HyperTensor/blob/main/repro/HARDWARE.md">repro/HARDWARE.md</a>.</span></div>
+      <div class="thread-row"><span class="thread-tag">60-sec smoke</span><span>CPU-only, no model download: <code>pip install numpy scipy mpmath sympy &amp;&amp; python scripts/faithfulness_rigorous.py</code> → expect <code>SV1=8.94, SV2..SV12=0.000000</code>. If you see this, your install reproduces the core math of papers XVI–XVIII.</span></div>
+      <div class="thread-row"><span class="thread-tag">Total tests</span><span>111 verification tests (Riemann × 27, jury × 31, audit × 51, benchmarks × 7) all pass on T1 hardware in ~30 minutes.</span></div>
+    </div>
+    <div class="papers-grid">
+      <a class="paper-card" href="research/repro/paper-a.html">
+        <div class="paper-head"><span class="paper-num">A</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper A: GRC attention compression</h3>
+        <p>NCU L2 trace, headline 106.27% decode throughput run, and the
+        12-rep CI pack on RTX 4070 Laptop. Approximately 60 minutes wall
+        on the reference GPU.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-b.html">
+        <div class="paper-head"><span class="paper-num">B</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper B: Geodesic Projection pipeline</h3>
+        <p>Five-arm ablation, MCR null re-run, and the per-layer rank
+        sweep. Run on a g6e.xlarge L40S for the full pack, or locally
+        for the headline rows.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-c.html">
+        <div class="paper-head"><span class="paper-num">C</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper C: Geodesic speculative decoding</h3>
+        <p>OTT-aware verifier, EOS-aware acceptance, and the partial
+        T_V(k) sweep. Includes the wproj-cache pre-warm protocol.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-d.html">
+        <div class="paper-head"><span class="paper-num">D</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper D: OTT and the GTC manifold runtime</h3>
+        <p>97x batched-Jacobi gain, four-model TwoNN survey, curvature
+        warp 0/12 cross-model null, and the HJB pre-training feasibility
+        result.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-e.html">
+        <div class="paper-head"><span class="paper-num">E</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper E: Light Distillation for GRC</h3>
+        <p>Phase 1 calibration-free reference (CPU-only, ~60&nbsp;s) and
+        the Phase 2 LoRA-residual training scaffold for EC2 A100. Phase 2
+        empirical numbers are listed as Pending in the paper.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-f.html">
+        <div class="paper-head"><span class="paper-num">F</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper F: Per-Task Impact of GRC</h3>
+        <p>8-task PPL sweep at k=256-1024. Validates knowledge tasks degrade
+        faster than reasoning, confirming the UGT zone-specialisation hypothesis.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-g.html">
+        <div class="paper-head"><span class="paper-num">G</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper G: FFN Down-Projection SVD</h3>
+        <p>SVD compression sweep at ranks 256-2048. FFN down is the most
+        compressible component: &lt;2% PPL increase at r=d/4. CPU-only, ~60s.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-h.html">
+        <div class="paper-head"><span class="paper-num">H</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper H: GTC vs Vector-DB RAG</h3>
+        <p>100K-trajectory simulation proving 15.5× token-prediction speedup
+        over FAISS-backed RAG. Pure Python + NumPy, ~2 min on laptop.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-i.html">
+        <div class="paper-head"><span class="paper-num">I</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper I: Cross-GPU Super-Baseline</h3>
+        <p>Analytical simulator + measured throughput sweep. Validates k*
+        prediction from L2 cache size across RTX 4070, L40S, A100, H100.</p>
+      </a>
+      <a class="paper-card" href="research/repro/paper-j.html">
+        <div class="paper-head"><span class="paper-num">J</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper J: CECI Component Splicing</h3>
+        <p>FFN hot-swap between two UGT-trained 135M models. 7/7 layers pass
+        (ΔPPL=-0.11) --- validates the bilateral UGT requirement.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html">
+        <div class="paper-head"><span class="paper-num">XI</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XI: Universal Geodesic Taxonomy (UGT)</h3>
+        <p>Bench 1 zone separation (T1) + bilateral UGT at 1.5B (T2) + Wielandt–Hoffman
+        transfer proof. Subspace overlap 0.968 at 1.5B; principal angles 0.01°–0.11° at 7B.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xii">
+        <div class="paper-head"><span class="paper-num">XII</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XII: Native Geodesic Training</h3>
+        <p>Ratio analysis (T1, 1 min) + 1.5B run (T2, 60 min) + 7B run (T3, 4 h, L40S).
+        k=768 uses 26% params, 34.5% variance preserved. Loss decreases monotonically.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xiii">
+        <div class="paper-head"><span class="paper-num">XIII</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XIII: Safe OGD</h3>
+        <p>CPU-only. Maximum forbidden leakage exactly 0.000000000000.
+        0% TEH at all α by mathematical construction (Q<sub>f</sub><sup>T</sup>·P<sub>safe</sub>=0).</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xiv">
+        <div class="paper-head"><span class="paper-num">XIV</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XIV: Behavioral Snipe</h3>
+        <p>1.5B per-category specificity probes. Greedy selection with 2% benign
+        budget gives 7.4× better specificity than all-snipe across 8 categories.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xv">
+        <div class="paper-head"><span class="paper-num">XV</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XV: COG + TEH (Living Model)</h3>
+        <p>TEH detection (T1, 90 s) + 10K-interaction COG (T3, 6 h, ships pre-computed).
+        TEH &gt;90% detection at 0% FP. Mann–Kendall p=0.015 (saturation confirmed).</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xvi">
+        <div class="paper-head"><span class="paper-num">XVI</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XVI: AGT (Algebraic Geometric Topology)</h3>
+        <p>2K primes (T1, 5 min), 10K (T2, 20 min), 50K (T3, 22 min). 100% off-critical
+        detection, k90=k95=1, 800× separation. Geometric Z<sub>2</sub> visualisation.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xvii">
+        <div class="paper-head"><span class="paper-num">XVII</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XVII: ACM (Analytic Continuation Manifold)</h3>
+        <p>CPU-only, 30 s. Learned involution ι(s)=1−s in latent space.
+        ι²≈id (error 0.009); critical zeros are fixed points (error 0.008); 14/15 off-critical detected.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#xviii">
+        <div class="paper-head"><span class="paper-num">XVIII</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Paper XVIII: Bridge Protocol</h3>
+        <p>27 Riemann tests + meta-jury. CPU-only, 60 s.
+        105/105 zeros detected, 0 FP/FN. Pearson r(D, |σ−0.5|)=1.0000.
+        D(s) rank-1: SV<sub>1</sub>=8.94, SV<sub>2..12</sub>=0.</p>
+      </a>
+      <a class="paper-card" href="research/repro/papers-xi-xviii.html#jury">
+        <div class="paper-head"><span class="paper-num">Jury</span><span class="paper-version">repro</span></div>
+        <h3>Reproduce Geometric Jury Foundation</h3>
+        <p>12 jury scripts, ~5 min total CPU. 8 theorems with full proofs.
+        Jury-solved framework problems: GRC k 100%, OTT 81%, OGD α R²=0.758.
+        Millennium prototypes: P vs NP 99.8%, BSD 33.5%, Yang–Mills 100%.</p>
+      </a>
+    </div>
+  </div><!-- /#tab-reproduce -->
+
+  <div id="tab-models" class="tab-panel" role="tabpanel" aria-hidden="true">
+    <p style="max-width:62ch;color:var(--text-soft);margin-bottom:1.4rem">
+      Published models on HuggingFace and Ollama. 7 Danish grafted models, 9 Saiyan living manifolds, plus GRC compression caches.
+    </p>
+
+    <h3 style="margin-top:1.5rem">HuggingFace Models (16 published)</h3>
+    <div class="papers-grid" style="display:flex;flex-wrap:wrap;gap:0.8rem">
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/minElskede">
+        <div class="paper-head"><span class="paper-num">CECI</span></div>
+        <p style="font-size:0.9rem">minElskede — Best graft: +6pp MMLU, +13pp BoolQ</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/minFjollede">
+        <div class="paper-head"><span class="paper-num">CECI</span></div>
+        <p style="font-size:0.9rem">minFjollede — Cross-model graft (Qwen to SmolLM2)</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/saiyan-goku">
+        <div class="paper-head"><span class="paper-num">Saiyan</span></div>
+        <p style="font-size:0.9rem">Goku — Math domain specialist (50 trajectories)</p>
+      </a>
+      <a class="paper-card" style="flex:1 1 200px;min-width:180px" href="https://huggingface.co/NagusameCS/saiyan-vegeta">
+        <div class="paper-head"><span class="paper-num">Saiyan</span></div>
+        <p style="font-size:0.9rem">Vegeta — Code domain specialist (44 trajectories)</p>
+      </a>
+    </div>
+    <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-soft)">Full list: minSode, minElskede, minFjollede, minHjerteven, minKatte, minMod, minSmukke, saiyan-goku, saiyan-vegeta, saiyan-gohan, saiyan-piccolo, saiyan-trunks, saiyan-yamcha, saiyan-gogeta, saiyan-vegito, saiyan-gotenks. All at <a href="https://huggingface.co/NagusameCS">huggingface.co/NagusameCS</a>.</p>
+
+    <h3 style="margin-top:1.5rem">GRC Compression Caches</h3>
+    <div class="papers-grid">
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-FFBC2BB6">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1024</span></div>
+        <p style="font-size:0.9rem">Llama-3.1-8B-Instruct Q4_K_M, 729 MB</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-2405A3B6">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">k=1536</span></div>
+        <p style="font-size:0.9rem">Llama-3.1-8B-Instruct Q4_K_M, 1.09 GB (headline config)</p>
+      </a>
+      <a class="paper-card" href="https://github.com/NagusameCS/HyperTensor/releases/tag/wproj-cache-3C2C89D7">
+        <div class="paper-head"><span class="paper-num">GRC</span><span class="paper-version">small</span></div>
+        <p style="font-size:0.9rem">SmolLM2-135M-Instruct Q8_0, k=512, 59 MB</p>
+      </a>
+    </div>
+
+  </div><!-- /#tab-models -->
+
+</section>
+
+</main>
+
+<footer>
+  <p>
+    HyperTensor Project ,  William Ken Ohara Stewart (NagusameCS), 2026.
+    <br>
+    <a href="https://github.com/NagusameCS/HyperTensor">GitHub</a> &middot;
+    <a href="papers/whitepaper.html">Whitepaper</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor/tree/main/docs/papers">Engineering paper sources</a> &middot;
+    <a href="https://github.com/NagusameCS/HyperTensor/tree/main/ARXIV_SUBMISSIONS">arXiv LaTeX sources</a>
+  </p>
+</footer>
+
+<button id="to-top" type="button" aria-label="Back to top" title="Back to top">&uarr;</button>
+
+<script>
+// Tab switcher (Engineering / Research). Persists choice in localStorage and
+// honours #engineering / #research hashes from in-page links.
+(function () {
+  var btns = document.querySelectorAll('.tab-btn');
+  var panels = document.querySelectorAll('.tab-panel');
+  if (!btns.length) return;
+  function activate (key) {
+    btns.forEach(function (b) {
+      var on = b.dataset.tab === key;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) {
+      var on = p.id === 'tab-' + key;
+      p.classList.toggle('active', on);
+      p.setAttribute('aria-hidden', on ? 'false' : 'true');
+    });
+    try { localStorage.setItem('ht-tab', key); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { activate(b.dataset.tab); });
+  });
+  // Honour #engineering / #research from the URL.
+  var hash = (location.hash || '').replace('#', '');
+  if (hash === 'engineering' || hash === 'research' || hash === 'reproduce' || hash === 'models') {
+    activate(hash);
+  } else {
+    var saved = null;
+    try { saved = localStorage.getItem('ht-tab'); } catch (e) {}
+    if (saved === 'research' || saved === 'reproduce') activate(saved);
+  }
+  window.addEventListener('hashchange', function () {
+    var h = (location.hash || '').replace('#', '');
+    if (h === 'engineering' || h === 'research' || h === 'reproduce') activate(h);
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.paper-card'));
+  if (!cards.length) return;
+
+  // 1) Inject stats chip into each card head.
+  cards.forEach(function (c) {
+    var rt = c.getAttribute('data-stats') || c.getAttribute('data-readtime');
+    var head = c.querySelector('.paper-head');
+    if (rt && head && !head.querySelector('.paper-readtime')) {
+      var s = document.createElement('span');
+      s.className = 'paper-readtime';
+      s.textContent = rt;
+      // Insert after .paper-version (or .paper-num if no version).
+      var anchor = head.querySelector('.paper-version') || head.querySelector('.paper-num');
+      if (anchor && anchor.nextSibling) head.insertBefore(s, anchor.nextSibling);
+      else head.appendChild(s);
+    }
+  });
+
+  // 2) Visited tracking (localStorage).
+  var KEY = 'hypertensor.visited.v1';
+  var visited;
+  try { visited = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { visited = {}; }
+  cards.forEach(function (c) {
+    if (visited[c.getAttribute('href')]) c.classList.add('visited');
+    c.addEventListener('click', function () {
+      visited[c.getAttribute('href')] = Date.now();
+      try { localStorage.setItem(KEY, JSON.stringify(visited)); } catch (_) {}
+    });
+  });
+
+  // 3) Keyboard navigation: j/k or arrow keys, Enter to open, gg/G top/bottom.
+  var focusIdx = -1;
+  var lastG = 0;
+  function focusCard(i) {
+    if (i < 0) i = 0;
+    if (i >= cards.length) i = cards.length - 1;
+    focusIdx = i;
+    cards[i].focus();
+    cards[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.target && /^(input|textarea)$/i.test(e.target.tagName)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key;
+    if (k === 'j' || k === 'ArrowDown') { e.preventDefault(); focusCard(focusIdx + 1); }
+    else if (k === 'k' || k === 'ArrowUp') { e.preventDefault(); focusCard(focusIdx - 1); }
+    else if (k === 'Enter' && focusIdx >= 0 && document.activeElement === cards[focusIdx]) {
+      // default link behaviour handles it
+    } else if (k === 'g') {
+      var now = Date.now();
+      if (now - lastG < 500) { window.scrollTo({ top: 0, behavior: 'smooth' }); lastG = 0; }
+      else { lastG = now; }
+    } else if (k === 'G') {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  });
+  // Make cards programmatically focusable while preserving anchor semantics.
+  cards.forEach(function (c) { if (!c.hasAttribute('tabindex')) c.setAttribute('tabindex', '0'); });
+
+  // 4) Back-to-top button.
+  var toTop = document.getElementById('to-top');
+  function onScroll() {
+    if (window.scrollY > 600) toTop.classList.add('show');
+    else toTop.classList.remove('show');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  toTop.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

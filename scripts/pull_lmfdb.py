@@ -1,0 +1,127 @@
+"""Pull representative LMFDB samples to data/lmfdb/.
+
+Uses the public LMFDB JSON API (https://www.lmfdb.org/api/). Follows the
+`next` field for pagination and is deliberately conservative about request
+volume.
+"""
+from __future__ import annotations
+
+import json
+import time
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+OUT = Path(__file__).resolve().parent.parent / "data" / "lmfdb"
+OUT.mkdir(parents=True, exist_ok=True)
+
+BASE = "https://www.lmfdb.org/api"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
+
+
+def _request(url: str, retries: int = 3) -> dict | None:
+    for attempt in range(retries):
+        req = urllib.request.Request(url, headers=HEADERS)
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                ct = r.headers.get("Content-Type", "")
+                body = r.read()
+            if "json" not in ct:
+                # captcha / HTML response — back off
+                time.sleep(15 * (attempt + 1))
+                continue
+            return json.loads(body.decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 500:
+                time.sleep(5 * (attempt + 1))
+                continue
+            print(f"  ! HTTPError {e.code} on {url}")
+            return None
+        except Exception as e:
+            print(f"  ! {e}")
+            time.sleep(5 * (attempt + 1))
+    return None
+
+
+def fetch(collection: str, params: dict, max_records: int = 500) -> list:
+    qp = dict(params)
+    qp["_format"] = "json"
+    out: list = []
+    offset = 0
+    while len(out) < max_records:
+        qp["_offset"] = offset
+        url = f"{BASE}/{collection}/?{urllib.parse.urlencode(qp)}"
+        payload = _request(url)
+        if payload is None:
+            break
+        data = payload.get("data", [])
+        if not data:
+            break
+        out.extend(data)
+        if len(data) < 100:
+            break
+        offset += 100
+        time.sleep(2.5)
+    return out[:max_records]
+
+
+def save(name: str, records: list) -> None:
+    p = OUT / f"{name}.json"
+    p.write_text(json.dumps(records, indent=2, default=str), encoding="utf-8")
+    print(f"  -> {p.name}: {len(records)} records, {p.stat().st_size} bytes")
+
+
+def main() -> None:
+    # Skip step if file already non-empty (resume support)
+    def _todo(name: str) -> bool:
+        p = OUT / f"{name}.json"
+        if p.exists() and p.stat().st_size > 100:
+            print(f"  (skip {name}: already have {p.stat().st_size} bytes)")
+            return False
+        return True
+
+    if _todo("lfunctions_deg1"):
+        print("[1] lfunc_lfunctions degree=1 (Dirichlet)...")
+        save("lfunctions_deg1", fetch("lfunc_lfunctions", {"degree": "i1"}, 300))
+        time.sleep(10)
+
+    if _todo("lfunctions_deg2"):
+        print("[2] lfunc_lfunctions degree=2 (modular / GL(2))...")
+        # degree=2 alone returned 500 — narrow with conductor cap
+        save("lfunctions_deg2", fetch("lfunc_lfunctions", {"degree": "i2", "conductor": "i1"}, 100))
+        time.sleep(10)
+
+    if _todo("dirichlet_small"):
+        print("[3] char_dirichlet (modulus=7)...")
+        save("dirichlet_small", fetch("char_dirichlet", {"modulus": "i7"}, 100))
+        time.sleep(10)
+
+    if _todo("nf_fields_low_degree"):
+        print("[4] nf_fields degree 2..5...")
+        recs = []
+        for d in (2, 3, 4, 5):
+            recs.extend(fetch("nf_fields", {"degree": f"i{d}"}, 50))
+            time.sleep(5)
+        save("nf_fields_low_degree", recs)
+        time.sleep(10)
+
+    if _todo("mf_gamma1_wt2"):
+        print("[5] mf_gamma1 weight=2...")
+        save("mf_gamma1_wt2", fetch("mf_gamma1", {"weight": "i2"}, 100))
+        time.sleep(10)
+
+    if _todo("maass_newforms"):
+        print("[6] maass_newforms...")
+        save("maass_newforms", fetch("maass_newforms", {}, 100))
+
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+k,prompt_idx,acceptance_rate_pct,tps,note
+128,1,0.0,33.3,baseline
+128,2,0.0,31.7,baseline
+128,3,0.0,31.7,baseline
+128,4,0.0,30.4,baseline
+256,1,,,timeout_or_crash
+256,2,56.2,34.0,baseline
+256,3,0.0,34.9,baseline
+256,4,0.0,35.5,baseline
+512,,,,cold_pca_timeout_900s
+1024,,46.9,,headline_from_specdecode_run

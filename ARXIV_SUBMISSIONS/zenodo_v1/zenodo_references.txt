@@ -1,0 +1,76 @@
+# References (paste into Zenodo 'References' textbox)
+
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., et al. Attention is All You Need. Advances in Neural Information Processing Systems 30 (NeurIPS), 2017.
+Grattafiori, A., others. The Llama 3 Herd of Models. 2024. arXiv:2407.21783.
+Ainslie, J., Lee-Thorp, J., de Jong, M., Zemlyanskiy, Y., Lebron, F., Sanghai, S.. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. 2023. arXiv:2305.13245.
+Geva, M., Schuster, R., Berant, J., Levy, O.. Transformer Feed-Forward Layers Are Key-Value Memories. EMNLP, 2021.
+Xiao, G., Tian, Y., Chen, B., Han, S., Lewis, M.. Efficient Streaming Language Models with Attention Sinks. 2023. arXiv:2309.17453.
+Frantar, E., Ashkboos, S., Hoefler, T., Alistarh, D.. GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers. 2022. arXiv:2210.17323.
+Lin, J., Tang, J., Tang, H., Yang, S., Dang, X., Han, S.. AWQ: Activation-Aware Weight Quantization for LLM Compression and Acceleration. 2023. arXiv:2306.00978.
+Ashkboos, S., Croci, M. L., do Nascimento, M. G., Hoefler, T., Hensman, J.. SliceGPT: Compress Large Language Models by Deleting Rows and Columns. ICLR, 2024.
+Yuan, Z., Shang, Y., Song, Y., Wu, Q., Yan, Y., Sun, G.. ASVD: Activation-Aware Singular Value Decomposition for Compressing Large Language Models. 2023. arXiv:2312.05821.
+Hsu, Y. C., Hua, T., Chang, S., Lou, Q., Shen, Y., Jin, H.. Language Model Compression with Weighted Low-Rank Factorization. ICLR, 2022.
+Frantar, E., Alistarh, D.. SparseGPT: Massive Language Models Can Be Accurately Pruned in One Shot. 2023. arXiv:2301.00774.
+Xiao, G., Lin, J., Seznec, M., Wu, H., Demouth, J., Han, S.. SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models. 2022. arXiv:2211.10438.
+Dettmers, T., Lewis, M., Belkada, Y., Zettlemoyer, L.. LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale. 2022. arXiv:2208.07339.
+Hu, E., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., et al. LoRA: Low-Rank Adaptation of Large Language Models. 2021. arXiv:2106.09685.
+Kobayashi, S., Akram, A., Yamashita, K.. Weight Decay Induces Low-Rank Attention Layers. 2024. arXiv:2410.23819.
+Dettmers, T., Pagnoni, A., Holtzman, A., Zettlemoyer, L.. QLoRA: Efficient Finetuning of Quantized LLMs. 2023. arXiv:2305.14314.
+Leviathan, Y., Kalman, M., Matias, Y.. Fast Inference from Transformers via Speculative Decoding. ICML, 2023.
+Chen, C., Borgeaud, S., Irving, G., Lespiau, J. B., Sifre, L., Jumper, J.. Accelerating Large Language Model Decoding with Speculative Sampling. arXiv preprint, 2023. arXiv:2302.01318.
+Cai, T., Li, Y., Geng, Z., Peng, H., Lee, J. D., Chen, D., et al. Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads. 2024. arXiv:2401.10774.
+Li, Y., Wei, F., Zhang, C., Zhang, H.. EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty. 2024. arXiv:2401.15077.
+Williams, S., Waterman, A., Patterson, D.. Roofline: An Insightful Visual Performance Model for Multicore Architectures. Communications of the ACM, 2009.
+Yuan, Z., Shang, Y., Zhou, Y., Dong, Z., Xue, C., Wu, B., et al. LLM Inference Unveiled: Survey and Roofline Model Insights. 2024. arXiv:2402.16363.
+Corporation, N.. NVIDIA Ada GPU Architecture Whitepaper. 2022.
+Corporation, N.. Nsight Compute Profiling Guide. Version 2026.1, 2024.
+Trefethen, L. N., Bau III, D.. Numerical Linear Algebra. SIAM, 1997.
+Eckart, C., Young, G.. The Approximation of One Matrix by Another of Lower Rank. Psychometrika, 1936.
+Oja, E.. Simplified Neuron Model as a Principal Component Analyzer. Journal of Mathematical Biology, 1982.
+Robbins, H., Monro, S.. A Stochastic Approximation Method. The Annals of Mathematical Statistics, 1951.
+Golub, G. H., Van Loan, C. F.. Matrix Computations. Johns Hopkins University Press, 2013.
+GGUF Binary Format Specification. https://github.com/ggerganov/ggml/blob/master/docs/gguf.md, 2023.
+llama.cpp k-quants (Q4KM, Q5KM, Q6K) Format Specification. https://github.com/ggerganov/llama.cpp/pull/1684, 2023.
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu, C. H., et al. Efficient Memory Management for Large Language Model Serving with PagedAttention. 2023. arXiv:2309.06180.
+Merity, S., Xiong, C., Bradbury, J., Socher, R.. Pointer Sentinel Mixture Models. 2016. arXiv:1609.07843.
+Elhage, N., Hume, T., Olsson, C., Schiefer, N., others. Toy Models of Superposition. Anthropic Transformer Circuits Thread, 2022.
+Wilcoxon, F.. Individual Comparisons by Ranking Methods. Biometrics Bulletin, 1945.
+Grattafiori, A., others. The Llama 3 Herd of Models. 2024. arXiv:2407.21783.
+Nakkiran, P., Kaplun, G., Bansal, Y., Yang, T., Barak, B., Sutskever, I.. Deep Double Descent: Where Bigger Models and More Data Hurt. ICLR 2020; journal version 2021, 2021. arXiv:1912.02292.
+Leviathan, Y., Kalman, M., Matias, Y.. Fast Inference from Transformers via Speculative Decoding. ICML, 2023.
+Chen, C., Borgeaud, S., Irving, G., Lespiau, J. B., Sifre, L., Jumper, J.. Accelerating Large Language Model Decoding with Speculative Sampling. 2023. arXiv:2302.01318.
+Project, H.. Geodesic Projection: A Multi-Slot Compression Pipeline with Adaptive Extensions. Companion paper B in this series, 2025.
+Project, H.. Geodesic Speculative Decoding under Compression. Companion paper C in this series, 2025.
+Assran, M., Duval, Q., Misra, I., Bojanowski, P., Vincent, P., Rabbat, M., LeCun, Y., Ballas, N.. Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2023. arXiv:2301.08243.
+Bardes, A., Garrido, Q., Ponce, J., Chen, X., Rabbat, M., LeCun, Y., Assran, M., Ballas, N.. Revisiting Feature Prediction for Learning Visual Representations from Video (introduces V-JEPA). 2024. arXiv:2404.08471.
+Behrouz, A., Razaviyayn, M., Zhong, P., Mirrokni, V.. Nested Learning: The Illusion of Deep Learning Architectures (introduces the HOPE self-modifying continual-learning architecture). Advances in Neural Information Processing Systems (NeurIPS), 2025. arXiv:2512.24695.
+Stewart, W. K. O.. Geodesic Projection: a multi-slot compression pipeline with adaptive phase, gauge, thermal, and drift extensions. HyperTensor companion paper, to appear, 2026.
+Sun, M., Chen, X., Kolter, J. Z., Liu, Z.. Massive Activations in Large Language Models. 2024. arXiv:2402.17762.
+Belrose, N., Schneider-Joseph, D., Ravfogel, S., Cotterell, R., Raff, E., Biderman, S.. LEACE: Perfect linear concept erasure in closed form. Advances in Neural Information Processing Systems (NeurIPS), 2023. arXiv:2306.03819.
+Ravfogel, S., Elazar, Y., Gonen, H., Twiton, M., Goldberg, Y.. Null It Out: Guarding Protected Attributes by Iterative Nullspace Projection. Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL), 2020.
+Ravfogel, S., Twiton, M., Goldberg, Y., Cotterell, R.. Linear Adversarial Concept Erasure. International Conference on Machine Learning (ICML), 2022.
+Zou, A., Phan, L., Chen, S., Campbell, J., Guo, P., Ren, R., et al. Representation Engineering: A Top-Down Approach to AI Transparency. 2023. arXiv:2310.01405.
+Arditi, A., Obeso, O., Sygurev, A., Pan, W. G. D., Belrose, N., Hubinger, E., et al. Refusal in Language Models Is Mediated by a Single Direction. 2024. arXiv:2406.11717.
+Mazeika, M., Phan, L., Yin, X., Zou, A., Wang, Z., Mu, N., et al. HarmBench: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal. International Conference on Machine Learning (ICML), 2024. arXiv:2402.04249.
+Suzgun, M., Scales, N., Scharli, N., Gehrmann, S., Tay, Y., Chung, H. W., et al. Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them. Findings of the Association for Computational Linguistics (ACL), 2023. arXiv:2210.09261.
+Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C. L., Mishkin, P., et al. Training language models to follow instructions with human feedback. Advances in Neural Information Processing Systems (NeurIPS), 2022. arXiv:2203.02155.
+Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., et al. Constitutional AI: Harmlessness from AI Feedback. 2022. arXiv:2212.08073.
+Wei, A., Haghtalab, N., Steinhardt, J.. Jailbroken: How Does LLM Safety Training Fail?. 2023. arXiv:2307.02483.
+Bolukbasi, T., Chang, K. W., Zou, J. Y., Saligrama, V., Kalai, A. T.. Man is to Computer Programmer as Woman is to Homemaker? Debiasing Word Embeddings. Advances in Neural Information Processing Systems (NIPS), 2016.
+Meng, K., Bau, D., Andonian, A., Belinkov, Y.. Locating and Editing Factual Associations in GPT. Advances in Neural Information Processing Systems (NeurIPS), 2022.
+Meng, K., Sharma, A. S., Andonian, A., Belinkov, Y., Bau, D.. Mass-Editing Memory in a Transformer. International Conference on Learning Representations (ICLR), 2023.
+Gehman, S., Gururangan, S., Sap, M., Choi, Y., Smith, N. A.. RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models. Findings of the Association for Computational Linguistics (EMNLP), 2020.
+Huh, M., Cheung, B., Wang, T., Isola, P.. The Platonic Representation Hypothesis. Proceedings of the 41st International Conference on Machine Learning (ICML), 2024.
+Stewart, W. K. O.. GRC Attention Compression (Paper I in this volume). https://github.com/NagusameCS/HyperTensor, Paper I of the HyperTensor Extended Volume, 2026.
+Stewart, W. K. O.. Organic Training Theory (Paper IV in this volume). https://github.com/NagusameCS/HyperTensor, Paper IV of the HyperTensor Extended Volume, 2026.
+Stewart, W. K. O.. GRC Light Distillation (Paper V in this volume). https://github.com/NagusameCS/HyperTensor, Paper V of the HyperTensor Extended Volume, 2026.
+Stewart, W. K. O.. FFN Cluster Compression (Paper VII in this volume). https://github.com/NagusameCS/HyperTensor, Paper VII of the HyperTensor Extended Volume, 2026.
+Shamir, O.. A Stochastic PCA and SVD Algorithm with an Exponential Convergence Rate. Proceedings of the International Conference on Machine Learning (ICML), 2015.
+Krasulina, T. P.. The Method of Stochastic Approximation for the Determination of the Least Eigenvalue of a Symmetric Matrix. USSR Computational Mathematics and Mathematical Physics, 1969.
+Allen-Zhu, Z., Li, Y.. First-Order Methods Almost Always Avoid Saddle Points. Proceedings of the International Conference on Machine Learning (ICML), 2017.
+Jain, P., Jin, C., Kakade, S. M., Netrapalli, P., Sidford, A.. Streaming PCA: Matching Matrix Bernstein and Near-Optimal Finite Sample Guarantees for Oja's Algorithm. Conference on Learning Theory (COLT), 2016.
+Ansuini, A., Laio, A., Macke, J. H., Zoccolan, D.. Intrinsic Dimension of Data Representations in Deep Neural Networks. Advances in Neural Information Processing Systems (NeurIPS), 2019.
+Pope, P., Zhu, C., Abdelkader, A., Goldblum, M., Goldstein, T.. The Intrinsic Dimension of Images and Its Impact on Learning. International Conference on Learning Representations (ICLR), 2021.
+Ilharco, G., Ribeiro, M. T., Wortsman, M., Gururangan, S., Schmidt, L., Hajishirzi, H., et al. Editing Models with Task Arithmetic. arXiv:2212.04089, 2022. arXiv:2212.04089.
+Wortsman, M., Ilharco, G., Kim, J. W., Li, M., Kornblith, S., Roelofs, R., et al. Robust Fine-Tuning of Zero-Shot Models. Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2022.
+Stewart, W. K. O.. Geodesic Speculative Decoding (Paper III in this volume). https://github.com/NagusameCS/HyperTensor, Paper III of the HyperTensor Extended Volume, 2026.

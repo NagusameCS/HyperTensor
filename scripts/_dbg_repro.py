@@ -1,0 +1,11 @@
+import re
+t=open('ARXIV_SUBMISSIONS/volume_extended.tex',encoding='utf-8').read()
+for m in re.finditer(r'\\(?:section|subsection)\*?\{Reprodu[a-z]+[^}]*\}', t):
+    line=t[:m.start()].count('\n')+1
+    snippet=t[m.start():m.start()+800].replace('\n',' ')
+    has_gh = ('github.com' in snippet.lower()
+              or 'nagusamecs' in snippet.lower()
+              or 'gh-pages' in snippet.lower()
+              or 'project site' in snippet.lower()
+              or 'docs/' in snippet)
+    print(f'L{line:5d}  gh={has_gh}  {snippet[:200]}')

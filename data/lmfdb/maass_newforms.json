@@ -1,0 +1,2002 @@
+[
+  {
+    "id": 48,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000024393456323874634",
+      "prec": 97
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000032",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "9.53369526135",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 49,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000004657229714784476",
+      "prec": 90
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000033",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "12.1730083247",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 0,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000008681467627827469",
+      "prec": 90
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000000",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "13.7797513519",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 50,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000000241632029370561",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000034",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "14.3585095183",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 51,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000002091348973881704",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000035",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "16.1380731715",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 52,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000029514555291698376",
+      "prec": 97
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000036",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "16.6442592019",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 1,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000003012314383775876",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000001",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "17.7385633811",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 53,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000010219375505983063",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000037",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "18.1809178345",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 2,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000421458383294717",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000002",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "19.4234814708",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 54,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000005127467328154716",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000038",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "19.4847138547",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 55,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000045023383997919054",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000039",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "20.1066946826",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 3,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000016762254773414485",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000003",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "21.3157959402",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 56,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000006460122474574348",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003a",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "21.4790575447",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 57,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000049470334490904734",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003b",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "22.1946739776",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 4,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000008511527469437828",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000004",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "22.7859084942",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 58,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000007229829659669008",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "23.2013961812",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 59,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000191606477656381",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003d",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "23.2637115379",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 5,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000004227474230494061",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000005",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "24.1123527298",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 60,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000006289233019192148",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "24.4197154423",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 61,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000003643574050072152",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800003f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "25.0508548508",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000035471383857916643",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000006",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "25.8262437127",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 62,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000041118657407425644",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000040",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "26.0569177607",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 7,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000009777342742487274",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000007",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "26.1520854492",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 63,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000576023803705893",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000041",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "26.446996418",
+      "prec": 40
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 64,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000007788338013666032",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000042",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "27.2843840117",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 8,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000003847153338214531",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000008",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "27.3327080831",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 65,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000001116502482983107",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000043",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "27.7759207018",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 66,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000001421662258666834",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000044",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "28.5102777031",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 9,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000015838378985836915",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000009",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "28.5307476929",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 10,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000045419521891082525",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000a",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "28.8633943539",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 67,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000001704067015541366",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000045",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "29.1375875578",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 68,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000004160289543505764",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000046",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "29.5463881241",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 11,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000007641533209937495",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000b",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "31.5265821968",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 12,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000262736595569029",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "31.5662754118",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 13,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000017809969381793464",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000d",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "32.5081177599",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 14,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000012392661585858623",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "32.8911702135",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 15,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000005929163463894243",
+      "prec": 80
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800000f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "34.0278842001",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 16,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00009532140701302999",
+      "prec": 74
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000010",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "34.456271533",
+      "prec": 40
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 17,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0001342061224809957",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000011",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "35.5023497714",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 18,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00007279307620089299",
+      "prec": 74
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000012",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "35.8416764326",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 19,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00018525458209093162",
+      "prec": 74
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000013",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "36.6775529931",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 20,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0002219568599508115",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000014",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "36.8563494959",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 21,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000056839494063151396",
+      "prec": 77
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000016",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "37.8250722906",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 22,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00011969402895815762",
+      "prec": 74
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000018",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "38.3032761525",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 23,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0008738603103024853",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000019",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "39.1680849679",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 24,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0006094865778004722",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001a",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "39.4075318615",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 25,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0013713111085595635",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001b",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "39.773622619",
+      "prec": 40
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 26,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.002963402949968603",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "40.5433512105",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 27,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0011936278668267762",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001d",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "40.6886664449",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 28,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0009595291291923026",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "41.5555776736",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 29,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.002770327783845541",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800001f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "41.8830032854",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 30,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.003627480726008507",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000020",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "42.6434884147",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 31,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0067054373253317544",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000021",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "42.9222277836",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 32,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0028339224768924023",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000022",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "43.2671820388",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 33,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.008182028532853425",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000023",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "44.0774047617",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 34,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.004987396865343292",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000024",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "44.4263481186",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 35,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.001084570218907237",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000025",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "45.2874384425",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 36,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.026960120295507463",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000026",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "45.3616136021",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 37,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.008868498591525335",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000027",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "45.3984695313",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 38,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0019489214344180475",
+      "prec": 70
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000028",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "46.1014563216",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 39,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.013769499932505713",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000029",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "46.4814024123",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 40,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.009263634347755768",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002a",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "46.65331836",
+      "prec": 37
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 41,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.006038203663291261",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002b",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "47.4228958985",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 42,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.009625149318969345",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "47.9265583306",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 43,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.01232403258777565",
+      "prec": 64
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002d",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "48.0393309051",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 44,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.14728837719342885",
+      "prec": 64
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "48.7416663476",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 45,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0677552331204674",
+      "prec": 60
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca9145800002f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "48.9983076541",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 46,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.005981094016050989",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000030",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "49.6835200753",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 47,
+    "conrey_index": 1,
+    "contributor": "Holger Then",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.006643740889002253",
+      "prec": 67
+    },
+    "fricke_eigenvalue": 1,
+    "level": 1,
+    "maass_id": "4cb8503a58bca91458000031",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "49.9616962905",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 404,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000000050508257224871454",
+      "prec": 100
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "4f55570e88aece241f00000c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "5.41733480684",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 401,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000006930200067551179",
+      "prec": 97
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "4f5556fe88aece241f000006",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "7.22087197596",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6955,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000018661830249677518",
+      "prec": 97
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e8dacf756699fe0830c",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "8.27366588959",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 398,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000020578443878360094",
+      "prec": 97
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "4f5556da88aece241f000001",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "8.92287648699",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 405,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000034478635700502936",
+      "prec": 97
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "4f55571388aece241f00000e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "10.7127069007",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 402,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000000040952371041069185",
+      "prec": 94
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "4f55570288aece241f000008",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "11.3176797015",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 400,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000001350793352837741",
+      "prec": 87
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "4f5556ef88aece241f000005",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "12.0929948751",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 406,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000000781451920867396",
+      "prec": 87
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "4f55571588aece241f00000f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "12.821988162",
+      "prec": 40
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 403,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000014788688559890016",
+      "prec": 90
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "4f55570388aece241f00000a",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "13.3101642835",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 407,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000005050712008588306",
+      "prec": 90
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "4f55571788aece241f000010",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "14.0972037339",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 399,
+    "conrey_index": 1,
+    "contributor": "Fredrik Stroemberg",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000002256548186014614",
+      "prec": 90
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "4f5556e088aece241f000004",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "14.6850159506",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6973,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000001615223256774985",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e98acf756699fe0831e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "15.2740224848",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6929,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000005872842226870658",
+      "prec": 87
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e67acf756699fe082f1",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "15.3141965842",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6956,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000000006016145291035543",
+      "prec": 94
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e8facf756699fe0830d",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "15.4428777438",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6942,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000016380199878515437",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e84acf756699fe082fe",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "16.4041087751",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6930,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000002845126722597142",
+      "prec": 84
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e6eacf756699fe082f2",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "16.9402609464",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6957,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000000011598184958500338",
+      "prec": 90
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e8facf756699fe0830e",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "17.3193334036",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6974,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000002727824881244388",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e98acf756699fe0831f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "17.4931127227",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6943,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000020936921360533197",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e85acf756699fe082ff",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "17.8780025394",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6975,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000005958308139443799",
+      "prec": 87
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e99acf756699fe08320",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "18.4370784198",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6958,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000000421865393437269",
+      "prec": 84
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e90acf756699fe0830f",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "18.8501464832",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6944,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000004118912717351925",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e86acf756699fe08300",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "19.1254224082",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6959,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000003051457417339577",
+      "prec": 84
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e91acf756699fe08310",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "19.2387335253",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6931,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000004838215531248767",
+      "prec": 84
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e73acf756699fe082f3",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "20.1399721518",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6976,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000007549877137348984",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e99acf756699fe08321",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "20.5301600346",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6945,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000016995773817918659",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e86acf756699fe08301",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "20.5476038597",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6960,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.000000046482852690186605",
+      "prec": 87
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e91acf756699fe08311",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "20.6678761954",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6977,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000006504812800523083",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e9aacf756699fe08322",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "21.0495260714",
+      "prec": 44
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6961,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000027374327041728095",
+      "prec": 84
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e92acf756699fe08312",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "21.573637236",
+      "prec": 40
+    },
+    "symmetry": -1,
+    "weight": 0
+  },
+  {
+    "id": 6932,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.0000020708364011183114",
+      "prec": 80
+    },
+    "fricke_eigenvalue": -1,
+    "level": 2,
+    "maass_id": "54104e76acf756699fe082f4",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "21.6299863738",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  },
+  {
+    "id": 6946,
+    "conrey_index": 1,
+    "contributor": "Stefan Lemurell",
+    "error": {
+      "__RealLiteral__": 0,
+      "data": "0.00000015854604663968106",
+      "prec": 84
+    },
+    "fricke_eigenvalue": 1,
+    "level": 2,
+    "maass_id": "54104e87acf756699fe08302",
+    "spectral_parameter": {
+      "__RealLiteral__": 0,
+      "data": "22.0890454668",
+      "prec": 44
+    },
+    "symmetry": 1,
+    "weight": 0
+  }
+]

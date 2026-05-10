@@ -1,0 +1,41 @@
+# Remove unused entries from refs.bib (entries with no \cite anywhere in the volume).
+$ErrorActionPreference = 'Stop'
+$bibPath = 'c:\Users\legom\HyperTensor\ARXIV_SUBMISSIONS\refs.bib'
+$texPath = 'c:\Users\legom\HyperTensor\ARXIV_SUBMISSIONS\volume_extended.tex'
+
+$tex = [IO.File]::ReadAllText($texPath)
+$cited = [regex]::Matches($tex, '\\cite[a-z]*\*?(?:\[[^\]]*\])?\{([^}]+)\}') |
+  ForEach-Object { $_.Groups[1].Value -split ',' } |
+  ForEach-Object { $_.Trim() } |
+  Where-Object { $_ } |
+  Sort-Object -Unique
+
+$bib = [IO.File]::ReadAllText($bibPath)
+# Split on @ at column 0
+$entries = [regex]::Matches($bib, '(?ms)^@\w+\{([^,]+),.*?\n\}\s*')
+Write-Host ('Total entries scanned: ' + $entries.Count)
+$kept = New-Object System.Text.StringBuilder
+$removed = 0
+$keptCount = 0
+$lastEnd = 0
+foreach ($m in $entries) {
+  $key = $m.Groups[1].Value.Trim()
+  $isCited = $cited -contains $key
+  # Append any prefix between previous entry and this one (preserves header/comments).
+  [void]$kept.Append($bib.Substring($lastEnd, $m.Index - $lastEnd))
+  if ($isCited) {
+    [void]$kept.Append($m.Value)
+    $keptCount++
+  } else {
+    Write-Host ("  drop: " + $key)
+    $removed++
+  }
+  $lastEnd = $m.Index + $m.Length
+}
+# Append any trailing content
+[void]$kept.Append($bib.Substring($lastEnd))
+$out = $kept.ToString()
+# Collapse runs of >2 blank lines
+$out = [regex]::Replace($out, '(\r?\n){3,}', "`r`n`r`n")
+[IO.File]::WriteAllText($bibPath, $out, [System.Text.UTF8Encoding]::new($false))
+Write-Host ("Kept: $keptCount  Removed: $removed")

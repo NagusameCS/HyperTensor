@@ -1,0 +1,13 @@
+==PROF== Connected to process 12636 (C:\Users\legom\HyperTensor\build_host\geodessical.exe)
+==PROF== Disconnected from process 12636
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read.sum","sector","315,262"
+"0","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read_lookup_hit.sum","sector","19,583"
+"1","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read.sum","sector","315,979"
+"1","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read_lookup_hit.sum","sector","19,393"
+"2","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read.sum","sector","317,396"
+"2","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read_lookup_hit.sum","sector","19,443"
+"3","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read.sum","sector","315,031"
+"3","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read_lookup_hit.sum","sector","19,695"
+"4","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read.sum","sector","315,147"
+"4","12636","geodessical.exe","127.0.0.1","kernel_gemv_q4_k(float *, const void *, const float *, int, int)","1","13","(256, 1, 1)","(512, 1, 1)","0","8.9","Command line profiler metrics","lts__t_sectors_op_read_lookup_hit.sum","sector","19,670"

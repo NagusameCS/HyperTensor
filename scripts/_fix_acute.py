@@ -1,0 +1,9 @@
+from pathlib import Path
+p = Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+t = p.read_text(encoding='utf-8')
+old1 = "geometric visualisation of the functional equation\\'s $Z_2$ symmetry, not as a contribution to analytic number theory; see the explicit disclaimers in those papers\\' abstracts."
+new1 = "geometric visualisation of the functional equation's $Z_2$ symmetry, not as a contribution to analytic number theory; see the explicit disclaimers in those papers' abstracts."
+assert t.count(old1) == 1, t.count(old1)
+t = t.replace(old1, new1)
+p.write_text(t, encoding='utf-8', newline='\n')
+print('ok, size', len(t))

@@ -1,0 +1,13 @@
+$p = 'c:\Users\legom\HyperTensor\ARXIV_SUBMISSIONS\zenodo_v1\volume_extended.tex'
+$t = [IO.File]::ReadAllText($p)
+Write-Host ('Chars before: ' + $t.Length)
+$matches = ([regex]::Matches($t, [regex]::Escape('../docs/data/'))).Count
+Write-Host ('Match count for ../docs/data/: ' + $matches)
+$t2 = $t.Replace('../docs/data/', 'docs/data/')
+$matches2 = ([regex]::Matches($t2, [regex]::Escape('../docs/data/'))).Count
+Write-Host ('Match count after replace: ' + $matches2)
+[IO.File]::WriteAllText($p, $t2, [System.Text.UTF8Encoding]::new($false))
+Write-Host 'Wrote.'
+$t3 = [IO.File]::ReadAllText($p)
+$matches3 = ([regex]::Matches($t3, [regex]::Escape('../docs/data/'))).Count
+Write-Host ('Re-read match count: ' + $matches3)

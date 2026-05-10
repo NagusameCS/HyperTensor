@@ -1,0 +1,9 @@
+import pathlib, re
+t=pathlib.Path('ARXIV_SUBMISSIONS/volume_extended.tex').read_text(encoding='utf-8')
+start=t.index('% Paper XI:')
+end=t.index('% Paper XII:')
+sub=t[start:end]
+print(f'Paper XI region: chars {start}..{end} ({end-start} chars)')
+for m in re.finditer(r'\\(section|subsection|paragraph)\*?\{[^}]*\}|\\begin\{abstract\}|\\end\{abstract\}', sub):
+    line=t[:start+m.start()].count('\n')+1
+    print(f'  L{line}: {m.group(0)}')

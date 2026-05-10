@@ -1,0 +1,75 @@
+{
+  "model": "Meta-Llama-3.1-8B-Instruct-Q4_K_M",
+  "n_prompts": 8,
+  "tokens_per_run": 64,
+  "mean_acceptance_pct": 46.9,
+  "min_acceptance_pct": 46.9,
+  "max_acceptance_pct": 46.9,
+  "stdev_pct": 0.0,
+  "raw": [
+    {
+      "prompt": "Explain the difference between a list and a tuple in Python.",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "Write a short poem about the autumn moon.",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "What is the capital of Australia and why was it chosen?",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "Describe how a transformer decoder generates tokens.",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "Summarize the plot of Hamlet in three sentences.",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "How does spaced-repetition learning work?",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "Compare HTTP/1.1 and HTTP/2 in terms of multiplexing.",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    },
+    {
+      "prompt": "What is the cosmic microwave background?",
+      "tokens": 64,
+      "geo_accepted": 30,
+      "xfmr": 34,
+      "od_drafts": 0,
+      "acceptance_rate_pct": 46.9
+    }
+  ]
+}

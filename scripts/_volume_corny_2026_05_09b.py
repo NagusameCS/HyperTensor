@@ -1,0 +1,34 @@
+"""Final cleanup: cut front-matter Verification Scope subsection (duplicate of
+the back-matter one already cut), and soften the lone 'only AI safety method
+(to our knowledge) with a mathematical proof' flourish in Paper XIII.
+"""
+import pathlib
+
+P = pathlib.Path('ARXIV_SUBMISSIONS/volume_extended.tex')
+src = P.read_text(encoding='utf-8')
+orig = src
+
+# 1. Cut front-matter Verification Scope block (the whole subsection + body + blank).
+old_vs = (
+    '\\subsection*{Verification Scope}\n'
+    'Quantitative claims in this volume are catalogued in the repository file '
+    '\\texttt{VERIFICATION\\_STATUS.md} with one of four tags: REAL (measured on hardware), '
+    'SIM (synthetic or Monte Carlo), MIXED (combination), or UNVERIFIED (compute-bound or '
+    'outstanding). Claims tagged SIM or UNVERIFIED in that file are noted in the body '
+    'where space permits. Verification infrastructure is in '
+    '\\texttt{scripts/complete\\_verify.py}. See also \\texttt{BENCHMARK\\_PROTOCOL.md} '
+    'and \\texttt{complete\\_STATE.md} in the repository root.\n'
+    '\n'
+)
+assert old_vs in src, 'front-matter Verification Scope block not matched verbatim'
+src = src.replace(old_vs, '')
+
+# (The 'only AI safety method' flourish was already softened in a prior pass —
+# nothing to do for it now.)
+
+assert src != orig, 'no changes applied'
+P.write_text(src, encoding='utf-8', newline='\n')
+print('size before:', len(orig.encode('utf-8')))
+print('size after :', len(src.encode('utf-8')))
+print('Verification Scope remaining:', src.count('Verification Scope'))
+print('only AI safety method remaining:', src.count('only AI safety method'))
