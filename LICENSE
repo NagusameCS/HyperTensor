@@ -1,19 +1,3 @@
-HyperTensor is dual-licensed:
-
-  * Source code (scripts, tools, runtime, hypercore, host, lib, tests, configs,
-    build files, and any other software components in this repository) is
-    licensed under the MIT License, reproduced below.
-
-  * Manuscripts, figures, and accompanying written materials in
-    `ARXIV_SUBMISSIONS/` and `docs/` (including the Volume PDFs, Jury Proof,
-    and individual paper sources) are licensed under the Creative Commons
-    Attribution 4.0 International License (CC BY 4.0). The full legal text
-    is in `LICENSE-CC-BY-4.0`. See also: https://creativecommons.org/licenses/by/4.0/
-
-================================================================================
-MIT License (source code)
-================================================================================
-
 MIT License
 
 Copyright (c) 2026 William Ken Ohara Stewart
