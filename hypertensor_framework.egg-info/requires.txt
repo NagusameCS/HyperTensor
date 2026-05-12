@@ -1,0 +1,8 @@
+
+[full]
+torch>=2.0
+transformers>=4.40
+bitsandbytes>=0.43
+
+[torch]
+torch>=2.0

@@ -1,0 +1,9 @@
+LICENSE
+LICENSE-CC-BY-4.0
+README.md
+pyproject.toml
+hypertensor.egg-info/PKG-INFO
+hypertensor.egg-info/SOURCES.txt
+hypertensor.egg-info/dependency_links.txt
+hypertensor.egg-info/requires.txt
+hypertensor.egg-info/top_level.txt

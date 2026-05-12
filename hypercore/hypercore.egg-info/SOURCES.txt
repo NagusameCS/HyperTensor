@@ -1,0 +1,15 @@
+README.md
+__init__.py
+geodesic_metric.py
+hypercore.c
+hypercore.h
+pyproject.toml
+./__init__.py
+./geodesic_metric.py
+./hypercore.c
+./hypercore.h
+hypercore.egg-info/PKG-INFO
+hypercore.egg-info/SOURCES.txt
+hypercore.egg-info/dependency_links.txt
+hypercore.egg-info/requires.txt
+hypercore.egg-info/top_level.txt

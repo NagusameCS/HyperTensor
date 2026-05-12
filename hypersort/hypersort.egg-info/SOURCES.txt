@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+demos/demo.py
+hypersort/__init__.py
+hypersort/core.py
+hypersort/gtc.py
+hypersort.egg-info/PKG-INFO
+hypersort.egg-info/SOURCES.txt
+hypersort.egg-info/dependency_links.txt
+hypersort.egg-info/requires.txt
+hypersort.egg-info/top_level.txt
+tests/test_hypersort.py
