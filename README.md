@@ -11,6 +11,7 @@ on the Riemann Hypothesis.
 |---|---|
 | Papers | [Volume (I-XV)](ARXIVSUBMISSIONS/volume.pdf) · [Volume Extended (I-XVIII)](ARXIVSUBMISSIONS/volumeextended.pdf) · [Jury Proof](ARXIVSUBMISSIONS/jury_proof.pdf) |
 | Website | [nagusamecs.github.io/HyperTensor](https://nagusamecs.github.io/HyperTensor) |
+| Civilized | [github.com/NagusameCS/civilized-HyperTensor](https://github.com/NagusameCS/civilized-HyperTensor) |
 | DOI (Volume v1) | [10.5281/zenodo.20077378](https://doi.org/10.5281/zenodo.20077378) |
 | Reproduction | [REPRODUCTION.md](REPRODUCTION.md) |
 | Status | 15/18 papers at 100% · External verification 14/14 · Jury 53× at N=1M |
