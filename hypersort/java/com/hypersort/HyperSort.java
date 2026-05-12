@@ -17,48 +17,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
- * Configuration for the Comparison Manifold.
- */
-class ManifoldConfig {
-    int intrinsicDim = 32;
-    int numJurors = 7;
-    double coverageRadius = 1.0;
-    double temperature = 8.0;
-    double epsilon = 1e-8;
-    double cacheThreshold = 0.05;
-}
-
-/**
- * Result of sorting operation with metadata.
- */
-public class SortResult<T> {
-    private final List<T> sortedData;
-    private final int[] originalIndices;
-    private final double[] confidenceScores;
-    private final double totalTimeMs;
-    private final int manifoldDim;
-    private final long comparisonsAvoided;
-
-    public SortResult(List<T> sortedData, int[] originalIndices,
-                      double[] confidenceScores, double totalTimeMs,
-                      int manifoldDim, long comparisonsAvoided) {
-        this.sortedData = Collections.unmodifiableList(sortedData);
-        this.originalIndices = originalIndices.clone();
-        this.confidenceScores = confidenceScores.clone();
-        this.totalTimeMs = totalTimeMs;
-        this.manifoldDim = manifoldDim;
-        this.comparisonsAvoided = comparisonsAvoided;
-    }
-
-    public List<T> getSortedData() { return sortedData; }
-    public int[] getOriginalIndices() { return originalIndices; }
-    public double[] getConfidenceScores() { return confidenceScores; }
-    public double getTotalTimeMs() { return totalTimeMs; }
-    public int getManifoldDim() { return manifoldDim; }
-    public long getComparisonsAvoided() { return comparisonsAvoided; }
-}
-
-/**
  * Riemannian Comparison Manifold for O(1) sorting.
  *
  * <p>Usage:
