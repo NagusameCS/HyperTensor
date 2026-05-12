@@ -22,4 +22,5 @@ torch = ["torch>=2.0"]
 full = ["torch>=2.0", "transformers>=4.40", "bitsandbytes>=0.43"]
 
 [tool.setuptools]
+package-dir = {"hypertensor" = "scripts"}
 py-modules = ["hypertensor"]

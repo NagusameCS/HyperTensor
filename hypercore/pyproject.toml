@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypercore"
+version = "1.0.0"
+description = "HyperTensor Geometric Core — Riemannian metrics, hallucination guards, geodesic trajectory analysis"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "William Ken Ohara Stewart", email = "nagusamecs@gmail.com" }
+]
+keywords = [
+    "riemannian-geometry",
+    "geodesic",
+    "hallucination-detection",
+    "tensor",
+    "hyperdimensional",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+torch = ["torch>=2.0"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/NagusameCS/HyperTensor"
+Repository = "https://github.com/NagusameCS/HyperTensor/tree/main/hypercore"
+
+[tool.setuptools]
+package-dir = {"hypercore" = "."}
+packages = ["hypercore"]
+
+[tool.setuptools.package-data]
+hypercore = ["*.c", "*.h", "*.py"]
