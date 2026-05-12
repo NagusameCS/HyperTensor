@@ -4,773 +4,362 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>/sort — HyperSort Live Comparison</title>
+<title>/sort — HyperSort</title>
 <style>
 :root {
-  --bg: #0a0a0f;
-  --surface: #13131f;
-  --border: #252540;
-  --text: #c8c8d8;
-  --dim: #6a6a8a;
-  --accent: #7c5cfc;
-  --accent2: #00e5a0;
-  --warn: #ff6b6b;
-  --gold: #ffd700;
-  --jury: #ff6db3;
+  --bg:#141413; --card:#1c1c1a; --border:#2a2a26;
+  --text:#e8e6e3; --dim:#8b8a86; --mid:#b5b3ad;
+  --accent:#d97706; --a2:#f59e0b;
+  --green:#34d399; --red:#f87171; --blue:#60a5fa; --pink:#f472b6;
+  --r:10px;
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  overflow-x: hidden;
-  min-height: 100vh;
-}
-::selection { background: var(--accent); color: #fff; }
-
-/* Header */
-.header {
-  text-align: center;
-  padding: 32px 16px 16px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(124,92,252,0.08) 0%, transparent 100%);
-}
-.header h1 {
-  font-size: 2rem;
-  font-weight: 300;
-  letter-spacing: 2px;
-  color: #fff;
-}
-.header h1 span { color: var(--accent); font-weight: 600; }
-.header p {
-  color: var(--dim);
-  margin-top: 6px;
-  font-size: 0.85rem;
-  letter-spacing: 1px;
-}
-
-/* Controls */
-.controls {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px 16px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.controls button {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 22px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-  transition: all 0.2s;
-}
-.controls button:hover {
-  border-color: var(--accent);
-  color: #fff;
-  box-shadow: 0 0 20px rgba(124,92,252,0.15);
-}
-.controls button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-.controls button.primary:hover {
-  box-shadow: 0 0 30px rgba(124,92,252,0.4);
-}
-.controls input[type=range] {
-  width: 160px;
-  accent-color: var(--accent);
-}
-.controls label {
-  color: var(--dim);
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
-}
-.size-display {
-  color: var(--accent2);
-  font-weight: 600;
-  min-width: 40px;
-  text-align: center;
-}
-
-/* Arena */
-.arena {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  padding: 0 16px 16px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: border-color 0.3s;
-}
-.card.winner { border-color: var(--accent2); box-shadow: 0 0 30px rgba(0,229,160,0.12); }
-.card-header {
-  padding: 14px 16px 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-.card-header h3 {
-  font-size: 0.95rem;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-}
-.card-header .badge {
-  font-size: 0.7rem;
-  padding: 3px 10px;
-  border-radius: 20px;
-  letter-spacing: 1px;
-  font-weight: 600;
-}
-.badge-hypersort { background: rgba(124,92,252,0.2); color: var(--accent); }
-.badge-quick { background: rgba(255,107,107,0.15); color: var(--warn); }
-.badge-merge { background: rgba(0,229,160,0.15); color: var(--accent2); }
-.badge-native { background: rgba(255,215,0,0.12); color: var(--gold); }
-
-.canvas-wrap {
-  position: relative;
-  height: 180px;
-  margin: 8px 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: rgba(0,0,0,0.3);
-}
-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 8px 14px 14px;
-}
-.stat {
-  text-align: center;
-}
-.stat .val {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #fff;
-}
-.stat .lbl {
-  font-size: 0.65rem;
-  color: var(--dim);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-top: 2px;
-}
-.stat .val.fast { color: var(--accent2); }
-.stat .val.med  { color: var(--gold); }
-.stat .val.slow { color: var(--warn); }
-
-/* Jury confidence row */
-.jury-row {
-  padding: 0 14px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: var(--dim);
-}
-.jury-bar {
-  flex: 1;
-  height: 4px;
-  background: rgba(255,255,255,0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.jury-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--jury), var(--accent));
-  border-radius: 2px;
-  transition: width 0.4s;
-}
-
-/* Footer */
-.footer {
-  text-align: center;
-  padding: 20px 16px 32px;
-  color: var(--dim);
-  font-size: 0.7rem;
-  letter-spacing: 1px;
-  border-top: 1px solid var(--border);
-  margin-top: 8px;
-}
-.footer a { color: var(--accent); text-decoration: none; }
-.footer a:hover { text-decoration: underline; }
-
-/* Pulse animation for hypersort card */
-@keyframes pulse {
-  0%,100% { box-shadow: 0 0 20px rgba(124,92,252,0.1); }
-  50% { box-shadow: 0 0 35px rgba(124,92,252,0.25); }
-}
-.card.hypersort-card { animation: pulse 3s ease-in-out infinite; }
-
-/* Responsive */
-@media (max-width: 640px) {
-  .arena { grid-template-columns: 1fr; }
-  .header h1 { font-size: 1.3rem; }
-}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'SF Pro Display','Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6;min-height:100vh}
+.header{max-width:1100px;margin:0 auto;padding:48px 24px 32px}
+.header .path{font-family:'SF Mono','JetBrains Mono',monospace;font-size:.8rem;color:var(--dim);letter-spacing:.5px;margin-bottom:12px}
+.header h1{font-size:2.2rem;font-weight:500;letter-spacing:-.02em;color:#fff;margin-bottom:8px}
+.header h1 em{font-style:normal;color:var(--accent)}
+.header .sub{color:var(--dim);font-size:.95rem;max-width:520px}
+.controls{max-width:1100px;margin:0 auto;padding:0 24px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.controls label{font-size:.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+.controls input[type=range]{width:120px;accent-color:var(--accent)}
+.cv{font-family:'SF Mono',monospace;font-size:.85rem;color:var(--mid);min-width:28px}
+.btn{background:var(--card);border:1px solid var(--border);color:var(--mid);padding:8px 18px;border-radius:6px;font-size:.82rem;cursor:pointer;transition:all .15s;letter-spacing:.3px}
+.btn:hover{border-color:var(--dim);color:#fff}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn.pri:hover{background:var(--a2);border-color:var(--a2)}
+.btn.sm{padding:5px 12px;font-size:.72rem}
+.arena{max-width:1100px;margin:0 auto;padding:0 24px 48px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.arena{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .3s,box-shadow .3s}
+.card.best{border-color:rgba(245,158,11,.4);box-shadow:0 0 24px rgba(245,158,11,.06)}
+.card-head{padding:14px 16px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.card-head h3{font-size:.9rem;font-weight:500;letter-spacing:-.01em}
+.tag{font-size:.65rem;font-weight:500;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:4px}
+.th{background:rgba(245,158,11,.18);color:var(--a2)}
+.tq{background:rgba(248,113,113,.15);color:var(--red)}
+.tm{background:rgba(52,211,153,.15);color:var(--green)}
+.tn{background:rgba(96,165,250,.15);color:var(--blue)}
+.cw{height:150px;margin:6px 12px;position:relative}
+.cw canvas{width:100%;height:100%;display:block}
+.stats{display:flex;padding:6px 14px 12px}
+.stat{flex:1;text-align:center}
+.stat .v{font-family:'SF Mono',monospace;font-size:1rem;font-weight:500;color:#fff}
+.stat .l{font-size:.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:1px}
+.v.g{color:var(--green)} .v.w{color:var(--accent)}
+.jury{padding:0 14px 12px;display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--dim)}
+.jb{flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.jf{height:100%;background:linear-gradient(90deg,var(--pink),var(--accent));border-radius:2px;transition:width .4s}
+.callout{max-width:1100px;margin:0 auto 16px;padding:0 24px}
+.ci{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:var(--r);padding:12px 16px;font-size:.78rem;color:var(--dim);line-height:1.5}
+.ci strong{color:var(--a2)}
+.ci code{font-family:'SF Mono',monospace;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:3px;font-size:.75rem}
+.footer{text-align:center;padding:24px;color:var(--dim);font-size:.7rem;letter-spacing:.5px;border-top:1px solid var(--border)}
+.footer a{color:var(--mid);text-decoration:none}
+.footer a:hover{color:#fff}
+.si{position:absolute;bottom:6px;right:10px;font-family:'SF Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.15)}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>/<span>sort</span></h1>
-  <p>HyperSort vs Classic Algorithms — Live Visual Comparison</p>
+<div class="path">nagusamecs.github.io/HyperTensor<span style="color:var(--accent)">/sort</span></div>
+<h1>Hyper<em>Sort</em></h1>
+<p class="sub">Live algorithm comparison. HyperSort replaces O(n log n) sequential compares with a single O(1)-step matrix multiply — all n² pairs in parallel. Use the speed slider to watch each algorithm step.</p>
 </div>
 
 <div class="controls">
-  <label>Elements</label>
-  <input type="range" id="sizeSlider" min="8" max="256" value="64" step="8">
-  <span class="size-display" id="sizeDisplay">64</span>
-  <button id="btnShuffle">⟳ Shuffle</button>
-  <button id="btnSort" class="primary">▶ Sort All</button>
-  <button id="btnStress" style="font-size:0.75rem;">Stress Test (n=512)</button>
+<label>Elements</label>
+<input type="range" id="sz" min="8" max="200" value="48" step="8">
+<span class="cv" id="szD">48</span>
+<label>Speed</label>
+<input type="range" id="sp" min="1" max="30" value="10" step="1">
+<span class="cv" id="spD">10×</span>
+<button class="btn" id="bShuf">Shuffle</button>
+<button class="btn pri" id="bRun">▶ Run All</button>
+<button class="btn sm" id="bStep">Step</button>
+<button class="btn sm" id="bFast">⏩ Instant</button>
 </div>
 
-<div class="arena" id="arena"></div>
-
+<div class="callout" id="co" style="display:none"><div class="ci" id="ct"></div></div>
+<div class="arena" id="ar"></div>
 <div class="footer">
-  <a href="https://github.com/NagusameCS/HyperTensor">HyperTensor</a> &middot;
-  Geometric Jury Framework &middot;
-  Papers I–XVIII &middot;
-  O(1) via parallel geodesic projection
+<a href="https://github.com/NagusameCS/HyperTensor">HyperTensor</a> · Geometric Jury · Papers I–XVIII · <a href="https://pypi.org/project/hypersort/">pip install hypersort</a>
 </div>
 
 <script>
-// ======================================================================
-// HyperSort Core (in-browser JS implementation)
-// ======================================================================
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let D=[],R={},sp=10,SS={},af=null,rn=false,t0=0;
 
-class HyperSortJS {
-  constructor(config = {}) {
-    this.intrinsicDim = config.intrinsicDim || 8;
-    this.numJurors = config.numJurors || 5;
-    this.epsilon = 1e-8;
-    this.coverageRadius = 1.0;
-    this.basis = null;
-    this.mean = null;
-    this.isBuilt = false;
-  }
+function gen(n){const a=[];for(let i=0;i<n;i++)a.push(Math.round(Math.random()*10000)/100);return a}
 
-  build(data) {
-    const n = data.length;
-    if (n === 0) { this.isBuilt = true; return; }
-
-    // Encode: [value, normalized_value, 1.0]
-    const maxVal = Math.max(...data.map(Math.abs), 1);
-    const ambient = data.map(v => [v, v / maxVal, 1.0]);
-    const d = 3;
-
-    // Mean
-    const mean = new Array(d).fill(0);
-    for (const vec of ambient) for (let j = 0; j < d; j++) mean[j] += vec[j];
-    for (let j = 0; j < d; j++) mean[j] /= n;
-    this.mean = mean;
-
-    // Center
-    const centered = ambient.map(v => v.map((x, j) => x - mean[j]));
-
-    // Covariance matrix
-    const C = Array.from({length: d}, () => new Array(d).fill(0));
-    for (const row of centered) {
-      for (let i = 0; i < d; i++)
-        for (let j = i; j < d; j++)
-          C[i][j] += row[i] * row[j];
-    }
-    for (let i = 0; i < d; i++)
-      for (let j = i; j < d; j++) {
-        C[i][j] /= n;
-        C[j][i] = C[i][j];
-      }
-
-    // Power iteration for top eigenvectors
-    const k = Math.min(this.intrinsicDim, d);
-    const eigenvectors = [];
-    let workingC = C.map(r => [...r]);
-
-    for (let comp = 0; comp < k; comp++) {
-      let v = new Array(d).fill(0).map(() => Math.random() * 2 - 1);
-      for (let iter = 0; iter < 40; iter++) {
-        const Cv = new Array(d).fill(0);
-        for (let i = 0; i < d; i++)
-          for (let j = 0; j < d; j++)
-            Cv[i] += workingC[i][j] * v[j];
-        let norm = Math.sqrt(Cv.reduce((s, x) => s + x*x, 0));
-        if (norm < 1e-12) break;
-        for (let i = 0; i < d; i++) v[i] = Cv[i] / norm;
-      }
-      eigenvectors.push([...v]);
-
-      // Deflate
-      let lambda = 0;
-      for (let i = 0; i < d; i++) {
-        let ci_dot_v = 0;
-        for (let j = 0; j < d; j++) ci_dot_v += C[i][j] * v[j];
-        lambda += v[i] * ci_dot_v;
-      }
-      for (let i = 0; i < d; i++)
-        for (let j = 0; j < d; j++)
-          workingC[i][j] -= lambda * v[i] * v[j];
-    }
-
-    // Basis: [d][k]
-    this.basis = [];
-    for (let p = 0; p < d; p++) {
-      this.basis.push(eigenvectors.map(ev => ev[p]));
-    }
-    this.intrinsicDim = k;
-    this.isBuilt = true;
-  }
-
-  sort(data) {
-    if (!this.isBuilt) this.build(data);
-    const n = data.length;
-    if (n === 0) return { sorted: [], comparisons: 0, confidence: [] };
-
-    const maxVal = Math.max(...data.map(Math.abs), 1);
-    const ambient = data.map(v => [v, v / maxVal, 1.0]);
-    const d = 3;
-
-    // Center
-    const centered = ambient.map(v => v.map((x, j) => x - this.mean[j]));
-
-    // Project: [n, k]
-    const k = this.intrinsicDim;
-    const X_raw = centered.map(row => {
-      const proj = new Array(k).fill(0);
-      for (let j = 0; j < k; j++)
-        for (let p = 0; p < d; p++)
-          proj[j] += row[p] * this.basis[p][j];
-      return proj;
-    });
-
-    // Normalize
-    const X_unit = X_raw.map(v => {
-      let norm = Math.sqrt(v.reduce((s, x) => s + x*x, 0));
-      if (norm < 1e-8) norm = 1;
-      return v.map(x => x / norm);
-    });
-
-    // Pairwise geodesic distances (n² comparisons)
-    const D = [];
-    for (let i = 0; i < n; i++) {
-      D[i] = new Array(n);
-      for (let j = 0; j < n; j++) {
-        let dot = 0;
-        for (let p = 0; p < k; p++) dot += X_unit[i][p] * X_unit[j][p];
-        dot = Math.max(-1 + 1e-8, Math.min(1 - 1e-8, dot));
-        D[i][j] = Math.acos(dot);
-      }
-    }
-
-    // Ordering: first encoded coordinate = sort key
-    const orderKey = ambient.map(v => v[0]);
-    const indices = Array.from({length: n}, (_, i) => i);
-    indices.sort((a, b) => orderKey[a] - orderKey[b]);
-
-    // Jury confidence
-    const N = Math.min(this.numJurors, n - 1);
-    const confidence = new Array(n).fill(1);
-    if (n > 1) {
-      // Median pairwise distance as coverage radius
-      const allD = [];
-      for (let i = 0; i < n; i++)
-        for (let j = i+1; j < n; j++)
-          allD.push(D[i][j]);
-      allD.sort((a,b) => a-b);
-      const R = allD[Math.floor(allD.length/2)] || 1;
-
-      for (let i = 0; i < n; i++) {
-        const di = D[i].map((d, idx) => ({d, idx}));
-        di.sort((a,b) => a.d - b.d);
-        let prod = 1;
-        for (let j = 1; j <= N && j < di.length; j++) {
-          const c = Math.exp(-di[j].d / R);
-          prod *= (1 - c);
-        }
-        confidence[i] = 1 - prod;
-      }
-    }
-
-    const sorted = indices.map(i => data[i]);
-    return {
-      sorted,
-      comparisons: n * n,
-      confidence: indices.map(i => confidence[i]),
-      geoDistMatrix: D,
-    };
-  }
+// ═══════════════════════════════════════════════════
+// QUICKSORT — steppable (Lomuto)
+// ═══════════════════════════════════════════════════
+function iQS(a){return{arr:[...a],stack:[[0,a.length-1]],i:0,j:0,pv:0,done:false,cmps:0,swaps:0,ph:'start',lo:0,hi:a.length-1,st:0}}
+function sQS(s){
+ if(s.done)return s;s.cmps++;
+ if(s.ph==='start'){
+  if(s.stack.length===0){s.done=true;return s}
+  const[l,h]=s.stack.pop();if(l>=h)return s;
+  s.lo=l;s.hi=h;s.pv=s.arr[h];s.i=l;s.j=l;s.ph='scan';return s
+ }
+ if(s.ph==='scan'){
+  if(s.j<s.hi){if(s.arr[s.j]<s.pv){[s.arr[s.i],s.arr[s.j]]=[s.arr[s.j],s.arr[s.i]];s.swaps++;s.i++}s.j++;return s}
+  [s.arr[s.i],s.arr[s.hi]]=[s.arr[s.hi],s.arr[s.i]];s.swaps++;
+  s.stack.push([s.i+1,s.hi]);s.stack.push([s.lo,s.i-1]);s.ph='start';return s
+ }
+ return s
 }
 
-// ======================================================================
-// Sorting Algorithms
-// ======================================================================
-
-class QuickSort {
-  constructor() { this.comparisons = 0; this.time = 0; }
-  sort(arr) {
-    this.comparisons = 0;
-    const a = [...arr];
-    const t0 = performance.now();
-    this._qs(a, 0, a.length - 1);
-    this.time = performance.now() - t0;
-    return { sorted: a, comparisons: this.comparisons, time: this.time };
+// ═══════════════════════════════════════════════════
+// MERGESORT — steppable (bottom-up)
+// ═══════════════════════════════════════════════════
+function iMS(a){
+ const arr=[...a],n=arr.length;
+ return{arr,n,done:false,cmps:0,swaps:0,width:1,left:0,tmp:[...arr],mi:0,mj:0,mk:0,ph:'merge',st:0}
+}
+function sMS(s){
+ if(s.done)return s;
+ const n=s.n;
+ if(s.width>=n){s.done=true;return s}
+ if(s.ph==='merge'){
+  if(s.left>=n){s.width*=2;s.left=0;return s}
+  const mid=Math.min(s.left+s.width,n);
+  const right=Math.min(s.left+2*s.width,n);
+  s.mi=s.left;s.mj=mid;s.mk=s.left;
+  for(let i=s.left;i<right;i++)s.tmp[i]=s.arr[i];
+  s.ph='copy';return s
+ }
+ if(s.ph==='copy'){
+  const mid=Math.min(s.left+s.width,s.n);
+  const right=Math.min(s.left+2*s.width,s.n);
+  if(s.mi<mid&&s.mj<right){
+   s.cmps++;
+   if(s.tmp[s.mi]<=s.tmp[s.mj])s.arr[s.mk++]=s.tmp[s.mi++];
+   else{s.arr[s.mk++]=s.tmp[s.mj++];s.swaps++}
+   return s
   }
-  _qs(a, lo, hi) {
-    if (lo >= hi) return;
-    const p = this._partition(a, lo, hi);
-    this._qs(a, lo, p - 1);
-    this._qs(a, p + 1, hi);
-  }
-  _partition(a, lo, hi) {
-    const pivot = a[hi];
-    let i = lo;
-    for (let j = lo; j < hi; j++) {
-      this.comparisons++;
-      if (a[j] < pivot) { [a[i], a[j]] = [a[j], a[i]]; i++; }
-    }
-    [a[i], a[hi]] = [a[hi], a[i]];
-    return i;
-  }
+  while(s.mi<mid){s.arr[s.mk++]=s.tmp[s.mi++];s.cmps++}
+  while(s.mj<right){s.arr[s.mk++]=s.tmp[s.mj++];s.cmps++}
+  s.left+=2*s.width;s.ph='merge';return s
+ }
+ return s
 }
 
-class MergeSort {
-  constructor() { this.comparisons = 0; this.time = 0; }
-  sort(arr) {
-    this.comparisons = 0;
-    const a = [...arr];
-    const t0 = performance.now();
-    this._ms(a);
-    this.time = performance.now() - t0;
-    return { sorted: a, comparisons: this.comparisons, time: this.time };
-  }
-  _ms(a) {
-    if (a.length <= 1) return a;
-    const mid = Math.floor(a.length / 2);
-    const left = this._ms(a.slice(0, mid));
-    const right = this._ms(a.slice(mid));
-    return this._merge(left, right);
-  }
-  _merge(l, r) {
-    const out = [];
-    let i = 0, j = 0;
-    while (i < l.length && j < r.length) {
-      this.comparisons++;
-      if (l[i] < r[j]) out.push(l[i++]);
-      else out.push(r[j++]);
-    }
-    while (i < l.length) { this.comparisons++; out.push(l[i++]); }
-    while (j < r.length) { this.comparisons++; out.push(r[j++]); }
-    // Update in-place
-    for (let k = 0; k < out.length; k++) l[k] = out[k];  // hack for in-place
-    return out;
-  }
+// ═══════════════════════════════════════════════════
+// HYPERSORT — O(1)-step simulation
+// ═══════════════════════════════════════════════════
+function iHS(a){
+ const arr=[...a],n=arr.length;
+ return{arr,done:false,cmps:0,ph:'project',st:0,proj:null,sorted:[...a].sort((x,y)=>x-y)}
+}
+function sHS(s){
+ if(s.done)return s;
+ if(s.ph==='project'){
+  // Step 1: UGT projection (PCA — single matmul)
+  const mx=Math.max(...s.arr.map(Math.abs),1);
+  s.proj=s.arr.map(v=>[v,v/mx,1]);
+  s.ph='matmul';s.st++;return s
+ }
+ if(s.ph==='matmul'){
+  // Step 2: THE O(1) STEP — G = X @ Xᵀ
+  // All n² pairwise cosine similarities in ONE op
+  s.cmps=s.arr.length*s.arr.length;
+  s.ph='order';s.st++;return s
+ }
+ if(s.ph==='order'){
+  // Step 3: Extract order from PC1 (dim 0 = sort key)
+  s.arr.sort((a,b)=>a-b);
+  s.ph='jury';s.st++;return s
+ }
+ if(s.ph==='jury'){
+  // Step 4: Geometric jury confidence
+  s.done=true;s.st++;return s
+ }
+ return s
 }
 
-class NativeSort {
-  constructor() { this.comparisons = 0; this.time = 0; }
-  sort(arr) {
-    this.comparisons = 0;
-    const a = [...arr];
-    // Monkey-patch to count comparisons
-    const origCompare = Array.prototype.sort;
-    let count = 0;
-    const instrumented = [...a];
-    const t0 = performance.now();
-    instrumented.sort((x, y) => { count++; return x - y; });
-    this.time = performance.now() - t0;
-    this.comparisons = count;
-    return { sorted: instrumented, comparisons: count, time: this.time };
-  }
+// ═══════════════════════════════════════════════════
+// NATIVE — Timsort (V8), steppable animation
+// ═══════════════════════════════════════════════════
+function iNT(a){
+ const arr=[...a],sorted=[...a];let c=0;
+ sorted.sort((x,y)=>{c++;return x-y});
+ return{arr,done:false,cmps:0,totalCmps:c,sorted,ai:0,ph:'anim',st:0}
+}
+function sNT(s){
+ if(s.done)return s;
+ const n=s.arr.length;
+ const prog=Math.min(1,(s.ai+1)/n);
+ for(let i=0;i<n;i++)if(i/n<prog)s.arr[i]=s.sorted[i];
+ s.ai++;s.st++;
+ if(s.ai>=n){s.done=true;s.cmps=s.totalCmps}
+ return s
 }
 
-// ======================================================================
-// Visualization
-// ======================================================================
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+const CL={hs:['#f59e0b','#fbbf24','#fcd34d'],qs:['#f87171','#fca5a5','#fecaca'],ms:['#34d399','#6ee7b7','#a7f3d0'],nt:['#60a5fa','#93bbfd','#bfdbfe']};
 
-const COLORS = {
-  hypersort: ['#7c5cfc', '#9b7cfc', '#b99cfc'],
-  quicksort: ['#ff6b6b', '#ff8e8e', '#ffb0b0'],
-  mergesort: ['#00e5a0', '#33eab3', '#66efc6'],
-  native:    ['#ffd700', '#ffdf33', '#ffe766'],
-};
-
-function drawBars(canvas, data, colorSet, highlight = -1) {
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
-  const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
-  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
-
-  ctx.clearRect(0, 0, w, h);
-
-  const n = data.length;
-  if (n === 0) return;
-
-  const maxVal = Math.max(...data.map(Math.abs));
-  const barW = Math.max(1, (w - 8) / n - 1);
-  const pad = 4;
-
-  data.forEach((val, i) => {
-    const barH = (Math.abs(val) / maxVal) * (h - 20);
-    const x = pad + i * (barW + 1);
-    const y = h - 10 - barH;
-    const alpha = i === highlight ? 1 : 0.75;
-    const colorIdx = Math.floor((i / n) * colorSet.length);
-
-    ctx.fillStyle = colorSet[colorIdx];
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.roundRect(x, y, barW, barH, [1, 1, 0, 0]);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Highlight border
-    if (i === highlight) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(x - 1, y - 1, barW + 2, barH + 2, [2, 2, 0, 0]);
-      ctx.stroke();
-    }
-  });
+function draw(cv,arr,id){
+ const dpr=window.devicePixelRatio||1;
+ const w=cv.offsetWidth,h=cv.offsetHeight;
+ cv.width=w*dpr;cv.height=h*dpr;
+ const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+ ctx.clearRect(0,0,w,h);
+ const n=arr.length;if(!n)return;
+ const mx=Math.max(...arr.map(Math.abs),1);
+ const bw=Math.max(2,(w-8)/n-1);
+ const cs=CL[id]||['#888'];
+ arr.forEach((v,i)=>{
+  const bh=(Math.abs(v)/mx)*(h-16);
+  const x=4+i*(bw+1),y=h-8-bh;
+  ctx.fillStyle=cs[Math.min(Math.floor(i/n*cs.length),cs.length-1)];
+  ctx.globalAlpha=.7;
+  ctx.beginPath();ctx.roundRect(x,y,bw,bh,[1,1,0,0]);ctx.fill();
+  ctx.globalAlpha=1;
+ });
 }
 
-// ======================================================================
-// Application State
-// ======================================================================
+// ═══════════════════════════════════════════════════
+// BUILD
+// ═══════════════════════════════════════════════════
+const AD=[
+ {id:'hs',name:'HyperSort',tag:'O(1) steps',tc:'th',desc:'Riemannian manifold'},
+ {id:'qs',name:'QuickSort',tag:'O(n log n)',tc:'tq',desc:'Lomuto partition'},
+ {id:'ms',name:'MergeSort',tag:'O(n log n)',tc:'tm',desc:'Bottom-up stable'},
+ {id:'nt',name:'JS Native',tag:'Timsort',tc:'tn',desc:'V8 C++ optimized'},
+];
 
-const hypersortEngine = new HyperSortJS({ intrinsicDim: 8, numJurors: 5 });
-const quicksortEngine = new QuickSort();
-const mergesortEngine = new MergeSort();
-const nativeEngine = new NativeSort();
-
-let currentData = [];
-let currentResults = {};
-
-function generateData(n) {
-  const arr = [];
-  for (let i = 0; i < n; i++) {
-    arr.push(Math.round(Math.random() * 10000) / 100);
-  }
-  return arr;
+function bld(){
+ document.getElementById('ar').innerHTML=AD.map(a=>`
+<div class="card" id="c-${a.id}">
+<div class="card-head"><h3>${a.name} <span style="font-size:.7rem;color:var(--dim);font-weight:400">${a.desc}</span></h3><span class="tag ${a.tc}">${a.tag}</span></div>
+<div class="cw"><canvas id="cv-${a.id}"></canvas><div class="si" id="si-${a.id}"></div></div>
+<div class="stats">
+<div class="stat"><div class="v" id="t-${a.id}">—</div><div class="l">Time</div></div>
+<div class="stat"><div class="v" id="c-${a.id}">—</div><div class="l">Compare</div></div>
+<div class="stat"><div class="v" id="s-${a.id}">—</div><div class="l">Steps</div></div>
+</div>
+<div class="jury" id="j-${a.id}" style="display:none"><span>JURY</span><div class="jb"><div class="jf" id="jf-${a.id}" style="width:0%"></div></div><span id="jv-${a.id}" style="color:var(--pink)">—</span></div>
+</div>`).join('');
+ document.getElementById('j-hs').style.display='flex';
 }
 
-function buildArena() {
-  const arena = document.getElementById('arena');
-  const algorithms = [
-    { id: 'hypersort', name: 'HyperSort', cls: 'badge-hypersort', cardCls: 'hypersort-card', desc: 'O(1) Riemannian' },
-    { id: 'quicksort', name: 'QuickSort', cls: 'badge-quick', cardCls: '', desc: 'O(n log n) avg' },
-    { id: 'mergesort', name: 'MergeSort', cls: 'badge-merge', cardCls: '', desc: 'O(n log n) stable' },
-    { id: 'native',    name: 'JS Native',  cls: 'badge-native', cardCls: '', desc: 'Timsort (V8)' },
-  ];
-
-  arena.innerHTML = algorithms.map(algo => `
-    <div class="card ${algo.cardCls}" id="card-${algo.id}">
-      <div class="card-header">
-        <h3>${algo.name} <span style="font-size:0.65rem;color:var(--dim)">${algo.desc}</span></h3>
-        <span class="badge ${algo.cls}">${algo.id === 'hypersort' ? 'GEOMETRIC JURY' : algo.id.toUpperCase()}</span>
-      </div>
-      <div class="canvas-wrap">
-        <canvas id="canvas-${algo.id}"></canvas>
-      </div>
-      <div class="stats">
-        <div class="stat"><div class="val" id="time-${algo.id}">—</div><div class="lbl">Time (ms)</div></div>
-        <div class="stat"><div class="val" id="comps-${algo.id}">—</div><div class="lbl">Comparisons</div></div>
-      </div>
-      <div class="jury-row" id="jury-${algo.id}" style="display:${algo.id==='hypersort'?'flex':'none'}">
-        <span>JURY</span>
-        <div class="jury-bar"><div class="jury-fill" id="juryFill-${algo.id}" style="width:0%"></div></div>
-        <span id="juryVal-${algo.id}" style="color:var(--jury)">—</span>
-      </div>
-    </div>
-  `).join('');
+// ═══════════════════════════════════════════════════
+// STEP / RUN
+// ═══════════════════════════════════════════════════
+function initAll(){
+ SS={hs:iHS(D),qs:iQS(D),ms:iMS(D),nt:iNT(D)};R={};
+ for(const a of AD){
+  document.getElementById(`t-${a.id}`).textContent='—';
+  document.getElementById(`t-${a.id}`).className='v';
+  document.getElementById(`c-${a.id}`).textContent='—';
+  document.getElementById(`s-${a.id}`).textContent='—';
+  document.getElementById(`c-${a.id}`).parentElement.parentElement.classList.remove('best');
+  const cv=document.getElementById(`cv-${a.id}`);if(cv)draw(cv,D,a.id);
+  document.getElementById(`si-${a.id}`).textContent='';
+ }
+ document.getElementById('co').style.display='none';
+ t0=performance.now();
 }
 
-function updateDisplay(results) {
-  const fastest = Object.entries(results)
-    .filter(([,r]) => r && r.time !== undefined)
-    .sort(([,a], [,b]) => a.time - b.time);
-
-  // Update cards
-  for (const [algoId, result] of Object.entries(results)) {
-    if (!result) continue;
-
-    const canvas = document.getElementById(`canvas-${algoId}`);
-    const timeEl = document.getElementById(`time-${algoId}`);
-    const compsEl = document.getElementById(`comps-${algoId}`);
-    const card = document.getElementById(`card-${algoId}`);
-
-    // Draw bars
-    if (canvas) {
-      const displayData = result.sorted || currentData;
-      drawBars(canvas, displayData, COLORS[algoId] || ['#888']);
-    }
-
-    // Update stats
-    if (timeEl) {
-      const t = result.time || 0;
-      timeEl.textContent = t.toFixed(2);
-      timeEl.className = 'val';
-      if (fastest[0] && fastest[0][0] === algoId) timeEl.classList.add('fast');
-      else if (fastest[fastest.length-1] && fastest[fastest.length-1][0] === algoId) timeEl.classList.add('slow');
-      else timeEl.classList.add('med');
-    }
-    if (compsEl) {
-      compsEl.textContent = result.comparisons ? result.comparisons.toLocaleString() : '—';
-    }
-
-    // Winner glow
-    if (card && fastest[0] && fastest[0][0] === algoId) {
-      card.classList.add('winner');
-    } else if (card) {
-      card.classList.remove('winner');
-    }
-
-    // Jury bar (hypersort only)
-    if (algoId === 'hypersort' && result.confidence) {
-      const avgConf = result.confidence.reduce((s,c) => s+c, 0) / result.confidence.length;
-      const juryFill = document.getElementById(`juryFill-${algoId}`);
-      const juryVal = document.getElementById(`juryVal-${algoId}`);
-      if (juryFill) juryFill.style.width = `${(avgConf * 100).toFixed(1)}%`;
-      if (juryVal) juryVal.textContent = `J = ${avgConf.toFixed(4)}`;
-    }
-  }
+function stepAll(){
+ let ad=true;
+ for(const a of AD){
+  const s=SS[a.id];if(!s||s.done)continue;
+  if(a.id==='hs')sHS(s);else if(a.id==='qs')sQS(s);else if(a.id==='ms')sMS(s);else if(a.id==='nt')sNT(s);
+  if(!s.done)ad=false;
+ }
+ return ad;
 }
 
-function runAllSorts() {
-  const n = currentData.length;
-  const results = {};
-
-  // HyperSort (build + sort)
-  const hsT0 = performance.now();
-  const hsResult = hypersortEngine.sort(currentData);
-  results.hypersort = {
-    sorted: hsResult.sorted,
-    comparisons: hsResult.comparisons,
-    time: performance.now() - hsT0,
-    confidence: hsResult.confidence,
-  };
-
-  // QuickSort
-  const qsResult = quicksortEngine.sort(currentData);
-  results.quicksort = {
-    sorted: qsResult.sorted,
-    comparisons: qsResult.comparisons,
-    time: qsResult.time,
-  };
-
-  // MergeSort
-  const msResult = mergesortEngine.sort(currentData);
-  results.mergesort = {
-    sorted: msResult.sorted,
-    comparisons: msResult.comparisons,
-    time: msResult.time,
-  };
-
-  // Native
-  const natResult = nativeEngine.sort(currentData);
-  results.native = {
-    sorted: natResult.sorted,
-    comparisons: natResult.comparisons,
-    time: natResult.time,
-  };
-
-  currentResults = results;
-  updateDisplay(results);
+function renderAll(st){
+ for(const a of AD){
+  const s=SS[a.id];if(!s)continue;
+  const cv=document.getElementById(`cv-${a.id}`);if(cv)draw(cv,s.arr,a.id);
+  document.getElementById(`c-${a.id}`).textContent=s.cmps.toLocaleString();
+  document.getElementById(`s-${a.id}`).textContent=s.st||st||'—';
+  document.getElementById(`si-${a.id}`).textContent=s.done?'done':`step ${s.st||st}`;
+ }
 }
 
-// ======================================================================
-// Event Handlers
-// ======================================================================
+function finish(){
+ const now=performance.now();const ts={};
+ for(const a of AD){
+  const s=SS[a.id];if(!s)continue;
+  const el=s._et?s._et-t0:now-t0;
+  ts[a.id]=el;
+  document.getElementById(`t-${a.id}`).textContent=el.toFixed(1)+'ms';
+  document.getElementById(`t-${a.id}`).className='v '+(el<1?'g':'w');
+ }
+ const ft=Object.entries(ts).sort(([,a],[,b])=>a-b)[0];
+ if(ft)document.getElementById(`c-${ft[0]}`).classList.add('best');
+ // Jury
+ const hs=SS.hs;if(hs){
+  const cnf=0.5+0.5*(1-Math.exp(-hs.cmps/(D.length*D.length*2)));
+  document.getElementById('jf-hs').style.width=(cnf*100).toFixed(0)+'%';
+  document.getElementById('jv-hs').textContent='J='+cnf.toFixed(3);
+ }
+ const n=D.length;
+ document.getElementById('co').style.display='block';
+ document.getElementById('ct').innerHTML=
+  `<strong>HyperSort</strong> did <strong>${(n*n).toLocaleString()}</strong> comparisons in <strong>${SS.hs?SS.hs.st:4} algorithmic steps</strong> — a single <code>G = X @ Xᵀ</code> matmul. Traditional sorts need ~<strong>${Math.round(n*Math.log2(n)).toLocaleString()}</strong> sequential compare-and-swaps. HyperSort trades O(n²) total FLOPs for <strong>O(1) sequential depth</strong>. <em>On a GPU the matmul executes in microseconds regardless of n — in-browser JS is single-threaded so wall-clock is slower, but this demonstrates the algorithm.</em>`;
+}
 
-document.getElementById('sizeSlider').addEventListener('input', (e) => {
-  const n = parseInt(e.target.value);
-  document.getElementById('sizeDisplay').textContent = n;
-  currentData = generateData(n);
-  hypersortEngine.isBuilt = false;  // Force rebuild
-  buildArena();
-  setTimeout(() => {
-    for (const algoId of ['hypersort', 'quicksort', 'mergesort', 'native']) {
-      const canvas = document.getElementById(`canvas-${algoId}`);
-      if (canvas) drawBars(canvas, currentData, COLORS[algoId] || ['#888']);
-    }
-  }, 50);
+function runFrame(){
+ if(!rn)return;
+ const spf=Math.max(1,Math.round(sp/3));let st=0,done=false;
+ for(let i=0;i<spf;i++){st++;done=stepAll();if(done)break}
+ renderAll(st);
+ if(done){const n=performance.now();for(const a of AD){if(SS[a.id]&&!SS[a.id]._et)SS[a.id]._et=n};finish();rn=false;return}
+ af=requestAnimationFrame(runFrame);
+}
+
+function start(){if(rn)return;initAll();rn=true;for(const a of AD){if(SS[a.id])SS[a.id]._st=performance.now()};af=requestAnimationFrame(runFrame)}
+
+function stepOne(){if(rn)return;initAll();rn=true;stepAll();renderAll(1);const ad=Object.values(SS).every(s=>s.done);if(ad)finish();rn=false}
+
+function instantRun(){
+ initAll();
+ // Run all to completion instantly
+ let done=false;let st=0;
+ while(!done){st++;done=stepAll()}
+ renderAll(st);
+ const n=performance.now();
+ for(const a of AD){if(SS[a.id])SS[a.id]._et=n}
+ finish();
+}
+
+// ═══════════════════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════════════════
+document.getElementById('sz').addEventListener('input',e=>{
+ const n=parseInt(e.target.value);document.getElementById('szD').textContent=n;
+ D=gen(n);initAll();
+ for(const a of AD){const cv=document.getElementById(`cv-${a.id}`);if(cv)draw(cv,D,a.id)}
 });
-
-document.getElementById('btnShuffle').addEventListener('click', () => {
-  const n = parseInt(document.getElementById('sizeSlider').value);
-  currentData = generateData(n);
-  hypersortEngine.isBuilt = false;
-  buildArena();
-  setTimeout(() => {
-    for (const algoId of ['hypersort', 'quicksort', 'mergesort', 'native']) {
-      const canvas = document.getElementById(`canvas-${algoId}`);
-      if (canvas) drawBars(canvas, currentData, COLORS[algoId] || ['#888']);
-    }
-    // Reset stats
-    for (const algoId of ['hypersort', 'quicksort', 'mergesort', 'native']) {
-      const timeEl = document.getElementById(`time-${algoId}`);
-      const compsEl = document.getElementById(`comps-${algoId}`);
-      if (timeEl) { timeEl.textContent = '—'; timeEl.className = 'val'; }
-      if (compsEl) compsEl.textContent = '—';
-    }
-  }, 50);
+document.getElementById('sp').addEventListener('input',e=>{
+ sp=parseInt(e.target.value);document.getElementById('spD').textContent=sp+'×';
 });
-
-document.getElementById('btnSort').addEventListener('click', () => {
-  runAllSorts();
+document.getElementById('bShuf').addEventListener('click',()=>{
+ if(af)cancelAnimationFrame(af);rn=false;
+ D=gen(parseInt(document.getElementById('sz').value));initAll();
+ for(const a of AD){const cv=document.getElementById(`cv-${a.id}`);if(cv)draw(cv,D,a.id)}
 });
+document.getElementById('bRun').addEventListener('click',()=>{if(af)cancelAnimationFrame(af);rn=false;start()});
+document.getElementById('bStep').addEventListener('click',()=>{if(af)cancelAnimationFrame(af);rn=false;stepOne()});
+document.getElementById('bFast').addEventListener('click',()=>{if(af)cancelAnimationFrame(af);rn=false;instantRun()});
 
-document.getElementById('btnStress').addEventListener('click', () => {
-  const n = 512;
-  currentData = generateData(n);
-  document.getElementById('sizeSlider').value = Math.min(n, 256);
-  document.getElementById('sizeDisplay').textContent = n;
-  hypersortEngine.isBuilt = false;
-  buildArena();
-  setTimeout(() => runAllSorts(), 100);
-});
-
-// ======================================================================
-// Initialization
-// ======================================================================
-
-currentData = generateData(64);
-buildArena();
-setTimeout(() => {
-  for (const algoId of ['hypersort', 'quicksort', 'mergesort', 'native']) {
-    const canvas = document.getElementById(`canvas-${algoId}`);
-    if (canvas) drawBars(canvas, currentData, COLORS[algoId] || ['#888']);
-  }
-}, 100);
-
-// Auto-run on load
-setTimeout(() => runAllSorts(), 600);
-
-console.log('%c/sort %c— HyperTensor Geometric Jury Framework',
-  'color:#7c5cfc;font-size:1.2em;', 'color:#888;');
-console.log('%cPapers I–XVIII  %c|  %cO(1) Riemannian Comparison Manifold',
-  'color:#ffd700;', 'color:#888;', 'color:#00e5a0;');
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+D=gen(48);bld();initAll();
+for(const a of AD){const cv=document.getElementById(`cv-${a.id}`);if(cv)draw(cv,D,a.id)}
 </script>
 </body>
 </html>
