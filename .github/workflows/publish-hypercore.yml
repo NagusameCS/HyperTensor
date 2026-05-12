@@ -1,4 +1,4 @@
-name: Publish HyperCore
+name: Publish HyperTensor-Core
 
 on:
   release:

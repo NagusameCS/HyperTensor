@@ -1,4 +1,4 @@
-# hypercore — HyperTensor Geometric Core
+# hypertensor-core — HyperTensor Geometric Core
 
 Riemannian geometry primitives for transformer analysis, compression,
 hallucination detection, and geodesic trajectory computation.
@@ -8,7 +8,7 @@ From the HyperTensor project (Papers I–XVIII).
 ## Install
 
 ```bash
-pip install hypercore
+pip install hypertensor-core
 ```
 
 ## Modules
