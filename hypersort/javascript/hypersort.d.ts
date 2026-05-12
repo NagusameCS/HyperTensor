@@ -1,0 +1,48 @@
+// TypeScript type definitions for HyperSort
+
+declare module '@nagusamecs/hypersort' {
+  interface ManifoldConfigOptions {
+    intrinsicDim?: number;
+    numJurors?: number;
+    coverageRadius?: number;
+    temperature?: number;
+    epsilon?: number;
+    cacheThreshold?: number;
+  }
+
+  class ManifoldConfig {
+    intrinsicDim: number;
+    numJurors: number;
+    coverageRadius: number;
+    temperature: number;
+    epsilon: number;
+    cacheThreshold: number;
+    constructor(options?: ManifoldConfigOptions);
+  }
+
+  interface SortResult<T> {
+    sortedData: T[];
+    originalIndices: number[];
+    confidenceScores: number[];
+    totalTimeMs: number;
+    manifoldDim: number;
+    comparisonsAvoided: number;
+  }
+
+  class HyperSort<T> {
+    constructor(config?: ManifoldConfigOptions | ManifoldConfig);
+    build(data: T[], encoder: (x: T) => number[]): HyperSort<T>;
+    sort(data: T[], encoder?: (x: T) => number[]): SortResult<T>;
+    instinctHorizon(): number;
+    getStatistics(): Record<string, unknown>;
+  }
+
+  function hypersort<T>(
+    data: T[],
+    config?: ManifoldConfigOptions,
+    encoder?: ((x: T) => number[]) | null
+  ): SortResult<T>;
+
+  export { HyperSort, ManifoldConfig, SortResult, hypersort };
+  export type { ManifoldConfigOptions };
+}

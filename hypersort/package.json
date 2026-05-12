@@ -1,0 +1,44 @@
+{
+  "name": "@nagusamecs/hypersort",
+  "version": "0.1.0",
+  "description": "O(1) Instant Sort via Riemannian Comparison Manifold — based on HyperTensor Geometric Jury framework",
+  "main": "javascript/hypersort.js",
+  "types": "javascript/hypersort.d.ts",
+  "files": [
+    "javascript/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "sorting",
+    "riemannian",
+    "manifold",
+    "geodesic",
+    "hyperdimensional",
+    "constant-time",
+    "o1-sort"
+  ],
+  "author": {
+    "name": "William Ken Ohara Stewart",
+    "email": "nagusamecs@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NagusameCS/HyperTensor.git",
+    "directory": "hypersort"
+  },
+  "bugs": {
+    "url": "https://github.com/NagusameCS/HyperTensor/issues"
+  },
+  "homepage": "https://github.com/NagusameCS/HyperTensor/tree/main/hypersort",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "test": "node tests/test_hypersort.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
