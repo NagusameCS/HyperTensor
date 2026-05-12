@@ -26,4 +26,10 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: twine upload dist/*
+        run: |
+          for i in 1 2 3; do
+            if twine upload dist/*; then exit 0; fi
+            echo "Attempt $i failed, waiting $((i*30))s..."
+            sleep $((i*30))
+          done
+          twine upload dist/*
