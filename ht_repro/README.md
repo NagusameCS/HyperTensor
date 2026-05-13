@@ -49,6 +49,7 @@ ht-repro summary        # print verified results summary
 | `ht-repro summary` | Print verified results summary |
 | `ht-repro setup` | Auto-detect environment + install deps |
 | `ht-repro dashboard` | Generate HTML results dashboard |
+| `ht-repro serve` | Start localhost web UI (http://localhost:8765) |
 | `ht-repro update` | Self-update to latest version |
 | `ht-repro run <id>` | Run a specific test by ID |
 

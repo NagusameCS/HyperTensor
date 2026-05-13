@@ -146,6 +146,11 @@ def cmd_dashboard():
     print(green(f"\n✅ Dashboard generated: {path}"))
     print(f"   Open with: start {path}\n")
 
+def cmd_serve():
+    """Start localhost web UI."""
+    from .server import start_server
+    start_server()
+
 def cmd_run(test_id: str):
     test = find_test(test_id)
     if not test:
@@ -180,8 +185,7 @@ quick start:
   ht-repro list              show all available tests
   ht-repro status            show last run results
   ht-repro summary           print verified results summary
-  ht-repro dashboard         generate HTML results dashboard
-  ht-repro update            self-update to latest version
+  ht-repro dashboard         generate HTML results dashboard  ht-repro serve              start localhost web UI (http://localhost:8765)  ht-repro update            self-update to latest version
         """,
     )
     parser.add_argument("--version", action="version", version=f"ht-repro v{__version__}")
@@ -195,6 +199,7 @@ quick start:
     sub.add_parser("setup", help="Auto-detect environment and install dependencies")
     sub.add_parser("update", help="Self-update to latest version")
     sub.add_parser("dashboard", help="Generate HTML results dashboard")
+    sub.add_parser("serve", help="Start localhost web UI (http://localhost:8765)")
 
     p_all = sub.add_parser("all", help="Run all tests for a tier")
     p_all.add_argument("tier", nargs="?", default="T1", choices=["T1","T2","T3"])
@@ -232,6 +237,7 @@ quick start:
     elif cmd == "setup": cmd_setup()
     elif cmd == "update": cmd_update()
     elif cmd == "dashboard": cmd_dashboard()
+    elif cmd == "serve": cmd_serve()
     elif cmd == "all": cmd_all(args.tier)
     elif cmd == "paper": cmd_paper(args.paper_id)
     elif cmd == "group": cmd_group(args.group_name)
