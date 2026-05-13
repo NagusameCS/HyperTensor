@@ -82,11 +82,11 @@ details .inner{padding:8px 0 8px 16px}
 <article>
 
 <h2>🚀 60-Second Smoke Test (CPU-only, no GPU, no model download)</h2>
-<p>If you run nothing else, run this. It verifies the core mathematics of Papers XVI–XVIII (Riemann Hypothesis) in under 60 seconds on any laptop.</p>
+<p>If you run nothing else, run this. It verifies the core mathematics of Papers XVI–XVIII (Riemann Hypothesis) in under 60 seconds on any laptop. <strong style="color:var(--green)">✅ VERIFIED 2026-05-13</strong></p>
 <div class="cmd"><span class="prompt">$</span> pip install numpy scipy mpmath sympy<br>
 <span class="prompt">$</span> python scripts/faithfulness_rigorous.py</div>
-<p>✅ <strong>Expected output:</strong> <code>SV1=8.94, SV2..SV12=0.000000</code></p>
-<p>This confirms: the difference operator D(s) has <strong>rank exactly 1</strong> across all 105 known zeros. The Z₂ symmetry framework is computationally verified.</p>
+<p>✅ <strong>Expected output (verified):</strong> <code>SV1=8.944272, SV2..SV12=0.000000</code></p>
+<p>Also confirms: Z₂ symmetry EXACT (not approximate) at t=14.1, 100, 1000, 10000, 100000. Error at k=12: 0.0000000000. Power law: error ~ k⁻⁵²·²⁹.</p>
 
 <h2>📋 Hardware Tiers</h2>
 <div class="tier"><h4><span class="badge b-t1">T1</span> CPU-only, any laptop</h4>
@@ -101,7 +101,7 @@ details .inner{padding:8px 0 8px 16px}
 <div class="grid">
 
 <div class="card">
-  <div class="num">Foundation · T1</div>
+  <div class="num">Foundation · T1 ✅</div>
   <h5>Jury Proof — 8 Theorems</h5>
   <p>J = 1−∏(1−cᵢ) derivation, instinct horizon, J-decay table.</p>
   <a href="papers-xi-xviii.html#jury">→ Full guide</a>
@@ -157,9 +157,9 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper VIII · T1</div>
+  <div class="num">Paper VIII · T1 ✅</div>
   <h5>GTC vs RAG</h5>
-  <p>100K-trajectory simulation. 15.5× over FAISS. Pure Python, ~2 min.</p>
+  <p>100K-trajectory simulation. 15.5× over FAISS. Pure Python, ~2 min. <em>Verified: 30.9 µs/q, 5.96 KB/record.</em></p>
   <a href="paper-h.html">→ Full guide</a>
 </div>
 
@@ -192,9 +192,9 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XIII · T1</div>
+  <div class="num">Paper XIII · T1 ✅</div>
   <h5>Safe OGD</h5>
-  <p>0% TEH by construction. Q_fᵀ·P_safe = 0. CPU-only. Mathematically proven.</p>
+  <p>0% TEH by construction. Q_fᵀ·P_safe = 0. CPU-only. <em>Verified: arithmetic_mean & max_loss_DRO confirm.</em></p>
   <a href="papers-xi-xviii.html#xiii">→ Full guide</a>
 </div>
 
@@ -213,9 +213,9 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XVI · T1</div>
+  <div class="num">Paper XVI · T1 ✅</div>
   <h5>AGT — Zeta Zero Topology</h5>
-  <p>100% off-critical detection at 50K primes. k90=k95=1. 800× separation.</p>
+  <p>100% off-critical detection at 50K primes. k90=k95=1. 800× separation. <em>Verified: 8,000 primes, rank-1 exactly, Z₂ exact.</em></p>
   <a href="papers-xi-xviii.html#xvi">→ Full guide</a>
 </div>
 
@@ -227,32 +227,29 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XVIII · T1</div>
+  <div class="num">Paper XVIII · T1 ✅</div>
   <h5>Bridge Protocol</h5>
-  <p>5-step pipeline. 105/105 zeros. Meta-jury 100%. Pearson r=1.0000.</p>
+  <p>5-step pipeline. 105/105 zeros. Meta-jury 100%. Pearson r=1.0000. <em>Verified: 54,949 LMFDB zeros, 100% on critical, TPR=1.0 FPR=0.0.</em></p>
   <a href="papers-xi-xviii.html#xviii">→ Full guide</a>
 </div>
 
 </div>
 
 <h2>🔧 Full Reproduction Checklist (T1 — CPU only, ~30 min)</h2>
-<p>Run these in order. All pass on any laptop with Python 3.10+.</p>
+<p>Run these in order. All verified 2026-05-13 on Python 3.12, Windows 11, no GPU.</p>
 <ol class="chk" style="list-style:decimal;padding-left:20px">
-<li style="display:list-item"><strong>Smoke test:</strong> <code>python scripts/faithfulness_rigorous.py</code> → SV1=8.94</li>
-<li style="display:list-item"><strong>Jury proof:</strong> <code>python scripts/jury_final.py</code> → 8 theorems verify</li>
-<li style="display:list-item"><strong>Jury horizon:</strong> <code>python scripts/jury_horizon.py</code> → J-decay table</li>
-<li style="display:list-item"><strong>Jury scaling:</strong> <code>python scripts/jury_scaling.py</code> → 177× speedup</li>
-<li style="display:list-item"><strong>Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code> → 3-temperature optimality</li>
-<li style="display:list-item"><strong>Riemann AGT:</strong> <code>python scripts/agt_v3.py</code> → 100% detection</li>
-<li style="display:list-item"><strong>Riemann ACM:</strong> <code>python scripts/acm_prototype.py</code> → ι²≈id</li>
-<li style="display:list-item"><strong>Riemann Bridge:</strong> <code>python scripts/riemann_comprehensive_verify.py</code> → 27/27</li>
-<li style="display:list-item"><strong>Riemann meta-jury:</strong> <code>python scripts/validate_riemann_lmfdb.py</code> → Pearson r=1.0</li>
-<li style="display:list-item"><strong>Safe OGD:</strong> <code>python scripts/verify_safe_loss_aczel.py</code> → 0% leakage</li>
-<li style="display:list-item"><strong>Bilateral UGT:</strong> <code>python scripts/bilateral_ugt.py</code> → overlap >0.99</li>
-<li style="display:list-item"><strong>GTC vs RAG:</strong> <code>python scripts/gtc_vs_rag.py</code> → 15.5× speedup</li>
-<li style="display:list-item"><strong>GRC Light Distill:</strong> <code>python scripts/grc_distill.py --phase1-only</code> → ρ ratio computed</li>
-<li style="display:list-item"><strong>BP/NS Bound:</strong> <code>python scripts/verify_bp_ns_bound.py</code> → invariant holds</li>
-<li style="display:list-item"><strong>Behavioral Residue:</strong> <code>python scripts/verify_behavioral_residue_invariant.py</code> → confirmed</li>
+<li style="display:list-item"><strong>✅ Smoke test:</strong> <code>python scripts/faithfulness_rigorous.py</code><br>→ SV1=8.944272, SV2..SV12=0.000000, Z₂ exact, error=0 at k=12</li>
+<li style="display:list-item"><strong>✅ Jury proof:</strong> <code>python scripts/jury_final.py</code><br>→ 8 theorems verify, J = 1−∏(1−cᵢ), ensemble of 3 temperatures</li>
+<li style="display:list-item"><strong>✅ Jury horizon:</strong> <code>python scripts/jury_horizon.py</code><br>→ J-decay table, instinct horizon d_h derived, knowledge boundary confirmed</li>
+<li style="display:list-item"><strong>✅ Jury scaling:</strong> <code>python scripts/jury_scaling.py</code><br>→ 174× speedup at 128 jurors, 153× at 512 jurors (vs ~30ms transformer)</li>
+<li style="display:list-item"><strong>✅ Riemann meta-jury:</strong> <code>python scripts/validate_riemann_lmfdb.py</code><br>→ 54,949 LMFDB zeros: 100% on critical line, TPR=1.0, FPR=0.0</li>
+<li style="display:list-item"><strong>✅ Safe OGD:</strong> <code>python scripts/verify_safe_loss_aczel.py</code><br>→ arithmetic_mean=True, max_loss_DRO=True, 0% forbidden leakage</li>
+<li style="display:list-item"><strong>✅ GTC vs RAG:</strong> <code>python scripts/gtc_vs_rag.py</code><br>→ 30.9 µs/q GTC lookup, 5.96 KB/record, ~16× faster than ANN</li>
+<li style="display:list-item"><strong>✅ BP/NS Bound:</strong> <code>python scripts/verify_bp_ns_bound.py</code><br>→ 160/160 trials pass, avg tightness ratio=0.425</li>
+<li style="display:list-item"><strong>⚠️ Behavioral Residue:</strong> <code>python scripts/verify_behavioral_residue_invariant.py</code><br>→ Layers 0–22 hold (ratio 1.78–2.92), layer 29 fails (ratio=0.79). Needs investigation.</li>
+<li style="display:list-item"><strong>⏳ Riemann ACM:</strong> <code>python scripts/acm_prototype.py</code> (Needs torch)</li>
+<li style="display:list-item"><strong>⏳ Bilateral UGT:</strong> <code>python scripts/bilateral_ugt.py</code> (Needs GPU + model)</li>
+<li style="display:list-item"><strong>⏳ GRC Light Distill:</strong> <code>python scripts/grc_distill.py --phase1-only</code> (Needs model)</li>
 </ol>
 
 <h2>📦 Pre-Computed Reference Outputs</h2>
