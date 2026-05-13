@@ -81,7 +81,18 @@ details .inner{padding:8px 0 8px 16px}
 
 <article>
 
-<h2>🚀 60-Second Smoke Test (CPU-only, no GPU, no model download)</h2>
+<h2>�️ Quick Start — The ht-repro CLI</h2>
+<p>The easiest way to reproduce results. One command per paper, or run everything at once. <strong style="color:var(--green)">NEW</strong></p>
+<div class="cmd"><span class="prompt">$</span> python scripts/ht_repro.py smoke       <span class="out"># 60-second Riemann core math</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py all-t1      <span class="out"># All CPU-only tests (~30 min)</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py paper-1     <span class="out"># Reproduce Paper I (GRC attention)</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py jury        <span class="out"># All jury theorem verification</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py riemann     <span class="out"># All Riemann Hypothesis verification</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py list        <span class="out"># Show all 16 available tests</span><br>
+<span class="prompt">$</span> python scripts/ht_repro.py summary     <span class="out"># Print verified results summary</span></div>
+<p>Windows shortcut from repo root: <code>ht-repro smoke</code> &nbsp;|&nbsp; Source: <a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/ht_repro.py"><code>scripts/ht_repro.py</code></a></p>
+
+<h2>�🚀 60-Second Smoke Test (CPU-only, no GPU, no model download)</h2>
 <p>If you run nothing else, run this. It verifies the core mathematics of Papers XVI–XVIII (Riemann Hypothesis) in under 60 seconds on any laptop. <strong style="color:var(--green)">✅ VERIFIED 2026-05-13</strong></p>
 <div class="cmd"><span class="prompt">$</span> pip install numpy scipy mpmath sympy<br>
 <span class="prompt">$</span> python scripts/faithfulness_rigorous.py</div>
