@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ht-repro"
+version = "1.0.0"
+description = "HyperTensor Reproduction CLI — one command to reproduce any paper result"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "William Ken Ohara Stewart", email = "nagusamecs@gmail.com" }]
+keywords = ["hyper", "tensor", "reproduction", "verification", "riemann", "jury", "testing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Testing",
+]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24.0"]
+
+[project.optional-dependencies]
+full = ["scipy", "mpmath", "sympy", "torch", "transformers", "tqdm"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+ht-repro = "ht_repro.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/NagusameCS/HyperTensor"
+Repository = "https://github.com/NagusameCS/HyperTensor/tree/main/ht_repro"
+Dashboard = "https://nagusamecs.github.io/HyperTensor/research/repro/"
+
+[tool.setuptools.packages.find]
+where = ["."]

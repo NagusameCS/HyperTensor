@@ -1,0 +1,40 @@
+#!/bin/sh
+# ht-repro — one-line installer for Linux/macOS
+# curl -sSL https://nagusamecs.github.io/HyperTensor/install.sh | bash
+set -e
+
+echo "═══ ht-repro Installer ═══"
+echo ""
+
+# Detect Python
+PYTHON=""
+for cmd in python3 python; do
+    if command -v $cmd >/dev/null 2>&1; then
+        PYTHON=$cmd
+        break
+    fi
+done
+
+if [ -z "$PYTHON" ]; then
+    echo "❌ Python not found. Install Python 3.10+ first: https://python.org"
+    exit 1
+fi
+
+echo "→ Python: $($PYTHON --version)"
+
+# Install ht-repro
+echo "→ Installing ht-repro..."
+$PYTHON -m pip install --quiet ht-repro 2>/dev/null || {
+    # Fallback: install from GitHub
+    echo "→ Installing from GitHub..."
+    $PYTHON -m pip install --quiet git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=ht_repro
+}
+
+echo ""
+echo "✅ ht-repro installed!"
+echo ""
+echo "Quick start:"
+echo "  ht-repro smoke       # 60-second Riemann core math test"
+echo "  ht-repro setup       # auto-detect environment"
+echo "  ht-repro list        # show all available tests"
+echo "  ht-repro summary     # print verified results"

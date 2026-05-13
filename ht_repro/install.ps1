@@ -1,0 +1,28 @@
+# ht-repro — one-line installer for Windows (PowerShell)
+# irm https://nagusamecs.github.io/HyperTensor/install.ps1 | iex
+
+Write-Host "═══ ht-repro Installer ═══" -ForegroundColor White
+Write-Host ""
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    Write-Host "❌ Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
+    exit 1
+}
+Write-Host "→ Python: $($python.Source)" -ForegroundColor Gray
+
+Write-Host "→ Installing ht-repro..." -ForegroundColor Gray
+pip install --quiet ht-repro 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "→ Installing from GitHub..." -ForegroundColor Gray
+    pip install --quiet git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=ht_repro
+}
+
+Write-Host ""
+Write-Host "✅ ht-repro installed!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Quick start:" -ForegroundColor White
+Write-Host "  ht-repro smoke       # 60-second Riemann core math test" -ForegroundColor Gray
+Write-Host "  ht-repro setup       # auto-detect environment" -ForegroundColor Gray
+Write-Host "  ht-repro list        # show all available tests" -ForegroundColor Gray
+Write-Host "  ht-repro summary     # print verified results" -ForegroundColor Gray

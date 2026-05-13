@@ -1,0 +1,26 @@
+"""
+ht-repro — HyperTensor Reproduction Toolkit
+=============================================
+The easiest way to reproduce every result in the HyperTensor extended volume.
+One command per paper. Zero manual steps.
+
+Install:
+  pip install ht-repro
+  pipx install ht-repro
+  curl -sSL https://nagusamecs.github.io/HyperTensor/install.sh | bash
+
+Usage:
+  ht-repro smoke              # 60-second Riemann core math test
+  ht-repro all-t1             # All CPU-only tests (~30 min)
+  ht-repro paper-1            # Reproduce Paper I (GRC attention)
+  ht-repro jury               # All jury theorem verification
+  ht-repro setup              # Auto-install dependencies
+  ht-repro dashboard          # Generate HTML results dashboard
+  ht-repro update             # Self-update to latest version
+
+Based on the HyperTensor Geometric Jury framework (Papers I–XVIII).
+"""
+
+__version__ = "1.0.0"
+__author__ = "William Ken Ohara Stewart (NagusameCS)"
+__license__ = "MIT"

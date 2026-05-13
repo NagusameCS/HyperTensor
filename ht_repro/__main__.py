@@ -1,0 +1,3 @@
+"""ht-repro entry point — python -m ht_repro"""
+from .cli import main
+main()
