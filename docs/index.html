@@ -425,7 +425,7 @@ footer a:hover { text-decoration: underline; }
 
   <div class="tabs" role="tablist">
     <button class="tab-btn active" role="tab" aria-controls="tab-engineering" data-tab="engineering">
-      Volume 1: Engineering <span class="count">13</span>
+      Volume 1: Engineering <span class="count">20</span>
     </button>
     <button class="tab-btn" role="tab" aria-controls="tab-research" data-tab="research">
       Research papers <span class="count">10</span>
@@ -441,14 +441,20 @@ footer a:hover { text-decoration: underline; }
   <div id="tab-engineering" class="tab-panel active" role="tabpanel">
 
   <div class="thread">
-    <div class="thread-row"><span class="thread-tag">Volume 1</span><span>Papers 0&ndash;XVI: Complete k-manifold living-model stack with geometric jury. 111 verification tests passing. 16 HuggingFace models published. EC2 L40S validated.</span></div>
+    <div class="thread-row"><span class="thread-tag">Volume 1 (Extended)</span><span>Papers 0&ndash;XVIII: Complete k-manifold living-model stack with geometric jury. All 19 documents from the extended volume. 111 verification tests passing. 16 HuggingFace models published. EC2 L40S validated. 5 PyPI packages published.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 0</span><span>Background article: tensors, attention, KV cache, PCA/SVD, manifolds, intrinsic dimension. Read first.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 1</span><span>GRC Attention Compression: 106.27% baseline throughput at k=1024, p~10^{-10}. L2 cache residency model.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 2</span><span>Geodesic Projection: 7-slot pipeline, cross-model spectral correlation r=0.94.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 3</span><span>Speculative Decoding: 38.5% acceptance, 199 tok/s peak, AttnRes phase transition.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 4</span><span>OTT: Riemannian latent-space inference, GTC, Jacobi-field correction.</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 8</span><span>GTC Runtime: 97x batched Jacobi, 15.5x vs RAG, jury-accelerated to O(1) retrieval (93-98% savings).</span></div>
-    <div class="thread-row"><span class="thread-tag">Paper 10</span><span>CECI: First functional chimera (MINSKAT), 7 Danish grafts (5/7 improve MMLU), jury-predicted compatibility.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 5</span><span>GRC Light Distillation: LoRA recovers 107% PPL gap at k=512; teacher-student merge preserves GRC fusion path.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 6</span><span>Task-Level Impact: GRC k=1024: factual recall robust (ARC unchanged), math degrades moderately (GSM8K −8.2pp).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 7</span><span>GTC Runtime: 97x batched Jacobi, 15.5x vs RAG, jury-accelerated to O(1) retrieval (93-98% savings).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 8</span><span>Adaptive Compression: MCR phase-aware rank, Axiom Gauge, Thermal Rank, Online Basis (4 adaptive mechanisms).</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 9</span><span>FFN Cluster Compression: 4-cluster SVD 22.6% error improvement vs global, activation-weighted 22.7× better.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 10</span><span>GTC as RAG: 97× batched Jacobi, 90.4-91.5% cache coverage scale-invariant, 15.5× vs disk RAG.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 11</span><span>Cross-GPU Transfer: k* = L2_MB × 42.7 validated across 3 GPU types, 150 test cases, 100% accuracy.</span></div>
+    <div class="thread-row"><span class="thread-tag">Paper 12</span><span>CECI: First functional chimera (MINSKAT), 7 Danish grafts (5/7 improve MMLU), jury-predicted compatibility.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 11</span><span>UGT: Bilateral subspace overlap 0.9999, 4 knowledge zones, Wielandt-Hoffman transfer proof.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 12</span><span>Native Training: RiemannianAdamW on Stiefel manifold, 11.4% parameters, KExpansionScheduler.</span></div>
     <div class="thread-row"><span class="thread-tag">Paper 13</span><span>Safe OGD: 0% TEH by construction (Q_f^T P_safe = 0), jury-optimal alpha=0.198 (R^2=0.758).</span></div>
@@ -549,11 +555,42 @@ footer a:hover { text-decoration: underline; }
       </p>
     </a>
 
+     <a class="paper-card" href="papers/05-grc-light-distillation.html"
+       data-stats="3.5k words · 12 pages"
+       data-extended="Optional opt-in LoRA distillation recovers perplexity lost to GRC compression. At k=512 on SmolLM2-135M: 107% PPL gap recovery (distilled beats uncompressed baseline). At k=1024: 98.3% recovery. Per-matrix SVD reduces Frobenius error by 79.4% vs shared basis. Three merge strategies documented; all preserve GRC fusion path.">
+      <div class="paper-head">
+        <span class="paper-num">Paper 5</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">GRC Light Distillation for Perplexity Recovery</span>
+      </div>
+      <p class="paper-abstract">
+        Optional 3-phase LoRA distillation (r=8, 500 AdamW steps) recovers up to 107%
+        of the PPL gap from GRC compression. First-order bound on recoverable energy
+        via ρ ratio. Three merge strategies. Per-matrix SVD: +79.4% Frobenius error
+        reduction over shared-basis at k=256.
+      </p>
+    </a>
+
+     <a class="paper-card" href="papers/06-task-level-impact.html"
+       data-stats="2.8k words · 9 pages"
+       data-extended="Full task-benchmark sweep of GRC across 5 suites. At k=1024: ARC 78.4→78.4% (no loss), HellaSwag 79.8→79.2% (−0.6pp), MMLU 64.9→62.4% (−2.5pp), GSM8K 49.7→41.5% (−8.2pp). Factual recall robust; math reasoning degrades. k=1536 nearly indistinguishable from baseline on all tasks except GSM8K (−2.1pp).">
+      <div class="paper-head">
+        <span class="paper-num">Paper 6</span>
+        <span class="paper-version">v1.0 · May 2026</span>
+        <span class="paper-title">Task-Level Impact of GRC Compression</span>
+      </div>
+      <p class="paper-abstract">
+        Full 5-benchmark sweep measuring GRC's impact on task performance. Factual recall
+        (ARC, HellaSwag) nearly unchanged at k=1024. Math reasoning (GSM8K) degrades
+        moderately. MMLU shows −2.5pp. k=1536 near-baseline on all tasks.
+      </p>
+    </a>
+
      <a class="paper-card" href="papers/05-gtc-ott-runtime.html"
        data-stats="3.1k words · 10 pages"
        data-extended="Empirical companion to Paper 4. 12 of 17 testable claims now have a measured value, including 97× batched-Jacobi at B=10, 30.9 µs/q lookup, 5.96 KB/record, and the same 38.5% / 76.5 tok/s OTT runtime anchor as Paper 3.">
       <div class="paper-head">
-        <span class="paper-num">Paper 5</span>
+        <span class="paper-num">Paper 7</span>
         <span class="paper-version">v0.1 · 2026-04-27</span>
         <span class="paper-title">Geodesic Trajectory Caching and the OTT Runtime Anchor</span>
       </div>
@@ -571,7 +608,7 @@ footer a:hover { text-decoration: underline; }
        data-stats="3.8k words · 13 pages"
        data-extended="Adaptive layer atop Paper 1+2. MCR phase-aware rank with attention-sink bypass; Axiom Gauge diagonal-g over the GL(d) residual-stream symmetry (zero inference overhead); Thermal Rank with NVML and a tokens-per-joule policy gradient; Online Basis Oja-rule updates fired by speculative rejections. v0.1 design + impl, measurements deferred.">
       <div class="paper-head">
-        <span class="paper-num">Paper 6</span>
+        <span class="paper-num">Paper 8</span>
         <span class="paper-version">v0.1 · 2026-04-27</span>
         <span class="paper-title">Adaptive Compression: Phase, Gauge, Thermal, Online Basis</span>
       </div>
@@ -591,7 +628,7 @@ footer a:hover { text-decoration: underline; }
        data-stats="2.5k words · 8 pages"
        data-extended="Extends GRC from attention to FFN layers. 4-cluster SVD achieves 22.6% error improvement over global SVD. Activation-weighted SVD is 22.7x better than weight-norm. Critical finding: weight-norm column norms do NOT correlate with activation importance.">
       <div class="paper-head">
-        <span class="paper-num">Paper 7</span>
+        <span class="paper-num">Paper 9</span>
         <span class="paper-version">v1.0 · May 2026</span>
         <span class="paper-title">Structure-Aware FFN Compression via Column Clustering</span>
       </div>
@@ -606,7 +643,7 @@ footer a:hover { text-decoration: underline; }
        data-stats="1.8k words · 6 pages"
        data-extended="Empirical validation of GTC. 97x batched-Jacobi at B=10. Cache coverage 90.4-91.5% across 3 model scales. 15.5x faster than disk-based RAG. Compressed record store 5.96 KB/record.">
       <div class="paper-head">
-        <span class="paper-num">Paper 8</span>
+        <span class="paper-num">Paper 10</span>
         <span class="paper-version">v1.0 · May 2026</span>
         <span class="paper-title">GTC Runtime: Measured Cache Coverage and Batch Jacobi</span>
       </div>
@@ -620,7 +657,7 @@ footer a:hover { text-decoration: underline; }
        data-stats="1.5k words · 5 pages"
        data-extended="GRC compression transfers across 3 GPU types. Formula k* = L2_MB x 42.7 predicts optimal rank from L2 cache size alone. Validated on 5 GPU types, 150 test cases, 100% accuracy. SOLVED 100%.">
       <div class="paper-head">
-        <span class="paper-num">Paper 9</span>
+        <span class="paper-num">Paper 11</span>
         <span class="paper-version">v1.0 · May 2026</span>
         <span class="paper-title">Cross-GPU Transfer of Geometric Compression</span>
       </div>
@@ -634,7 +671,7 @@ footer a:hover { text-decoration: underline; }
        data-stats="3.2k words · 11 pages"
        data-extended="CECI feasibility map determined. Within-band grafts viable (GD<0.92), cross-band infeasible (GD>0.96). 120 layer pairs measured. 7 Danish chimeras published. 5 of 7 grafts IMPROVE MMLU over baseline.">
       <div class="paper-head">
-        <span class="paper-num">Paper 10</span>
+        <span class="paper-num">Paper 12</span>
         <span class="paper-version">v1.0 · May 2026</span>
         <span class="paper-title">CECI: Cross-Embedding Compatibility Index for Model Grafting</span>
       </div>
