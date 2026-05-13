@@ -246,11 +246,14 @@ details .inner{padding:8px 0 8px 16px}
 <li style="display:list-item"><strong>✅ Safe OGD:</strong> <code>python scripts/verify_safe_loss_aczel.py</code><br>→ arithmetic_mean=True, max_loss_DRO=True, 0% forbidden leakage</li>
 <li style="display:list-item"><strong>✅ GTC vs RAG:</strong> <code>python scripts/gtc_vs_rag.py</code><br>→ 30.9 µs/q GTC lookup, 5.96 KB/record, ~16× faster than ANN</li>
 <li style="display:list-item"><strong>✅ BP/NS Bound:</strong> <code>python scripts/verify_bp_ns_bound.py</code><br>→ 160/160 trials pass, avg tightness ratio=0.425</li>
+<li style="display:list-item"><strong>✅ Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
+<li style="display:list-item"><strong>✅ AGT v3 (zeta zeros):</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li>
 <li style="display:list-item"><strong>⚠️ Behavioral Residue:</strong> <code>python scripts/verify_behavioral_residue_invariant.py</code><br>→ Layers 0–22 hold (ratio 1.78–2.92), layer 29 fails (ratio=0.79). Needs investigation.</li>
 <li style="display:list-item"><strong>⏳ Riemann ACM:</strong> <code>python scripts/acm_prototype.py</code> (Needs torch)</li>
 <li style="display:list-item"><strong>⏳ Bilateral UGT:</strong> <code>python scripts/bilateral_ugt.py</code> (Needs GPU + model)</li>
 <li style="display:list-item"><strong>⏳ GRC Light Distill:</strong> <code>python scripts/grc_distill.py --phase1-only</code> (Needs model)</li>
-</ol>
+<li style="display:list-item"><strong>✅ Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
+<li style="display:list-item"><strong>✅ AGT v3:</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li></ol>
 
 <h2>📦 Pre-Computed Reference Outputs</h2>
 <p>Don't have T2/T3 hardware? We ship <strong>pre-computed JSON reference files</strong> for every paper that needs GPU. Compare your local T1 results against the reference:</p>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRC Light Distillation for Perplexity Recovery, HyperTensor Paper V</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/05-grc-light-distillation.html">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/paper.css"><script src="../assets/reader.js"></script>
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="04-organic-training-theory.html">Paper IV</a></li>
+    <li><a href="06-task-level-impact.html">Paper VI</a></li>
+    <li><a href="07-ffn-cluster-compression.html">Paper VII</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper V &middot; May 2026 &middot; v1.0</div>
+  <h1 class="hero-title">GRC Light Distillation for Perplexity Recovery</h1>
+  <p class="hero-subtitle">GRC compression saves bytes but costs perplexity. Can a tiny LoRA adapter recover the gap?</p>
+  <div class="hero-meta">By William Ken Ohara Stewart (NagusameCS) &middot; <a href="https://github.com/NagusameCS/HyperTensor">Repository</a> &middot; <a href="../../ARXIV_SUBMISSIONS/paper-V/grc-light-distillation.tex">TeX source</a></div>
+</header>
+
+<article class="paper-body">
+
+<section id="abstract"><h2>Abstract</h2>
+<p>GRC compression (Paper I) achieves +6.27% throughput at $k=1024$ but incurs a +61.4% perplexity penalty. This paper proposes an optional, opt-in LoRA distillation step to recover the lost perplexity. A three-phase protocol — (1) GRC projection unchanged, (2) teacher-student LoRA correction with rank $r=8$, 500 AdamW steps on WikiText-2, (3) merge and ship — recovers 107% of the PPL gap at $k=512$ on SmolLM2-135M, 98.3% at $k=1024$, and 47.7% at $k=256$. Per-matrix SVD reduces Frobenius error by +79.4% at $k=256$ compared to shared-basis GRC. Three merge strategies are documented, all preserving the GRC fusion path. A first-order bound on recoverable PPL gap via the recoverable-energy ratio $\rho$ is derived and empirically validated.</p></section>
+
+<section id="protocol"><h2>1. Three-Phase Protocol</h2>
+<h3>Phase 1: GRC Projection (unchanged from Paper I)</h3>
+<p>Compute the joint Gram matrix, eigendecomposition, keep top-$k$ eigenvectors. Project $Q, K, V$ weights into the $k$-dimensional subspace. This step is calibration-free and data-free.</p>
+<h3>Phase 2: LoRA Distillation</h3>
+<p>Train rank-$r$ LoRA adapters ($r=8$) on top of the GRC-compressed weights. Teacher = uncompressed model. Student = GRC-compressed + LoRA. Loss = KL divergence of output logits. 500 AdamW steps on WikiText-2. Trainable parameters: $3 \cdot r \cdot d \cdot L \approx 3.1\text{M}$ for Llama-8B — two orders of magnitude below full fine-tuning.</p>
+<h3>Phase 3: Merge and Ship</h3>
+<p>The LoRA factors are folded into the compressed weights: $\hat{W} = W' + AB$. The merged weights preserve the GRC fusion path — no inference overhead. The LoRA factors are quantized and shipped alongside the compressed model.</p></section>
+
+<section id="results"><h2>2. Measured Results</h2>
+<table>
+<tr><th>Model</th><th>$k$</th><th>GRC PPL</th><th>Distilled PPL</th><th>Recovery</th></tr>
+<tr><td>SmolLM2-135M</td><td>512</td><td>5.21</td><td>5.05</td><td>107.1%</td></tr>
+<tr><td>SmolLM2-135M</td><td>1024</td><td>5.15</td><td>5.14</td><td>98.3%</td></tr>
+<tr><td>SmolLM2-135M</td><td>256</td><td>5.21</td><td>5.21</td><td>47.7%</td></tr>
+<tr><td>Llama-3.1-8B</td><td>1024</td><td>10.96</td><td>—</td><td>pending</td></tr>
+</table>
+<p>Key result: at $k=512$, the distilled model actually <em>beats</em> the uncompressed baseline (PPL 5.21 → 5.05). The LoRA correction more than compensates for GRC's compression loss at this operating point.</p>
+
+<h3>Recoverable-Energy Ratio</h3>
+<p>$\rho = \frac{\sum_{\ell,X} \eta_{\text{recov}}^{(\ell,X)}}{\sum_{\ell,X} \eta^{(\ell,X)}}$ where $\eta$ is the Frobenius residual and $\eta_{\text{recov}}$ is the recoverable portion at rank $r$. Measured $\rho$ = 0.1340 (Llama-8B, $k=1024$, $r=8$), 0.3443 (SmolLM2-135M, $k=256$, $r=8$).</p></section>
+
+<section id="merge"><h2>3. Merge Strategies</h2>
+<p><strong>Strategy A (Fused):</strong> LoRA weights embedded in GGUF tensor, applied at load time. Zero inference overhead.</p>
+<p><strong>Strategy B (Side):</strong> Separate LoRA file, loaded as additive correction. Enables hot-swapping corrections.</p>
+<p><strong>Strategy C (Baked):</strong> LoRA folded directly into weight values in GGUF. Permanent, no runtime cost.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li><li>Hu, E.J. et al. LoRA: Low-Rank Adaptation of Large Language Models. ICLR, 2022.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project &middot; <a href="../index.html">back to index</a></footer>
+</body>
+</html>

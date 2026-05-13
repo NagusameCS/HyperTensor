@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task-Level Impact of GRC Compression, HyperTensor Paper VI</title>
+<link rel="canonical" href="https://nagusamecs.github.io/HyperTensor/papers/06-task-level-impact.html">
+<meta name="robots" content="index, follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']],tags:'ams'},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<link rel="stylesheet" href="../assets/reader.css"><link rel="stylesheet" href="../assets/paper.css"><script src="../assets/reader.js"></script>
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="../index.html"><span>Nagusame</span>CS</a>
+  <ul class="nav-links">
+    <li><a href="../index.html">All papers</a></li>
+    <li><a href="05-grc-light-distillation.html">Paper V</a></li>
+    <li><a href="07-ffn-cluster-compression.html">Paper VII</a></li>
+    <li><a href="08-gtc-as-rag.html">Paper VIII</a></li>
+    <li><a href="https://github.com/NagusameCS/HyperTensor">GitHub</a></li>
+  </ul>
+</nav>
+
+<header id="hero">
+  <div class="hero-tag">Paper VI &middot; May 2026 &middot; v1.0</div>
+  <h1 class="hero-title">Task-Level Impact of GRC Compression</h1>
+  <p class="hero-subtitle">GRC is faster — but does it still work? Full 5-benchmark sweep measuring what GRC preserves and what it costs.</p>
+  <div class="hero-meta">By William Ken Ohara Stewart (NagusameCS) &middot; <a href="https://github.com/NagusameCS/HyperTensor">Repository</a> &middot; <a href="../../ARXIV_SUBMISSIONS/paper-VI/task_level_impact.tex">TeX source</a></div>
+</header>
+
+<article class="paper-body">
+
+<section id="abstract"><h2>Abstract</h2>
+<p>Paper I demonstrated that GRC attention compression at $k=1024$ achieves 106.27% baseline throughput on Llama-3.1-8B. But what about task quality? This paper measures GRC's impact across five standard benchmarks: ARC-Challenge (factual reasoning), HellaSwag (commonsense), MMLU (multidisciplinary knowledge), GSM8K (math), and PIQA (physical reasoning). At $k=1024$, factual recall is near-baseline (ARC: 78.4% unchanged, HellaSwag: 79.8→79.2%), MMLU shows moderate degradation (64.9→62.4%), and math reasoning degrades the most (GSM8K: 49.7→41.5%). At $k=1536$, performance is nearly indistinguishable from baseline on all tasks except GSM8K (−2.1pp). The results validate the UGT zone-specialisation hypothesis: attention compression primarily affects construction-based reasoning (math, code) while discovery-based factual knowledge remains robust.</p></section>
+
+<section id="setup"><h2>1. Experimental Setup</h2>
+<p>Model: Llama-3.1-8B-Instruct Q4_K_M. Compression: GRC attention-only (Paper I protocol). Ranks tested: $k \in \{1024, 1536, 2048, 4096\}$ (4096 = uncompressed baseline). Benchmarks: ARC-Challenge (25-shot), HellaSwag (10-shot), MMLU (5-shot), GSM8K (5-shot), PIQA (0-shot). Evaluation: lm-evaluation-harness v0.4.4.</p></section>
+
+<section id="results"><h2>2. Results: Full Benchmark Sweep</h2>
+<table>
+<tr><th>Benchmark</th><th>$k=1024$</th><th>$k=1536$</th><th>$k=2048$</th><th>Baseline ($d=4096$)</th></tr>
+<tr><td>ARC-Challenge</td><td>78.4%</td><td>78.5%</td><td>78.4%</td><td>78.4%</td></tr>
+<tr><td>HellaSwag</td><td>79.2%</td><td>79.6%</td><td>79.7%</td><td>79.8%</td></tr>
+<tr><td>MMLU</td><td>62.4%</td><td>63.7%</td><td>64.5%</td><td>64.9%</td></tr>
+<tr><td>GSM8K</td><td>41.5%</td><td>47.6%</td><td>49.1%</td><td>49.7%</td></tr>
+<tr><td>PIQA</td><td>78.8%</td><td>79.0%</td><td>79.2%</td><td>79.3%</td></tr>
+</table>
+
+<h3>Key Findings</h3>
+<p><strong>Factual recall is robust:</strong> ARC-Challenge shows zero degradation at any compression level. HellaSwag and PIQA lose only 0.5–0.6pp at $k=1024$. These tasks rely on stored factual/commonsense knowledge that attention compression preserves.</p>
+<p><strong>Math reasoning degrades:</strong> GSM8K drops 8.2pp at $k=1024$, recovering to within 2.1pp at $k=1536$. Math requires multi-step reasoning chains where attention quality matters more.</p>
+<p><strong>MMLU is intermediate:</strong> 2.5pp drop at $k=1024$, near-baseline at $k=1536. MMLU's mixed fact/reasoning structure explains the intermediate sensitivity.</p>
+<p><strong>$k=1536$ is the sweet spot:</strong> Nearly indistinguishable from baseline on all tasks except GSM8K (−2.1pp). This matches the L2 cache-fit prediction from Paper IX ($k^* \approx 1536$ for 36 MB L2).</p></section>
+
+<section id="zones"><h2>3. UGT Zone Hypothesis Validation</h2>
+<p>The results align with the Universal Geodesic Taxonomy (Paper XI): attention compression primarily affects Construction-based knowledge (math, code — internal logic systems) while Discovery-based knowledge (factual recall, trivia — external reality) remains robust. GSM8K (Construction × Objective) shows the largest degradation; ARC (Discovery × Objective) shows none. This provides empirical support for the 2×2 zone taxonomy.</p></section>
+
+<section id="references"><h2>References</h2>
+<ol><li>Stewart, W.K.O. GRC Attention Compression. HyperTensor Paper I, 2026.</li><li>Stewart, W.K.O. Universal Geodesic Taxonomy. HyperTensor Paper XI, 2026.</li><li>Gao, L. et al. lm-evaluation-harness. GitHub, 2024.</li></ol></section>
+</article>
+<footer class="paper-footer">&copy; HyperTensor Project &middot; <a href="../index.html">back to index</a></footer>
+</body>
+</html>
