@@ -1,267 +1,185 @@
 """
-Live web server for ht-repro — serves an Anthropic-style dashboard
-with real-time test execution, streaming output, and result history.
-
-Uses only stdlib (http.server) — no Flask, no dependencies.
+ht-repro localhost server — API / SSE / test queue / GPU config / stop.
+Pure stdlib. No Flask, no dependencies.
 """
-import json
-import os
-import queue
-import re
-import subprocess
-import sys
-import threading
-import time
+import json, os, queue, subprocess, sys, threading, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from typing import Optional
 
-from .catalog import load_catalog, find_test, EXPECTED_OUTPUTS
-from .runner import load_results, save_results, has_gpu
-from .setup_wizard import run_setup as get_env_report
+from .catalog import load_catalog, find_test
+from .runner import load_results, save_results
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 THIS_DIR = Path(__file__).resolve().parent
 
-# ── SSE Event Bus ──────────────────────────────────────────────────
-_event_queues: list = []  # List of queue.Queue for connected clients
+# State
+_queues = []
+_proc = None
+_proc_id = None
+_lock = threading.Lock()
+_gpu = {"device": "auto", "vram_limit_gb": 0, "warn_baseline_pct": 75.0}
 
-def broadcast_event(event: str, data: dict):
-    """Send an SSE event to all connected clients."""
+def broadcast(event, data):
     payload = f"event: {event}\ndata: {json.dumps(data)}\n\n"
-    dead = []
-    for q in _event_queues:
-        try:
-            q.put_nowait(payload)
-        except queue.Full:
-            dead.append(q)
-    for q in dead:
-        _event_queues.remove(q)
+    dead = []; _ = [dead.append(q) if q.full() else q.put_nowait(payload) for q in _queues]
+    for q in dead: _queues.remove(q)
 
-# ── Live Test Runner (background thread) ───────────────────────────
-def run_test_live(test_id: str):
-    """Run a test in background, streaming output line-by-line via SSE."""
-    test = find_test(test_id)
-    if not test:
-        broadcast_event("error", {"test_id": test_id, "msg": "Test not found"})
-        return
+def gpu_check():
+    try:
+        import pynvml; pynvml.nvmlInit()
+        h = pynvml.nvmlDeviceGetHandleByIndex(0)
+        u = pynvml.nvmlDeviceGetUtilizationRates(h)
+        m = pynvml.nvmlDeviceGetMemoryInfo(h); pynvml.nvmlShutdown()
+        p = (m.used/m.total)*100
+        if u.gpu > _gpu["warn_baseline_pct"] or p > 50:
+            return {"warn": True, "gpu_pct": u.gpu, "vram_pct": round(p,1),
+                    "msg": f"GPU at {u.gpu}% util / {p:.0f}% VRAM — background usage may affect benchmark accuracy."}
+        return {"warn": False, "gpu_pct": u.gpu, "vram_pct": round(p,1)}
+    except: return {"warn": False, "gpu_pct": 0, "vram_pct": 0}
 
-    broadcast_event("test_start", {"test_id": test_id, "name": test["name"]})
+def run_test(tid):
+    global _proc, _proc_id
+    t = find_test(tid)
+    if not t: broadcast("error", {"test_id": tid, "msg": "Not found"}); return
 
-    script_path = ROOT / test["script"]
-    if not script_path.exists():
-        broadcast_event("test_error", {"test_id": test_id, "msg": f"Script not found: {script_path}"})
-        return
+    g = gpu_check()
+    if g.get("warn"): broadcast("gpu_warn", g)
+
+    broadcast("test_start", {"test_id": tid, "name": t["name"], "tier": t["tier"], "paper": t["paper"]})
+    sp = ROOT / t["script"]
+    if not sp.exists(): broadcast("test_error", {"test_id": tid, "msg": f"Script missing: {sp}"}); return
 
     t0 = time.time()
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT)
-    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONPATH"] = str(ROOT); env["PYTHONUNBUFFERED"] = "1"
+    if _gpu["device"] != "auto": env["CUDA_VISIBLE_DEVICES"] = str(_gpu["device"])
 
     try:
-        proc = subprocess.Popen(
-            [sys.executable, "-u", str(script_path)],
-            cwd=str(ROOT), env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1,
-        )
-
-        output_lines = []
-        for line in iter(proc.stdout.readline, ""):
-            if not line:
-                break
-            line = line.rstrip()
-            output_lines.append(line)
-            broadcast_event("test_output", {"test_id": test_id, "line": line})
-
-        proc.wait()
-        elapsed = time.time() - t0
-        output = "\n".join(output_lines)
-        passed = proc.returncode == 0
-
-        # Check expected
-        expected = test.get("desc", "")
-        if expected and expected.lower() in output.lower():
-            passed = True
-
-        broadcast_event("test_done", {
-            "test_id": test_id,
-            "passed": passed,
-            "time": round(elapsed, 2),
-            "output": output[-3000:],
-        })
-
-        # Save to results
-        results = load_results()
-        run_record = {
+        proc = subprocess.Popen([sys.executable, "-u", str(sp)], cwd=str(ROOT),
+            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        _proc = proc; _proc_id = tid
+        broadcast("status", {"running": True, "test_id": tid, "pid": proc.pid})
+        lines = []
+        for ln in iter(proc.stdout.readline, ""):
+            if not ln: break
+            l = ln.rstrip(); lines.append(l)
+            broadcast("test_output", {"test_id": tid, "line": l})
+        proc.wait(); elapsed = time.time() - t0
+        out = "\n".join(lines)
+        ok = proc.returncode == 0
+        exp = t.get("desc","")
+        if exp and exp.lower() in out.lower(): ok = True
+        broadcast("test_done", {"test_id": tid, "passed": ok, "time": round(elapsed,2), "output": out[-3000:]})
+        r = load_results(); r.setdefault("runs",[]).append({
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "tests": {test_id: {"status": "pass" if passed else "fail", "time": elapsed}},
-            "passed": 1 if passed else 0, "failed": 0 if passed else 1,
+            "tests": {tid: {"status": "pass" if ok else "fail", "time": elapsed}},
+            "passed": 1 if ok else 0, "failed": 0 if ok else 1,
             "skipped": 0, "total_time": elapsed,
-        }
-        results["runs"].append(run_record)
-        save_results(results)
-
+        }); save_results(r)
     except Exception as e:
-        elapsed = time.time() - t0
-        broadcast_event("test_error", {"test_id": test_id, "msg": str(e), "time": elapsed})
+        broadcast("test_error", {"test_id": tid, "msg": str(e), "time": time.time()-t0})
+    finally:
+        _proc = None; _proc_id = None
+        broadcast("status", {"running": False, "test_id": None, "pid": None})
 
-# ── Server ─────────────────────────────────────────────────────────
+def stop():
+    global _proc
+    if _proc and _proc.poll() is None:
+        _proc.terminate()
+        try: _proc.wait(timeout=3)
+        except subprocess.TimeoutExpired: _proc.kill()
+        broadcast("test_stopped", {"test_id": _proc_id})
+        return True
+    return False
 
-_INDEX_HTML = None
+# Handler
+_UI = None
+def ui():
+    global _UI
+    if _UI is None:
+        p = THIS_DIR / "server_ui.html"
+        _UI = p.read_text(encoding="utf-8") if p.exists() else "<h1>UI missing</h1>"
+    return _UI
 
-def get_index_html() -> str:
-    global _INDEX_HTML
-    if _INDEX_HTML is None:
-        path = THIS_DIR / "server_ui.html"
-        if path.exists():
-            _INDEX_HTML = path.read_text(encoding="utf-8")
-        else:
-            _INDEX_HTML = _FALLBACK_HTML
-    return _INDEX_HTML
-
-class Handler(BaseHTTPRequestHandler):
-    """HTTP handler for ht-repro server."""
-
-    def log_message(self, format, *args):
-        pass  # Silent
-
-    def _send_json(self, data, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
-
-    def _send_html(self, html, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(html.encode())
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def _j(self, d, c=200):
+        self.send_response(c); self.send_header("Content-Type","application/json")
+        self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
+        self.wfile.write(json.dumps(d).encode())
+    def _h(self, h, c=200):
+        self.send_response(c); self.send_header("Content-Type","text/html; charset=utf-8"); self.end_headers()
+        self.wfile.write(h.encode())
 
     def do_GET(self):
-        path = self.path.split("?")[0]
+        p = self.path.split("?")[0]
+        if p == "/api/catalog": return self._j(load_catalog())
+        if p == "/api/env":
+            from .setup_wizard import run_setup as env_report
+            r = env_report(interactive=False); r["gpu_config"] = _gpu; return self._j(r)
+        if p == "/api/results": return self._j(load_results())
+        if p == "/api/gpu_check": return self._j(gpu_check())
+        if p == "/api/status": return self._j({"running": _proc is not None, "test_id": _proc_id})
 
-        # ── API Routes ──
-        if path == "/api/catalog":
-            self._send_json(load_catalog())
-            return
+        if p.startswith("/api/gpu_config"):
+            qs = self.path.split("?")[-1] if "?" in self.path else ""
+            for kv in qs.split("&"):
+                if "=" in kv:
+                    k,v = kv.split("=",1)
+                    if k in _gpu:
+                        try: _gpu[k] = float(v) if "." in v else int(v)
+                        except: _gpu[k] = v
+            return self._j({"ok": True, "gpu_config": _gpu})
 
-        if path == "/api/env":
-            report = get_env_report(interactive=False)
-            self._send_json(report)
-            return
-
-        if path == "/api/results":
-            results = load_results()
-            self._send_json(results)
-            return
-
-        if path == "/api/status":
-            results = load_results()
-            runs = results.get("runs", [])
-            last = runs[-1] if runs else None
-            passed = sum(r["passed"] for r in runs) if runs else 0
-            failed = sum(r["failed"] for r in runs) if runs else 0
-            skipped = sum(r["skipped"] for r in runs) if runs else 0
-            self._send_json({
-                "total_runs": len(runs),
-                "total_passed": passed,
-                "total_failed": failed,
-                "total_skipped": skipped,
-                "last_run": last,
-            })
-            return
-
-        if path == "/api/stream":
-            # SSE endpoint
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-
-            q = queue.Queue(maxsize=64)
-            _event_queues.append(q)
+        if p == "/api/stream":
+            self.send_response(200); self.send_header("Content-Type","text/event-stream")
+            self.send_header("Cache-Control","no-cache"); self.send_header("Connection","keep-alive")
+            self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
+            q = queue.Queue(maxsize=64); _queues.append(q)
             try:
-                # Send initial connected event
-                self.wfile.write(f"event: connected\ndata: {{}}\n\n".encode())
-                self.wfile.flush()
+                self.wfile.write(b"event: connected\ndata: {}\n\n"); self.wfile.flush()
                 while True:
-                    try:
-                        msg = q.get(timeout=15)
-                        self.wfile.write(msg.encode())
-                        self.wfile.flush()
-                    except queue.Empty:
-                        # Send keepalive
-                        self.wfile.write(f": keepalive\n\n".encode())
-                        self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
-                pass
+                    try: self.wfile.write(q.get(timeout=15).encode()); self.wfile.flush()
+                    except queue.Empty: self.wfile.write(b": keepalive\n\n"); self.wfile.flush()
+            except (BrokenPipeError,ConnectionResetError): pass
             finally:
-                if q in _event_queues:
-                    _event_queues.remove(q)
+                if q in _queues: _queues.remove(q)
             return
 
-        # ── Action Routes ──
-        if path.startswith("/api/run/"):
-            test_id = path.split("/api/run/")[1]
-            t = threading.Thread(target=run_test_live, args=(test_id,), daemon=True)
-            t.start()
-            self._send_json({"status": "started", "test_id": test_id})
-            return
+        if p.startswith("/api/run/"):
+            tid = p.split("/api/run/")[1]
+            if _proc and _proc.poll() is None: return self._j({"error": "already_running", "test_id": _proc_id}, 409)
+            threading.Thread(target=run_test, args=(tid,), daemon=True).start()
+            return self._j({"status": "started", "test_id": tid})
 
-        if path == "/api/run-all":
-            tier = self.path.split("tier=")[-1] if "tier=" in self.path else "T1"
-            catalog = [t for t in load_catalog() if t["tier"] == tier]
-            def run_all():
-                for t in catalog:
-                    run_test_live(t["id"])
-                    time.sleep(0.2)
-            t = threading.Thread(target=run_all, daemon=True)
-            t.start()
-            self._send_json({"status": "started", "count": len(catalog), "tier": tier})
-            return
+        if p == "/api/run_all":
+            tier = "T1"
+            if "?" in self.path:
+                for kv in self.path.split("?")[1].split("&"):
+                    if kv.startswith("tier="): tier = kv[5:]
+            if _proc and _proc.poll() is None: return self._j({"error": "already_running"}, 409)
+            tests = [t for t in load_catalog() if t["tier"] == tier]
+            def seq():
+                for tst in tests: run_test(tst["id"])
+            threading.Thread(target=seq, daemon=True).start()
+            return self._j({"status": "started", "count": len(tests), "tier": tier})
 
-        # ── Static UI ──
-        if path == "/" or path == "/index.html":
-            self._send_html(get_index_html())
-            return
+        if p == "/api/stop":
+            return self._j({"stopped": stop()})
 
-        self.send_response(404)
-        self.end_headers()
+        if p == "/" or p == "/index.html": return self._h(ui())
+        self.send_response(404); self.end_headers()
 
     def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "*")
-        self.end_headers()
+        self.send_response(204); self.send_header("Access-Control-Allow-Origin","*")
+        self.send_header("Access-Control-Allow-Methods","GET,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers","*"); self.end_headers()
 
-def start_server(port: int = 8765, open_browser: bool = True):
-    """Start the ht-repro localhost server."""
-    server = HTTPServer(("127.0.0.1", port), Handler)
-    url = f"http://localhost:{port}"
-
-    print(f"\n  {'─'*50}")
-    print(f"  ht-repro server running at {url}")
-    print(f"  Press Ctrl+C to stop")
-    print(f"  {'─'*50}\n")
-
+def start_server(port=8765, open_browser=True):
+    srv = HTTPServer(("127.0.0.1", port), H)
+    print(f"\n  ht-repro server — http://localhost:{port}")
+    print(f"  Press Ctrl+C to stop\n")
     if open_browser:
-        import webbrowser
-        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
-
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n  Shutting down...")
-        server.shutdown()
-
-# ── Fallback HTML (in case server_ui.html is missing) ──────────────
-_FALLBACK_HTML = """<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>ht-repro</title></head>
-<body style="background:#141413;color:#e8e6e3;font-family:system-ui;padding:40px">
-<h1>ht-repro Server</h1><p>UI file not found. API available at /api/catalog</p>
-</body></html>"""
+        import webbrowser; threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
+    try: srv.serve_forever()
+    except KeyboardInterrupt: print("\n  Shutting down..."); stop(); srv.shutdown()
