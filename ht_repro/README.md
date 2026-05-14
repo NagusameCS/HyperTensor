@@ -48,8 +48,17 @@ ht-repro summary        # print verified results summary
 | `ht-repro status` | Show last run results |
 | `ht-repro summary` | Print verified results summary |
 | `ht-repro setup` | Auto-detect environment + install deps |
-| `ht-repro dashboard` | Generate HTML results dashboard |
 | `ht-repro serve` | Start localhost web UI (http://localhost:8765) |
+| `ht-repro tools` | List all 9 tool categories (60+ tools) |
+| `ht-repro tools graft` | Model grafting/splicing tools |
+| `ht-repro tools bench` | Benchmarking tools |
+| `ht-repro tools train` | Training tools (NativeLinear, SHF, LoRA) |
+| `ht-repro tools compress` | Compression tools (GRC, FFN cluster, SVD) |
+| `ht-repro tools gtc` | GTC/manifold tools (trajectories, Jacobi) |
+| `ht-repro tools safety` | Safety tools (OGD, TEH, Snipe, Red-team) |
+| `ht-repro tools ugt` | UGT taxonomy tools (bilateral, zone mapping) |
+| `ht-repro tools models` | Model download, HF token, Ollama, GPU check |
+| `ht-repro tools models token-setup` | Configure HuggingFace token interactively |
 | `ht-repro update` | Self-update to latest version |
 | `ht-repro run <id>` | Run a specific test by ID |
 
