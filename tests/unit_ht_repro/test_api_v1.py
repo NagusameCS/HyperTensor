@@ -1,0 +1,123 @@
+"""Tests for ht_repro.api_v1 — REST routing + auth.
+These tests do NOT hit the network; they invoke the route() function directly."""
+import json
+
+
+class _Headers(dict):
+    """Dict-like that mimics email.message.Message.get()."""
+    def get(self, k, default=""):
+        return super().get(k, default)
+
+
+def _route(api, method, path, qs="", headers=None, body=None):
+    h = headers if headers is not None else _Headers()
+    b = json.dumps(body).encode() if body is not None else b""
+    return api.route(method, path, qs, h, b)
+
+
+# ── Auth ──
+def test_health_no_auth_required(no_auth):
+    code, body = _route(no_auth, "GET", "/api/v1/health")
+    assert code == 200
+    assert body["ok"] is True
+
+
+def test_auth_blocks_missing_token(with_auth):
+    code, body = _route(with_auth, "GET", "/api/v1/health")
+    assert code == 401
+    assert "unauthorized" in body["error"].lower()
+
+
+def test_auth_accepts_bearer_header(with_auth):
+    h = _Headers({"Authorization": "Bearer test-token-xyz"})
+    code, body = _route(with_auth, "GET", "/api/v1/health", headers=h)
+    assert code == 200
+
+
+def test_auth_accepts_token_query(with_auth):
+    code, body = _route(with_auth, "GET", "/api/v1/health",
+                        qs="token=test-token-xyz")
+    assert code == 200
+
+
+def test_auth_rejects_wrong_token(with_auth):
+    h = _Headers({"Authorization": "Bearer wrong"})
+    code, _ = _route(with_auth, "GET", "/api/v1/health", headers=h)
+    assert code == 401
+
+
+# ── GET routes ──
+def test_gpu_route(no_auth):
+    code, body = _route(no_auth, "GET", "/api/v1/gpu")
+    assert code == 200
+    assert "backend" in body
+
+
+def test_models_route(no_auth):
+    code, body = _route(no_auth, "GET", "/api/v1/models")
+    assert code == 200
+    assert "models" in body
+    assert isinstance(body["models"], list)
+
+
+def test_jobs_empty(no_auth):
+    code, body = _route(no_auth, "GET", "/api/v1/jobs")
+    assert code == 200
+    assert "jobs" in body
+
+
+def test_unknown_route_returns_404(no_auth):
+    code, body = _route(no_auth, "GET", "/api/v1/does-not-exist")
+    assert code == 404
+
+
+# ── POST routes ──
+def test_sort_route_no_hypersort_fallback(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/sort",
+                        body={"data": [3, 1, 2]})
+    assert code == 200
+    assert body["result"] == [1, 2, 3]
+    assert body["n"] == 3
+    assert "engine" in body
+
+
+def test_sort_reverse(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/sort",
+                        body={"data": [1, 2, 3], "reverse": True})
+    assert code == 200
+    assert body["result"] == [3, 2, 1]
+
+
+def test_sort_rejects_non_list(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/sort",
+                        body={"data": "not-a-list"})
+    assert code == 400
+
+
+def test_pull_model_requires_repo_id(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/models/pull", body={})
+    assert code == 400
+
+
+def test_infer_requires_model(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/infer", body={"prompt": "hi"})
+    assert code == 400
+
+
+def test_graft_requires_donor_recipient(no_auth):
+    code, body = _route(no_auth, "POST", "/api/v1/graft", body={"donor": "x"})
+    assert code == 400
+
+
+def test_invalid_json_body(no_auth):
+    h = _Headers()
+    code, body = _route(no_auth, "POST", "/api/v1/sort")
+    # empty body becomes {}, then sort rejects missing 'data'
+    assert code == 400
+
+
+def test_malformed_json(no_auth):
+    h = _Headers()
+    code, body = no_auth.route("POST", "/api/v1/sort", "", h, b"{not json")
+    assert code == 400
+    assert "json" in body["error"].lower()

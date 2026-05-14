@@ -551,7 +551,7 @@ float hc_ffn_cluster_compress(const float *gate, const float *up, const float *d
     
     /* Down: transposed (d_ffn  d) */
     memcpy(M, down, d_ffn * d * sizeof(float));
-    LAPACKE_sgesvd(LAPACK_COL_MAJOR, 'S', 'S', d_ffn, d, M, d_ffn, U, d_ffn, Vt, d, superb);
+    LAPACKE_sgesvd(LAPACK_COL_MAJOR, 'S', 'S', d_ffn, d, M, d_ffn, S, U, d_ffn, Vt, d, superb);
     memset(down_out, 0, d_ffn * d * sizeof(float));
     int32_t m_dn = d_ffn, n_dn = d;
     for (int32_t i = 0; i < m_dn; i++)

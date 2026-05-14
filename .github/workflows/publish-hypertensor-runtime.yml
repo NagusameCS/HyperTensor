@@ -1,0 +1,118 @@
+name: Build & Publish hypertensor-runtime
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    tags:
+      - 'runtime-v*'
+
+jobs:
+  build-wheels:
+    name: Build wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            plat: linux-x86_64
+            ext: so
+            exe: ""
+          - os: macos-latest
+            plat: mac-arm64
+            ext: dylib
+            exe: ""
+          - os: windows-latest
+            plat: win-amd64
+            ext: dll
+            exe: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ----- Linux: build libhypercore + geodessical via CMake -----
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libopenblas-dev liblapacke-dev
+          bash deploy/build_native.sh || true
+
+      # ----- macOS: brew openblas + CMake -----
+      - name: macOS deps
+        if: runner.os == 'macOS'
+        run: |
+          brew install openblas cmake ninja
+          export LDFLAGS="-L/opt/homebrew/opt/openblas/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/openblas/include"
+          bash deploy/build_native.sh || true
+
+      # ----- Windows: stage prebuilt geodessical.exe + fetch OpenBLAS DLL -----
+      - name: Windows OpenBLAS DLL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path hypertensor_runtime/bin/win-amd64/geodessical.exe)) {
+            Write-Warning "geodessical.exe not committed; wheel will be empty on this platform"
+          }
+          ./scripts/fetch_openblas_windows.ps1
+
+      - name: List staged natives
+        shell: bash
+        run: |
+          ls -la hypertensor_runtime/bin/ || true
+          find hypertensor_runtime/bin -type f || true
+
+      - name: Build wheel
+        working-directory: hypertensor_runtime
+        run: |
+          pip install --upgrade build
+          python -m build --wheel
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.plat }}
+          path: hypertensor_runtime/dist/*.whl
+
+  build-sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build sdist
+        working-directory: hypertensor_runtime
+        run: |
+          pip install --upgrade build
+          python -m build --sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: hypertensor_runtime/dist/*.tar.gz
+
+  publish:
+    needs: [build-wheels, build-sdist]
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/runtime-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -la dist/
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_RUNTIME }}
+        run: |
+          pip install twine
+          twine upload --skip-existing dist/*

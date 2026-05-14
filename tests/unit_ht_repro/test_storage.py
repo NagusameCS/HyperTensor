@@ -1,0 +1,84 @@
+"""Tests for ht_repro.storage — SQLite persistence layer."""
+import time
+import pytest
+
+
+def test_db_path_uses_env(isolated_storage):
+    import ht_repro.storage as s
+    assert str(isolated_storage["db"]) == s.db_path()
+
+
+def test_record_and_recent_runs():
+    import ht_repro.storage as s
+    rid = s.record_run("test", "unit-1", "pass", elapsed=0.5, output="hello")
+    assert isinstance(rid, int) and rid > 0
+    runs = s.recent_runs(limit=10)
+    assert len(runs) == 1
+    assert runs[0]["name"] == "unit-1"
+    assert runs[0]["status"] == "pass"
+
+
+def test_recent_runs_filters_by_kind():
+    import ht_repro.storage as s
+    s.record_run("test", "t1", "pass")
+    s.record_run("api", "a1", "pass")
+    s.record_run("tool", "to1", "fail")
+    assert len(s.recent_runs(kind="api")) == 1
+    assert len(s.recent_runs(kind="test")) == 1
+    assert len(s.recent_runs()) == 3
+
+
+def test_gtc_record_and_query():
+    import ht_repro.storage as s
+    s.record_gtc("gpt2", layer=0, sample_id="s1", metric="curvature", value=0.42)
+    s.record_gtc("gpt2", layer=1, sample_id="s1", metric="curvature", value=0.51)
+    s.record_gtc("gpt2", layer=0, sample_id="s1", metric="geodesic", value=1.7)
+    rows = s.gtc_for_model("gpt2")
+    assert len(rows) == 3
+    cur = s.gtc_for_model("gpt2", metric="curvature")
+    assert len(cur) == 2
+    assert all(r["metric"] == "curvature" for r in cur)
+
+
+def test_gtc_batch_insert():
+    import ht_repro.storage as s
+    batch = [
+        {"model": "m1", "layer": i, "metric": "curvature", "value": float(i)}
+        for i in range(20)
+    ]
+    s.record_gtc_batch(batch)
+    rows = s.gtc_for_model("m1")
+    assert len(rows) == 20
+
+
+def test_state_kv_roundtrip():
+    import ht_repro.storage as s
+    s.set_state("foo", {"a": 1, "b": [2, 3]})
+    got = s.get_state("foo")
+    assert got == {"a": 1, "b": [2, 3]}
+    assert s.get_state("missing") is None
+    assert s.get_state("missing", default={"x": 1}) == {"x": 1}
+
+
+def test_state_kv_upsert():
+    import ht_repro.storage as s
+    s.set_state("k", {"v": 1})
+    s.set_state("k", {"v": 2})
+    assert s.get_state("k") == {"v": 2}
+
+
+def test_register_and_list_models():
+    import ht_repro.storage as s
+    s.register_model("org/m1", local_path="/tmp/m1", size_gb=1.2)
+    s.register_model("org/m2", local_path="/tmp/m2", size_gb=4.5)
+    lst = s.list_models()
+    assert len(lst) == 2
+    ids = {m["repo_id"] for m in lst}
+    assert ids == {"org/m1", "org/m2"}
+    one = s.get_model("org/m1")
+    assert one["local_path"] == "/tmp/m1"
+
+
+def test_get_model_missing_returns_none():
+    import ht_repro.storage as s
+    assert s.get_model("does/not-exist") is None

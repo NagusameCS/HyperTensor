@@ -1,0 +1,43 @@
+"""Tests for ht_repro.models — model cache + resolution.
+Network-touching code is mocked or skipped."""
+import os
+from pathlib import Path
+import pytest
+
+
+def test_cache_root_uses_env(isolated_storage):
+    import ht_repro.models as m
+    assert str(isolated_storage["models"]) == m.cache_root()
+
+
+def test_list_cached_empty(isolated_storage):
+    import ht_repro.models as m
+    assert m.list_cached() == []
+
+
+def test_list_cached_after_register(isolated_storage):
+    import ht_repro.models as m
+    import ht_repro.storage as s
+    s.register_model("org/fake-model", local_path="/tmp/fake", size_gb=0.1)
+    lst = m.list_cached()
+    assert len(lst) == 1
+    assert lst[0]["repo_id"] == "org/fake-model"
+
+
+def test_resolve_returns_path_if_local(isolated_storage, tmp_path):
+    import ht_repro.models as m
+    p = tmp_path / "local_model"
+    p.mkdir()
+    (p / "config.json").write_text("{}")
+    out = m.resolve(str(p))
+    assert os.path.abspath(out) == os.path.abspath(str(p))
+
+
+def test_resolve_unknown_raises_or_attempts_download(isolated_storage, monkeypatch):
+    import ht_repro.models as m
+    # Force the network path to fail predictably
+    def boom(*a, **kw):
+        raise RuntimeError("network disabled in tests")
+    monkeypatch.setattr(m, "ensure", boom)
+    with pytest.raises(Exception):
+        m.resolve("definitely/not-cached-xyz123")

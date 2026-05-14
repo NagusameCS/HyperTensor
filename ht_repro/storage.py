@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS models (
     last_used REAL,
     meta_json TEXT
 );
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,            -- 'pull_model' | 'infer' | 'graft' | 'compress'
+    status TEXT NOT NULL,          -- 'queued' | 'running' | 'done' | 'error'
+    submitted REAL NOT NULL,
+    finished REAL,
+    payload_json TEXT,
+    result_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_submitted ON jobs(submitted);
 """
 
 
@@ -159,6 +171,44 @@ def list_models() -> list[dict]:
 
 def db_path() -> str:
     return str(_DB_PATH)
+
+
+# ── Jobs ──
+def record_job(jid: str, kind: str, status: str, payload: dict | None = None,
+               result: dict | None = None, submitted: float | None = None,
+               finished: float | None = None) -> None:
+    """Insert or replace a job row (idempotent — used for both create + update)."""
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO jobs(id,kind,status,submitted,finished,payload_json,result_json) "
+            "VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(id) DO UPDATE SET status=excluded.status, "
+            "finished=excluded.finished, result_json=excluded.result_json",
+            (jid, kind, status, submitted or time.time(), finished,
+             json.dumps(payload or {}), json.dumps(result or {})))
+
+
+def get_job(jid: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute(
+            "SELECT id,kind,status,submitted,finished,payload_json,result_json "
+            "FROM jobs WHERE id=?", (jid,)).fetchone()
+    if not r: return None
+    j = dict(zip(["id","kind","status","submitted","finished","payload","result"], r))
+    j["payload"] = json.loads(j["payload"] or "{}")
+    j["result"]  = json.loads(j["result"] or "{}")
+    return j
+
+
+def list_jobs(limit: int = 50, status: str | None = None) -> list[dict]:
+    q = "SELECT id,kind,status,submitted,finished FROM jobs"
+    args: tuple = ()
+    if status:
+        q += " WHERE status=?"; args = (status,)
+    q += " ORDER BY submitted DESC LIMIT ?"; args = args + (limit,)
+    with _conn() as c:
+        return [dict(zip(["id","kind","status","submitted","finished"], r))
+                for r in c.execute(q, args)]
 
 
 if __name__ == "__main__":

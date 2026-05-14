@@ -41,15 +41,31 @@ def _authorized(headers, qs: str) -> bool:
 
 def _job(kind: str, payload: dict) -> dict:
     jid = uuid.uuid4().hex[:12]
+    j = {"id": jid, "kind": kind, "status": "queued",
+         "submitted": time.time(), "payload": payload, "result": None}
     with _JOBS_LOCK:
-        _JOBS[jid] = {"id": jid, "kind": kind, "status": "queued",
-                      "submitted": time.time(), "payload": payload, "result": None}
-    return _JOBS[jid]
+        _JOBS[jid] = j
+    try:
+        storage.record_job(jid, kind, "queued", payload=payload,
+                           submitted=j["submitted"])
+    except Exception:
+        pass  # storage failure must never break the API
+    return j
 
 
 def _set_job(jid: str, **kw) -> None:
     with _JOBS_LOCK:
         if jid in _JOBS: _JOBS[jid].update(kw)
+        cur = _JOBS.get(jid, {})
+    try:
+        storage.record_job(
+            jid, cur.get("kind", "unknown"), cur.get("status", "unknown"),
+            payload=cur.get("payload") or {},
+            result=cur.get("result") or {},
+            submitted=cur.get("submitted"),
+            finished=cur.get("finished"))
+    except Exception:
+        pass
 
 
 # ── Handlers (each returns (status_code, dict_body)) ──
@@ -96,11 +112,29 @@ def gtc_for(model: str, qs: str) -> tuple[int, dict]:
 
 
 def jobs(jid: str | None) -> tuple[int, dict]:
-    with _JOBS_LOCK:
-        if jid:
+    # Single-job lookup: try in-memory first, then storage (for jobs from prior
+    # process lifetimes).
+    if jid:
+        with _JOBS_LOCK:
             j = _JOBS.get(jid)
-            return (200, j) if j else (404, {"error": "not found"})
-        return 200, {"jobs": list(_JOBS.values())[-50:]}
+        if j: return 200, j
+        try:
+            persisted = storage.get_job(jid)
+            if persisted: return 200, persisted
+        except Exception:
+            pass
+        return 404, {"error": "not found"}
+    # List: union of in-memory + persisted, deduped by id, most recent first.
+    with _JOBS_LOCK:
+        mem = list(_JOBS.values())
+    try:
+        persisted = storage.list_jobs(limit=200)
+    except Exception:
+        persisted = []
+    seen = {j["id"] for j in mem}
+    merged = mem + [p for p in persisted if p["id"] not in seen]
+    merged.sort(key=lambda j: j.get("submitted") or 0, reverse=True)
+    return 200, {"jobs": merged[:50]}
 
 
 def infer(body: dict) -> tuple[int, dict]:

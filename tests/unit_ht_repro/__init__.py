@@ -1,0 +1,2 @@
+# Tests for ht_repro internal modules.
+# Designed to run in CI without GPU / network / models.

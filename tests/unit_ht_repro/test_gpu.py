@@ -1,0 +1,51 @@
+"""Tests for ht_repro.gpu — backend detection abstraction."""
+
+
+def test_detect_returns_required_fields():
+    from ht_repro import gpu
+    info = gpu.detect()
+    assert "backend" in info
+    assert info["backend"] in ("cuda", "rocm", "mps", "cpu")
+    assert "device" in info
+    assert "name" in info
+    assert "count" in info
+    assert isinstance(info["count"], int)
+
+
+def test_backend_string():
+    from ht_repro import gpu
+    b = gpu.backend()
+    assert b in ("cuda", "rocm", "mps", "cpu")
+
+
+def test_device_auto_and_cpu():
+    from ht_repro import gpu
+    cpu = gpu.device("cpu")
+    assert str(cpu) == "cpu"
+    auto = gpu.device("auto")
+    assert auto is not None
+
+
+def test_env_for_subprocess_routes_backend():
+    from ht_repro import gpu
+    env = gpu.env_for_subprocess()
+    assert env.get("HT_BACKEND") in ("cuda", "rocm", "mps", "cpu")
+
+
+def test_gpu_compatible_decorator_passes_device():
+    from ht_repro.gpu import gpu_compatible
+
+    @gpu_compatible
+    def f(x, device=None):
+        return (x, device)
+
+    out = f(7)
+    assert out[0] == 7
+    assert out[1] is not None
+
+
+def test_summary_is_a_string():
+    from ht_repro import gpu
+    s = gpu.summary()
+    assert isinstance(s, str)
+    assert len(s) > 0

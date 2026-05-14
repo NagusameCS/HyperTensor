@@ -59,6 +59,80 @@ python scripts/ugtdomainmapper.py --model Qwen/Qwen2.5-0.5B-Instruct
 python scripts/jury_bridge.py
 ```
 
+## Quickstart — Reproduction Toolkit (ht-repro)
+
+The `ht-repro` toolkit packages the framework as an installable Python product:
+auto-downloads HuggingFace models, exposes a local REST API, persists run history
+and GTC trajectories to SQLite, and ships with a native runtime binary
+(`geodessical`).
+
+### Install (development)
+
+```bash
+git clone https://github.com/NagusameCS/HyperTensor.git
+cd HyperTensor
+pip install -e .                              # ht-repro + ht-graft CLIs
+pip install hypertensor_runtime/dist/*.whl    # bundled native binary
+
+# Windows: also fetch the OpenBLAS DLL the native binary links against
+pwsh scripts/fetch_openblas_windows.ps1
+```
+
+### Three-command demo
+
+```bash
+# 1. Start the web UI + REST API on http://localhost:8772
+ht-repro serve
+
+# 2. Pre-fetch a model into ~/.ht-repro/models  (any HuggingFace repo)
+ht-repro models pull Qwen/Qwen2.5-0.5B-Instruct
+
+# 3. Run a graft between two models — both auto-downloaded on demand
+ht-graft --donor Qwen/Qwen2.5-0.5B-Instruct \
+         --recipient gpt2 --layers 0,1,2
+```
+
+### REST API
+
+When `ht-repro serve` is running, the same operations are available over HTTP:
+
+```bash
+curl http://localhost:8772/api/v1/health
+curl http://localhost:8772/api/v1/gpu
+curl -X POST http://localhost:8772/api/v1/sort \
+     -H 'Content-Type: application/json' \
+     -d '{"data":[3,1,2]}'
+curl -X POST http://localhost:8772/api/v1/infer \
+     -H 'Content-Type: application/json' \
+     -d '{"model":"gpt2","prompt":"Hello"}'
+```
+
+Set `HT_REPRO_TOKEN=<secret>` to require `Authorization: Bearer <secret>` on every
+request. Jobs are persisted to `~/.ht-repro/store.db` and survive a server
+restart — query `GET /api/v1/jobs/<id>` to resume tracking after a reboot.
+
+### Python API
+
+```python
+from ht_repro import gpu, models, storage
+import hypertensor_runtime as hr
+
+gpu.summary()                           # 'CUDA — NVIDIA RTX 4070 Laptop (8.0 GB, 1 device(s))'
+path  = models.resolve("gpt2")          # auto-downloads if missing
+runs  = storage.recent_runs(limit=10)   # last 10 runs from SQLite
+
+# Invoke the bundled native binary directly
+hr.run_geodessical("--help")
+```
+
+### Run the test suite
+
+```bash
+pip install pytest
+pytest tests/unit_ht_repro -v   # 44 unit tests, no GPU/network required
+python tests/audit_commercial.py   # 33-check commercial-viability audit
+```
+
 ## Repository Layout
 
 | Directory | Contents |

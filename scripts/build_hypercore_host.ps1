@@ -1,0 +1,34 @@
+# Build libhypercore as a shared DLL on Windows using the zig cc toolchain.
+# Produces hypertensor_runtime/bin/win-amd64/hypercore.dll
+# Mirrors the CMake `hypercore` target.
+$ErrorActionPreference = 'Stop'
+$ROOT = $PSScriptRoot | Split-Path -Parent
+Set-Location $ROOT
+
+$OUT = "hypertensor_runtime/bin/win-amd64/hypercore.dll"
+$BUILD = "build_host"
+if (-not (Test-Path $BUILD)) { New-Item -ItemType Directory $BUILD | Out-Null }
+
+$CFLAGS = @(
+    "-target", "x86_64-windows-gnu",
+    "-O3", "-ffast-math",
+    "-msse2", "-mavx2", "-mfma",
+    "-fPIC",
+    "-Ihypercore", "-Ilib",
+    "-Ihost/shims/openblas/include",
+    "-Wno-unused-function", "-Wno-unused-variable",
+    "-Wno-incompatible-pointer-types", "-Wno-int-conversion",
+    "-Wno-sign-compare"
+)
+$SRCS = @("hypercore/hypercore.c", "lib/jury_gtc_kernel.c")
+$LDFLAGS = @("-shared", "host/shims/openblas/lib/libopenblas.lib", "-lm")
+
+Write-Host "Building $OUT ..." -ForegroundColor Cyan
+$argv = @('cc') + $CFLAGS + $SRCS + @('-o', $OUT) + $LDFLAGS
+& zig @argv
+if ($LASTEXITCODE -ne 0) { Write-Error "hypercore build failed"; exit 1 }
+
+# Also drop a copy next to geodessical so it can be loaded via ctypes
+Copy-Item $OUT "$BUILD\hypercore.dll" -Force
+$size = [math]::Round((Get-Item $OUT).Length / 1024, 1)
+Write-Host "SUCCESS: $OUT ($size KB)" -ForegroundColor Green

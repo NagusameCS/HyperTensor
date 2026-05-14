@@ -1,0 +1,38 @@
+"""Shared pytest fixtures for ht_repro tests."""
+import os, tempfile
+from pathlib import Path
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_storage(monkeypatch, tmp_path):
+    """Redirect ht_repro storage + model cache to a temp dir so tests never
+    touch the user's real ~/.ht-repro/ directory."""
+    db = tmp_path / "store.db"
+    models = tmp_path / "models"
+    models.mkdir()
+    monkeypatch.setenv("HT_REPRO_DB", str(db))
+    monkeypatch.setenv("HT_REPRO_MODELS", str(models))
+    # Force the modules to re-read the env var
+    import importlib
+    import ht_repro.storage as s
+    import ht_repro.models as m
+    importlib.reload(s)
+    importlib.reload(m)
+    yield {"db": db, "models": models}
+
+
+@pytest.fixture
+def no_auth(monkeypatch):
+    monkeypatch.delenv("HT_REPRO_TOKEN", raising=False)
+    import importlib, ht_repro.api_v1 as a
+    importlib.reload(a)
+    return a
+
+
+@pytest.fixture
+def with_auth(monkeypatch):
+    monkeypatch.setenv("HT_REPRO_TOKEN", "test-token-xyz")
+    import importlib, ht_repro.api_v1 as a
+    importlib.reload(a)
+    return a

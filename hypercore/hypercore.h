@@ -143,7 +143,7 @@ typedef struct {
     int32_t       capacity;
     int32_t       count;
     float         semantic_radius;  /* Max cosine distance for hit */
-} HCGTC cache;
+} HCGTCCache;
 
 /* ========================================================================
  * GRC Projection (Paper I)
