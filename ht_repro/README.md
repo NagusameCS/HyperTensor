@@ -24,8 +24,27 @@ git clone https://github.com/NagusameCS/HyperTensor
 cd HyperTensor/ht_repro && pip install -e .
 ```
 
+## � One-Click UI
+
+```bash
+# Double-click in File Explorer:
+ht-repro-ui.bat
+
+# Or from terminal:
+python -m ht_repro serve
+
+# Pin to desktop (run once):
+powershell -File create-shortcuts.ps1
+```
+
+Opens `http://localhost:8765` in your browser — live test runner with streaming output, GPU config, stop button, and full history.
 ## 🚀 Quick Start
 
+```bash
+ht-repro setup          # auto-detect environment, install deps
+ht-repro smoke          # 60-second Riemann core math test
+ht-repro list           # show all available tests
+ht-repro summary        # print verified results summary
 ```bash
 ht-repro setup          # auto-detect environment, install deps
 ht-repro smoke          # 60-second Riemann core math test
