@@ -1,0 +1,4 @@
+include hypertensor_runtime/bin/*/*
+include hypertensor_runtime/bin/**/*
+recursive-include hypertensor_runtime/bin *
+include README.md

@@ -35,10 +35,16 @@ def _search(name: str) -> Path | None:
     if os.environ.get("HT_RUNTIME_PATH"):
         candidates.append(Path(os.environ["HT_RUNTIME_PATH"]) / name)
     candidates.append(_PKG / "bin" / _platform_dir() / name)
+    # Sibling hypertensor-runtime package (if installed)
+    try:
+        import hypertensor_runtime as _hr  # type: ignore
+        candidates.append(Path(_hr.__file__).parent / "bin" / _platform_dir() / name)
+    except Exception:
+        pass
     for d in (os.environ.get("HT_LIB_DIR"), "/usr/local/lib", "/usr/lib", "/opt/hypertensor/lib"):
         if d: candidates.append(Path(d) / name)
-    root = _PKG.parent.parent
-    for sub in ("build_host", "build", "build_release"):
+    root = _PKG.parent
+    for sub in ("build_host", "build", "build_release", "hypertensor_runtime/bin/" + _platform_dir()):
         candidates.append(root / sub / name)
     for c in candidates:
         if c.exists(): return c

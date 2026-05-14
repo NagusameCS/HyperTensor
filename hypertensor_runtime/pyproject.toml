@@ -29,9 +29,8 @@ Homepage = "https://github.com/NagusameCS/HyperTensor"
 
 [tool.setuptools]
 include-package-data = true
-
-[tool.setuptools.packages.find]
-include = ["hypertensor_runtime*"]
+packages = ["hypertensor_runtime"]
+package-dir = {"hypertensor_runtime" = "."}
 
 [tool.setuptools.package-data]
-"hypertensor_runtime" = ["bin/*/*", "bin/**/*"]
+"hypertensor_runtime" = ["bin/*", "bin/**/*", "bin/*/*", "bin/*/*.exe", "bin/*/*.dll", "bin/*/*.so", "bin/*/*.dylib"]
