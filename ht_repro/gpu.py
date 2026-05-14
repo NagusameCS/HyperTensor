@@ -1,0 +1,93 @@
+"""
+ht_repro.gpu — GPU abstraction layer.
+
+Detects CUDA / ROCm / MPS / CPU and exposes a single `device()` and `backend()`
+plus a `gpu_compatible` decorator that routes a torch tensor function to the
+right backend without hard-coding `.cuda()` calls.
+
+Pure stdlib + optional torch.
+"""
+from __future__ import annotations
+import os, platform, functools
+from typing import Any, Callable
+
+_cache: dict | None = None
+
+
+def detect() -> dict:
+    """Return {backend, device, name, vram_gb, count}. backend in
+    {'cuda','rocm','mps','cpu'}. Caches result."""
+    global _cache
+    if _cache is not None:
+        return _cache
+    info = {"backend": "cpu", "device": "cpu", "name": "CPU", "vram_gb": 0.0, "count": 0}
+    try:
+        import torch  # type: ignore
+        if torch.cuda.is_available():
+            # Distinguish CUDA vs ROCm — torch.version.hip is set on ROCm builds
+            backend = "rocm" if getattr(torch.version, "hip", None) else "cuda"
+            info.update({
+                "backend": backend,
+                "device": "cuda:0",
+                "name": torch.cuda.get_device_name(0),
+                "vram_gb": round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 2),
+                "count": torch.cuda.device_count(),
+            })
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            info.update({"backend": "mps", "device": "mps", "name": f"Apple {platform.machine()}", "count": 1})
+    except Exception:
+        pass
+    _cache = info
+    return info
+
+
+def backend() -> str:
+    return detect()["backend"]
+
+
+def device(prefer: str | None = None):
+    """Return a torch.device or string for the best available backend.
+    `prefer` can be 'cpu' to force CPU even if GPU is present."""
+    if prefer == "cpu":
+        try:
+            import torch; return torch.device("cpu")
+        except ImportError:
+            return "cpu"
+    info = detect()
+    try:
+        import torch; return torch.device(info["device"])
+    except ImportError:
+        return info["device"]
+
+
+def gpu_compatible(fn: Callable) -> Callable:
+    """Decorator: injects `device` kwarg if the function accepts it,
+    otherwise just calls the function. Also sets CUDA_VISIBLE_DEVICES from env."""
+    @functools.wraps(fn)
+    def wrap(*a, **kw):
+        if "device" in fn.__code__.co_varnames and "device" not in kw:
+            kw["device"] = device()
+        return fn(*a, **kw)
+    return wrap
+
+
+def env_for_subprocess(visible: str | None = None) -> dict:
+    """Build an env dict for subprocess.Popen, honoring caller's device choice."""
+    env = os.environ.copy()
+    if visible is not None and visible != "auto":
+        env["CUDA_VISIBLE_DEVICES"] = str(visible)
+        env["HIP_VISIBLE_DEVICES"] = str(visible)
+    env["HT_BACKEND"] = backend()
+    return env
+
+
+def summary() -> str:
+    i = detect()
+    if i["backend"] == "cpu":
+        return f"CPU only ({platform.processor() or platform.machine()})"
+    return f"{i['backend'].upper()} — {i['name']} ({i['vram_gb']} GB, {i['count']} device(s))"
+
+
+if __name__ == "__main__":
+    print(summary())
+    print(detect())

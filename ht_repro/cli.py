@@ -151,7 +151,13 @@ def cmd_serve():
     from .server import start_server
     import sys
     daemon = "--daemon" in sys.argv
-    start_server(daemon=daemon)
+    no_browser = "--no-browser" in sys.argv
+    port = 8765
+    for i, a in enumerate(sys.argv):
+        if a == "--port" and i + 1 < len(sys.argv):
+            try: port = int(sys.argv[i+1])
+            except ValueError: pass
+    start_server(port=port, open_browser=not no_browser, daemon=daemon)
 
 def cmd_run(test_id: str):
     test = find_test(test_id)
@@ -283,7 +289,10 @@ quick start:
     sub.add_parser("setup", help="Auto-detect environment and install dependencies")
     sub.add_parser("update", help="Self-update to latest version")
     sub.add_parser("dashboard", help="Generate HTML results dashboard")
-    sub.add_parser("serve", help="Start localhost web UI (http://localhost:8765)")
+    p_serve = sub.add_parser("serve", help="Start localhost web UI (http://localhost:8765)")
+    p_serve.add_argument("--port", type=int, default=8765)
+    p_serve.add_argument("--daemon", action="store_true", help="bind 0.0.0.0 for network access")
+    p_serve.add_argument("--no-browser", action="store_true", help="don't auto-open browser")
 
     p_all = sub.add_parser("all", help="Run all tests for a tier")
     p_all.add_argument("tier", nargs="?", default="T1", choices=["T1","T2","T3"])

@@ -21,6 +21,6 @@ Usage:
 Based on the HyperTensor Geometric Jury framework (Papers I–XVIII).
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "William Ken Ohara Stewart (NagusameCS)"
 __license__ = "MIT"

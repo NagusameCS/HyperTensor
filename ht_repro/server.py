@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .catalog import load_catalog, find_test
 from .runner import load_results, save_results
+from . import api_v1, storage
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 THIS_DIR = Path(__file__).resolve().parent
@@ -70,6 +71,8 @@ def run_test(tid):
         exp = t.get("desc","")
         if exp and exp.lower() in out.lower(): ok = True
         broadcast("test_done", {"test_id": tid, "passed": ok, "time": round(elapsed,2), "output": out[-3000:]})
+        try: storage.record_run("test", tid, "pass" if ok else "fail", elapsed, out)
+        except Exception: pass
         r = load_results(); r.setdefault("runs",[]).append({
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "tests": {tid: {"status": "pass" if ok else "fail", "time": elapsed}},
@@ -226,13 +229,29 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/stop":
             return self._j({"stopped": stop()})
 
+        # ── REST API v1 ──
+        if p.startswith("/api/v1/"):
+            qs = self.path.split("?",1)[1] if "?" in self.path else ""
+            code, body = api_v1.route("GET", p, qs, self.headers, b"")
+            return self._j(body, code)
+
         if p == "/" or p == "/index.html": return self._h(ui())
+        self.send_response(404); self.end_headers()
+
+    def do_POST(self):
+        p = self.path.split("?")[0]
+        qs = self.path.split("?",1)[1] if "?" in self.path else ""
+        n = int(self.headers.get("Content-Length", "0") or 0)
+        body_bytes = self.rfile.read(n) if n else b""
+        if p.startswith("/api/v1/"):
+            code, body = api_v1.route("POST", p, qs, self.headers, body_bytes)
+            return self._j(body, code)
         self.send_response(404); self.end_headers()
 
     def do_OPTIONS(self):
         self.send_response(204); self.send_header("Access-Control-Allow-Origin","*")
-        self.send_header("Access-Control-Allow-Methods","GET,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers","*"); self.end_headers()
+        self.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers","*,Authorization"); self.end_headers()
 
 def start_server(port=8765, open_browser=True, daemon=False):
     host = "0.0.0.0" if daemon else "127.0.0.1"

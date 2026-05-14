@@ -1,0 +1,27 @@
+services:
+  ht-repro:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ht-repro
+    image: ht-repro:latest
+    container_name: ht-repro
+    restart: unless-stopped
+    ports:
+      - "${HT_REPRO_PORT:-8765}:8765"
+    environment:
+      HT_REPRO_TOKEN: "${HT_REPRO_TOKEN:-}"
+      HT_REPRO_DB: "/data/store.db"
+      HT_REPRO_MODELS: "/data/models"
+    volumes:
+      - ht_repro_data:/data
+    # Uncomment for GPU support (requires nvidia-container-toolkit on host)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  ht_repro_data:

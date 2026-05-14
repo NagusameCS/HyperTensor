@@ -1,0 +1,25 @@
+[Unit]
+Description=ht-repro API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ht-repro
+Group=ht-repro
+WorkingDirectory=/var/lib/ht-repro
+Environment=HT_REPRO_DB=/var/lib/ht-repro/store.db
+Environment=HT_REPRO_MODELS=/var/lib/ht-repro/models
+# Set this from /etc/ht-repro.env (chmod 600)
+EnvironmentFile=-/etc/ht-repro.env
+ExecStart=/usr/local/bin/ht-repro serve --port 8765 --daemon --no-browser
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ht-repro
+
+[Install]
+WantedBy=multi-user.target

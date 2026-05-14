@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ht-repro"
-version = "1.0.0"
+version = "1.1.0"
 description = "HyperTensor Reproduction CLI — one command to reproduce any paper result"
 readme = "README.md"
 license = { text = "MIT" }
@@ -32,6 +32,7 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 ht-repro = "ht_repro.cli:main"
+ht-graft = "ht_repro.graft_wrapper:main"
 
 [project.urls]
 Homepage = "https://github.com/NagusameCS/HyperTensor"

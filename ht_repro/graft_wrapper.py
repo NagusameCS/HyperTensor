@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+ht-graft — wrapper around scripts/hyper_graft.py that automatically downloads
+donor + recipient models from HuggingFace before invoking the underlying script.
+
+Usage:
+    ht-graft DONOR RECIPIENT [extra args passed through to hyper_graft.py]
+
+Example:
+    ht-graft mistralai/Mistral-7B-v0.1 meta-llama/Llama-3.1-8B \\
+        --layers 0-15 --out ./grafted
+"""
+from __future__ import annotations
+import argparse, os, subprocess, sys
+from pathlib import Path
+
+from . import models, gpu
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        prog="ht-graft",
+        description="Graft layers from DONOR into RECIPIENT, fetching both from HF if needed.")
+    ap.add_argument("donor")
+    ap.add_argument("recipient")
+    ap.add_argument("--script", default="scripts/hyper_graft.py",
+                    help="underlying script (default: scripts/hyper_graft.py)")
+    ap.add_argument("--cpu", action="store_true", help="use scripts/hyper_graft_cpu.py")
+    args, extra = ap.parse_known_args()
+
+    script_rel = "scripts/hyper_graft_cpu.py" if args.cpu else args.script
+    script = REPO_ROOT / script_rel
+    if not script.exists():
+        print(f"[ht-graft] script not found: {script}", file=sys.stderr)
+        return 2
+
+    print(f"[ht-graft] backend: {gpu.summary()}")
+    print(f"[ht-graft] resolving donor:     {args.donor}")
+    donor_path = models.resolve(args.donor)
+    print(f"[ht-graft] resolving recipient: {args.recipient}")
+    recip_path = models.resolve(args.recipient)
+
+    env = gpu.env_for_subprocess()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["HT_DONOR_PATH"] = donor_path
+    env["HT_RECIPIENT_PATH"] = recip_path
+
+    cmd = [sys.executable, "-u", str(script),
+           "--donor", donor_path, "--recipient", recip_path, *extra]
+    print(f"[ht-graft] running: {' '.join(cmd)}")
+    return subprocess.call(cmd, cwd=str(REPO_ROOT), env=env)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

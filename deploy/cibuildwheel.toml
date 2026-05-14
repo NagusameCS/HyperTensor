@@ -1,0 +1,21 @@
+# cibuildwheel config for hypertensor-runtime.
+# Builds per-platform wheels with bundled geodessical + libhypercore.
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-*"
+skip = "*-musllinux_* pp*"
+
+before-build = "bash deploy/build_native.sh"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+before-all = """
+    yum install -y cmake ninja-build openblas-devel lapack-devel || \
+    apt-get update && apt-get install -y cmake ninja-build libopenblas-dev liblapacke-dev
+"""
+
+[tool.cibuildwheel.macos]
+archs = ["arm64", "x86_64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]

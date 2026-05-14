@@ -1,0 +1,37 @@
+# Lightweight image dedicated to the ht-repro API server.
+# (For the full research stack including libhypercore.so, see the
+#  top-level Dockerfile instead.)
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates git && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy only what's needed for ht-repro
+COPY ht_repro/ /app/ht_repro/
+COPY README.md /app/README.md
+
+# Install ht-repro + optional deps the API server uses.
+RUN pip install /app/ht_repro && \
+    pip install huggingface_hub numpy
+
+# Optional: install torch CPU by default. Override via build-arg for CUDA wheels.
+ARG TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+RUN pip install --index-url "${TORCH_INDEX}" torch || true
+
+# Non-root
+RUN useradd -m -s /bin/bash app
+USER app
+WORKDIR /home/app
+
+ENV HT_REPRO_DB=/home/app/.ht-repro/store.db
+ENV HT_REPRO_MODELS=/home/app/.ht-repro/models
+
+EXPOSE 8765
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8765/api/v1/health || exit 1
+
+CMD ["ht-repro", "serve", "--port", "8765", "--daemon", "--no-browser"]

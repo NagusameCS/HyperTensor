@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypertensor-runtime"
+version = "0.1.0"
+description = "Native C runtime (geodessical binary + libhypercore) for the HyperTensor framework"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "William Ken Ohara Stewart", email = "nagusamecs@gmail.com" }]
+requires-python = ">=3.9"
+keywords = ["hypertensor", "runtime", "geodessical", "hypercore", "native"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.scripts]
+geodessical = "hypertensor_runtime:cli_main"
+
+[project.urls]
+Homepage = "https://github.com/NagusameCS/HyperTensor"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["hypertensor_runtime*"]
+
+[tool.setuptools.package-data]
+"hypertensor_runtime" = ["bin/*/*", "bin/**/*"]
