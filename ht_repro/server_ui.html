@@ -106,6 +106,7 @@ footer a:hover{color:var(--accent);text-decoration-color:var(--accent)}
 <a class="nav-brand" href="#">Nagusame<span style="color:var(--accent)">CS</span></a>
 <ul class="nav-links">
 <li><a href="#" class="active" data-tab="run">Run</a></li>
+<li><a href="#" data-tab="tools">Tools</a></li>
 <li><a href="#" data-tab="history">History</a></li>
 <li><a href="#" data-tab="about">About</a></li>
 <li><a href="https://nagusamecs.github.io/HyperTensor/" target="_blank">Website</a></li>
@@ -144,6 +145,26 @@ footer a:hover{color:var(--accent);text-decoration-color:var(--accent)}
 
 <span class="section-label" style="margin-top:1.8rem">Test Catalog</span>
 <div class="cards" id="cards"></div>
+</div>
+
+<!-- TOOLS -->
+<div class="tab-panel" id="tab-tools">
+<span class="section-label">HyperTensor Tools</span>
+<h2>Graft, Bench, Train, Compress, GTC, Safety, UGT, Models</h2>
+
+<div class="action-bar">
+<select id="tool-cat" onchange="loadToolCat()" style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;border:1px solid var(--border);border-radius:6px;padding:.4rem .8rem;background:var(--bg);color:var(--text)">
+<option value="">Select category...</option></select>
+<button class="btn danger" id="btn-stop2" style="display:none" onclick="stop()">Stop</button>
+<button class="btn small" onclick="document.getElementById('cfg').classList.toggle('visible')">GPU Config</button>
+</div>
+
+<div class="gpu-warn" id="gpu-warn2"></div>
+
+<div class="cards" id="tool-cards"></div>
+
+<div class="term"><div class="term-bar"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><span class="ttl" id="t-t2">output</span></div>
+<div class="term-body" id="t-o2"><div class="line i">Select a tool category above, then click a tool to run it. Live output appears here.</div></div></div>
 </div>
 
 <!-- HISTORY -->
@@ -228,10 +249,14 @@ function connectSSE(){if(sse)sse.close();sse=new EventSource('/api/stream');
  sse.addEventListener('test_error',function(e){var d=JSON.parse(e.data);tLog('ERROR: '+d.msg,'e');rs.f++;rs.d++;updS();updP();idle()});
  sse.addEventListener('gpu_warn',function(e){var d=JSON.parse(e.data);S('gpu-warn').textContent='GPU warning: '+d.msg;S('gpu-warn').style.display='block'});
  sse.addEventListener('status',function(e){var d=JSON.parse(e.data);if(!d.running)idle()});
+ sse.addEventListener('tool_start',function(e){var d=JSON.parse(e.data);S('t-o2').innerHTML+='<div class="line i">--- '+d.name+' ---</div>';S('t-o2').scrollTop=S('t-o2').scrollHeight;S('btn-stop2').style.display='';var c=S('tcard-'+d.tool_id.split('/')[1]);if(c)c.classList.add('running')});
+ sse.addEventListener('tool_output',function(e){var d=JSON.parse(e.data),c='';if(/ERROR|FAIL/.test(d.line))c='e';else if(/PASS|OK/.test(d.line))c='o';else if(/WARN/.test(d.line))c='w';S('t-o2').innerHTML+='<div class="line '+c+'">'+d.line+'</div>';S('t-o2').scrollTop=S('t-o2').scrollHeight});
+ sse.addEventListener('tool_done',function(e){var d=JSON.parse(e.data);S('t-o2').innerHTML+='<div class="line '+(d.passed?'o':'e')+'">'+(d.passed?'PASSED':'FAILED')+' ('+d.time+'s)</div>';S('t-o2').scrollTop=S('t-o2').scrollHeight;S('btn-stop2').style.display='none';var cs=document.querySelectorAll('.card.running');for(var i=0;i<cs.length;i++)cs[i].classList.remove('running')});
+ sse.addEventListener('tool_error',function(e){var d=JSON.parse(e.data);S('t-o2').innerHTML+='<div class="line e">ERROR: '+d.msg+'</div>';S('t-o2').scrollTop=S('t-o2').scrollHeight;S('btn-stop2').style.display='none'});
  sse.onerror=function(){setTimeout(connectSSE,2000)}
 }
 function showRun(id){S('btn-stop').style.display='';var c=S('card-'+id);if(c)c.classList.add('running')}
-function idle(){S('btn-stop').style.display='none';var cs=document.querySelectorAll('.card.running');for(var i=0;i<cs.length;i++)cs[i].classList.remove('running')}
+function idle(){S('btn-stop').style.display='none';S('btn-stop2').style.display='none';var cs=document.querySelectorAll('.card.running');for(var i=0;i<cs.length;i++)cs[i].classList.remove('running')}
 
 // Actions
 async function runOne(id){if(!svrUp)return;if(rs.t>rs.d)return;S('gpu-warn').style.display='none';try{await api('api/run/'+id)}catch(e){}}
@@ -245,7 +270,8 @@ for(var i=0;i<navs.length;i++){navs[i].addEventListener('click',function(e){e.pr
  for(var j=0;j<navs.length;j++)navs[j].classList.remove('active');this.classList.add('active');
  var ps=document.querySelectorAll('.tab-panel');for(var k=0;k<ps.length;k++)ps[k].classList.remove('active');
  S('tab-'+this.dataset.tab).classList.add('active');
- if(this.dataset.tab==='history')renderHist()
+ if(this.dataset.tab==='history')renderHist();
+ if(this.dataset.tab==='tools')loadToolCats()
 })}
 
 function renderHist(){
@@ -265,6 +291,32 @@ function renderHist(){
  });
  S('h-c').innerHTML=h
 }
+
+// Tools
+var toolCats={};
+async function loadToolCats(){
+ try{var d=await api('api/tools');toolCats=d;var sel=S('tool-cat');sel.innerHTML='<option value="">Select category...</option>';
+  Object.keys(d).forEach(function(c){sel.innerHTML+='<option value="'+c+'">'+c+' ('+Object.keys(d[c]).length+')</option>'});}
+ catch(e){}
+}
+function loadToolCat(){
+ var cat=S('tool-cat').value;
+ if(!cat){S('tool-cards').innerHTML='';return}
+ var tools=toolCats[cat]||{},h='';
+ Object.keys(tools).forEach(function(id){
+  var t=tools[id];
+  h+='<div class="card" onclick="runTool(\''+cat+'\',\''+id+'\')" id="tcard-'+id+'">'
+   +'<div class="card-head"><span class="card-id">'+id+'</span><span class="card-tier '+(t.tier==='T1'?'t1':t.tier==='T2'?'t2':'t3')+'">'+t.tier+'</span></div>'
+   +'<div class="card-name">'+t.name+'</div></div>';
+ });
+ S('tool-cards').innerHTML=h
+}
+async function runTool(cat,id){
+ if(!svrUp)return;S('gpu-warn2').style.display='none';S('btn-stop2').style.display='';
+ S('t-o2').innerHTML='<div class="line i">Running: '+cat+'/'+id+'...</div>';
+ try{await api('api/run_tool/'+cat+'/'+id)}catch(e){}
+}
+// SSE tool listeners are in connectSSE
 
 init();
 </script>

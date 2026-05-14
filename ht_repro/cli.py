@@ -149,7 +149,9 @@ def cmd_dashboard():
 def cmd_serve():
     """Start localhost web UI."""
     from .server import start_server
-    start_server()
+    import sys
+    daemon = "--daemon" in sys.argv
+    start_server(daemon=daemon)
 
 def cmd_run(test_id: str):
     test = find_test(test_id)

@@ -92,6 +92,47 @@ def stop():
         return True
     return False
 
+# ── Tool Runner (live-streamed via SSE) ─────────────────────────
+def run_tool_live(category: str, tool_id: str):
+    global _proc, _proc_id
+    from .tools_catalog import TOOLS
+    tools = TOOLS.get(category, {})
+    t = tools.get(tool_id)
+    if not t:
+        broadcast("error", {"msg": f"Tool not found: {category}/{tool_id}"}); return
+
+    g = gpu_check()
+    if g.get("warn"): broadcast("gpu_warn", g)
+
+    tid = f"{category}/{tool_id}"
+    broadcast("tool_start", {"tool_id": tid, "name": t["desc"], "category": category, "tier": t["tier"]})
+    sp = ROOT / t["script"] if t.get("script") else None
+    if not sp or not sp.exists():
+        broadcast("tool_error", {"tool_id": tid, "msg": f"Script missing: {sp}" if sp else "Built-in — no script"})
+        return
+
+    t0 = time.time()
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT); env["PYTHONUNBUFFERED"] = "1"
+    if _gpu["device"] != "auto": env["CUDA_VISIBLE_DEVICES"] = str(_gpu["device"])
+
+    try:
+        proc = subprocess.Popen([sys.executable, "-u", str(sp)], cwd=str(ROOT),
+            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        _proc = proc; _proc_id = tid
+        broadcast("status", {"running": True, "test_id": tid, "pid": proc.pid})
+        for ln in iter(proc.stdout.readline, ""):
+            if not ln: break
+            broadcast("tool_output", {"tool_id": tid, "line": ln.rstrip()})
+        proc.wait(); elapsed = time.time() - t0
+        ok = proc.returncode == 0
+        broadcast("tool_done", {"tool_id": tid, "passed": ok, "time": round(elapsed,2)})
+    except Exception as e:
+        broadcast("tool_error", {"tool_id": tid, "msg": str(e)})
+    finally:
+        _proc = None; _proc_id = None
+        broadcast("status", {"running": False, "test_id": None, "pid": None})
+
 # Handler
 _UI = None
 def ui():
@@ -120,6 +161,24 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/results": return self._j(load_results())
         if p == "/api/gpu_check": return self._j(gpu_check())
         if p == "/api/status": return self._j({"running": _proc is not None, "test_id": _proc_id})
+
+        # Tool catalog
+        if p == "/api/tools":
+            from .tools_catalog import TOOLS
+            cats = {}
+            for cat, tools in TOOLS.items():
+                cats[cat] = {tid: {"name": t["desc"], "tier": t["tier"], "usage": t.get("usage",""), "builtin": t.get("script") is None}
+                             for tid, t in tools.items()}
+            return self._j(cats)
+
+        if p.startswith("/api/run_tool/"):
+            parts = p.split("/")
+            if len(parts) >= 5:
+                cat, tid = parts[3], parts[4]
+                if _proc and _proc.poll() is None: return self._j({"error": "already_running"}, 409)
+                threading.Thread(target=run_tool_live, args=(cat, tid), daemon=True).start()
+                return self._j({"status": "started", "tool_id": f"{cat}/{tid}"})
+            return self._j({"error": "usage: /api/run_tool/<category>/<tool_id>"}, 400)
 
         if p.startswith("/api/gpu_config"):
             qs = self.path.split("?")[-1] if "?" in self.path else ""
@@ -175,11 +234,12 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods","GET,OPTIONS")
         self.send_header("Access-Control-Allow-Headers","*"); self.end_headers()
 
-def start_server(port=8765, open_browser=True):
-    srv = HTTPServer(("127.0.0.1", port), H)
-    print(f"\n  ht-repro server — http://localhost:{port}")
+def start_server(port=8765, open_browser=True, daemon=False):
+    host = "0.0.0.0" if daemon else "127.0.0.1"
+    srv = HTTPServer((host, port), H)
+    print(f"\n  ht-repro — http://localhost:{port}" + (" (daemon, network-accessible)" if daemon else ""))
     print(f"  Press Ctrl+C to stop\n")
     if open_browser:
-        import webbrowser; threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
+        import webbrowser; threading.Timer(0.8, lambda: webbrowser.open(f"http://localhost:{port}")).start()
     try: srv.serve_forever()
     except KeyboardInterrupt: print("\n  Shutting down..."); stop(); srv.shutdown()
