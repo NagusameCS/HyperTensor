@@ -1,0 +1,2 @@
+"""HuggingFace compatibility layer: offline geometric compression."""
+from .compress import compress_hf_model, compress_state_dict  # noqa: F401

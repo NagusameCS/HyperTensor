@@ -1,0 +1,68 @@
+"""Test HF compress state-dict path without requiring a real HF model."""
+import numpy as np
+import pytest
+
+from hyperretro.hf.compress import (
+    CompressConfig,
+    compress_state_dict,
+    _group_attn_by_layer,
+)
+
+
+def _fake_state_dict(n_layers=2, d=64, m=64, rng=None):
+    rng = rng or np.random.default_rng(0)
+    sd = {}
+    for li in range(n_layers):
+        sd[f"model.layers.{li}.self_attn.q_proj.weight"] = rng.standard_normal((m, d)).astype(np.float32)
+        sd[f"model.layers.{li}.self_attn.k_proj.weight"] = rng.standard_normal((m, d)).astype(np.float32)
+        sd[f"model.layers.{li}.self_attn.v_proj.weight"] = rng.standard_normal((m, d)).astype(np.float32)
+        sd[f"model.layers.{li}.mlp.gate_proj.weight"] = rng.standard_normal((m, d)).astype(np.float32)
+    return sd
+
+
+def test_group_attn_by_layer_finds_qkv():
+    sd = _fake_state_dict(n_layers=3)
+    g = _group_attn_by_layer(sd)
+    assert set(g.keys()) == {0, 1, 2}
+    for layer in g.values():
+        assert set(layer.keys()) == {"q", "k", "v"}
+
+
+def test_compress_state_dict_reduces_rank():
+    sd = _fake_state_dict(n_layers=1, d=64, m=32)
+    orig_q = sd["model.layers.0.self_attn.q_proj.weight"].copy()
+    cfg = CompressConfig(rank_k=8, sink_T=0)
+    stats = compress_state_dict(sd, cfg)
+    new_q = sd["model.layers.0.self_attn.q_proj.weight"]
+    # Projection must have actually changed the matrix.
+    assert not np.allclose(orig_q, new_q)
+    # Effective column-rank is bounded by k=8.
+    assert np.linalg.matrix_rank(new_q, tol=1e-5) <= 8 + 1
+    info = stats["layer_0"]
+    assert info["rank_k"] == 8
+    assert 0.0 <= info["frob_relerr_q"] <= 1.5
+
+
+def test_compress_state_dict_sink_aware_preserves_sink_columns():
+    sd = _fake_state_dict(n_layers=1, d=64, m=32)
+    # Inflate one column so it is unambiguously a sink.
+    for k in ["model.layers.0.self_attn.q_proj.weight",
+              "model.layers.0.self_attn.k_proj.weight",
+              "model.layers.0.self_attn.v_proj.weight"]:
+        sd[k][:, 0] *= 100.0
+    orig_q_col0 = sd["model.layers.0.self_attn.q_proj.weight"][:, 0].copy()
+    cfg = CompressConfig(rank_k=8, sink_T=1)
+    compress_state_dict(sd, cfg)
+    new_q_col0 = sd["model.layers.0.self_attn.q_proj.weight"][:, 0]
+    np.testing.assert_allclose(new_q_col0, orig_q_col0, rtol=1e-5, atol=1e-5)
+
+
+def test_compress_state_dict_skips_non_listed_layers():
+    sd = _fake_state_dict(n_layers=3, d=32, m=32)
+    orig = sd["model.layers.1.self_attn.q_proj.weight"].copy()
+    cfg = CompressConfig(rank_k=4, sink_T=0, layers=[0, 2])
+    stats = compress_state_dict(sd, cfg)
+    assert "layer_0" in stats and "layer_2" in stats and "layer_1" not in stats
+    np.testing.assert_array_equal(
+        sd["model.layers.1.self_attn.q_proj.weight"], orig
+    )

@@ -59,6 +59,31 @@ python scripts/ugtdomainmapper.py --model Qwen/Qwen2.5-0.5B-Instruct
 python scripts/jury_bridge.py
 ```
 
+## HyperRetro — Integrated Hybrid Mode
+
+Alongside the standalone HyperTensor runtime, the [`hyperretro/`](hyperretro/)
+sub-project retrofits the same geometric primitives into the standard
+PyTorch / HuggingFace / vLLM stack — FlashAttention-style: just `import
+hyperretro` and the kernels run under the hood.
+
+- **PyTorch extension**: `hyperretro.gemv_dual_q8_0(x, Wa, Wb)` wraps the
+  fused dual-Q8 GEMV from `runtime/nn/cuda_kernels.cu` as a JIT-built
+  `torch.utils.cpp_extension`, with torch/numpy fallbacks. Smoke bench
+  on this machine shows ~2.3× over two separate Q8 GEMVs
+  (`benchmarks/hyperretro_kernel_smoke.json`).
+- **HuggingFace compression**: `hyperretro-compress --model … --rank 1024
+  --sink 4 --out …` loads a vanilla HF model, applies GRC / sink-aware
+  projection, and writes the result as standard `.safetensors` — fully
+  loadable by `AutoModelForCausalLM.from_pretrained` with no
+  HyperTensor runtime required.
+- **vLLM draft adapter**: `hyperretro.vllm.GeodesicDraft` is a vLLM-shaped
+  proposer that swaps in the geodesic k-space step as the draft
+  algorithm in speculative decoding.
+
+See [`hyperretro/README.md`](hyperretro/README.md) for details and the
+3-way (baseline / HyperRetro / standalone HyperTensor) benchmark harness
+under `hyperretro/bench/`.
+
 ## Quickstart — Reproduction Toolkit (ht-repro)
 
 The `ht-repro` toolkit packages the framework as an installable Python product:

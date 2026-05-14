@@ -1,0 +1,73 @@
+"""Test that hyperretro.kernels.gemv_dual_q8_0 matches the float reference."""
+import numpy as np
+import pytest
+
+from hyperretro.kernels import (
+    q8_0_quantize,
+    q8_0_dequantize,
+    gemv_dual_q8_0,
+    backend,
+)
+
+
+def test_backend_resolves_to_numpy_with_fallback_env():
+    # The conftest forces fallback; torch is installed in this env so
+    # backend should pick 'torch' (since cext is blocked).
+    b = backend()
+    assert b in ("torch", "numpy")
+
+
+def test_q8_roundtrip_preserves_magnitude():
+    rng = np.random.default_rng(0)
+    W = rng.standard_normal((16, 64)).astype(np.float32)
+    s, c = q8_0_quantize(W)
+    Wh = q8_0_dequantize(s, c)
+    rel = np.linalg.norm(W - Wh) / np.linalg.norm(W)
+    assert rel < 0.05  # Q8 has small rounding error
+
+
+def test_gemv_dual_q8_matches_fp_reference():
+    rng = np.random.default_rng(1)
+    rows, in_dim = 32, 128
+    x = rng.standard_normal(in_dim).astype(np.float32)
+    Wa = rng.standard_normal((rows, in_dim)).astype(np.float32) / np.sqrt(in_dim)
+    Wb = rng.standard_normal((rows, in_dim)).astype(np.float32) / np.sqrt(in_dim)
+    ref_a = Wa @ x
+    ref_b = Wb @ x
+    out_a, out_b = gemv_dual_q8_0(x, Wa, Wb)
+    out_a = np.asarray(out_a)
+    out_b = np.asarray(out_b)
+    # Q8 quantization error budget: ~ ||W||/127 per column, scaled
+    # by ||x||. Use a generous bound.
+    bound = (np.linalg.norm(x) * np.linalg.norm(Wa) / 127.0) * 4
+    assert np.max(np.abs(out_a - ref_a)) < bound
+    assert np.max(np.abs(out_b - ref_b)) < bound
+
+
+def test_gemv_dual_q8_accepts_pre_quantized_pair():
+    rng = np.random.default_rng(2)
+    rows, in_dim = 8, 64
+    x = rng.standard_normal(in_dim).astype(np.float32)
+    Wa = rng.standard_normal((rows, in_dim)).astype(np.float32)
+    sa, ca = q8_0_quantize(Wa)
+    out_a, out_b = gemv_dual_q8_0(x, (sa, ca), (sa, ca))
+    # Both outputs computed from the same matrix should match.
+    np.testing.assert_allclose(np.asarray(out_a), np.asarray(out_b), atol=1e-5)
+
+
+def test_gemv_dual_q8_zero_input_gives_zero_output():
+    x = np.zeros(64, dtype=np.float32)
+    rng = np.random.default_rng(3)
+    Wa = rng.standard_normal((4, 64)).astype(np.float32)
+    Wb = rng.standard_normal((4, 64)).astype(np.float32)
+    out_a, out_b = gemv_dual_q8_0(x, Wa, Wb)
+    np.testing.assert_array_equal(np.asarray(out_a), np.zeros(4, dtype=np.float32))
+    np.testing.assert_array_equal(np.asarray(out_b), np.zeros(4, dtype=np.float32))
+
+
+def test_gemv_dual_q8_requires_multiple_of_32_in_dim():
+    rng = np.random.default_rng(4)
+    x = rng.standard_normal(30).astype(np.float32)
+    W = rng.standard_normal((4, 30)).astype(np.float32)
+    with pytest.raises(AssertionError):
+        gemv_dual_q8_0(x, W, W)

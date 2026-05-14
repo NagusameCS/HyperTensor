@@ -1,0 +1,91 @@
+// HyperRetro: fused dual Q8_0 GEMV — PyTorch C++ extension.
+//
+// Mirrors the HyperTensor CUDA kernel `kernel_gemv_dual_q8_0` in
+// runtime/nn/cuda_kernels.cu, ported to a portable CPU C++ kernel for use
+// inside a torch.utils.cpp_extension.load() JIT build.  Both outputs share
+// the input load, which is the source of the ~16% DRAM-traffic saving on
+// HyperTensor's measured workload.
+//
+// Inputs are pre-quantized:
+//   x      : float32  [in_dim]
+//   scaleA : float32  [rows, n_blocks]
+//   codesA : float32  [rows, n_blocks, 32]   (int8 cast to float, simpler for ext)
+//   scaleB / codesB : same shape as A.
+//
+// Output: (outA, outB) each [rows] float32.
+//
+// License: MIT.
+#include <torch/extension.h>
+
+#include <cstdint>
+#include <vector>
+
+namespace {
+
+constexpr int64_t BLOCK = 32;
+
+std::vector<torch::Tensor> gemv_dual_q8_0(
+    torch::Tensor x,
+    torch::Tensor scaleA,
+    torch::Tensor codesA,
+    torch::Tensor scaleB,
+    torch::Tensor codesB) {
+  TORCH_CHECK(x.dim() == 1, "x must be 1-D");
+  TORCH_CHECK(codesA.dim() == 3 && codesA.size(2) == BLOCK,
+              "codesA must be [rows, n_blocks, 32]");
+  TORCH_CHECK(codesB.sizes() == codesA.sizes(),
+              "codesB must match codesA shape");
+  TORCH_CHECK(scaleA.dim() == 2 && scaleA.size(1) == codesA.size(1),
+              "scaleA must be [rows, n_blocks]");
+  TORCH_CHECK(scaleB.sizes() == scaleA.sizes(),
+              "scaleB must match scaleA shape");
+
+  const int64_t rows = codesA.size(0);
+  const int64_t n_blocks = codesA.size(1);
+  TORCH_CHECK(x.size(0) == n_blocks * BLOCK,
+              "x length must equal n_blocks*32");
+
+  auto opts = torch::TensorOptions().dtype(torch::kFloat32);
+  auto outA = torch::zeros({rows}, opts);
+  auto outB = torch::zeros({rows}, opts);
+
+  const float* xp = x.data_ptr<float>();
+  const float* sA = scaleA.data_ptr<float>();
+  const float* cA = codesA.data_ptr<float>();
+  const float* sB = scaleB.data_ptr<float>();
+  const float* cB = codesB.data_ptr<float>();
+  float* yA = outA.data_ptr<float>();
+  float* yB = outB.data_ptr<float>();
+
+  at::parallel_for(0, rows, /*grain_size=*/8, [&](int64_t r0, int64_t r1) {
+    for (int64_t r = r0; r < r1; ++r) {
+      float acc_a = 0.0f;
+      float acc_b = 0.0f;
+      for (int64_t b = 0; b < n_blocks; ++b) {
+        const float* x_blk = xp + b * BLOCK;
+        const float* ca_blk = cA + (r * n_blocks + b) * BLOCK;
+        const float* cb_blk = cB + (r * n_blocks + b) * BLOCK;
+        float dot_a = 0.0f, dot_b = 0.0f;
+        // Shared x load: this is the whole point of the fusion.
+        for (int64_t i = 0; i < BLOCK; ++i) {
+          const float xv = x_blk[i];
+          dot_a += ca_blk[i] * xv;
+          dot_b += cb_blk[i] * xv;
+        }
+        acc_a += sA[r * n_blocks + b] * dot_a;
+        acc_b += sB[r * n_blocks + b] * dot_b;
+      }
+      yA[r] = acc_a;
+      yB[r] = acc_b;
+    }
+  });
+
+  return {outA, outB};
+}
+
+}  // namespace
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+  m.def("gemv_dual_q8_0", &gemv_dual_q8_0,
+        "Fused dual Q8_0 GEMV (shared x load)");
+}
