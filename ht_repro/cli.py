@@ -167,7 +167,86 @@ def _print_summary(result: dict):
                f"{yellow(str(result['skipped']))} skipped "
                f"({result['total_time']:.1f}s) ═══\n"))
 
-# ── Main ───────────────────────────────────────────────────────────
+# ── Tools Subcommand ───────────────────────────────────────────────
+
+def cmd_tools(args):
+    """Handle 'ht-repro tools <category> [action]'."""
+    from .tools_catalog import TOOLS
+    category = getattr(args, 'category', None)
+    if not category:
+        print(bold(blue("\n═══ Tool Categories ═══\n")))
+        for cat, tools in TOOLS.items():
+            n = len(tools)
+            t1 = sum(1 for t in tools.values() if t["tier"] in ("T1","any"))
+            t2 = sum(1 for t in tools.values() if t["tier"]=="T2")
+            t3 = sum(1 for t in tools.values() if t["tier"]=="T3")
+            print(f"  {bold(cat):<14} {n} tools  ({green(str(t1))} T1, {yellow(str(t2))} T2, {red(str(t3))} T3)")
+        print(f"\n  ht-repro tools <category>          list tools in category")
+        print(f"  ht-repro tools <category> <tool>   run a specific tool")
+        print(f"  ht-repro tools models token-setup  configure HF token\n")
+        return
+    if category not in TOOLS:
+        print(red(f"Unknown category: {category}"))
+        print("Available:", ", ".join(TOOLS.keys())); return
+    tools = TOOLS[category]
+    action = getattr(args, 'action', None)
+    if not action:
+        print(bold(blue(f"\n═══ {category.upper()} Tools ({len(tools)}) ═══\n")))
+        for tid, t in tools.items():
+            tier = {"T1":green("T1"),"T2":yellow("T2"),"T3":red("T3"),"any":""}.get(t["tier"],t["tier"])
+            print(f"  {bold(tid):<24} {tier:<10} {t['desc']}")
+        print(f"\n  ht-repro tools {category} <tool-id>\n"); return
+    if action not in tools:
+        print(red(f"Unknown tool: {action}. Available: {', '.join(tools.keys())}")); return
+    t = tools[action]
+    if action == "token-setup": _token_setup(); return
+    if action == "token-status": _token_status(); return
+    if action == "ollama-clone": _ollama_clone(args); return
+
+    sp = Path(__file__).resolve().parent.parent.parent / t["script"]
+    if not sp.exists(): print(red(f"Script not found: {sp}")); return
+    print(bold(blue(f"\n═══ {t['desc']} ═══\n")))
+    print(f"  Script: {t['script']}  |  Tier: {t['tier']}\n")
+    import subprocess
+    extra = getattr(args, 'extra_args', []) or []
+    try:
+        r = subprocess.run([sys.executable, str(sp)]+extra, cwd=str(Path(__file__).resolve().parent.parent.parent), env={**os.environ,"PYTHONPATH":str(Path(__file__).resolve().parent.parent.parent)})
+        print(green("\n  Completed.") if r.returncode==0 else red(f"\n  Exit code {r.returncode}."))
+    except KeyboardInterrupt: print(yellow("\n  Interrupted."))
+
+def _token_setup():
+    print(bold(blue("\n═══ HuggingFace Token Setup ═══\n")))
+    print("  HF token needed for gated models (Llama, Gemma, etc.)\n")
+    print("  Get one: https://huggingface.co/settings/tokens")
+    print("  Click 'New token' -> 'Read' permission -> copy the 'hf_' token\n")
+    try: token = input("  Paste token: ").strip()
+    except (EOFError,KeyboardInterrupt): print(yellow("\n  Cancelled.")); return
+    if not token.startswith("hf_"): print(red("  Invalid. HF tokens start with 'hf_'.")); return
+    d = Path.home()/".huggingface"; d.mkdir(exist_ok=True)
+    (d/"token").write_text(token)
+    print(green("\n  Saved to ~/.huggingface/token"))
+    print("  Verify: ht-repro tools models token-status\n")
+
+def _token_status():
+    print(bold(blue("\n═══ HF Token Status ═══\n")))
+    f = Path.home()/".huggingface"/"token"
+    e = os.environ.get("HF_TOKEN","")
+    if f.exists(): print(f"  File:  {green('exists')}  ({f.read_text().strip()[:10]}...)")
+    else: print(f"  File:  {yellow('not found')}")
+    print(f"  Env:   {green('set') if e else yellow('not set')}")
+    print(f"  {'Ready.' if (f.exists() or e) else 'Run: ht-repro tools models token-setup'}\n")
+
+def _ollama_clone(args):
+    print(bold(blue("\n═══ Clone from Ollama ═══\n")))
+    name = getattr(args,'model_name',None) or (getattr(args,'extra_args',[]) or [None])[0]
+    if not name: print("  Usage: ht-repro tools models ollama-clone <name>\n"); return
+    import subprocess
+    try: subprocess.run(["ollama","pull",name],check=True)
+    except FileNotFoundError: print(yellow("  Ollama not installed. https://ollama.com")); return
+    except subprocess.CalledProcessError: print(red(f"  Failed to pull '{name}'.")); return
+    d = Path.home()/".ollama"/"models"
+    ggufs = list(d.glob("**/*.gguf")) if d.exists() else []
+    print(green(f"\n  Pulled '{name}'. {len(ggufs)} GGUF files in ~/.ollama/models/\n"))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -185,7 +264,10 @@ quick start:
   ht-repro list              show all available tests
   ht-repro status            show last run results
   ht-repro summary           print verified results summary
-  ht-repro dashboard         generate HTML results dashboard  ht-repro serve              start localhost web UI (http://localhost:8765)  ht-repro update            self-update to latest version
+  ht-repro dashboard         generate HTML results dashboard  ht-repro serve              start localhost web UI (http://localhost:8765)
+  ht-repro tools graft        list all model grafting/splicing tools
+  ht-repro tools models token-setup   configure HuggingFace token
+  ht-repro update             self-update to latest version
         """,
     )
     parser.add_argument("--version", action="version", version=f"ht-repro v{__version__}")
@@ -212,6 +294,12 @@ quick start:
 
     p_run = sub.add_parser("run", help="Run a specific test by ID")
     p_run.add_argument("test_id")
+
+    # Tools subcommand
+    p_tools = sub.add_parser("tools", help="Run HyperTensor utility tools (graft, bench, train, compress, GTC, safety, UGT, models, ISAGI)")
+    p_tools.add_argument("category", nargs="?", help="Tool category (graft, bench, train, compress, gtc, safety, ugt, models, isagi)")
+    p_tools.add_argument("action", nargs="?", help="Tool ID within the category (omit to list tools)")
+    p_tools.add_argument("extra_args", nargs="*", help="Extra arguments passed to the tool script")
 
     # Aliases
     sub.add_parser("jury", help="All jury tests").set_defaults(group="jury")
@@ -242,6 +330,7 @@ quick start:
     elif cmd == "paper": cmd_paper(args.paper_id)
     elif cmd == "group": cmd_group(args.group_name)
     elif cmd == "run": cmd_run(args.test_id)
+    elif cmd == "tools": cmd_tools(args)
     # Aliases
     elif hasattr(args, 'group'): cmd_group(args.group)
     elif hasattr(args, 'all_tier'): cmd_all(args.all_tier)
