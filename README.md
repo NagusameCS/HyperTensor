@@ -4,6 +4,8 @@
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 ![views](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=3&label=views)
 ![stars](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=stars)
+![files](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=files)
+![languages](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=languages)
 
 A geometric framework for understanding, compressing, and extending transformer language models.
 Eighteen papers spanning compression theory, living-model adaptation, and a geometric attack
