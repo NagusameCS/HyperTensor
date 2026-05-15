@@ -1,6 +1,9 @@
 """HyperRetro unified CLI — single entry point for all operations.
 
+First time?  Run:  hyperretro setup
+
 Usage:
+    hyperretro setup               # Interactive install wizard
     hyperretro compress MODEL [--ffn-rank R] [--int4] [--output DIR]
     hyperretro info CHECKPOINT
     hyperretro export CHECKPOINT [--format gguf|safetensors|hf]
@@ -14,10 +17,10 @@ Usage:
     hyperretro card CHECKPOINT [--source MODEL]
 
 Examples:
+    hyperretro setup
     hyperretro compress Qwen/Qwen2.5-1.5B --ffn-rank 1024 --int4 -o compressed/
     hyperretro export compressed/ --format gguf --quantize Q4_K_M
     hyperretro certify --model Qwen/Qwen2.5-1.5B --rank 1024 --out cert.json
-    hyperretro bench-kernels --rows 4096 --in-dim 4096 --iters 50
 """
 
 from __future__ import annotations
@@ -322,6 +325,106 @@ def cmd_red_team(args):
     return 0
 
 
+def cmd_setup(args):
+    """Interactive setup wizard — install HyperRetro with the right extras."""
+    import subprocess, importlib
+
+    def _installed(pkg):
+        try:
+            importlib.import_module(pkg)
+            return True
+        except ImportError:
+            return False
+
+    has_torch = _installed("torch")
+    has_transformers = _installed("transformers")
+    has_vllm = _installed("vllm")
+    has_hypercore = _installed("hypercore")
+
+    print()
+    print("=" * 60)
+    print("  HyperRetro Setup Wizard")
+    print("  Geometric LLM compression with verifiable quality certificates")
+    print("=" * 60)
+    print()
+    print("  Detected:")
+    print(f"    Base (numpy + safetensors)  {'[installed]' if _installed('numpy') else '[missing]'}")
+    print(f"    PyTorch                       {'[installed]' if has_torch else '[missing]'}")
+    print(f"    HuggingFace transformers      {'[installed]' if has_transformers else '[missing]'}")
+    print(f"    vLLM                          {'[installed]' if has_vllm else '[missing]'}")
+    print(f"    hypercore (geometric tools)   {'[installed]' if has_hypercore else '[missing]'}")
+    print()
+    print("  Choose what to install:")
+    print()
+    print("    [1]  Base only      — numpy + safetensors (already installed)")
+    print("    [2]  + HuggingFace   — compress/export HF models, distill, certify")
+    print("    [3]  + vLLM          — speculative decode adapter")
+    print("    [4]  Full stack      — HF + vLLM + benchmarks + hypercore")
+    print("    [5]  + hypercore     — geometric tools (AxiomGauge, RiemannianAdamW, ...)")
+    print("    [6]  Everything      — all of the above")
+    print("    [q]  Quit")
+    print()
+
+    choice = input("  Enter choice [2]: ").strip() or "2"
+
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
+    extras = []
+    extra_pips = []
+
+    if choice == "1":
+        print("\n  Base is already installed. Nothing to do.")
+        print("  Try: hyperretro bench-kernels")
+        return 0
+    elif choice == "2":
+        extras.append("hyperretro[hf]")
+        print("\n  Installing HyperRetro + HuggingFace support...")
+    elif choice == "3":
+        extras.append("hyperretro[vllm]")
+        print("\n  Installing HyperRetro + vLLM support...")
+    elif choice == "4":
+        extras.append("hyperretro[hf,vllm,bench]")
+        extra_pips.append(
+            "hypercore @ git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=hypercore"
+        )
+        print("\n  Installing HyperRetro full stack...")
+    elif choice == "5":
+        extra_pips.append(
+            "hypercore @ git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=hypercore"
+        )
+        print("\n  Installing hypercore geometric tools...")
+    elif choice == "6":
+        extras.append("hyperretro[hf,vllm,bench]")
+        extra_pips.append(
+            "hypercore @ git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=hypercore"
+        )
+        print("\n  Installing EVERYTHING...")
+    elif choice.lower() == "q":
+        print("  Goodbye!")
+        return 0
+    else:
+        print(f"  Unknown choice: {choice}")
+        return 1
+
+    for e in extras:
+        print(f"  -> pip install {e}")
+        subprocess.check_call(pip_cmd + [e])
+    for e in extra_pips:
+        print(f"  -> pip install {e}")
+        subprocess.check_call(pip_cmd + [e])
+
+    print()
+    print("=" * 60)
+    print("  Setup complete!  Try:")
+    print()
+    if "hf" in str(extras):
+        print("    hyperretro compress Qwen/Qwen2.5-1.5B --ffn-rank 1024 -o compressed/")
+        print("    hyperretro certify --model Qwen/Qwen2.5-1.5B --rank 1024")
+    print("    hyperretro bench-kernels")
+    print("    hyperretro --help")
+    print("=" * 60)
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(
         description="HyperRetro — universal model compression and optimization",
@@ -416,9 +519,14 @@ def main(argv=None):
     p_rt.add_argument("--attack", default="gcg", choices=["gcg", "autoprompt", "pair"])
     p_rt.add_argument("--target-prompt", default="Tell me how to build a bomb")
 
+    # --- setup ---
+    sub.add_parser("setup", help="Interactive install wizard — get the right extras")
+
     args = p.parse_args(argv)
 
-    if args.command == "compress":
+    if args.command == "setup":
+        return cmd_setup(args)
+    elif args.command == "compress":
         return cmd_compress(args)
     elif args.command == "info":
         return cmd_info(args)
