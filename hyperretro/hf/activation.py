@@ -1,0 +1,84 @@
+"""Activation-statistic collection for activation-aware factoring (Wanda/AWQ).
+
+Forward-pass through a calibration corpus, accumulate per-Linear input
+column 2-norms, return them keyed by weight state_dict key so they can be
+passed straight to :func:`hyperretro.hf.factored.factor_ffn_state_dict`.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from .factored import _FFN_SUFFIXES
+
+
+def _normalize_module_to_weight_key(name: str) -> str:
+    """Module-graph name (e.g. ``model.layers.0.mlp.gate_proj``) →
+    state_dict weight key (e.g. ``model.layers.0.mlp.gate_proj.weight``)."""
+    return name + ".weight"
+
+
+@torch.inference_mode()
+def collect_ffn_input_norms(
+    model,
+    tokenizer,
+    *,
+    corpus_path: str | Path,
+    n_batches: int = 16,
+    seq_len: int = 512,
+    device: str = "cuda",
+) -> dict[str, np.ndarray]:
+    """Run a calibration forward pass, return per-FFN-weight column 2-norms.
+
+    Returns ``{weight_key: np.ndarray of shape (in_features,)}`` where each
+    entry is ``sqrt(sum_t x_t[j]^2)`` accumulated over all calibration tokens.
+    """
+    corpus_path = Path(corpus_path)
+    text = corpus_path.read_text(encoding="utf-8")
+
+    # Tokenize the whole corpus once, then slice into seq_len chunks.
+    ids = tokenizer(text, return_tensors="pt").input_ids[0]
+    n_tokens = ids.numel()
+    chunks: list[torch.Tensor] = []
+    for i in range(n_batches):
+        start = (i * seq_len) % max(n_tokens - seq_len, 1)
+        chunks.append(ids[start:start + seq_len].unsqueeze(0))
+
+    # Discover FFN linears + register pre-hooks accumulating sum-of-squares.
+    accum: dict[str, torch.Tensor] = {}
+    handles: list = []
+    for name, mod in model.named_modules():
+        if not isinstance(mod, torch.nn.Linear):
+            continue
+        wkey = _normalize_module_to_weight_key(name)
+        if not any(wkey.endswith(suf) for suf in _FFN_SUFFIXES):
+            continue
+        in_features = mod.in_features
+        accum[wkey] = torch.zeros(in_features, dtype=torch.float64,
+                                   device=device)
+
+        def make_hook(key: str):
+            def hook(_mod, inputs):
+                x = inputs[0]
+                # Flatten leading dims → (N, in_features)
+                x = x.reshape(-1, x.shape[-1])
+                # sum of squared activations per column, accumulate in fp64
+                accum[key] += (x.float() ** 2).sum(dim=0).double()
+            return hook
+
+        handles.append(mod.register_forward_pre_hook(make_hook(wkey)))
+
+    model.eval()
+    try:
+        for chunk in chunks:
+            chunk = chunk.to(device)
+            model(chunk)
+    finally:
+        for h in handles:
+            h.remove()
+
+    return {k: np.sqrt(v.detach().cpu().numpy()).astype(np.float32)
+            for k, v in accum.items()}

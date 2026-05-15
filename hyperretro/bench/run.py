@@ -228,7 +228,7 @@ def run_speculative_bench(
     """Compare a random drafter against the geodesic drafter under a synthetic
     'oracle next-token' generator.  Reports acceptance rate + jury accuracy.
     """
-    from hyperretro.vllm.draft import GeodesicDraft, GeodesicDraftConfig
+    from hyperretro.vllm.draft import KSpaceDrafter, GeodesicDraftConfig
 
     rng = np.random.default_rng(seed)
     # Build a low-rank-friendly oracle: hidden states live on a smooth curve in
@@ -250,7 +250,7 @@ def run_speculative_bench(
         return int(np.argmax(logits))
 
     cfg = GeodesicDraftConfig(k=k, n_drafts=1)
-    drafter = GeodesicDraft(basis, embed, cfg)
+    drafter = KSpaceDrafter(basis, embed, cfg)
     # calibrate on first half of trajectory
     drafter.calibrate(hs[: n_steps // 2])
 

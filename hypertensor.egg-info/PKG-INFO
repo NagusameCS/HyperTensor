@@ -4,26 +4,47 @@ Version: 1.1.0
 Summary: Riemannian geometry for transformer compression, speculative decoding, safety, and the Riemann Hypothesis
 Author: William 'Nagusame' Ken Ohara Stewart
 License: MIT
+Project-URL: Repository, https://github.com/NagusameCS/civilized-HyperTensor
+Project-URL: Original, https://github.com/NagusameCS/HyperTensor
+Project-URL: Study, https://doi.org/10.5281/zenodo.20077378
+Project-URL: Website, https://nagusamecs.github.io/HyperTensor
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Science/Research
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: C
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE
 License-File: LICENSE-CC-BY-4.0
+Requires-Dist: numpy>=1.24
 Provides-Extra: torch
 Requires-Dist: torch>=2.0; extra == "torch"
 Provides-Extra: full
 Requires-Dist: torch>=2.0; extra == "full"
 Requires-Dist: transformers>=4.40; extra == "full"
+Requires-Dist: safetensors>=0.4; extra == "full"
 Requires-Dist: bitsandbytes>=0.43; extra == "full"
+Provides-Extra: repro
+Requires-Dist: numpy>=1.24; extra == "repro"
+Requires-Dist: scipy>=1.11; extra == "repro"
+Requires-Dist: mpmath>=1.3; extra == "repro"
+Requires-Dist: sympy>=1.12; extra == "repro"
+Provides-Extra: om
+Requires-Dist: open-mythos; extra == "om"
 Dynamic: license-file
+Dynamic: requires-python
 
 <img width="1280" height="640" alt="IRIS-MD (3)" src="https://github.com/user-attachments/assets/a746745d-121c-444d-8183-352e36fc0d23" />
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20077378.svg)](https://doi.org/10.5281/zenodo.20077378)
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+![views](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=3&label=views&color=lightgrey)
+![stars](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=stars&color=orange)
+![files](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=files&color=lightgrey)
+![languages](https://repoviews.wkohara.workers.dev/gh/NagusameCS/HyperTensor?v=1&label=languages&color=lightgrey)
 
 A geometric framework for understanding, compressing, and extending transformer language models.
 Eighteen papers spanning compression theory, living-model adaptation, and a geometric attack
@@ -33,6 +54,7 @@ on the Riemann Hypothesis.
 |---|---|
 | Papers | [Volume (I-XV)](ARXIVSUBMISSIONS/volume.pdf) · [Volume Extended (I-XVIII)](ARXIVSUBMISSIONS/volumeextended.pdf) · [Jury Proof](ARXIVSUBMISSIONS/jury_proof.pdf) |
 | Website | [nagusamecs.github.io/HyperTensor](https://nagusamecs.github.io/HyperTensor) |
+| Civilized | [github.com/NagusameCS/civilized-HyperTensor](https://github.com/NagusameCS/civilized-HyperTensor) |
 | DOI (Volume v1) | [10.5281/zenodo.20077378](https://doi.org/10.5281/zenodo.20077378) |
 | Reproduction | [REPRODUCTION.md](REPRODUCTION.md) |
 | Status | 15/18 papers at 100% · External verification 14/14 · Jury 53× at N=1M |
@@ -78,6 +100,105 @@ python scripts/ugtdomainmapper.py --model Qwen/Qwen2.5-0.5B-Instruct
 
 # Jury bridge (Riemann meta-jury)
 python scripts/jury_bridge.py
+```
+
+## HyperRetro — Integrated Hybrid Mode
+
+Alongside the standalone HyperTensor runtime, the [`hyperretro/`](hyperretro/)
+sub-project retrofits the same geometric primitives into the standard
+PyTorch / HuggingFace / vLLM stack — FlashAttention-style: just `import
+hyperretro` and the kernels run under the hood.
+
+- **PyTorch extension**: `hyperretro.gemv_dual_q8_0(x, Wa, Wb)` wraps the
+  fused dual-Q8 GEMV from `runtime/nn/cuda_kernels.cu` as a JIT-built
+  `torch.utils.cpp_extension`, with torch/numpy fallbacks. Smoke bench
+  on this machine shows ~2.3× over two separate Q8 GEMVs
+  (`benchmarks/hyperretro_kernel_smoke.json`).
+- **HuggingFace compression**: `hyperretro-compress --model … --rank 1024
+  --sink 4 --out …` loads a vanilla HF model, applies GRC / sink-aware
+  projection, and writes the result as standard `.safetensors` — fully
+  loadable by `AutoModelForCausalLM.from_pretrained` with no
+  HyperTensor runtime required.
+- **vLLM draft adapter**: `hyperretro.vllm.GeodesicDraft` is a vLLM-shaped
+  proposer that swaps in the geodesic k-space step as the draft
+  algorithm in speculative decoding.
+
+See [`hyperretro/README.md`](hyperretro/README.md) for details and the
+3-way (baseline / HyperRetro / standalone HyperTensor) benchmark harness
+under `hyperretro/bench/`.
+
+## Quickstart — Reproduction Toolkit (ht-repro)
+
+The `ht-repro` toolkit packages the framework as an installable Python product:
+auto-downloads HuggingFace models, exposes a local REST API, persists run history
+and GTC trajectories to SQLite, and ships with a native runtime binary
+(`geodessical`).
+
+### Install (development)
+
+```bash
+git clone https://github.com/NagusameCS/HyperTensor.git
+cd HyperTensor
+pip install -e .                              # ht-repro + ht-graft CLIs
+pip install hypertensor_runtime/dist/*.whl    # bundled native binary
+
+# Windows: also fetch the OpenBLAS DLL the native binary links against
+pwsh scripts/fetch_openblas_windows.ps1
+```
+
+### Three-command demo
+
+```bash
+# 1. Start the web UI + REST API on http://localhost:8772
+ht-repro serve
+
+# 2. Pre-fetch a model into ~/.ht-repro/models  (any HuggingFace repo)
+ht-repro models pull Qwen/Qwen2.5-0.5B-Instruct
+
+# 3. Run a graft between two models — both auto-downloaded on demand
+ht-graft --donor Qwen/Qwen2.5-0.5B-Instruct \
+         --recipient gpt2 --layers 0,1,2
+```
+
+### REST API
+
+When `ht-repro serve` is running, the same operations are available over HTTP:
+
+```bash
+curl http://localhost:8772/api/v1/health
+curl http://localhost:8772/api/v1/gpu
+curl -X POST http://localhost:8772/api/v1/sort \
+     -H 'Content-Type: application/json' \
+     -d '{"data":[3,1,2]}'
+curl -X POST http://localhost:8772/api/v1/infer \
+     -H 'Content-Type: application/json' \
+     -d '{"model":"gpt2","prompt":"Hello"}'
+```
+
+Set `HT_REPRO_TOKEN=<secret>` to require `Authorization: Bearer <secret>` on every
+request. Jobs are persisted to `~/.ht-repro/store.db` and survive a server
+restart — query `GET /api/v1/jobs/<id>` to resume tracking after a reboot.
+
+### Python API
+
+```python
+from ht_repro import gpu, models, storage
+import hypertensor_runtime as hr
+
+gpu.summary()                           # 'CUDA — NVIDIA RTX 4070 Laptop (8.0 GB, 1 device(s))'
+path  = models.resolve("gpt2")          # auto-downloads if missing
+runs  = storage.recent_runs(limit=10)   # last 10 runs from SQLite
+
+# Invoke the bundled native binary directly
+hr.run_geodessical("--help")
+```
+
+### Run the test suite
+
+```bash
+pip install pytest
+pytest tests/unit_ht_repro -v   # 44 unit tests, no GPU/network required
+python tests/audit_commercial.py   # 33-check commercial-viability audit
 ```
 
 ## Repository Layout

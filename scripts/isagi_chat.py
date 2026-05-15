@@ -242,6 +242,24 @@ class GTCCache:
         self.labels = []           # query labels
         self.hits = 0
         self.misses = 0
+        self._calibrated = False
+    
+    def calibrate(self, cal_projs):
+        """Set radius from calibration data: 75th percentile of pairwise cosine distances."""
+        if len(cal_projs) < 4:
+            return
+        stack = F.normalize(torch.stack([p.float().flatten() for p in cal_projs]), dim=1)
+        n_sample = min(stack.shape[0], 200)
+        dists = []
+        for _ in range(min(500, n_sample * n_sample)):
+            i, j = random.randint(0, n_sample - 1), random.randint(0, n_sample - 1)
+            if i != j:
+                dists.append(1.0 - torch.dot(stack[i], stack[j]).item())
+        if dists:
+            dists.sort()
+            self.radius = dists[int(len(dists) * 0.75)]
+            self.radius = max(0.10, min(0.60, self.radius))
+        self._calibrated = True
     
     def query(self, query_emb, return_best=False):
         """Check if query is within geodesic radius of any cached trajectory.
@@ -274,15 +292,31 @@ class GTCCache:
             self.misses += 1
             return False, None, best_sim
     
-    def store(self, embedding, response, label=""):
-        """Cache a new trajectory."""
+    def store(self, *args):
+        """Cache a new trajectory.
+        
+        Supports two calling conventions:
+          - store(embedding, response, label="")         # ISAGI internal
+          - store(query_proj, response_proj, response_text, query_text="")  # example
+        """
+        if len(args) >= 4:
+            # 4-arg form: (k_proj_query, k_proj_response, response_text, query_text)
+            k_proj_query, k_proj_response, response_text = args[0], args[1], args[2]
+            query_text = args[3] if len(args) > 3 else ""
+            embedding = k_proj_response.detach().cpu() if hasattr(k_proj_response, 'detach') else k_proj_response
+            label = query_text[:120] if query_text else response_text[:120]
+            response = response_text
+        else:
+            # 3-arg form: (embedding, response, label="")
+            embedding, response = args[0], args[1]
+            label = args[2] if len(args) > 2 else ""
+        
         if len(self.embeddings) >= self.max_size:
-            # Evict oldest (FIFO for now; could upgrade to LRU)
             self.embeddings.pop(0)
             self.responses.pop(0)
             self.labels.pop(0)
         
-        self.embeddings.append(embedding.detach().cpu())
+        self.embeddings.append(embedding.detach().cpu() if hasattr(embedding, 'detach') else embedding)
         self.responses.append(response)
         self.labels.append(label[:120])
 

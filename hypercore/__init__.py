@@ -94,6 +94,9 @@ __all__ = [
     'GCGAttack',
     'AutoPromptAttack',
     'PAIRAttack',
+    'NativeLinear',
+    'RiemannianAdamW',
+    'KExpansionScheduler',
 ]
 
 def __getattr__(name):
@@ -114,4 +117,13 @@ def __getattr__(name):
         from scripts.red_team import GCGAttack, AutoPromptAttack, PAIRAttack
         return {'GCGAttack': GCGAttack, 'AutoPromptAttack': AutoPromptAttack,
                 'PAIRAttack': PAIRAttack}[name]
+    if name in ('NativeLinear', 'RiemannianAdamW', 'KExpansionScheduler'):
+        from scripts.geodesic_compiler import (
+            NativeLinear, RiemannianAdamW, KExpansionScheduler,
+        )
+        return {
+            'NativeLinear': NativeLinear,
+            'RiemannianAdamW': RiemannianAdamW,
+            'KExpansionScheduler': KExpansionScheduler,
+        }[name]
     raise AttributeError(f"module 'hypercore' has no attribute '{name}'")

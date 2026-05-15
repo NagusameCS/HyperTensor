@@ -1,8 +1,19 @@
+numpy>=1.24
 
 [full]
 torch>=2.0
 transformers>=4.40
+safetensors>=0.4
 bitsandbytes>=0.43
+
+[om]
+open-mythos
+
+[repro]
+numpy>=1.24
+scipy>=1.11
+mpmath>=1.3
+sympy>=1.12
 
 [torch]
 torch>=2.0

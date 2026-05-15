@@ -1,12 +1,15 @@
-"""HyperRetro fused kernels — PyTorch C++ extension with fallbacks.
+"""HyperRetro fused kernels — multi-backend with GPU and CPU opt support.
 
 Backend resolution order:
-  1. `cext`  — JIT-compiled C extension via torch.utils.cpp_extension.load.
-               Mirrors HyperTensor's runtime/nn fused kernel layout.
-  2. `torch` — pure-torch reference (fast, exact float math, GPU-capable).
-  3. `numpy` — pure-numpy reference, always available.
+  1. `cext`     — JIT-compiled C++ extension via torch.utils.cpp_extension.load
+  2. `cpu_opt`  — compiled C AVX2 kernel (hyperretro_cpu_avx2.so/.dll)
+  3. `gpu`      — pure-PyTorch GPU backend (CUDA tensor ops, no nvcc needed)
+  4. `torch`    — pure-torch CPU reference (MKL-accelerated on CPU)
+  5. `numpy`    — pure-numpy reference, always available
 
-All three paths return identical numeric results up to fp32 rounding.
+The GPU backend runs all operations on-device via PyTorch tensor ops.
+The CPU AVX2 backend uses hand-tuned SIMD intrinsics for 2-4× speedup
+over numpy on x86_64 CPUs.
 """
 from __future__ import annotations
 
@@ -21,6 +24,29 @@ __all__ = ["gemv_dual_q8_0", "backend", "q8_0_quantize", "q8_0_dequantize"]
 
 _BACKEND: str | None = None
 _CEXT = None
+_CPU_OPT_AVAIL: bool | None = None
+
+
+def _has_cpu_opt() -> bool:
+    """Check if the compiled CPU AVX2 library is available."""
+    global _CPU_OPT_AVAIL
+    if _CPU_OPT_AVAIL is not None:
+        return _CPU_OPT_AVAIL
+    try:
+        from .cpu_opt import _has_cpu_opt as _check
+        _CPU_OPT_AVAIL = _check()
+    except Exception:
+        _CPU_OPT_AVAIL = False
+    return _CPU_OPT_AVAIL
+
+
+def _has_cuda() -> bool:
+    """Check if CUDA is available via PyTorch."""
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
 
 
 def _try_load_cext():
@@ -63,6 +89,12 @@ def backend() -> str:
         return _BACKEND
     if _try_load_cext() is not None:
         _BACKEND = "cext"
+        return _BACKEND
+    if _has_cpu_opt():
+        _BACKEND = "cpu_opt"
+        return _BACKEND
+    if _has_cuda() and not os.environ.get("HYPERRETRO_FORCE_CPU") and not os.environ.get("HYPERRETRO_FORCE_FALLBACK"):
+        _BACKEND = "gpu"
         return _BACKEND
     try:
         import torch  # noqa: F401
@@ -136,19 +168,19 @@ def _gemv_dual_q8_numpy(x, W_a, W_b):
     return out_a, out_b
 
 
-def _gemv_dual_q8_torch(x, W_a, W_b):
+def _gemv_dual_q8_torch(x, W_a, W_b, dtype=None):
     import torch
     # Quantize off-tensor (numpy) for parity; in production these would be
     # pre-quantized weights stored in q8_0 format.
     sa_np, ca_np = _as_q8_pair(W_a)
     sb_np, cb_np = _as_q8_pair(W_b)
+    if dtype is None:
+        dtype = torch.float32
     if torch.is_tensor(x):
         device = x.device
-        dtype = torch.float32
     else:
         device = torch.device("cpu")
-        dtype = torch.float32
-        x = torch.as_tensor(x, dtype=dtype, device=device)
+        x = torch.as_tensor(x, dtype=torch.float32, device=device)
     x = x.to(dtype=dtype)
     sa = torch.from_numpy(sa_np).to(device=device, dtype=dtype)
     ca = torch.from_numpy(ca_np).to(device=device, dtype=dtype)
@@ -176,7 +208,7 @@ def _gemv_dual_q8_cext(x, W_a, W_b):
     return out_a, out_b
 
 
-def gemv_dual_q8_0(x, W_a, W_b):
+def gemv_dual_q8_0(x, W_a, W_b, dtype=None):
     """Fused dual Q8_0 GEMV.
 
     Computes simultaneously::
@@ -184,14 +216,16 @@ def gemv_dual_q8_0(x, W_a, W_b):
         out_a = W_a @ x
         out_b = W_b @ x
 
-    sharing the input load (HyperTensor's `gemv_dual_q8_0` pattern from
-    `runtime/nn/cuda_kernels.cu`, ~16% DRAM-traffic reduction vs two
+    sharing the input load (HyperTensor's ``gemv_dual_q8_0`` pattern from
+    ``runtime/nn/cuda_kernels.cu``, ~16% DRAM-traffic reduction vs two
     separate GEMVs).
 
     Args:
         x:    [in_dim] activation (np.ndarray or torch.Tensor)
         W_a:  [rows, in_dim] weight, or pre-quantized (scale, codes) tuple
         W_b:  same shape/format as W_a
+        dtype: torch.dtype for GPU/torch backends (default float32).
+            Use torch.float16 or torch.bfloat16 for speed.
 
     Returns:
         (out_a, out_b) — type matches the backend (np or torch).
@@ -199,6 +233,12 @@ def gemv_dual_q8_0(x, W_a, W_b):
     b = backend()
     if b == "cext":
         return _gemv_dual_q8_cext(x, W_a, W_b)
+    if b == "cpu_opt":
+        from .cpu_opt import _gemv_dual_q8_cpu_opt
+        return _gemv_dual_q8_cpu_opt(x, W_a, W_b)
+    if b == "gpu":
+        from .gpu import gemv_dual_q8_gpu
+        return gemv_dual_q8_gpu(x, W_a, W_b, compute_dtype=dtype)
     if b == "torch":
-        return _gemv_dual_q8_torch(x, W_a, W_b)
+        return _gemv_dual_q8_torch(x, W_a, W_b, dtype=dtype)
     return _gemv_dual_q8_numpy(x, W_a, W_b)
