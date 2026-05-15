@@ -195,31 +195,37 @@ def run_compression_bench(*args, **kwargs):
 # ---------------------------------------------------------------------------
 
 def __getattr__(name):
-    """Lazy import for hypercore geometric modules."""
-    if name in ("GeodesicMetric", "HallucinationGuard", "GenerationMetrics"):
-        from hypercore import (
-            GeodesicMetric,
-            HallucinationGuard,
-            GenerationMetrics,
-        )
-        return {
-            "GeodesicMetric": GeodesicMetric,
-            "HallucinationGuard": HallucinationGuard,
-            "GenerationMetrics": GenerationMetrics,
-        }[name]
-    if name in (
-        "AxiomGauge",
-        "ThermalRankController",
-        "OnlineOjaBasis",
-        "TreeDrafter",
-        "EagleFeatureDrafter",
-        "GCGAttack",
-        "AutoPromptAttack",
-        "PAIRAttack",
-        "NativeLinear",
-        "RiemannianAdamW",
-        "KExpansionScheduler",
-    ):
+    """Lazy import for hypercore geometric modules.
+
+    HyperRetro's core compression pipeline (compress, export, kernels,
+    certificates) works without hypercore.  The geometric tools below
+    are optional enhancements — install hypercore to unlock them:
+
+        pip install git+https://github.com/NagusameCS/HyperTensor.git#subdirectory=hypercore
+    """
+    _HYPERCORE_NAMES = (
+        "GeodesicMetric", "HallucinationGuard", "GenerationMetrics",
+        "AxiomGauge", "ThermalRankController", "OnlineOjaBasis",
+        "TreeDrafter", "EagleFeatureDrafter",
+        "GCGAttack", "AutoPromptAttack", "PAIRAttack",
+        "NativeLinear", "RiemannianAdamW", "KExpansionScheduler",
+    )
+    if name not in _HYPERCORE_NAMES:
+        raise AttributeError(f"module 'hyperretro' has no attribute '{name}'")
+
+    try:
         import hypercore
-        return getattr(hypercore, name)
-    raise AttributeError(f"module 'hyperretro' has no attribute '{name}'")
+    except ImportError:
+        raise AttributeError(
+            f"'{name}' requires hypercore, which is not installed. "
+            f"Install with: pip install git+https://github.com/NagusameCS/"
+            f"HyperTensor.git#subdirectory=hypercore"
+        ) from None
+
+    if name in ("GeodesicMetric", "HallucinationGuard", "GenerationMetrics"):
+        return {
+            "GeodesicMetric": hypercore.GeodesicMetric,
+            "HallucinationGuard": hypercore.HallucinationGuard,
+            "GenerationMetrics": hypercore.GenerationMetrics,
+        }[name]
+    return getattr(hypercore, name)
