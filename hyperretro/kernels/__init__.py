@@ -1,15 +1,15 @@
 """HyperRetro fused kernels — multi-backend with GPU and CPU opt support.
 
 Backend resolution order:
-  1. `cext`     — JIT-compiled C++ extension via torch.utils.cpp_extension.load
-  2. `cpu_opt`  — compiled C AVX2 kernel (hyperretro_cpu_avx2.so/.dll)
-  3. `gpu`      — pure-PyTorch GPU backend (CUDA tensor ops, no nvcc needed)
-  4. `torch`    — pure-torch CPU reference (MKL-accelerated on CPU)
-  5. `numpy`    — pure-numpy reference, always available
+  1. `cuda_cext` — JIT-compiled CUDA kernel (needs NVCC + host compiler)
+  2. `cext`      — JIT-compiled C++ extension (needs C++ compiler)
+  3. `cpu_opt`   — pre-compiled AVX2 shared library
+  4. `gpu`       — pure-PyTorch CUDA tensor ops (no compiler needed, 10-30× numpy)
+  5. `torch`     — pure-PyTorch CPU (MKL-accelerated)
+  6. `numpy`     — always available
 
 The GPU backend runs all operations on-device via PyTorch tensor ops.
-The CPU AVX2 backend uses hand-tuned SIMD intrinsics for 2-4× speedup
-over numpy on x86_64 CPUs.
+On Windows without Visual Studio, the GPU backend is the recommended path.
 """
 from __future__ import annotations
 
@@ -20,11 +20,60 @@ from typing import Tuple
 
 import numpy as np
 
+# Silence torch's noisy "Error checking compiler" / "Could not find files"
+# messages when MSVC is missing on Windows.  We handle fallback gracefully.
+import logging as _logging
+for _name in ("torch.utils.cpp_extension", "torch", "setuptools"):
+    _logging.getLogger(_name).setLevel(_logging.ERROR)
+
 __all__ = ["gemv_dual_q8_0", "backend", "q8_0_quantize", "q8_0_dequantize"]
 
 _BACKEND: str | None = None
 _CEXT = None
+_CUDA_EXT = None
 _CPU_OPT_AVAIL: bool | None = None
+
+
+def _try_load_cuda_ext():
+    """Attempt to JIT-compile the CUDA kernel. Silent fallback.
+
+    Requires NVCC + a host C++ compiler (MSVC/Clang/GCC).
+    Falls back gracefully — the pure-PyTorch GPU backend handles CUDA without compilation.
+    """
+    global _CUDA_EXT
+    if _CUDA_EXT is not None:
+        return _CUDA_EXT
+    if os.environ.get("HYPERRETRO_FORCE_FALLBACK"):
+        return None
+    try:
+        import torch
+        from torch.utils.cpp_extension import CUDAExtension, load
+    except Exception:
+        return None
+    here = os.path.dirname(__file__)
+    cuda_src = os.path.join(here, "csrc", "cuda", "gemv_dual_q8_0.cu")
+    if not os.path.exists(cuda_src):
+        return None
+    # Ensure venv Scripts (ninja) on PATH
+    _venv_scripts = os.path.join(sys.prefix, "Scripts") if sys.platform == "win32" else os.path.join(sys.prefix, "bin")
+    if _venv_scripts not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _venv_scripts + os.pathsep + os.environ.get("PATH", "")
+    try:
+        _CUDA_EXT = load(
+            name="hyperretro_kernels_cuda",
+            sources=[cuda_src],
+            extra_cuda_cflags=["-O3", f"--gpu-architecture=sm_{''.join(str(c) for c in torch.cuda.get_device_capability(0))}"],
+            verbose=False,
+        )
+    except Exception as e:
+        msg = str(e)
+        if "cl.exe" not in msg.lower() and not ("where" in msg.lower() and "cl" in msg.lower()):
+            warnings.warn(
+                f"hyperretro: CUDA JIT failed ({msg[:120]})",
+                stacklevel=2,
+            )
+        _CUDA_EXT = None
+    return _CUDA_EXT
 
 
 def _has_cpu_opt() -> bool:
@@ -50,12 +99,22 @@ def _has_cuda() -> bool:
 
 
 def _try_load_cext():
-    """Attempt to JIT-build the C extension. Silently fall back on failure."""
+    """Attempt to JIT-build the C extension. Silently fall back on failure.
+
+    Requires a C++ compiler (gcc/clang/MSVC).  On Windows without Visual Studio,
+    the pure-PyTorch GPU backend is used instead — it's 10-30× faster than numpy.
+    """
     global _CEXT
     if _CEXT is not None:
         return _CEXT
     if os.environ.get("HYPERRETRO_FORCE_FALLBACK"):
         return None
+
+    # Ensure ninja from the venv is on PATH (pip installs it there)
+    _venv_scripts = os.path.join(sys.prefix, "Scripts") if sys.platform == "win32" else os.path.join(sys.prefix, "bin")
+    if _venv_scripts not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _venv_scripts + os.pathsep + os.environ.get("PATH", "")
+
     try:
         import torch  # noqa: F401
         from torch.utils.cpp_extension import load
@@ -73,29 +132,51 @@ def _try_load_cext():
             verbose=False,
         )
     except Exception as e:
-        warnings.warn(
-            f"hyperretro: failed to JIT-build C extension ({e!r}); "
-            "falling back to torch/numpy reference.",
-            stacklevel=2,
-        )
+        msg = str(e)
+        if "cl.exe" in msg.lower() or ("where" in msg.lower() and "cl" in msg.lower()):
+            # Expected on Windows without VS Build Tools — GPU backend works fine
+            pass
+        else:
+            warnings.warn(
+                f"hyperretro: failed to JIT-build C extension ({msg[:120]}); "
+                "falling back to torch/numpy reference.",
+                stacklevel=2,
+            )
         _CEXT = None
     return _CEXT
 
 
 def backend() -> str:
-    """Return the backend that will be used for kernel calls."""
+    """Return the backend that will be used for kernel calls.
+
+    Resolution order:
+      1. cuda_cext — JIT-compiled CUDA kernel (needs NVCC + MSVC/Clang)
+      2. cext      — JIT-compiled C++ extension (needs C++ compiler)
+      3. cpu_opt   — pre-compiled AVX2 shared library
+      4. gpu       — pure-PyTorch CUDA tensor ops (no compiler needed, 10-30x numpy)
+      5. torch     — pure-PyTorch CPU (MKL-accelerated)
+      6. numpy     — always available
+    """
     global _BACKEND
     if _BACKEND is not None:
         return _BACKEND
+    # Try CUDA JIT first (fastest — raw CUDA kernel)
+    if _has_cuda() and _try_load_cuda_ext() is not None:
+        _BACKEND = "cuda_cext"
+        return _BACKEND
+    # Try C++ JIT (CPU parallel)
     if _try_load_cext() is not None:
         _BACKEND = "cext"
         return _BACKEND
+    # Try pre-compiled AVX2
     if _has_cpu_opt():
         _BACKEND = "cpu_opt"
         return _BACKEND
+    # Pure-PyTorch CUDA — fast, no compiler needed
     if _has_cuda() and not os.environ.get("HYPERRETRO_FORCE_CPU") and not os.environ.get("HYPERRETRO_FORCE_FALLBACK"):
         _BACKEND = "gpu"
         return _BACKEND
+    # Pure-PyTorch CPU
     try:
         import torch  # noqa: F401
         _BACKEND = "torch"
