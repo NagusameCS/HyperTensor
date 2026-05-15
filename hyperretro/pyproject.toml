@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperretro"
-version = "0.2.0"
+version = "0.3.0"
 description = "Retrofit HyperTensor's geometric optimizations into PyTorch / HuggingFace / vLLM"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,7 @@ bench = ["torch>=2.1", "transformers>=4.40", "datasets>=2.18", "tqdm"]
 dev = ["pytest>=7", "pytest-cov"]
 
 [project.scripts]
+hyperretro = "hyperretro.cli:main"
 hyperretro-compress = "hyperretro.hf.compress:_cli_main"
 hyperretro-distill = "hyperretro.hf.distill:_cli_main"
 hyperretro-bench = "hyperretro.bench.run:_cli_main"
