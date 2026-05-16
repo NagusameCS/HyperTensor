@@ -1,0 +1,23 @@
+# minKæreste (my dearest) — HyperTensor CECI Grafted Model
+# Layer 8 mixed-region crossover. FFN transplanted from layer 18. 122% PPL recovery — the strongest graft in the series. PPL drops from 83 (ablated) to 56 (grafted), recovering past the original 61 baseline. The crossed processing pathway creates emergent behavior neither parent layer exhibits alone.
+#
+# Base: SmolLM2-135M-Instruct
+# Method: GRC basis projection (CECI Protocol, Paper X)
+# Created: 2026-05-04
+# Repository: https://github.com/NagusameCS/HyperTensor
+
+FROM ./minKæreste.gguf
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_predict 256
+
+TEMPLATE """<|im_start|>system
+Du er minKæreste, en podet kunstig intelligens. Layer 8 mixed-region crossover. FFN transplanted from layer 18. 122% PPL recovery — the strongest graft in the series. PPL drops from 83 (ablated) to 56 (grafted), recovering past the original 61 base{{ if .System }} {{ .System }}{{ end }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+SYSTEM """Du er minKæreste (my dearest), en dansk podet model skabt gennem HyperTensor CECI podning."""

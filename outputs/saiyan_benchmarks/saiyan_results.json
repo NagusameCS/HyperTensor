@@ -1,0 +1,107 @@
+{
+  "timestamp": "2026-05-04 18:14:42",
+  "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "saiyans": {
+    "Goku": {
+      "domain": "math",
+      "growth": 4.961222171783447,
+      "n_expansions": 50
+    },
+    "Vegeta": {
+      "domain": "code",
+      "growth": 4.3202595710754395,
+      "n_expansions": 44
+    },
+    "Gohan": {
+      "domain": "science",
+      "growth": 3.8987081050872803,
+      "n_expansions": 40
+    },
+    "Piccolo": {
+      "domain": "logic",
+      "growth": 2.455305814743042,
+      "n_expansions": 25
+    },
+    "Trunks": {
+      "domain": "creative",
+      "growth": 2.8613431453704834,
+      "n_expansions": 29
+    },
+    "Yamcha": {
+      "domain": "general",
+      "growth": 1.795021653175354,
+      "n_expansions": 20
+    }
+  },
+  "fusions": {
+    "Gogeta": {
+      "parents": [
+        "Goku",
+        "Vegeta"
+      ],
+      "growth": 4.626424312591553
+    },
+    "Vegito": {
+      "parents": [
+        "Goku",
+        "Vegeta"
+      ],
+      "growth": 4.757233619689941
+    },
+    "Gotenks": {
+      "parents": [
+        "Trunks",
+        "Piccolo"
+      ],
+      "growth": 2.629244089126587
+    }
+  },
+  "benchmarks": {
+    "Yamcha (baseline)": {
+      "domain": "general",
+      "avg_score": 80.4,
+      "n_questions": 10
+    },
+    "Goku": {
+      "domain": "math",
+      "avg_score": 60.0,
+      "n_questions": 10
+    },
+    "Vegeta": {
+      "domain": "code",
+      "avg_score": 80.4,
+      "n_questions": 10
+    },
+    "Gohan": {
+      "domain": "science",
+      "avg_score": 45.0,
+      "n_questions": 10
+    },
+    "Piccolo": {
+      "domain": "logic",
+      "avg_score": 36.5,
+      "n_questions": 10
+    },
+    "Trunks": {
+      "domain": "creative",
+      "avg_score": 49.3,
+      "n_questions": 10
+    },
+    "Gogeta": {
+      "domain": "math",
+      "avg_score": 60.0,
+      "n_questions": 10
+    },
+    "Vegito": {
+      "domain": "math",
+      "avg_score": 60.0,
+      "n_questions": 10
+    },
+    "Gotenks": {
+      "domain": "creative",
+      "avg_score": 49.3,
+      "n_questions": 10
+    }
+  },
+  "baseline_score": 80.4
+}

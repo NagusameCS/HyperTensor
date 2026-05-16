@@ -1,0 +1,10 @@
+{
+  "source": "outputs/_15B_k640_in1024_bf16",
+  "out_dir": "outputs\\_15B_grc_x_nf4",
+  "quant": {
+    "quant_type": "nf4",
+    "compute_dtype": "bfloat16",
+    "double_quant": true
+  },
+  "on_disk_mb": 1090.362253189087
+}

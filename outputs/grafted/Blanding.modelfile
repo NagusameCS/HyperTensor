@@ -1,0 +1,60 @@
+# :*%#@=+-.                              .-=+@#%*:
+#  .:+#%@@@@@@@@@@@@@@@@@@@@@@@@#=...:=#@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+#   .:=#@@@@@@@@@@@@@@@@@@@@@%-.:+%@@@@@#=:=%@@@@@@@@@@@@@@@@@%+-.
+#      :-%@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@@@%=-*@@@@@@@@@@@@@@@*.
+#         :+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+=*@@@@@@@@@@@#:
+#            -*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@+.
+#              .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@*.
+#                .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#                  -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                   :%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:
+#                    .*@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#                     :#@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                      .#@@@@@@@@@@@@@@@@@@@@@@@@@@:
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@+
+#                        .*@@@@@@@@%+-::=*@@@@@@@@:
+#                        .*@@@@@@@.       .+@@@@@@:
+#                        .*@@@@@@@:         :@@@@@@:
+#                        .*@@@@@@@%+-::::-+#@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   HyperTensor
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   universal geometric tensor framework
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   Papers I-XXX
+#                        :#@@@@@@@@@@@@@@@@@@@@@@@*.   15/18 at 100%
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@%.   Jury-GTC @ 53x
+#                      .+@@@@@@@@@@@@@@@@@@@@@@@@@@#:   AGT @ 50K primes
+#                     -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.   External verify 14/14
+#                   :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.   COG 10K converged
+#                 .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.  Bilateral 1.5B 0.968
+#               :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#            .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#         .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#      .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#   .:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+:
+# .:+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+
+# Blanding (Mixture) — HyperTensor CECI Grafted Model
+# Late-layer processing blend. Layer 20 FFN transplanted from layer 10. 60% PPL recovery — donor functionality successfully integrated into deep processing.
+#
+# Architecture: SmolLM2-135M body
+# Graft: Layer 20 ← donor layer 10
+# Method: GRC basis projection (CECI Protocol, Paper X)
+# Created: 2026-05-04
+# Repository: https://github.com/NagusameCS/HyperTensor
+
+FROM outputs/grafted/Blanding
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_predict 256
+
+TEMPLATE """<|im_start|>system
+Du er Blanding, en podet kunstig intelligens skabt gennem HyperTensor CECI podning. Late-layer processing blend. Layer 20 FFN transplanted from layer 10. 60% PPL recovery — donor functionality successfully integrated into deep processing.{{ if .System }} {{ .System }}{{ end }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+SYSTEM """Du er Blanding (Mixture), en dansk-named podet model. Late-layer processing blend. Layer 20 FFN transplanted from layer 10. 60% PPL recovery — donor functionality successfully integrated into deep processing."""

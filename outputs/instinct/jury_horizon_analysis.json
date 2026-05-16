@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-05-13 11:34:58",
+  "synthetic_horizon": {
+    "horizon_distance": 6.4,
+    "horizon_in_R": 8.0,
+    "coverage_radius": 0.8,
+    "n_trajectories": 60,
+    "threshold": 0.5,
+    "n_jury": 7
+  },
+  "saiyan_horizons": {
+    "Gohan": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    },
+    "Goku": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    },
+    "Piccolo": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    },
+    "Trunks": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    },
+    "Vegeta": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    },
+    "Yamcha": {
+      "horizon_distance": 0.6069,
+      "horizon_in_R": 6.1,
+      "coverage_radius": 0.1,
+      "n_trajectories": 10,
+      "threshold": 0.5,
+      "n_jury": 7
+    }
+  }
+}

@@ -1,0 +1,587 @@
+{
+  "timestamp": "2026-05-05 01:16:15",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "K": 100,
+  "device": "cuda",
+  "n_trials": 7,
+  "n_results": 36,
+  "overall": {
+    "naive": 0.8972,
+    "zone_weighted": 0.8966,
+    "best_parent": 0.9663
+  },
+  "by_domain": {
+    "math": {
+      "naive": 0.9827,
+      "zone_weighted": 0.9827,
+      "best_parent": 0.9961
+    },
+    "code": {
+      "naive": 0.9678,
+      "zone_weighted": 0.9665,
+      "best_parent": 0.9912
+    },
+    "science": {
+      "naive": 0.8121,
+      "zone_weighted": 0.8121,
+      "best_parent": 0.9344
+    },
+    "logic": {
+      "naive": 0.8925,
+      "zone_weighted": 0.8902,
+      "best_parent": 0.9617
+    },
+    "creative": {
+      "naive": 0.8716,
+      "zone_weighted": 0.8716,
+      "best_parent": 0.9535
+    },
+    "general": {
+      "naive": 0.8565,
+      "zone_weighted": 0.8565,
+      "best_parent": 0.9608
+    }
+  },
+  "details": [
+    {
+      "domain": "math",
+      "query": "Solve 3x+7=22",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.228,
+        "Vegeta": 0.147,
+        "Gohan": 0.125,
+        "Piccolo": 0.21,
+        "Trunks": 0.1,
+        "Yamcha": 0.19
+      },
+      "parents": {
+        "Goku": 0.9689,
+        "Vegeta": 0.8565,
+        "Gohan": 0.5502,
+        "Piccolo": 0.9776,
+        "Trunks": 0.6108,
+        "Yamcha": 0.9988
+      },
+      "gogeta_naive": 0.9937,
+      "gogeta_zone_weighted": 0.9937,
+      "vegito_naive": 0.9937,
+      "vegito_zone_weighted": 0.9937,
+      "gotenks_naive": 0.9882,
+      "gotenks_zone_weighted": 0.9883
+    },
+    {
+      "domain": "math",
+      "query": "Derivative of x^3*sin(x)",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.201,
+        "Vegeta": 0.151,
+        "Gohan": 0.146,
+        "Piccolo": 0.194,
+        "Trunks": 0.125,
+        "Yamcha": 0.184
+      },
+      "parents": {
+        "Goku": 0.9953,
+        "Vegeta": 0.9638,
+        "Gohan": 0.8341,
+        "Piccolo": 0.9974,
+        "Trunks": 0.8745,
+        "Yamcha": 0.9991
+      },
+      "gogeta_naive": 0.9993,
+      "gogeta_zone_weighted": 0.9993,
+      "vegito_naive": 0.9993,
+      "vegito_zone_weighted": 0.9993,
+      "gotenks_naive": 0.9988,
+      "gotenks_zone_weighted": 0.9988
+    },
+    {
+      "domain": "math",
+      "query": "Roots of x^2-5x+6=0",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.221,
+        "Vegeta": 0.147,
+        "Gohan": 0.131,
+        "Piccolo": 0.206,
+        "Trunks": 0.107,
+        "Yamcha": 0.188
+      },
+      "parents": {
+        "Goku": 0.9961,
+        "Vegeta": 0.9428,
+        "Gohan": 0.8018,
+        "Piccolo": 0.9978,
+        "Trunks": 0.7794,
+        "Yamcha": 0.9998
+      },
+      "gogeta_naive": 0.9994,
+      "gogeta_zone_weighted": 0.9994,
+      "vegito_naive": 0.9994,
+      "vegito_zone_weighted": 0.9994,
+      "gotenks_naive": 0.999,
+      "gotenks_zone_weighted": 0.999
+    },
+    {
+      "domain": "math",
+      "query": "Prove sqrt(2) irrational",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.21,
+        "Vegeta": 0.155,
+        "Gohan": 0.136,
+        "Piccolo": 0.2,
+        "Trunks": 0.114,
+        "Yamcha": 0.185
+      },
+      "parents": {
+        "Goku": 0.9677,
+        "Vegeta": 0.922,
+        "Gohan": 0.7033,
+        "Piccolo": 0.9757,
+        "Trunks": 0.718,
+        "Yamcha": 0.9977
+      },
+      "gogeta_naive": 0.9934,
+      "gogeta_zone_weighted": 0.9934,
+      "vegito_naive": 0.9934,
+      "vegito_zone_weighted": 0.9934,
+      "gotenks_naive": 0.9872,
+      "gotenks_zone_weighted": 0.9872
+    },
+    {
+      "domain": "math",
+      "query": "Sum 1..100",
+      "dominant_zone": "Yamcha",
+      "zone_weights": {
+        "Goku": 0.177,
+        "Vegeta": 0.177,
+        "Gohan": 0.145,
+        "Piccolo": 0.179,
+        "Trunks": 0.129,
+        "Yamcha": 0.193
+      },
+      "parents": {
+        "Goku": 0.8631,
+        "Vegeta": 0.9073,
+        "Gohan": 0.6323,
+        "Piccolo": 0.9055,
+        "Trunks": 0.6928,
+        "Yamcha": 0.9923
+      },
+      "gogeta_naive": 0.9619,
+      "gogeta_zone_weighted": 0.9619,
+      "vegito_naive": 0.9619,
+      "vegito_zone_weighted": 0.9619,
+      "gotenks_naive": 0.9441,
+      "gotenks_zone_weighted": 0.9441
+    },
+    {
+      "domain": "math",
+      "query": "det([[2,1],[3,4]])",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.237,
+        "Vegeta": 0.16,
+        "Gohan": 0.108,
+        "Piccolo": 0.211,
+        "Trunks": 0.087,
+        "Yamcha": 0.198
+      },
+      "parents": {
+        "Goku": 0.827,
+        "Vegeta": 0.7015,
+        "Gohan": 0.1648,
+        "Piccolo": 0.8777,
+        "Trunks": 0.2224,
+        "Yamcha": 0.989
+      },
+      "gogeta_naive": 0.9484,
+      "gogeta_zone_weighted": 0.9484,
+      "vegito_naive": 0.9484,
+      "vegito_zone_weighted": 0.9484,
+      "gotenks_naive": 0.9256,
+      "gotenks_zone_weighted": 0.9255
+    },
+    {
+      "domain": "code",
+      "query": "Binary search complexity",
+      "dominant_zone": "Yamcha",
+      "zone_weights": {
+        "Goku": 0.175,
+        "Vegeta": 0.18,
+        "Gohan": 0.149,
+        "Piccolo": 0.176,
+        "Trunks": 0.131,
+        "Yamcha": 0.189
+      },
+      "parents": {
+        "Goku": 0.8412,
+        "Vegeta": 0.9146,
+        "Gohan": 0.6029,
+        "Piccolo": 0.8206,
+        "Trunks": 0.6799,
+        "Yamcha": 0.9917
+      },
+      "gogeta_naive": 0.9595,
+      "gogeta_zone_weighted": 0.9595,
+      "vegito_naive": 0.9594,
+      "vegito_zone_weighted": 0.9595,
+      "gotenks_naive": 0.8856,
+      "gotenks_zone_weighted": 0.8856
+    },
+    {
+      "domain": "code",
+      "query": "Quicksort time complexity",
+      "dominant_zone": "Yamcha",
+      "zone_weights": {
+        "Goku": 0.182,
+        "Vegeta": 0.173,
+        "Gohan": 0.149,
+        "Piccolo": 0.182,
+        "Trunks": 0.129,
+        "Yamcha": 0.185
+      },
+      "parents": {
+        "Goku": 0.9148,
+        "Vegeta": 0.9273,
+        "Gohan": 0.6826,
+        "Piccolo": 0.8743,
+        "Trunks": 0.6995,
+        "Yamcha": 0.9934
+      },
+      "gogeta_naive": 0.979,
+      "gogeta_zone_weighted": 0.979,
+      "vegito_naive": 0.979,
+      "vegito_zone_weighted": 0.979,
+      "gotenks_naive": 0.9232,
+      "gotenks_zone_weighted": 0.9232
+    },
+    {
+      "domain": "code",
+      "query": "Hash table explanation",
+      "dominant_zone": "Vegeta",
+      "zone_weights": {
+        "Goku": 0.114,
+        "Vegeta": 0.199,
+        "Gohan": 0.189,
+        "Piccolo": 0.133,
+        "Trunks": 0.193,
+        "Yamcha": 0.172
+      },
+      "parents": {
+        "Goku": 0.645,
+        "Vegeta": 0.9873,
+        "Gohan": 0.7406,
+        "Piccolo": 0.8304,
+        "Trunks": 0.8416,
+        "Yamcha": 0.9939
+      },
+      "gogeta_naive": 0.995,
+      "gogeta_zone_weighted": 0.995,
+      "vegito_naive": 0.995,
+      "vegito_zone_weighted": 0.995,
+      "gotenks_naive": 0.9428,
+      "gotenks_zone_weighted": 0.9429
+    },
+    {
+      "domain": "code",
+      "query": "Reverse linked list",
+      "dominant_zone": "Vegeta",
+      "zone_weights": {
+        "Goku": 0.148,
+        "Vegeta": 0.206,
+        "Gohan": 0.152,
+        "Piccolo": 0.154,
+        "Trunks": 0.141,
+        "Yamcha": 0.198
+      },
+      "parents": {
+        "Goku": 0.3987,
+        "Vegeta": 0.8911,
+        "Gohan": 0.3516,
+        "Piccolo": 0.524,
+        "Trunks": 0.4986,
+        "Yamcha": 0.9885
+      },
+      "gogeta_naive": 0.9464,
+      "gogeta_zone_weighted": 0.9465,
+      "vegito_naive": 0.9465,
+      "vegito_zone_weighted": 0.9465,
+      "gotenks_naive": 0.7316,
+      "gotenks_zone_weighted": 0.6413
+    },
+    {
+      "domain": "code",
+      "query": "BFS vs DFS",
+      "dominant_zone": "Yamcha",
+      "zone_weights": {
+        "Goku": 0.182,
+        "Vegeta": 0.177,
+        "Gohan": 0.146,
+        "Piccolo": 0.182,
+        "Trunks": 0.127,
+        "Yamcha": 0.186
+      },
+      "parents": {
+        "Goku": 0.912,
+        "Vegeta": 0.9677,
+        "Gohan": 0.7943,
+        "Piccolo": 0.9367,
+        "Trunks": 0.8054,
+        "Yamcha": 0.996
+      },
+      "gogeta_naive": 0.9863,
+      "gogeta_zone_weighted": 0.9781,
+      "vegito_naive": 0.9863,
+      "vegito_zone_weighted": 0.9782,
+      "gotenks_naive": 0.9639,
+      "gotenks_zone_weighted": 0.964
+    },
+    {
+      "domain": "code",
+      "query": "LRU cache implementation",
+      "dominant_zone": "Vegeta",
+      "zone_weights": {
+        "Goku": 0.159,
+        "Vegeta": 0.211,
+        "Gohan": 0.141,
+        "Piccolo": 0.161,
+        "Trunks": 0.126,
+        "Yamcha": 0.202
+      },
+      "parents": {
+        "Goku": 0.4256,
+        "Vegeta": 0.8807,
+        "Gohan": 0.2935,
+        "Piccolo": 0.5201,
+        "Trunks": 0.4356,
+        "Yamcha": 0.9835
+      },
+      "gogeta_naive": 0.9406,
+      "gogeta_zone_weighted": 0.9406,
+      "vegito_naive": 0.9405,
+      "vegito_zone_weighted": 0.9405,
+      "gotenks_naive": 0.6787,
+      "gotenks_zone_weighted": 0.6381
+    },
+    {
+      "domain": "science",
+      "query": "Photosynthesis process",
+      "dominant_zone": "Gohan",
+      "zone_weights": {
+        "Goku": 0.126,
+        "Vegeta": 0.173,
+        "Gohan": 0.203,
+        "Piccolo": 0.136,
+        "Trunks": 0.192,
+        "Yamcha": 0.17
+      },
+      "parents": {
+        "Goku": 0.3423,
+        "Vegeta": 0.6305,
+        "Gohan": 0.5097,
+        "Piccolo": 0.4217,
+        "Trunks": 0.6533,
+        "Yamcha": 0.9277
+      },
+      "gogeta_naive": 0.7702,
+      "gogeta_zone_weighted": 0.77,
+      "vegito_naive": 0.7701,
+      "vegito_zone_weighted": 0.7702,
+      "gotenks_naive": 0.8414,
+      "gotenks_zone_weighted": 0.8414
+    },
+    {
+      "domain": "science",
+      "query": "Newton's second law",
+      "dominant_zone": "Goku",
+      "zone_weights": {
+        "Goku": 0.186,
+        "Vegeta": 0.162,
+        "Gohan": 0.154,
+        "Piccolo": 0.182,
+        "Trunks": 0.133,
+        "Yamcha": 0.183
+      },
+      "parents": {
+        "Goku": 0.7905,
+        "Vegeta": 0.8288,
+        "Gohan": 0.6045,
+        "Piccolo": 0.8488,
+        "Trunks": 0.6651,
+        "Yamcha": 0.9851
+      },
+      "gogeta_naive": 0.9335,
+      "gogeta_zone_weighted": 0.9336,
+      "vegito_naive": 0.9336,
+      "vegito_zone_weighted": 0.9335,
+      "gotenks_naive": 0.9056,
+      "gotenks_zone_weighted": 0.9056
+    },
+    {
+      "domain": "science",
+      "query": "DNA replication",
+      "dominant_zone": "Gohan",
+      "zone_weights": {
+        "Goku": 0.124,
+        "Vegeta": 0.184,
+        "Gohan": 0.196,
+        "Piccolo": 0.134,
+        "Trunks": 0.188,
+        "Yamcha": 0.173
+      },
+      "parents": {
+        "Goku": 0.215,
+        "Vegeta": 0.5235,
+        "Gohan": 0.3312,
+        "Piccolo": 0.3232,
+        "Trunks": 0.4769,
+        "Yamcha": 0.8709
+      },
+      "gogeta_naive": 0.6814,
+      "gogeta_zone_weighted": 0.6814,
+      "vegito_naive": 0.6814,
+      "vegito_zone_weighted": 0.6814,
+      "gotenks_naive": 0.7138,
+      "gotenks_zone_weighted": 0.7141
+    },
+    {
+      "domain": "science",
+      "query": "Photoelectric effect",
+      "dominant_zone": "Gohan",
+      "zone_weights": {
+        "Goku": 0.145,
+        "Vegeta": 0.174,
+        "Gohan": 0.184,
+        "Piccolo": 0.152,
+        "Trunks": 0.169,
+        "Yamcha": 0.176
+      },
+      "parents": {
+        "Goku": 0.5875,
+        "Vegeta": 0.7976,
+        "Gohan": 0.6398,
+        "Piccolo": 0.6596,
+        "Trunks": 0.7644,
+        "Yamcha": 0.9523
+      },
+      "gogeta_naive": 0.8897,
+      "gogeta_zone_weighted": 0.8897,
+      "vegito_naive": 0.8897,
+      "vegito_zone_weighted": 0.8897,
+      "gotenks_naive": 0.9051,
+      "gotenks_zone_weighted": 0.9052
+    },
+    {
+      "domain": "science",
+      "query": "Natural selection",
+      "dominant_zone": "Gohan",
+      "zone_weights": {
+        "Goku": 0.14,
+        "Vegeta": 0.179,
+        "Gohan": 0.185,
+        "Piccolo": 0.148,
+        "Trunks": 0.171,
+        "Yamcha": 0.177
+      },
+      "parents": {
+        "Goku": 0.3684,
+        "Vegeta": 0.6838,
+        "Gohan": 0.4128,
+        "Piccolo": 0.4748,
+        "Trunks": 0.5612,
+        "Yamcha": 0.8975
+      },
+      "gogeta_naive": 0.8108,
+      "gogeta_zone_weighted": 0.8106,
+      "vegito_naive": 0.8107,
+      "vegito_zone_weighted": 0.8108,
+      "gotenks_naive": 0.779,
+      "gotenks_zone_weighted": 0.7791
+    },
+    {
+      "domain": "science",
+      "query": "Greenhouse effect",
+      "dominant_zone": "Gohan",
+      "zone_weights": {
+        "Goku": 0.119,
+        "Vegeta": 0.172,
+        "Gohan": 0.208,
+        "Piccolo": 0.131,
+        "Trunks": 0.203,
+        "Yamcha": 0.167
+      },
+      "parents": {
+        "Goku": 0.32,
+        "Vegeta": 0.6526,
+        "Gohan": 0.4866,
+        "Piccolo": 0.4232,
+        "Trunks": 0.632,
+        "Yamcha": 0.9727
+      },
+      "gogeta_naive": 0.787,
+      "gogeta_zone_weighted": 0.7872,
+      "vegito_naive": 0.7872,
+      "vegito_zone_weighted": 0.7873,
+      "gotenks_naive": 0.8277,
+      "gotenks_zone_weighted": 0.8277
+    },
+    {
+      "domain": "logic",
+      "query": "Monty Hall problem",
+      "dominant_zone": "Vegeta",
+      "zone_weights": {
+        "Goku": 0.144,
+        "Vegeta": 0.177,
+        "Gohan": 0.177,
+        "Piccolo": 0.156,
+        "Trunks": 0.171,
+        "Yamcha": 0.175
+      },
+      "parents": {
+        "Goku": 0.7022,
+        "Vegeta": 0.8532,
+        "Gohan": 0.5832,
+        "Piccolo": 0.7878,
+        "Trunks": 0.718,
+        "Yamcha": 0.9776
+      },
+      "gogeta_naive": 0.9244,
+      "gogeta_zone_weighted": 0.9243,
+      "vegito_naive": 0.9243,
+      "vegito_zone_weighted": 0.9243,
+      "gotenks_naive": 0.8798,
+      "gotenks_zone_weighted": 0.8798
+    },
+    {
+      "domain": "logic",
+      "query": "Five logical fallacies",
+      "dominant_zone": "Trunks",
+      "zone_weights": {
+        "Goku": 0.115,
+        "Vegeta": 0.175,
+        "Gohan": 0.203,
+        "Piccolo": 0.133,
+        "Trunks": 0.213,
+        "Yamcha": 0.161
+      },
+      "parents": {
+        "Goku": 0.3233,
+        "Vegeta": 0.5957,
+        "Gohan": 0.3869,
+        "Piccolo": 0.5721,
+        "Trunks": 0.6425,
+        "Yamcha": 0.9322
+      },
+      "gogeta_naive": 0.7422,
+      "gogeta_zone_weighted": 0.7423,
+      "vegito_naive": 0.7423,
+      "vegito_zone_weighted": 0.7423,
+      "gotenks_naive": 0.8344,
+      "gotenks_zone_weighted": 0.8344
+    }
+  ]
+}

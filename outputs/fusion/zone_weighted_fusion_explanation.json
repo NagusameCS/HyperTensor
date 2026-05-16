@@ -1,0 +1,27 @@
+{
+  "what_the_jury_measures": {
+    "inside_manifold": "High confidence \u2014 the manifold has seen similar patterns. Familiar territory.",
+    "at_horizon": "Confidence = 0.5 \u2014 boundary between known and unknown. Coin flip.",
+    "outside_manifold": "Low confidence \u2014 novel territory. The model is guessing.",
+    "not_measuring": "The jury does NOT measure truth/correctness. It measures coverage density in k-space.",
+    "analogy": "Like asking 'have you seen something like this before?' not 'is this correct?'"
+  },
+  "why_naive_fusion_fails": {
+    "problem": "Merging trajectories from both parents dilutes the signal. The wrong parent's trajectories act as noise.",
+    "coverage_radius": "R (median pairwise distance) stays the same because the trajectory pool has both tight clusters AND wide separation between clusters.",
+    "jury_effect": "The jury sees irrelevant trajectories from the wrong zone, reducing agreement and confidence."
+  },
+  "zone_weighted_solution": {
+    "mechanism": "Detect query zone via cosine similarity to domain centroids. Weight parent trajectories by zone relevance.",
+    "math_query": "Goku trajectories get 90% weight, Vegeta get 10%",
+    "code_query": "Vegeta trajectories get 90% weight, Goku get 10%",
+    "between_query": "Both parents get ~50% weight \u2014 true fusion behavior",
+    "result": "Fusion surpasses both parents on their respective domains because wrong-zone noise is suppressed."
+  },
+  "instinct_horizon": {
+    "formula": "d_h = R * (-ln(1 - 0.5^(1/N)))",
+    "n7": 2.362,
+    "meaning": "Geodesic distance at which jury confidence drops to 0.5",
+    "derivation": "From single-trial exponential decay c(d)=exp(-d/R) plus jury formula J=1-(1-c)^N"
+  }
+}

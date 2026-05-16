@@ -1,0 +1,310 @@
+{
+  "source": "Qwen/Qwen2.5-0.5B",
+  "out_dir": "outputs\\_joint_k512_dn256",
+  "config": {
+    "rank_k": 512,
+    "sink_T": 8,
+    "lora_rank": 32,
+    "lora_alpha": 64.0,
+    "steps": 600,
+    "batch_size": 1,
+    "seq_len": 256,
+    "learning_rate": 0.0001,
+    "dtype": "float32",
+    "loss_type": "kl",
+    "kl_temperature": 4.0
+  },
+  "per_layer": {
+    "layer_0": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.22808629274368286,
+      "frob_relerr_k": 0.22641393542289734,
+      "frob_relerr_v": 0.60152667760849
+    },
+    "layer_1": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.18975670635700226,
+      "frob_relerr_k": 0.11033783107995987,
+      "frob_relerr_v": 0.5123335123062134
+    },
+    "layer_2": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.18936580419540405,
+      "frob_relerr_k": 0.10990183800458908,
+      "frob_relerr_v": 0.5295566916465759
+    },
+    "layer_3": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.15709121525287628,
+      "frob_relerr_k": 0.11275090277194977,
+      "frob_relerr_v": 0.27107349038124084
+    },
+    "layer_4": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.19011296331882477,
+      "frob_relerr_k": 0.151082843542099,
+      "frob_relerr_v": 0.2572362422943115
+    },
+    "layer_5": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.18494912981987,
+      "frob_relerr_k": 0.15271727740764618,
+      "frob_relerr_v": 0.22860369086265564
+    },
+    "layer_6": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.16253605484962463,
+      "frob_relerr_k": 0.1290045976638794,
+      "frob_relerr_v": 0.2625505030155182
+    },
+    "layer_7": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.19186829030513763,
+      "frob_relerr_k": 0.1466803252696991,
+      "frob_relerr_v": 0.2568056881427765
+    },
+    "layer_8": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.19128216803073883,
+      "frob_relerr_k": 0.13853974640369415,
+      "frob_relerr_v": 0.40292561054229736
+    },
+    "layer_9": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.15549172461032867,
+      "frob_relerr_k": 0.13802333176136017,
+      "frob_relerr_v": 0.21933376789093018
+    },
+    "layer_10": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.19931012392044067,
+      "frob_relerr_k": 0.16507253050804138,
+      "frob_relerr_v": 0.20643731951713562
+    },
+    "layer_11": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.1481160968542099,
+      "frob_relerr_k": 0.13038799166679382,
+      "frob_relerr_v": 0.20376749336719513
+    },
+    "layer_12": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.18878889083862305,
+      "frob_relerr_k": 0.16351176798343658,
+      "frob_relerr_v": 0.2214316874742508
+    },
+    "layer_13": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.14901454746723175,
+      "frob_relerr_k": 0.13360218703746796,
+      "frob_relerr_v": 0.1845761090517044
+    },
+    "layer_14": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.20164889097213745,
+      "frob_relerr_k": 0.18413187563419342,
+      "frob_relerr_v": 0.16331788897514343
+    },
+    "layer_15": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.17495864629745483,
+      "frob_relerr_k": 0.13706400990486145,
+      "frob_relerr_v": 0.1804610639810562
+    },
+    "layer_16": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.14258112013339996,
+      "frob_relerr_k": 0.1582641750574112,
+      "frob_relerr_v": 0.18550097942352295
+    },
+    "layer_17": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.1876838505268097,
+      "frob_relerr_k": 0.17825230956077576,
+      "frob_relerr_v": 0.1868640035390854
+    },
+    "layer_18": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.21521404385566711,
+      "frob_relerr_k": 0.19116772711277008,
+      "frob_relerr_v": 0.15269987285137177
+    },
+    "layer_19": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.19812136888504028,
+      "frob_relerr_k": 0.19560356438159943,
+      "frob_relerr_v": 0.17251384258270264
+    },
+    "layer_20": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.1852686107158661,
+      "frob_relerr_k": 0.1915229856967926,
+      "frob_relerr_v": 0.10201752930879593
+    },
+    "layer_21": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.15964823961257935,
+      "frob_relerr_k": 0.18606913089752197,
+      "frob_relerr_v": 0.07275474071502686
+    },
+    "layer_22": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.15693768858909607,
+      "frob_relerr_k": 0.1833294779062271,
+      "frob_relerr_v": 0.102505624294281
+    },
+    "layer_23": {
+      "rank_k": 512,
+      "sink_T": 8,
+      "d": 896,
+      "frob_relerr_q": 0.1563112437725067,
+      "frob_relerr_k": 0.19273795187473297,
+      "frob_relerr_v": 0.1298016756772995
+    },
+    "ffn": {
+      "layer_0": {
+        "frob_relerr_down": 0.7372279167175293,
+        "rank_down": 256
+      },
+      "layer_1": {
+        "frob_relerr_down": 0.7194222211837769,
+        "rank_down": 256
+      },
+      "layer_2": {
+        "frob_relerr_down": 0.7023721933364868,
+        "rank_down": 256
+      },
+      "layer_3": {
+        "frob_relerr_down": 0.693432092666626,
+        "rank_down": 256
+      },
+      "layer_4": {
+        "frob_relerr_down": 0.7042292356491089,
+        "rank_down": 256
+      },
+      "layer_5": {
+        "frob_relerr_down": 0.6869498491287231,
+        "rank_down": 256
+      },
+      "layer_6": {
+        "frob_relerr_down": 0.687993586063385,
+        "rank_down": 256
+      },
+      "layer_7": {
+        "frob_relerr_down": 0.6925336718559265,
+        "rank_down": 256
+      },
+      "layer_8": {
+        "frob_relerr_down": 0.6685931086540222,
+        "rank_down": 256
+      },
+      "layer_9": {
+        "frob_relerr_down": 0.6643067002296448,
+        "rank_down": 256
+      },
+      "layer_10": {
+        "frob_relerr_down": 0.6548234820365906,
+        "rank_down": 256
+      },
+      "layer_11": {
+        "frob_relerr_down": 0.6370747685432434,
+        "rank_down": 256
+      },
+      "layer_12": {
+        "frob_relerr_down": 0.6498284935951233,
+        "rank_down": 256
+      },
+      "layer_13": {
+        "frob_relerr_down": 0.6636231541633606,
+        "rank_down": 256
+      },
+      "layer_14": {
+        "frob_relerr_down": 0.6700199842453003,
+        "rank_down": 256
+      },
+      "layer_15": {
+        "frob_relerr_down": 0.6815880537033081,
+        "rank_down": 256
+      },
+      "layer_16": {
+        "frob_relerr_down": 0.712708592414856,
+        "rank_down": 256
+      },
+      "layer_17": {
+        "frob_relerr_down": 0.7088115215301514,
+        "rank_down": 256
+      },
+      "layer_18": {
+        "frob_relerr_down": 0.6888610124588013,
+        "rank_down": 256
+      },
+      "layer_19": {
+        "frob_relerr_down": 0.6860788464546204,
+        "rank_down": 256
+      },
+      "layer_20": {
+        "frob_relerr_down": 0.7023131847381592,
+        "rank_down": 256
+      },
+      "layer_21": {
+        "frob_relerr_down": 0.6979184746742249,
+        "rank_down": 256
+      },
+      "layer_22": {
+        "frob_relerr_down": 0.7064380049705505,
+        "rank_down": 256
+      },
+      "layer_23": {
+        "frob_relerr_down": 0.7003286480903625,
+        "rank_down": 256
+      }
+    }
+  },
+  "n_layers_distilled": 24
+}

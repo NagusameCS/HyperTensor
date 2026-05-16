@@ -1,0 +1,530 @@
+{
+    "root":  "C:\\Users\\legom\\HyperTensor",
+    "archive":  "C:\\Users\\legom\\HyperTensor\\archives\\runtime-artifacts_20260417_121149",
+    "moved_files":  [
+                        {
+                            "bucket":  "logs",
+                            "file":  "build_output.txt"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "geo_srv.log"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "geo_srv_err.log"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "qemu_serial0.log"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "qemu_serial1.log"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "qemu_out.txt"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "qemu_out2.txt"
+                        },
+                        {
+                            "bucket":  "logs",
+                            "file":  "qemu_sne.txt"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta3_report.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta4_probe256_report.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta4_proto_report.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_boundary_test.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_auto.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_fast.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_fast_retry.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_phase4_oracle.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_phase4_oracle_budget.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_plan_finish.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "axiom_beta_report_geodessic_plan_finish_v2.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_cpu.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_final.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap2.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap2_rerun.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap3.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap3_rerun.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap4_fastguard.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap4_injection.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_itercap4_injection_rerun.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_oracle_targets.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_phase4cpu.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_fast_gpu_tuned.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_full_gpu.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_full_gpu_itercap5_persist.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_full_gpu_itercap5_recalc.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_full_gpu_itercap6_orchestrated.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_full_gpu_itercap6_orchestrated_fix.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_gpu_off.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_gpu_off_reuse.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_gpu_on.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_gpu_on_reuse.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_s128_p512.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_s256_p1024.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_s256_p1024_stable.json"
+                        },
+                        {
+                            "bucket":  "reports",
+                            "file":  "bench_axiom_s64_p256.json"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "axiom_fresh.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench1.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_afterpatch.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_afterpatch.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_afterpatch_long.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_newtech_count.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_newtech_greedy.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_newtech_greedy_fixed.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_cuda_newtech_temp08.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_fixed.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_fixed2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "bench_highprio.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "curr_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "dbg_conf.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "dbg_conf2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "diag_out.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "diff_full.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "fast_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "final_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "long_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak10.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak5.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak6.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak7.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak8.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak9.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak_test2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak_test3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "peak_test4.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "perf1.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "rebuild.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg10.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg11.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg12.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg13.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg14.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg15.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg16.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg17.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg18.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg19.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg20.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg21.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg22.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg23.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg24.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg25.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg26.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg27.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg28.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg29.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg4.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg5.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg6.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg7.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg8.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "sdbg9.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "snap_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "snap_test2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_new.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_out.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_out2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_out3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "spec_v2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "survey_out.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "survey_out2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "survey_out3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "timing_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vdbg.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vdbg2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vdbg3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vel_test.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_final.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_run.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_run2.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_run3.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_run4.txt"
+                        },
+                        {
+                            "bucket":  "scratch-text",
+                            "file":  "vis_run5.txt"
+                        }
+                    ]
+}

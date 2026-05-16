@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-05-04 18:50:39",
+  "baseline_model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "K": 20,
+  "n_trials_per_query": 7,
+  "n_models": 10,
+  "n_domains": 8,
+  "n_questions_total": 800,
+  "baseline_avg_jury": 1.0,
+  "per_model_per_domain": {
+    "Original (no manifold)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Goku (math)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Vegeta (code)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 0.9929,
+      "logic": 0.9786,
+      "creative": 0.9929,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Gohan (science)": {
+      "math": 0.9786,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Piccolo (logic)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 0.9929,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 0.9857,
+      "philosophy": 1.0
+    },
+    "Trunks (creative)": {
+      "math": 0.9999,
+      "code": 0.9929,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Yamcha (general)": {
+      "math": 0.9999,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Gogeta (Goku+Vegeta)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 0.9929,
+      "logic": 0.9857,
+      "creative": 0.9929,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Vegito (Goku+Vegeta, potara)": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 0.9786,
+      "creative": 0.9929,
+      "history": 1.0,
+      "economics": 1.0,
+      "philosophy": 1.0
+    },
+    "Gotenks (Trunks+Piccolo)": {
+      "math": 0.9929,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0,
+      "history": 1.0,
+      "economics": 0.9857,
+      "philosophy": 1.0
+    }
+  },
+  "fusion_analysis": {
+    "Gogeta (Goku+Vegeta)": {
+      "fusion_avg": 0.9964,
+      "parent_avgs": {
+        "Goku (math)": 1.0,
+        "Vegeta (code)": 0.9956
+      }
+    },
+    "Vegito (Goku+Vegeta, potara)": {
+      "fusion_avg": 0.9964,
+      "parent_avgs": {
+        "Goku (math)": 1.0,
+        "Vegeta (code)": 0.9956
+      }
+    },
+    "Gotenks (Trunks+Piccolo)": {
+      "fusion_avg": 0.9973,
+      "parent_avgs": {
+        "Trunks (creative)": 0.9991,
+        "Piccolo (logic)": 0.9973
+      }
+    }
+  }
+}

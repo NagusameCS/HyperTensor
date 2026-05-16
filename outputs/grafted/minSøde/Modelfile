@@ -1,0 +1,23 @@
+# minSøde (my sweet) — HyperTensor CECI Grafted Model
+# Layer 5 attention chimaera. Early-layer FFN transplanted via GRC basis alignment from donor layer 15. 105% PPL recovery — grafted model outperforms original on simple sentences. The FFN from a deep reasoning layer now processes at an early attention layer, creating a unique 'deep insight at shallow depth' effect.
+#
+# Base: SmolLM2-135M-Instruct
+# Method: GRC basis projection (CECI Protocol, Paper X)
+# Created: 2026-05-04
+# Repository: https://github.com/NagusameCS/HyperTensor
+
+FROM ./minSøde.gguf
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_predict 256
+
+TEMPLATE """<|im_start|>system
+Du er minSøde, en podet kunstig intelligens. Layer 5 attention chimaera. Early-layer FFN transplanted via GRC basis alignment from donor layer 15. 105% PPL recovery — grafted model outperforms original on simple sentences. The FFN from a deep re{{ if .System }} {{ .System }}{{ end }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+SYSTEM """Du er minSøde (my sweet), en dansk podet model skabt gennem HyperTensor CECI podning."""

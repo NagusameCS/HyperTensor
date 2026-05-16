@@ -1,0 +1,44 @@
+{
+  "ott_full": true,
+  "ott_theorem": false,
+  "ott_perfect": false,
+  "ready": false,
+  "hybrid_ready": false,
+  "degraded_geodesic": false,
+  "status": "not_ready",
+  "model": "Gemma 4 E2B It",
+  "generation": {
+    "tokens": 80,
+    "total_ms": 1194,
+    "tok_per_s": 67.00,
+    "prefill_ms": 36.00,
+    "decode_tok_per_s": 27.31
+  },
+  "geodesic": {
+    "enabled": true,
+    "runtime_tokens": 53,
+    "local_tokens": 27,
+    "runtime_rejects": 27,
+    "runtime_share": 0.6625,
+    "runtime_reject_rate": 0.3375,
+    "quality_gate_pass": true,
+    "generated_tokens": 80,
+    "fallback_used": false
+  },
+  "axiom": {
+    "ran": true,
+    "intrinsic_dim": 0,
+    "consistency": 0.0000,
+    "projected_speedup": 1.00,
+    "total_ms": 0
+  },
+  "attnres": {
+    "enabled": true,
+    "strength": 0.350
+  },
+  "depth_attention": {
+    "enabled": false,
+    "strength": 0.550,
+    "window": 16
+  }
+}

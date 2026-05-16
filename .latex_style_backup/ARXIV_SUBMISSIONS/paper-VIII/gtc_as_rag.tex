@@ -1,0 +1,73 @@
+% :*%#@=+-.                              .-=+@#%*:
+%  .:+#%@@@@@@@@@@@@@@@@@@@@@@@@#=...:=#@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+%   .:=#@@@@@@@@@@@@@@@@@@@@@%-.:+%@@@@@#=:=%@@@@@@@@@@@@@@@@@%+-.
+%      :-%@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@@@%=-*@@@@@@@@@@@@@@@*.
+%         :+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+=*@@@@@@@@@@@#:
+%            -*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@+.
+%              .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@*.
+%                .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+%                  -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+%                   :%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:
+%                    .*@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+%                     :#@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+%                      .#@@@@@@@@@@@@@@@@@@@@@@@@@@:
+%                       .*@@@@@@@@@@@@@@@@@@@@@@@@+
+%                        .*@@@@@@@@%+-::=*@@@@@@@@:
+%                        .*@@@@@@@.       .+@@@@@@:
+%                        .*@@@@@@@:         :@@@@@@:
+%                        .*@@@@@@@%+-::::-+#@@@@@@:
+%                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+%                        .*@@@@@@@@@@@@@@@@@@@@@@@:   HyperTensor
+%                        .*@@@@@@@@@@@@@@@@@@@@@@@:   universal geometric tensor framework
+%                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+%                        .*@@@@@@@@@@@@@@@@@@@@@@@:   Papers I-XXX
+%                        :#@@@@@@@@@@@@@@@@@@@@@@@*.   15/18 at 100%
+%                       .*@@@@@@@@@@@@@@@@@@@@@@@@%.   Jury-GTC @ 53x
+%                      .+@@@@@@@@@@@@@@@@@@@@@@@@@@#:   AGT @ 50K primes
+%                     -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.   External verify 14/14
+%                   :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.   COG 10K converged
+%                 .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.  Bilateral 1.5B 0.968
+%               :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+%            .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+%         .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+%      .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+%   .:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+:
+% .:+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+
+% HyperTensor Paper VIII: GTC Runtime
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,hyperref,graphicx,booktabs,enumitem,setspace}
+\onehalfspacing
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{GTC Runtime: Measured Cache Coverage and Batch Jacobi\\\large HyperTensor Paper VIII}
+\author{William Ken Ohara Stewart\\NagusameCS Independent Research}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Empirical companion to Paper IV (Organic Training Theory). We anchor 12 of 17 testable claims from the theoretical GTC proposal with measurements on real hardware. The batched-Jacobi correction achieves a $97\times$ speedup at batch size $B=10$ through the linearity of the Jacobi equation. Cache hit rate is tunable by similarity threshold, dropping from $\sim$50\% at threshold $=0.90$ to $\sim$5\% at threshold $=0.99$. Compressed record storage reduces memory footprint while maintaining query accuracy. GTC achieves $15.5\times$ speedup over retrieval-augmented generation (RAG) for cached queries.
+
+\end{abstract}
+
+\section{Method}
+
+GTC stores completed geodesic trajectories in a library indexed by nearest-neighbor search. Each record contains the trajectory embedding, contextual velocity, waypoint sequence, Jacobi propagator $J(\lambda) \in \mathbb{R}^{k \times k}$, injectivity radius estimate, and terminal logits.
+
+New queries within the validity radius are served by a Jacobi-field linear correction: $x^\mu(\lambda) = \bar{x}^\mu(\lambda) + J(\lambda) \cdot \delta q$. The Jacobi equation is linear, so a batch of similar queries can be corrected in a single matrix multiplication---the resonant effect where throughput rises under load.
+
+\section{Measured Results}
+
+The batched-Jacobi correction achieves $97\times$ speedup at $B=10$. Cache hit rate by similarity threshold: $\sim$50\% at threshold $0.90$, $\sim$25\% at threshold $0.95$, $\sim$10\% at threshold $0.98$, $\sim$5\% at threshold $0.99$. GTC achieves $15.5\times$ speedup over RAG for cached queries.
+
+\section{Verification}
+
+Verification: \texttt{benchmarks/gtc\_50pct\_cache/}, \texttt{benchmarks/chat\_model\_results.json}. 2/2 claims confirmed.
+
+\begin{thebibliography}{99}
+\bibitem{stewart} W.K.O. Stewart. HyperTensor Repository. 2026.
+\end{thebibliography}
+\end{document}

@@ -1,0 +1,85 @@
+{
+  "subsystem": "autonomous_axiomatic_beta",
+  "beta_version": 3,
+  "model": {
+    "name": "Gemma 4 E2B It",
+    "arch": "gemma4",
+    "dim": 1536,
+    "layers": 35,
+    "vocab": 262144,
+    "params": 2714763264
+  },
+  "config": {
+    "embedding_samples": 128,
+    "pca_variance_ratio": 0.9500,
+    "symmetry_trials": 512,
+    "metric_sample_points": 128,
+    "use_fisher": 1,
+    "fisher_blend": 0.2000,
+    "active_iterations": 256,
+    "oracle_calls_max": 64,
+    "geodesic_steps": 200,
+    "seed": 0
+  },
+  "phase1_manifold": {
+    "intrinsic_dim": 16,
+    "twonn_raw": 15.5571,
+    "pca_components_kept": 113,
+    "embedding_dim": 1536,
+    "samples_used": 128,
+    "total_variance": 1.883716e+03,
+    "explained_variance": 1.794012e+03,
+    "explained_ratio": 0.952379,
+    "uses_real_embeddings": 1
+  },
+  "phase2_symmetry": {
+    "symmetry_score": 0.291444,
+    "generators_found": 53,
+    "permutation_invariant_heads": 53,
+    "total_heads_tested": 64,
+    "head_similarity_mean": 0.291444,
+    "head_similarity_max": 0.998164
+  },
+  "phase3_curvature": {
+    "mean_scalar_curvature": 1.486140e+01,
+    "max_scalar_curvature": 8.247097e+01,
+    "min_scalar_curvature": -8.247097e+01,
+    "curvature_std": 1.687477e+01,
+    "high_curvature_loci": 4,
+    "metric_field_points": 128,
+    "christoffel_computed": 1,
+    "fisher_trace_mean": 1.978260e+01,
+    "fisher_det_log_mean": -7.738053e+00,
+    "uses_real_curvature": 1,
+    "uses_fisher_metric": 1,
+    "uses_real_dequant": 1
+  },
+  "phase4_axioms": {
+    "axiom_count": 32,
+    "consistency_score": 0.932384,
+    "candidates_tested": 256,
+    "candidates_accepted": 200,
+    "oracle_calls_used": 64,
+    "information_gain": 14.200661
+  },
+  "phase5_geodesic": {
+    "geodesic_reconstruction_error": 8.059512,
+    "geodesic_cosine_similarity": 0.186961,
+    "geodesic_steps_taken": 200,
+    "geodesic_path_length": 2.502061,
+    "transformer_cost": 3.523e+09,
+    "geodesic_cost": 6.554e+04,
+    "projected_speedup": 53760.000000,
+    "geodesic_converged": 1,
+    "pilot_tokens_tested": 8,
+    "supports_geodesic_pilot": 1
+  },
+  "timings_us": {
+    "phase1": 167052,
+    "phase2": 91585,
+    "phase3": 646404,
+    "phase4": 542,
+    "phase5": 62340,
+    "total": 968726
+  }
+}

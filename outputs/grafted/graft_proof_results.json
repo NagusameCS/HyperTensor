@@ -1,0 +1,86 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "n_layers": 30,
+  "d_model": 576,
+  "baseline_ppl": 60.96,
+  "grafts": {
+    "Kim\u00e6re": {
+      "english": "Chimera",
+      "layer": 5,
+      "donor_layer": 15,
+      "baseline_ppl": 60.96,
+      "ablated_ppl": 66.42,
+      "grafted_ppl": 60.68,
+      "random_ppl": 66.42,
+      "ablation_damage": 5.46,
+      "graft_recovery": 5.74,
+      "recovery_percent": 105.2,
+      "graft_vs_random": "GRAFT BETTER",
+      "evidence": "STRONG \u2014 graft significantly repairs ablation damage"
+    },
+    "Krydsning": {
+      "english": "Crossing",
+      "layer": 8,
+      "donor_layer": 18,
+      "baseline_ppl": 60.96,
+      "ablated_ppl": 83.26,
+      "grafted_ppl": 56.07,
+      "random_ppl": 83.27,
+      "ablation_damage": 22.3,
+      "graft_recovery": 27.19,
+      "recovery_percent": 121.9,
+      "graft_vs_random": "GRAFT BETTER",
+      "evidence": "STRONG \u2014 graft significantly repairs ablation damage"
+    },
+    "Splejsning": {
+      "english": "Splice",
+      "layer": 12,
+      "donor_layer": 2,
+      "baseline_ppl": 60.96,
+      "ablated_ppl": 73.53,
+      "grafted_ppl": 69.87,
+      "random_ppl": 73.55,
+      "ablation_damage": 12.57,
+      "graft_recovery": 3.66,
+      "recovery_percent": 29.1,
+      "graft_vs_random": "GRAFT BETTER",
+      "evidence": "MODERATE \u2014 partial functional transfer"
+    },
+    "Sammensmeltning": {
+      "english": "Fusion",
+      "layer": 15,
+      "donor_layer": 5,
+      "baseline_ppl": 60.96,
+      "ablated_ppl": 63.25,
+      "grafted_ppl": 63.37,
+      "random_ppl": 63.25,
+      "ablation_damage": 2.28,
+      "graft_recovery": -0.12,
+      "recovery_percent": -5.3,
+      "graft_vs_random": "RANDOM BETTER",
+      "evidence": "NONE \u2014 graft did not help"
+    },
+    "Blanding": {
+      "english": "Mixture",
+      "layer": 20,
+      "donor_layer": 10,
+      "baseline_ppl": 60.96,
+      "ablated_ppl": 71.95,
+      "grafted_ppl": 65.31,
+      "random_ppl": 71.96,
+      "ablation_damage": 10.98,
+      "graft_recovery": 6.64,
+      "recovery_percent": 60.4,
+      "graft_vs_random": "GRAFT BETTER",
+      "evidence": "STRONG \u2014 graft significantly repairs ablation damage"
+    }
+  },
+  "cross_model_graft": {
+    "donor": "Qwen/Qwen2.5-0.5B-Instruct",
+    "layer": 12,
+    "donor_layer": 12,
+    "ppl": 68.15,
+    "delta_from_baseline": 7.18,
+    "transfers": true
+  }
+}

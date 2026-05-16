@@ -1,0 +1,94 @@
+# :*%#@=+-.                              .-=+@#%*:
+#  .:+#%@@@@@@@@@@@@@@@@@@@@@@@@#=...:=#@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+#   .:=#@@@@@@@@@@@@@@@@@@@@@%-.:+%@@@@@#=:=%@@@@@@@@@@@@@@@@@%+-.
+#      :-%@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@@@%=-*@@@@@@@@@@@@@@@*.
+#         :+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+=*@@@@@@@@@@@#:
+#            -*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@+.
+#              .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@*.
+#                .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#                  -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                   :%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:
+#                    .*@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#                     :#@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                      .#@@@@@@@@@@@@@@@@@@@@@@@@@@:
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@+
+#                        .*@@@@@@@@%+-::=*@@@@@@@@:
+#                        .*@@@@@@@.       .+@@@@@@:
+#                        .*@@@@@@@:         :@@@@@@:
+#                        .*@@@@@@@%+-::::-+#@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   HyperTensor
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   universal geometric tensor framework
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   Papers I-XXX
+#                        :#@@@@@@@@@@@@@@@@@@@@@@@*.   15/18 at 100%
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@%.   Jury-GTC @ 53x
+#                      .+@@@@@@@@@@@@@@@@@@@@@@@@@@#:   AGT @ 50K primes
+#                     -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.   External verify 14/14
+#                   :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.   COG 10K converged
+#                 .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.  Bilateral 1.5B 0.968
+#               :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#            .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#         .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#      .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#   .:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+:
+# .:+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+
+
+  GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+  G  Geodessical v0.5.0 "Synapse"              G
+  G  High-Performance AI Inference Runtime    G
+  GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+
+[CPU] SSE2=1 AVX2=1 FMA=1 AVX512=1
+[SMP] 16 CPUs online (15 workers + BSP)
+[GD] Loading model: C:\Users\legom\TensorOS\models\google_gemma-4-E2B-it-Q4_0.gguf
+[GD] Mapped 3222 MB
+[LLM] Loading model from buffer: 3222 MB
+[LLM] Parsing GGUF...
+[GGUF] Version 3, 601 tensors, 49 KV pairs
+[LLM] Gemma4: head_dim_swa=256 rope_base_swa=10000 kv_start=15 iswa_embd=256
+[LLM] rms_epsilon=0.000001
+[LLM] Model: Gemma 4 E2B It (gemma4)
+[LLM] 35 layers, 1536-dim, 262144 vocab, 8 heads (1 KV), head_dim=512
+[LLM] Gemma mode: embed_scale=39.2 geglu=1 softcap=30.0
+[LLM] About to map tensors...
+[LLM] token_embd.weight: type=14 dims=[1536,262144]
+[LLM] Note: output.weight tied to token_embd
+[LLM] ISWA: per_layer_token_embd [8960 x 262144]
+[LLM] ISWA: rope_freqs [256]
+[LLM] L0: hd=256 ff=6144 kv_reuse=-1 q_norm=0000015F7B814380 proj=0000015F7C8467A0 scale=0000015F7C841F80
+[LLM] L4: hd=512 ff=6144 kv_reuse=-1 q_norm=0000015F80DFC800 proj=0000015F81DD5020 scale=0000015F81DD0800
+[LLM] L15: hd=256 ff=12288 kv_reuse=13 q_norm=0000015F8EF79D60 proj=0000015F90E4C180 scale=0000015F90E47960
+[LLM] Tensor mapping complete: 35 layers
+[LLM] Derived ff_dim=12288 from per-layer tensor shapes
+[LLM] Tensors mapped, building vocab...
+[LLM] Vocab: 262144 tokens, BOS=2, EOS=1
+[LLM] Tokenizer: SentencePiece
+[LLM] Vocab built (262144 tokens), allocating scratch...
+[LLM] Allocating 1121 MB scratch arena
+[LLM] Model loaded successfully! Ready for inference.
+[CUDA] Initialized: 1 device(s), 7052 MB free
+[GPU] VRAM free: 7052 MB, scratch: 1072 KB
+[GPU] Uploaded 277 weight tensors (1358 MB) to VRAM
+[GPU] GPU-resident forward pass ready (total VRAM: 1838 MB)
+[LLM] Backend: cuda (GPU-accelerated)
+[GD] Model loaded in 761 ms
+[GD] Model: Gemma 4 E2B It
+[GD] Prompt: "Write a 500-word explanation of how compilers optimize loops, in plain English."
+[GD] Generating 256 tokens...
+
+[GRAPH] Capture started at pos=27
+[GRAPH] Captured successfully! Launching graph.
+##GHowGCompilersGmakeGloops:GMakingGCodeGFaster
+
+ImagineGyouGhaveGaG"LoopsGareGlikeGaGChef'sGareGlikeGrecipes
+
+ImagineGyouGhaveGaGrecipe
+
+ImagineGyouGhaveGaGrecipe
+
+ImagineGyouGhaveGaGrecipeGforGaGrecipeGyouGhaveGstepsGtoGmakeGaGrecipeGyouGhaveGstepsGtoGmakeGaGrecipeGhaveGstepsGtoGmakeGaGrecipeGhaveGstepsGtoGmakeGaGrecipeGhaveGstepsGtoGmakeGcodeGtoGmakeGloopsGlikeGaGrecipeGtoGmakeGaGrecipeGtoGmakeGcodeGtoGmakeGaGrecipeGtoGmakeGcodeGtoGmakeGaGrecipeGtoGmakeGtoGmakeGstepsGtoGmakeGtoGmakeGtoGstepsGtoGmakeGtoGmakeGtoGstepsGtoGstepsGtoGmakeGtoGstepsGtoGstepsGtoGmakeGtoGstepsGtoGstepsGtoGmakeGtoGstepsGtoGstepsGtoGmakeGtoGstepsGtoGstepsGtoGmakeGtoGstepsGtoGstepsGtoGstepsGtoGmakeGstepsGtoGstepsGtoGtoGmakeGtoGstepsGtoGstepsGtoGtoGstepsGtoGstepsGtoGstepsGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGtoGstepsGtoGstepsGtoGtoGto
+
+[GD] 256 tokens in 2659 ms (96.3 tok/s)
+[GD] Decode-only: prefill 313.0 ms, 112.1 tok/s

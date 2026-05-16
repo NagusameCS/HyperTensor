@@ -1,0 +1,1292 @@
+# :*%#@=+-.                              .-=+@#%*:
+#  .:+#%@@@@@@@@@@@@@@@@@@@@@@@@#=...:=#@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+#   .:=#@@@@@@@@@@@@@@@@@@@@@%-.:+%@@@@@#=:=%@@@@@@@@@@@@@@@@@%+-.
+#      :-%@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@@@%=-*@@@@@@@@@@@@@@@*.
+#         :+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+=*@@@@@@@@@@@#:
+#            -*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#=#@@@@@@@@@+.
+#              .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@*.
+#                .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#                  -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                   :%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%:
+#                    .*@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#                     :#@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#                      .#@@@@@@@@@@@@@@@@@@@@@@@@@@:
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@+
+#                        .*@@@@@@@@%+-::=*@@@@@@@@:
+#                        .*@@@@@@@.       .+@@@@@@:
+#                        .*@@@@@@@:         :@@@@@@:
+#                        .*@@@@@@@%+-::::-+#@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   HyperTensor
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   universal geometric tensor framework
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:
+#                        .*@@@@@@@@@@@@@@@@@@@@@@@:   Papers I-XXX
+#                        :#@@@@@@@@@@@@@@@@@@@@@@@*.   15/18 at 100%
+#                       .*@@@@@@@@@@@@@@@@@@@@@@@@%.   Jury-GTC @ 53x
+#                      .+@@@@@@@@@@@@@@@@@@@@@@@@@@#:   AGT @ 50K primes
+#                     -%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.   External verify 14/14
+#                   :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.   COG 10K converged
+#                 .+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.  Bilateral 1.5B 0.968
+#               :*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#            .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%.
+#         .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.
+#      .-*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#:
+#   .:=#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%+:
+# .:+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#+:.
+
+diff --git a/runtime/nn/llm.c b/runtime/nn/llm.c
+index c1e1e6c..ad74f05 100644
+--- a/runtime/nn/llm.c
++++ b/runtime/nn/llm.c
+@@ -48,6 +48,19 @@ typedef float v8f __attribute__((vector_size(32)));
+ static void llm_build_hash_table(const llm_model_t *m);
+ static uint64_t llm_row_bytes(int in_dim, ggml_type_t type);
+ 
++/* ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
++/*  Debug/Trace Logging Macros                                                 */
++/* ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
++#ifndef LOG_DBG
++#define LOG_DBG(tag, fmt, ...)  kprintf("[" tag "] " fmt "\n", ##__VA_ARGS__)
++#endif
++#ifndef LOG_INFO
++#define LOG_INFO(tag, fmt, ...) kprintf("[" tag "] " fmt "\n", ##__VA_ARGS__)
++#endif
++#ifndef LOG_TRC
++#define LOG_TRC(tag, fmt, ...)  do {} while (0)  /* Trace: compiled out */
++#endif
++
+ /* ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+ /*  Static Allocations                                                         */
+ /* ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@@ -65,7 +78,10 @@ static volatile int llm_inference_active = 0;
+ typedef void (*llm_token_cb_t)(const char *text, int len, void *userdata);
+ static llm_token_cb_t llm_stream_cb   = (llm_token_cb_t)0;
+ static void          *llm_stream_cb_ud = (void *)0;
+-static llm_backend_t  llm_backend      = LLM_BACKEND_CPU;
++static llm_backend_t  llm_backend        = LLM_BACKEND_CPU;
++static int            llm_last_vram_mb   = 0;
++static float          llm_last_prefill_ms_val = 0.0f;
++static float          llm_last_tok_per_sec_val = 0.0f;
+ 
+ /* Tensor bridge for hidden-state injection / daisy-chaining */
+ static tensor_bridge_t llm_bridge;
+@@ -118,6 +134,7 @@ static int llm_alloc_kv_floats;
+ #ifdef ENABLE_CUDA
+ 
+ #define GPU_WEIGHT_MAP_MAX 512
++#define GPU_MAX_LAYERS     128
+ 
+ typedef struct {
+     const void *host_ptr;   /* mmap'd host weight pointer (lookup key) */
+@@ -125,6 +142,20 @@ typedef struct {
+     uint64_t    size;       /* Tensor size in bytes */
+ } gpu_weight_entry_t;
+ 
++/* Per-layer GPU-resident norm weights and KV cache */
++typedef struct {
++    float *d_attn_norm;        /* [dim] attention RMSNorm weight (F32 on GPU) */
++    float *d_ffn_norm;         /* [dim] FFN RMSNorm weight */
++    float *d_post_attn_norm;   /* [dim] post-attention norm (Gemma4, NULL if absent) */
++    float *d_post_ffw_norm;    /* [dim] post-FFW norm (Gemma4, NULL if absent) */
++    float *d_q_norm;           /* [n_heads * lhd] per-head Q norm (NULL if absent) */
++    float *d_k_norm;           /* [n_kv * lhd] per-head K norm (NULL if absent) */
++    float *d_k_cache;          /* [n_kv * max_seq * lhd] KV cache K */
++    float *d_v_cache;          /* [n_kv * max_seq * lhd] KV cache V */
++    float *d_iswa_post_norm;   /* [dim] ISWA post-norm weight (Gemma4, NULL if absent) */
++    int    lhd;                /* actual head dim for this layer */
++} gpu_layer_t;
++
+ static struct {
+     int active;                            /* 1 if GPU offload is live */
+     gpu_weight_entry_t map[GPU_WEIGHT_MAP_MAX];
+@@ -133,6 +164,44 @@ static struct {
+     float *d_out;                          /* Device output scratch */
+     int max_in_dim;
+     int max_out_dim;
++
++    /* GPU-resident forward pass state */
++    int gpu_fwd;                /* 1 if GPU-resident forward pass is ready */
++    float *d_xn;                /* [dim] normalized hidden state */
++    float *d_q;                 /* [max_q_dim] Q projection output */
++    float *d_k;                 /* [max_kv_dim] K buffer */
++    float *d_v;                 /* [max_kv_dim] V buffer */
++    float *d_attn;              /* [max_q_dim] attention output */
++    float *d_ffn_g;             /* [max_ff] FFN gate */
++    float *d_ffn_u;             /* [max_ff] FFN up */
++    float *d_ffn_d;             /* [dim] FFN down / scratch */
++    float *d_output_norm;       /* [dim] final output norm weights */
++    float *d_rope_freqs;        /* RoPE freq factors for full-attn layers (NULL if unused) */
++    gpu_layer_t layers[GPU_MAX_LAYERS];
++
++    /* Cached model dimensions for GPU forward pass */
++    int dim;
++    int max_seq;
++    int n_heads;
++    int n_kv;
++    int head_dim;               /* max head dim */
++    int head_dim_swa;           /* SWA head dim (Gemma4) */
++    int max_ff;
++    int vocab_size;
++    float rms_eps;
++    int n_layers;
++    int is_gemma4;
++    int use_geglu;
++    int use_gelu;
++    int use_layernorm;
++    int n_layer_kv_start;       /* Gemma4: first layer with own KV */
++    float rope_base;
++    float rope_base_swa;
++
++    /* ISWA GPU-resident state (Gemma4) */
++    float *d_iswa_tmp;          /* [iswa_n_embd] ISWA gating scratch */
++    float *d_iswa_per_layer;    /* [iswa_n_embd * n_layers] precomputed per-token */
++    int iswa_n_embd;
+ } gpu_ctx;
+ 
+ /* Look up device pointer for a host weight pointer */
+@@ -176,6 +245,23 @@ static int llm_gpu_upload_weight_mat(const void *weight, int out_dim, int in_dim
+     return llm_gpu_register_weight(weight, size);
+ }
+ 
++/* Upload a norm weight vector to GPU as F32.
++ * For F32 norm weights: direct upload.
++ * For non-F32: skip (returns NULL) ΓÇö caller falls back to CPU for that norm. */
++static float *llm_gpu_upload_norm(const void *weight, int dim, ggml_type_t type) {
++    if (!weight || dim <= 0) return (float *)0;
++    const backend_t *be = backend_get_by_id(BACKEND_CUDA);
++    if (!be) return (float *)0;
++
++    if (type == GGML_TYPE_F32) {
++        float *d = (float *)be->mem.alloc((uint64_t)dim * sizeof(float));
++        if (d) be->mem.upload(d, weight, (uint64_t)dim * sizeof(float));
++        return d;
++    }
++    /* Non-F32 norm weights: not supported on GPU path */
++    return (float *)0;
++}
++
+ /* Upload all model weights to GPU. Called after model load if CUDA available. */
+ static int llm_gpu_init(llm_model_t *m) {
+     const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+@@ -261,8 +347,139 @@ static int llm_gpu_init(llm_model_t *m) {
+         total += gpu_ctx.map[i].size;
+ 
+     gpu_ctx.active = 1;
++    llm_last_vram_mb = (int)(total / (1024 * 1024));
++    llm_backend = LLM_BACKEND_CUDA;
+     kprintf("[GPU] Uploaded %d weight tensors (%llu MB) to VRAM\n",
+             gpu_ctx.map_count, (unsigned long long)(total / (1024 * 1024)));
++
++    /* ΓöÇΓöÇ GPU-Resident Forward Pass Setup ΓöÇΓöÇ */
++    /* Allocate activation buffers and KV cache on GPU.
++     * Upload norm weights so the entire forward pass stays on device. */
++
++    gpu_ctx.dim        = dim;
++    gpu_ctx.max_seq    = m->max_seq;
++    gpu_ctx.n_heads    = n_heads;
++    gpu_ctx.n_kv       = n_kv;
++    gpu_ctx.head_dim   = hd;
++    gpu_ctx.head_dim_swa = m->is_gemma4 ? m->head_dim_swa : hd;
++    gpu_ctx.max_ff     = ff;
++    gpu_ctx.vocab_size = m->vocab_size;
++    gpu_ctx.rms_eps    = m->rms_eps;
++    gpu_ctx.n_layers   = m->n_layers;
++    gpu_ctx.is_gemma4  = m->is_gemma4;
++    gpu_ctx.use_geglu  = m->use_geglu;
++    gpu_ctx.use_gelu   = m->use_gelu;
++    gpu_ctx.use_layernorm = m->use_layernorm;
++    gpu_ctx.n_layer_kv_start = m->n_layer_kv_start;
++    gpu_ctx.rope_base  = m->rope_base;
++    gpu_ctx.rope_base_swa = m->is_gemma4 ? m->rope_base_swa : m->rope_base;
++
++    /* Activation scratch buffers */
++    gpu_ctx.d_xn    = (float *)be->mem.alloc((uint64_t)dim * sizeof(float));
++    gpu_ctx.d_q     = (float *)be->mem.alloc((uint64_t)q_dim * sizeof(float));
++    gpu_ctx.d_k     = (float *)be->mem.alloc((uint64_t)kv_dim * sizeof(float));
++    gpu_ctx.d_v     = (float *)be->mem.alloc((uint64_t)kv_dim * sizeof(float));
++    gpu_ctx.d_attn  = (float *)be->mem.alloc((uint64_t)q_dim * sizeof(float));
++    gpu_ctx.d_ffn_g = (float *)be->mem.alloc((uint64_t)ff * sizeof(float));
++    gpu_ctx.d_ffn_u = (float *)be->mem.alloc((uint64_t)ff * sizeof(float));
++    gpu_ctx.d_ffn_d = (float *)be->mem.alloc((uint64_t)dim * sizeof(float));
++
++    int fwd_ok = gpu_ctx.d_xn && gpu_ctx.d_q && gpu_ctx.d_k && gpu_ctx.d_v &&
++                 gpu_ctx.d_attn && gpu_ctx.d_ffn_g && gpu_ctx.d_ffn_u && gpu_ctx.d_ffn_d;
++
++    /* Per-layer KV cache + norm weights */
++    if (fwd_ok && m->n_layers <= GPU_MAX_LAYERS) {
++        for (int L = 0; L < m->n_layers && fwd_ok; L++) {
++            llm_layer_t *layer = &m->layers[L];
++            int lhd = layer->head_dim_layer ? layer->head_dim_layer : hd;
++            uint64_t kv_layer_size = (uint64_t)n_kv * m->max_seq * lhd * sizeof(float);
++            gpu_layer_t *gl = &gpu_ctx.layers[L];
++            gl->lhd = lhd;
++
++            /* KV cache: only for layers with own KV (not shared) */
++            if (layer->kv_reuse_layer < 0) {
++                gl->d_k_cache = (float *)be->mem.alloc(kv_layer_size);
++                gl->d_v_cache = (float *)be->mem.alloc(kv_layer_size);
++                if (!gl->d_k_cache || !gl->d_v_cache) { fwd_ok = 0; break; }
++                /* Zero-init KV cache */
++                be->mem.upload(gl->d_k_cache, llm_kv_k, kv_layer_size); /* zeros from alloc_scratch */
++                be->mem.upload(gl->d_v_cache, llm_kv_v, kv_layer_size);
++            }
++
++            /* Norm weights */
++            gl->d_attn_norm = llm_gpu_upload_norm(layer->attn_norm, dim, layer->attn_norm_type);
++            gl->d_ffn_norm  = llm_gpu_upload_norm(layer->ffn_norm, dim, layer->ffn_norm_type);
++            gl->d_post_attn_norm = llm_gpu_upload_norm(layer->post_attn_norm, dim, GGML_TYPE_F32);
++            gl->d_post_ffw_norm  = llm_gpu_upload_norm(layer->post_ffw_norm, dim, GGML_TYPE_F32);
++
++            /* Per-head Q/K norm (Gemma4) */
++            if (layer->q_norm)
++                gl->d_q_norm = llm_gpu_upload_norm(layer->q_norm, n_heads * lhd, GGML_TYPE_F32);
++            if (layer->k_norm)
++                gl->d_k_norm = llm_gpu_upload_norm(layer->k_norm, n_kv * lhd, GGML_TYPE_F32);
++
++            /* ISWA post-norm (Gemma4) */
++            if (layer->iswa_post_norm)
++                gl->d_iswa_post_norm = llm_gpu_upload_norm(layer->iswa_post_norm, dim, GGML_TYPE_F32);
++
++            if (!gl->d_attn_norm || !gl->d_ffn_norm) { fwd_ok = 0; break; }
++        }
++    } else {
++        fwd_ok = 0;
++    }
++
++    /* Output norm */
++    if (fwd_ok) {
++        gpu_ctx.d_output_norm = llm_gpu_upload_norm(m->output_norm, dim, m->output_norm_type);
++        if (!gpu_ctx.d_output_norm) fwd_ok = 0;
++    }
++
++    /* RoPE freq factors (Gemma4: precomputed for full-attention layers) */
++    if (fwd_ok && m->rope_freqs) {
++        int half_hd = hd / 2;
++        gpu_ctx.d_rope_freqs = (float *)be->mem.alloc((uint64_t)half_hd * sizeof(float));
++        if (gpu_ctx.d_rope_freqs)
++            be->mem.upload(gpu_ctx.d_rope_freqs, m->rope_freqs, (uint64_t)half_hd * sizeof(float));
++    }
++
++    /* ISWA GPU scratch (Gemma4: eliminate per-layer CPU round-trip) */
++    if (fwd_ok && m->is_gemma4 && m->iswa_n_embd > 0) {
++        int iswa_d = m->iswa_n_embd;
++        gpu_ctx.iswa_n_embd = iswa_d;
++        gpu_ctx.d_iswa_tmp = (float *)be->mem.alloc((uint64_t)iswa_d * sizeof(float));
++        gpu_ctx.d_iswa_per_layer = (float *)be->mem.alloc(
++            (uint64_t)iswa_d * m->n_layers * sizeof(float));
++        if (!gpu_ctx.d_iswa_tmp || !gpu_ctx.d_iswa_per_layer) {
++            gpu_ctx.d_iswa_tmp = NULL;
++            gpu_ctx.d_iswa_per_layer = NULL;
++        }
++    }
++
++    /* Set up shared KV cache pointers for layers that reuse */
++    if (fwd_ok) {
++        for (int L = 0; L < m->n_layers; L++) {
++            llm_layer_t *layer = &m->layers[L];
++            if (layer->kv_reuse_layer >= 0 && layer->kv_reuse_layer < m->n_layers) {
++                gpu_ctx.layers[L].d_k_cache = gpu_ctx.layers[layer->kv_reuse_layer].d_k_cache;
++                gpu_ctx.layers[L].d_v_cache = gpu_ctx.layers[layer->kv_reuse_layer].d_v_cache;
++            }
++        }
++    }
++
++    be->mem.sync();
++
++    if (fwd_ok) {
++        gpu_ctx.gpu_fwd = 1;
++        /* Re-tally total VRAM */
++        total = 0;
++        for (int i = 0; i < gpu_ctx.map_count; i++) total += gpu_ctx.map[i].size;
++        uint64_t used = free_mem - be->get_free_memory(0);
++        llm_last_vram_mb = (int)(used / (1024 * 1024));
++        kprintf("[GPU] GPU-resident forward pass ready (total VRAM: %d MB)\n", llm_last_vram_mb);
++    } else {
++        kprintf("[GPU] GPU-resident forward pass not available, using upload/download per GEMV\n");
++    }
++
+     return 0;
+ }
+ 
+@@ -985,6 +1202,46 @@ static float q8_0_dot32_avx2(const ggml_q8_0_t *block, const float *x)
+     return v8f_reduce(acc) * d;
+ }
+ 
++/* AVX2 Q4_1 dot: process 32 elements per block using 8-wide
++ * Q4_1: dequant = d * nibble + m (unsigned nibbles 0-15)
++ * dot = sum(d * nibble_i * x_i + m * x_i) = d * sum(nibble_i * x_i) + m * sum(x_i) */
++__attribute__((target("avx2,fma")))
++static float q4_1_dot32_avx2(const ggml_q4_1_t *block, const float *x)
++{
++    float d = fp16_to_fp32_fast(block->d);
++    float m = fp16_to_fp32_fast(block->m);
++    const uint8_t *qs = block->qs;
++
++    /* Standard GGML layout: lo nibbles ΓåÆ x[0..15], hi nibbles ΓåÆ x[16..31] */
++    v8f qxacc_lo = v8f_setzero();
++    v8f qxacc_hi = v8f_setzero();
++    v8f xacc_lo = v8f_setzero();
++    v8f xacc_hi = v8f_setzero();
++
++    for (int j = 0; j < 16; j += 8) {
++        uint8_t b0=qs[j], b1=qs[j+1], b2=qs[j+2], b3=qs[j+3];
++        uint8_t b4=qs[j+4], b5=qs[j+5], b6=qs[j+6], b7=qs[j+7];
++        v8f qlo = {(float)(b0&0xF), (float)(b1&0xF),
++                   (float)(b2&0xF), (float)(b3&0xF),
++                   (float)(b4&0xF), (float)(b5&0xF),
++                   (float)(b6&0xF), (float)(b7&0xF)};
++        v8f qhi = {(float)(b0>>4), (float)(b1>>4),
++                   (float)(b2>>4), (float)(b3>>4),
++                   (float)(b4>>4), (float)(b5>>4),
++                   (float)(b6>>4), (float)(b7>>4)};
++        v8f xlo; __builtin_memcpy(&xlo, x + j, 32);       /* x[j..j+7] */
++        v8f xhi; __builtin_memcpy(&xhi, x + j + 16, 32);  /* x[j+16..j+23] */
++        qxacc_lo += qlo * xlo;
++        qxacc_hi += qhi * xhi;
++        xacc_lo += xlo;
++        xacc_hi += xhi;
++    }
++
++    float qxsum = v8f_reduce(qxacc_lo + qxacc_hi);
++    float xsum  = v8f_reduce(xacc_lo + xacc_hi);
++    return d * qxsum + m * xsum;
++}
++
+ /* AVX2 Q4_0 dot: process 32 elements per block using 8-wide */
+ __attribute__((target("avx2,fma")))
+ static float q4_0_dot32_avx2(const ggml_q4_0_t *block, const float *x)
+@@ -1044,11 +1301,10 @@ static float llm_vec_dot_avx2(const void *weight, const float *x, int n, ggml_ty
+         return sum;
+     }
+     case GGML_TYPE_Q4_1: {
+-        /* Q4_1: d * nibble + m ΓÇö use scalar path for now (AVX2 TODO) */
+         const ggml_q4_1_t *blocks = (const ggml_q4_1_t *)weight;
+         float sum = 0.0f;
+         for (int b = 0; b < nb; b++)
+-            sum += q4_1_dot32(&blocks[b], x + b * 32);
++            sum += q4_1_dot32_avx2(&blocks[b], x + b * 32);
+         return sum;
+     }
+     case GGML_TYPE_F32: {
+@@ -1850,12 +2106,10 @@ static void llm_gemv(float *out, const void *weight, const float *x,
+ {
+ #ifdef ENABLE_CUDA
+     /* GPU-accelerated GEMV: look up pre-uploaded device weight.
+-     * Only dispatch to CUDA for types the GPU kernels support.
+-     * Size threshold: GPU overhead only pays off for large matrices. */
++     * Only dispatch to CUDA for types the GPU kernels support. */
+     if (gpu_ctx.active && (type == GGML_TYPE_Q4_0 || type == GGML_TYPE_Q8_0 ||
+                            type == GGML_TYPE_F32  || type == GGML_TYPE_F16  ||
+-                           type == GGML_TYPE_Q6_K) &&
+-        out_dim >= 8192) {
++                           type == GGML_TYPE_Q6_K)) {
+         void *d_weight = llm_gpu_lookup(weight);
+         if (d_weight) {
+             const backend_t *be = backend_get_by_id(BACKEND_CUDA);
+@@ -2728,6 +2982,422 @@ static void llm_forward_token(llm_model_t *m, float *logits, int token_id, int p
+ #endif
+ 
+     /* 1. Embedding lookup */
++
++#ifdef ENABLE_CUDA
++    /* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
++     * GPU-Resident Forward Pass
++     *
++     * When gpu_ctx.gpu_fwd is set, the entire forward pass runs on GPU.
++     * Activations stay in VRAM between operations ΓÇö no PCIe round-trips
++     * except: ISWA injection (small tensors) and final logits download.
++     * ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
++    if (gpu_ctx.gpu_fwd) {
++        const backend_t *be = backend_get_by_id(BACKEND_CUDA);
++        int max_seq = gpu_ctx.max_seq;
++        int seq_len = pos + 1;
++        int kv_stride_host = m->max_seq * n_kv * hd;
++        int kv_dim_host = n_kv * hd;
++
++        /* 1. Embedding on GPU: GPU embed only handles Q4_0 and F32.
++         * For other types (e.g. Q6_K), fall back to CPU dequant + upload. */
++        void *d_embd = llm_gpu_lookup(m->token_embd);
++        int embed_on_gpu = (m->token_embd_type == GGML_TYPE_Q4_0 ||
++                            m->token_embd_type == GGML_TYPE_F32);
++        if (d_embd && embed_on_gpu) {
++            be->compute.embed_lookup(gpu_ctx.d_x, d_embd, token_id, dim, m->token_embd_type);
++            /* Gemma: scale embedding by sqrt(dim) ΓÇö GPU embed_lookup only dequantizes */
++            if (m->embed_scale != 0.0f && m->embed_scale != 1.0f)
++                be->compute.scale(gpu_ctx.d_x, gpu_ctx.d_x, m->embed_scale, dim);
++        } else {
++            /* Fallback: embed on CPU (handles all types + embed_scale), upload */
++            llm_embed(llm_x, m, token_id);
++            be->mem.upload(gpu_ctx.d_x, llm_x, (uint64_t)dim * sizeof(float));
++        }
++
++        /* === ISWA precomputation: GPU GEMV + CPU finalization === */
++        if (m->is_gemma4 && m->iswa_tok_embd && m->iswa_model_proj) {
++            int iswa_d = m->iswa_n_embd;
++            int iswa_total = iswa_d * m->n_layers;
++            float inv_sqrt_dim = 1.0f / llm_sqrtf((float)dim);
++            float sqrt_iswa_d  = llm_sqrtf((float)iswa_d);
++            float inv_sqrt_2   = 1.0f / llm_sqrtf(2.0f);
++
++            /* Token embedding dequant (CPU ΓÇö quantized lookup, fast) */
++            uint64_t emb_rb = llm_row_bytes(iswa_total, m->iswa_tok_embd_type);
++            const uint8_t *emb_row = (const uint8_t *)m->iswa_tok_embd
++                                     + (uint64_t)token_id * emb_rb;
++            if (m->iswa_tok_embd_type == GGML_TYPE_Q6_K) {
++                const ggml_q6_k_t *blocks = (const ggml_q6_k_t *)emb_row;
++                int nsb = iswa_total / 256;
++                for (int sb = 0; sb < nsb; sb++) {
++                    const ggml_q6_k_t *b = &blocks[sb];
++                    float d_val = fp16_to_fp32(b->d);
++                    float *o = llm_iswa_per_layer + sb * 256;
++                    for (int half = 0; half < 2; half++) {
++                        const uint8_t *ql_h = b->ql + half * 64;
++                        const uint8_t *qh_h = b->qh + half * 32;
++                        const int8_t *sc_h = b->scales + half * 8;
++                        for (int l = 0; l < 32; l++) {
++                            int q0 = (int)(ql_h[l] & 0xF)      | (int)(((qh_h[l] >> 0) & 3) << 4);
++                            int q1 = (int)(ql_h[l + 32] & 0xF)  | (int)(((qh_h[l] >> 2) & 3) << 4);
++                            int q2 = (int)(ql_h[l] >> 4)         | (int)(((qh_h[l] >> 4) & 3) << 4);
++                            int q3 = (int)(ql_h[l + 32] >> 4)    | (int)(((qh_h[l] >> 6) & 3) << 4);
++                            int si = l / 16;
++                            o[half*128 + l]      = d_val * (float)sc_h[0 + si] * (float)(q0 - 32);
++                            o[half*128 + l + 32] = d_val * (float)sc_h[2 + si] * (float)(q1 - 32);
++                            o[half*128 + l + 64] = d_val * (float)sc_h[4 + si] * (float)(q2 - 32);
++                            o[half*128 + l + 96] = d_val * (float)sc_h[6 + si] * (float)(q3 - 32);
++                        }
++                    }
++                }
++            } else {
++                for (int i = 0; i < iswa_total; i++)
++                    llm_iswa_per_layer[i] = llm_get_f(m->iswa_tok_embd, i, m->iswa_tok_embd_type);
++            }
++            for (int i = 0; i < iswa_total; i++)
++                llm_iswa_per_layer[i] *= sqrt_iswa_d;
++
++            /* Model projection GEMV ΓÇö CPU path (proven correct) */
++            float *proj_buf = llm_ffn_g;
++            be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
++            { int saved_active = gpu_ctx.active; gpu_ctx.active = 0;
++              llm_gemv(proj_buf, m->iswa_model_proj, llm_x, iswa_total, dim,
++                       m->iswa_model_proj_type);
++              gpu_ctx.active = saved_active; }
++            for (int i = 0; i < iswa_total; i++)
++                proj_buf[i] *= inv_sqrt_dim;
++
++            /* Per-layer RMSNorm on projection (CPU ΓÇö 35 tiny norms, fast) */
++            if (m->iswa_proj_norm) {
++                const float *norm_w = (const float *)m->iswa_proj_norm;
++                for (int ll = 0; ll < m->n_layers; ll++) {
++                    float *sl = proj_buf + ll * iswa_d;
++                    float ss = 0.0f;
++                    for (int i = 0; i < iswa_d; i++) ss += sl[i] * sl[i];
++                    float rms = 1.0f / llm_sqrtf(ss / (float)iswa_d + m->rms_eps);
++                    for (int i = 0; i < iswa_d; i++) sl[i] = sl[i] * rms * norm_w[i];
++                }
++            }
++            for (int i = 0; i < iswa_total; i++)
++                llm_iswa_per_layer[i] = (llm_iswa_per_layer[i] + proj_buf[i]) * inv_sqrt_2;
++
++            /* Upload precomputed per-layer ISWA data to GPU */
++            if (gpu_ctx.d_iswa_per_layer)
++                be->mem.upload(gpu_ctx.d_iswa_per_layer, llm_iswa_per_layer,
++                               (uint64_t)iswa_total * sizeof(float));
++        }
++
++        /* === Per-layer transformer loop (GPU-resident) === */
++        for (int L = 0; L < m->n_layers; L++) {
++            llm_layer_t *layer = &m->layers[L];
++            gpu_layer_t *gl = &gpu_ctx.layers[L];
++            int lhd = layer->head_dim_layer ? layer->head_dim_layer : hd;
++            int lkv_dim = n_kv * lhd;
++            int lq_dim  = n_heads * lhd;
++            int has_own_kv = (layer->kv_reuse_layer < 0);
++
++            /* All norms on GPU now (CPU fallback removed for perf) */
++            int use_cpu_norm = 0;
++
++            /* 2a. Pre-attention RMSNorm */
++            if (use_cpu_norm) {
++                be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
++                llm_rmsnorm(llm_xn, llm_x, layer->attn_norm, dim,
++                            layer->attn_norm_type, m->rms_eps);
++                be->mem.upload(gpu_ctx.d_xn, llm_xn, (uint64_t)dim * sizeof(float));
++            } else {
++                be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_attn_norm,
++                                    dim, gpu_ctx.rms_eps);
++            }
++
++            /* 2b. Q/K/V projections on GPU */
++            void *d_qw = llm_gpu_lookup(layer->q_weight);
++            be->compute.gemv(gpu_ctx.d_q, d_qw, gpu_ctx.d_xn, lq_dim, dim, layer->q_type);
++
++
++
++            if (has_own_kv) {
++                void *d_kw = llm_gpu_lookup(layer->k_weight);
++                void *d_vw = llm_gpu_lookup(layer->v_weight);
++                be->compute.gemv(gpu_ctx.d_k, d_kw, gpu_ctx.d_xn, lkv_dim, dim, layer->k_type);
++                be->compute.gemv(gpu_ctx.d_v, d_vw, gpu_ctx.d_xn, lkv_dim, dim, layer->v_type);
++            }
++
++            /* Per-head Q/K normalization + RoPE.
++             * For Gemma4 with fused GPU kernel: norm+RoPE stays on GPU, no download.
++             * For others or when fused kernel is not applicable: download, CPU process, upload. */
++            float layer_rope_base = m->rope_base;
++            if (m->is_gemma4 && lhd == m->head_dim_swa)
++                layer_rope_base = m->rope_base_swa;
++            const float *rope_f = (const float *)0;
++            if (m->rope_factors_short || m->rope_factors_long)
++                rope_f = (pos < m->rope_orig_ctx) ? m->rope_factors_short : m->rope_factors_long;
++            if (m->is_gemma4 && m->rope_freqs && lhd != m->head_dim_swa)
++                rope_f = m->rope_freqs;
++            int rdim = m->rope_dim > 0 ? m->rope_dim : lhd;
++
++            /* Download Q for norm+RoPE processing */
++            be->mem.download(llm_q, gpu_ctx.d_q, (uint64_t)lq_dim * sizeof(float));
++            if (has_own_kv) {
++                be->mem.download(llm_k_buf, gpu_ctx.d_k, (uint64_t)lkv_dim * sizeof(float));
++                be->mem.download(llm_v_buf, gpu_ctx.d_v, (uint64_t)lkv_dim * sizeof(float));
++            }
++
++            /* Bias */
++            llm_add_bias(llm_q, layer->q_bias, lq_dim);
++            if (has_own_kv) {
++                llm_add_bias(llm_k_buf, layer->k_bias, lkv_dim);
++                llm_add_bias(llm_v_buf, layer->v_bias, lkv_dim);
++            }
++
++            /* Per-head Q/K normalization */
++            if (layer->q_norm) {
++                const float *qnw = (const float *)layer->q_norm;
++                for (int h = 0; h < n_heads; h++) {
++                    float *qh = llm_q + h * lhd;
++                    float ss = 0.0f;
++                    for (int i = 0; i < lhd; i++) ss += qh[i] * qh[i];
++                    float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
++                    for (int i = 0; i < lhd; i++) qh[i] = qh[i] * rms * qnw[i];
++                }
++            }
++            if (layer->k_norm && has_own_kv) {
++                const float *knw = (const float *)layer->k_norm;
++                for (int h = 0; h < n_kv; h++) {
++                    float *kh = llm_k_buf + h * lhd;
++                    float ss = 0.0f;
++                    for (int i = 0; i < lhd; i++) ss += kh[i] * kh[i];
++                    float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
++                    for (int i = 0; i < lhd; i++) kh[i] = kh[i] * rms * knw[i];
++                }
++                for (int h = 0; h < n_kv; h++) {
++                    float *vh = llm_v_buf + h * lhd;
++                    float ss = 0.0f;
++                    for (int i = 0; i < lhd; i++) ss += vh[i] * vh[i];
++                    float rms = 1.0f / llm_sqrtf(ss / (float)lhd + m->rms_eps);
++                    for (int i = 0; i < lhd; i++) vh[i] *= rms;
++                }
++            }
++
++            /* RoPE */
++            for (int h = 0; h < n_heads; h++)
++                llm_rope(llm_q + h * lhd, pos, rdim, layer_rope_base, rope_f);
++            if (has_own_kv)
++                for (int h = 0; h < n_kv; h++)
++                    llm_rope(llm_k_buf + h * lhd, pos, rdim, layer_rope_base, rope_f);
++
++            /* Always re-upload Q for GPU attention */
++            be->mem.upload(gpu_ctx.d_q, llm_q, (uint64_t)lq_dim * sizeof(float));
++
++            /* KV cache update on GPU (always, no CPU-only path) */
++            if (has_own_kv) {
++                be->mem.upload(gpu_ctx.d_k, llm_k_buf, (uint64_t)lkv_dim * sizeof(float));
++                be->mem.upload(gpu_ctx.d_v, llm_v_buf, (uint64_t)lkv_dim * sizeof(float));
++                be->compute.kv_update(gl->d_k_cache, gl->d_v_cache,
++                                      gpu_ctx.d_k, gpu_ctx.d_v,
++                                      n_kv, lhd, pos, max_seq, L);
++            }
++
++            /* 2e. Attention on GPU (ALL models ΓÇö Gemma4 CPU fallback removed) */
++            int kv_src_layer = has_own_kv ? L : layer->kv_reuse_layer;
++            gpu_layer_t *gl_kv = &gpu_ctx.layers[kv_src_layer];
++            int kv_lhd = gl_kv->lhd;
++            float attn_scale = m->is_gemma4 ? 1.0f : (1.0f / llm_sqrtf((float)lhd));
++
++            if (kv_lhd == lhd) {
++                be->compute.attention(gpu_ctx.d_attn, gpu_ctx.d_q,
++                                      gl_kv->d_k_cache, gl_kv->d_v_cache,
++                                      n_heads, n_kv, kv_lhd, seq_len, max_seq,
++                                      attn_scale, 0.0f);
++            } else {
++                /* Mixed head-dim path (e.g. Gemma4 KV reuse):
++                 * pad Q from lhd -> kv_lhd, run GPU attention at kv_lhd,
++                 * then pack output back to lhd for O projection. */
++                int q_pad_dim = n_heads * kv_lhd;
++                for (int h = 0; h < n_heads; h++) {
++                    float *src = llm_q + h * lhd;
++                    float *dst = llm_attn_out + h * kv_lhd;
++                    kmemcpy(dst, src, (uint64_t)lhd * sizeof(float));
++                    if (kv_lhd > lhd)
++                        kmemset(dst + lhd, 0, (uint64_t)(kv_lhd - lhd) * sizeof(float));
++                }
++                be->mem.upload(gpu_ctx.d_q, llm_attn_out, (uint64_t)q_pad_dim * sizeof(float));
++                be->compute.attention(gpu_ctx.d_attn, gpu_ctx.d_q,
++                                      gl_kv->d_k_cache, gl_kv->d_v_cache,
++                                      n_heads, n_kv, kv_lhd, seq_len, max_seq,
++                                      attn_scale, 0.0f);
++                be->mem.download(llm_attn_out, gpu_ctx.d_attn, (uint64_t)q_pad_dim * sizeof(float));
++                for (int h = 0; h < n_heads; h++) {
++                    float *src = llm_attn_out + h * kv_lhd;
++                    float *dst = llm_q + h * lhd;
++                    kmemcpy(dst, src, (uint64_t)lhd * sizeof(float));
++                }
++                be->mem.upload(gpu_ctx.d_attn, llm_q, (uint64_t)lq_dim * sizeof(float));
++            }
++
++            /* 2f. O projection + post-attn norm + residual (GPU) */
++            void *d_ow = llm_gpu_lookup(layer->o_weight);
++            be->compute.gemv(gpu_ctx.d_ffn_d, d_ow, gpu_ctx.d_attn, dim, lq_dim, layer->o_type);
++
++            if (layer->post_attn_norm && gl->d_post_attn_norm) {
++                if (use_cpu_norm) {
++                    be->mem.download(llm_ffn_d, gpu_ctx.d_ffn_d, (uint64_t)dim * sizeof(float));
++                    llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_attn_norm, dim,
++                                GGML_TYPE_F32, m->rms_eps);
++                    be->mem.upload(gpu_ctx.d_ffn_d, llm_ffn_d, (uint64_t)dim * sizeof(float));
++                } else {
++                    be->compute.rmsnorm(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_d,
++                                        gl->d_post_attn_norm, dim, gpu_ctx.rms_eps);
++                }
++            }
++
++            be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
++
++            /* === FFN === */
++
++            /* 2g. Pre-FFN RMSNorm */
++            if (use_cpu_norm) {
++                be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
++                llm_rmsnorm(llm_xn, llm_x, layer->ffn_norm, dim,
++                            layer->ffn_norm_type, m->rms_eps);
++                be->mem.upload(gpu_ctx.d_xn, llm_xn, (uint64_t)dim * sizeof(float));
++            } else {
++                be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gl->d_ffn_norm,
++                                    dim, gpu_ctx.rms_eps);
++            }
++
++            int lff = layer->ff_dim_layer ? layer->ff_dim_layer : ff;
++
++            /* FFN: always GPU (CPU fallback removed for perf) */
++            if (m->use_gelu || !layer->ffn_gate) {
++                /* GELU FFN */
++                void *d_upw = llm_gpu_lookup(layer->ffn_up);
++                be->compute.gemv(gpu_ctx.d_ffn_u, d_upw, gpu_ctx.d_xn, lff, dim, layer->up_type);
++                be->compute.gelu(gpu_ctx.d_ffn_u, lff);
++                void *d_downw = llm_gpu_lookup(layer->ffn_down);
++                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_u, dim, lff, layer->down_type);
++            } else if (m->use_geglu) {
++                /* GeGLU: GELU(gate) ΓèÖ up */
++                void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
++                void *d_upw   = llm_gpu_lookup(layer->ffn_up);
++                void *d_downw = llm_gpu_lookup(layer->ffn_down);
++                be->compute.gemv(gpu_ctx.d_ffn_g, d_gatew, gpu_ctx.d_xn, lff, dim, layer->gate_type);
++                be->compute.gemv(gpu_ctx.d_ffn_u, d_upw,   gpu_ctx.d_xn, lff, dim, layer->up_type);
++                be->compute.gelu(gpu_ctx.d_ffn_g, lff);
++                be->compute.mul(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
++                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_g, dim, lff, layer->down_type);
++            } else {
++                /* SwiGLU: SiLU(gate) ΓèÖ up */
++                void *d_gatew = llm_gpu_lookup(layer->ffn_gate);
++                void *d_upw   = llm_gpu_lookup(layer->ffn_up);
++                void *d_downw = llm_gpu_lookup(layer->ffn_down);
++                be->compute.gemv(gpu_ctx.d_ffn_g, d_gatew, gpu_ctx.d_xn, lff, dim, layer->gate_type);
++                be->compute.gemv(gpu_ctx.d_ffn_u, d_upw,   gpu_ctx.d_xn, lff, dim, layer->up_type);
++                be->compute.silu(gpu_ctx.d_ffn_g, lff);
++                be->compute.mul(gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_g, gpu_ctx.d_ffn_u, lff);
++                be->compute.gemv(gpu_ctx.d_ffn_d, d_downw, gpu_ctx.d_ffn_g, dim, lff, layer->down_type);
++            }
++
++            /* Post-FFW norm (Gemma4) */
++            if (layer->post_ffw_norm && gl->d_post_ffw_norm) {
++                if (use_cpu_norm) {
++                    be->mem.download(llm_ffn_d, gpu_ctx.d_ffn_d, (uint64_t)dim * sizeof(float));
++                    llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->post_ffw_norm, dim,
++                                GGML_TYPE_F32, m->rms_eps);
++                    be->mem.upload(gpu_ctx.d_ffn_d, llm_ffn_d, (uint64_t)dim * sizeof(float));
++                } else {
++                    be->compute.rmsnorm(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_d,
++                                        gl->d_post_ffw_norm, dim, gpu_ctx.rms_eps);
++                }
++            }
++
++            /* Residual */
++            be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
++
++            /* === ISWA injection (Gemma4): GPU-resident === */
++            if (m->is_gemma4 && layer->iswa_inp_gate) {
++                int iswa_d = m->iswa_n_embd;
++                void *d_inp_gate = llm_gpu_lookup(layer->iswa_inp_gate);
++                void *d_proj     = llm_gpu_lookup(layer->iswa_proj);
++
++                if (d_inp_gate && d_proj && gpu_ctx.d_iswa_tmp
++                    && gpu_ctx.d_iswa_per_layer) {
++                    /* All on GPU ΓÇö no PCIe round-trips */
++                    be->compute.gemv(gpu_ctx.d_iswa_tmp, d_inp_gate, gpu_ctx.d_x,
++                                     iswa_d, dim, layer->iswa_inp_gate_type);
++                    be->compute.gelu(gpu_ctx.d_iswa_tmp, iswa_d);
++                    be->compute.mul(gpu_ctx.d_iswa_tmp, gpu_ctx.d_iswa_tmp,
++                                    gpu_ctx.d_iswa_per_layer + L * iswa_d, iswa_d);
++                    be->compute.gemv(gpu_ctx.d_ffn_d, d_proj, gpu_ctx.d_iswa_tmp,
++                                     dim, iswa_d, layer->iswa_proj_type);
++                    if (gl->d_iswa_post_norm)
++                        be->compute.rmsnorm(gpu_ctx.d_ffn_d, gpu_ctx.d_ffn_d,
++                                            gl->d_iswa_post_norm, dim, gpu_ctx.rms_eps);
++                    be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
++                } else {
++                    /* Fallback: CPU hybrid (weight not on GPU) */
++                    be->mem.download(llm_x, gpu_ctx.d_x, (uint64_t)dim * sizeof(float));
++                    { int sa = gpu_ctx.active; gpu_ctx.active = 0;
++                      llm_gemv(llm_iswa_tmp, layer->iswa_inp_gate, llm_x, iswa_d, dim,
++                               layer->iswa_inp_gate_type);
++                      gpu_ctx.active = sa; }
++                    llm_gelu(llm_iswa_tmp, iswa_d);
++                    float *pl = llm_iswa_per_layer + L * iswa_d;
++                    for (int i = 0; i < iswa_d; i++) llm_iswa_tmp[i] *= pl[i];
++                    { int sa = gpu_ctx.active; gpu_ctx.active = 0;
++                      llm_gemv(llm_ffn_d, layer->iswa_proj, llm_iswa_tmp, dim, iswa_d,
++                               layer->iswa_proj_type);
++                      gpu_ctx.active = sa; }
++                    if (layer->iswa_post_norm)
++                        llm_rmsnorm(llm_ffn_d, llm_ffn_d, layer->iswa_post_norm, dim,
++                                    GGML_TYPE_F32, m->rms_eps);
++                    be->mem.upload(gpu_ctx.d_ffn_d, llm_ffn_d, (uint64_t)dim * sizeof(float));
++                    be->compute.add(gpu_ctx.d_x, gpu_ctx.d_x, gpu_ctx.d_ffn_d, dim);
++                }
++            }
++
++            /* Per-layer output scaling (Gemma4) */
++            if (layer->iswa_out_scale) {
++                float s = ((const float *)layer->iswa_out_scale)[0];
++                be->compute.scale(gpu_ctx.d_x, gpu_ctx.d_x, s, dim);
++            }
++        }
++
++        /* 3. Final output RMSNorm on GPU (all models) */
++        be->compute.rmsnorm(gpu_ctx.d_xn, gpu_ctx.d_x, gpu_ctx.d_output_norm,
++                            dim, gpu_ctx.rms_eps);
++
++        /* 4. LM head projection on GPU ΓåÆ logits */
++        const void *lm_head = m->output_weight ? m->output_weight : m->token_embd;
++        ggml_type_t lm_type = m->output_weight ? m->output_type : m->token_embd_type;
++        void *d_lm = llm_gpu_lookup(lm_head);
++        if (d_lm) {
++            be->compute.gemv(gpu_ctx.d_out, d_lm, gpu_ctx.d_xn,
++                             m->vocab_size, dim, lm_type);
++            /* Download only the logits */
++            be->mem.download(logits, gpu_ctx.d_out, (uint64_t)m->vocab_size * sizeof(float));
++        } else {
++            /* Fallback: download hidden state and run LM head on CPU */
++            be->mem.download(llm_xn, gpu_ctx.d_xn, (uint64_t)dim * sizeof(float));
++            llm_gemv(logits, lm_head, llm_xn, m->vocab_size, dim, lm_type);
++        }
++
++        /* 5. Logit softcapping (e.g. Gemma4: cap=30.0) */
++        if (m->logit_softcap > 0.0f) {
++            float cap = m->logit_softcap;
++            float inv_cap = 1.0f / cap;
++            for (int i = 0; i < m->vocab_size; i++) {
++                float xv = logits[i] * inv_cap;
++                float e2x = llm_expf(2.0f * xv);
++                logits[i] = cap * (e2x - 1.0f) / (e2x + 1.0f);
++            }
++        }
++
++
++        return;
++    }
++#endif /* ENABLE_CUDA GPU-resident forward */
++
+     llm_embed(llm_x, m, token_id);
+ 
+     /* 2. Process each transformer layer */
+@@ -3258,6 +3928,18 @@ static int llm_str_match(const char *a, int alen, const char *b, int blen)
+     return 1;
+ }
+ 
++/* Find first occurrence of needle in haystack (both null-terminated) */
++static char *llm_strstr(const char *haystack, const char *needle)
++{
++    if (!needle[0]) return (char *)haystack;
++    for (const char *h = haystack; *h; h++) {
++        const char *a = h, *b = needle;
++        while (*a && *b && *a == *b) { a++; b++; }
++        if (!*b) return (char *)h;
++    }
++    return (char *)0;
++}
++
+ /* FNV-1a hash for (string, length) pairs */
+ static uint32_t llm_hash_str(const char *str, int len)
+ {
+@@ -3646,9 +4328,57 @@ static void llm_partial_sort_desc(int *indices, const float *vals, int n, int k)
+     }
+ }
+ 
+-/* Top-k + top-p (nucleus) sampling with temperature */
+-static int llm_sample(const float *logits, int vocab_size, float temperature)
++/* ΓöÇΓöÇΓöÇ Repetition penalty state ΓöÇΓöÇΓöÇ */
++#define LLM_REP_WINDOW  64   /* track last N tokens */
++#define LLM_REP_PENALTY 1.15f  /* multiplicative penalty for repeated tokens */
++#define LLM_FREQ_PENALTY 0.1f  /* additive penalty scaled by occurrence count */
++static int   llm_rep_ring[LLM_REP_WINDOW];
++static int   llm_rep_count = 0;  /* total tokens pushed */
++
++static void llm_rep_reset(void) { llm_rep_count = 0; kmemset(llm_rep_ring, 0, sizeof(llm_rep_ring)); }
++static void llm_rep_push(int token) { llm_rep_ring[llm_rep_count % LLM_REP_WINDOW] = token; llm_rep_count++; }
++
++/* ΓöÇΓöÇΓöÇ Thinking mode state ΓöÇΓöÇΓöÇ */
++#define LLM_THINK_TOKEN    98   /* <|think|> ΓÇö toggle start/end thinking */
++#define LLM_CHANNEL_START 100   /* <|channel> ΓÇö Gemma 4 thinking start */
++#define LLM_CHANNEL_END   101   /* <channel|> ΓÇö Gemma 4 thinking end */
++static int  llm_think_enabled   = 1;   /* 0=off, 1=reactive, 2=force-inject */
++static int  llm_think_show      = 0;   /* 1 = include thinking text in output */
++static int  llm_think_count     = 0;   /* thinking tokens in last generation */
++static int  llm_think_active    = 0;   /* currently inside thinking block */
++
++void llm_set_thinking(int enable)      { llm_think_enabled = enable; }
++void llm_set_show_thinking(int show)   { llm_think_show = show; }
++int  llm_thinking_tokens(void)         { return llm_think_count; }
++
++/* Apply repetition + frequency penalty to logits in-place */
++static void llm_apply_rep_penalty(float *logits, int vocab_size)
+ {
++    int window = llm_rep_count < LLM_REP_WINDOW ? llm_rep_count : LLM_REP_WINDOW;
++    if (window == 0) return;
++
++    /* Count occurrences of each token in the window */
++    for (int i = 0; i < window; i++) {
++        int tok = llm_rep_ring[(llm_rep_count - 1 - i) % LLM_REP_WINDOW];
++        if (tok < 0 || tok >= vocab_size) continue;
++
++        /* Multiplicative penalty: shrink logit toward zero */
++        if (logits[tok] > 0)
++            logits[tok] /= LLM_REP_PENALTY;
++        else
++            logits[tok] *= LLM_REP_PENALTY;
++
++        /* Additive frequency penalty based on recency */
++        logits[tok] -= LLM_FREQ_PENALTY;
++    }
++}
++
++/* Top-k + top-p (nucleus) sampling with temperature + repetition penalty */
++static int llm_sample(float *logits, int vocab_size, float temperature)
++{
++    /* Apply repetition penalty before any selection */
++    llm_apply_rep_penalty(logits, vocab_size);
++
+     if (temperature <= 0.001f)
+         return llm_argmax(logits, vocab_size);
+ 
+@@ -3729,6 +4459,24 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+         if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
+         kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
+         kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
++#ifdef ENABLE_CUDA
++        /* Clear GPU-resident KV cache */
++        if (gpu_ctx.gpu_fwd) {
++            const backend_t *be = backend_get_by_id(BACKEND_CUDA);
++            for (int L = 0; L < m->n_layers; L++) {
++                llm_layer_t *layer = &m->layers[L];
++                gpu_layer_t *gl = &gpu_ctx.layers[L];
++                if (layer->kv_reuse_layer < 0 && gl->d_k_cache) {
++                    /* Use per-layer lhd -- NOT global head_dim (avoids overflow for lhd=256 layers) */
++                    int lhd = gl->lhd ? gl->lhd : m->head_dim;
++                    uint64_t kv_layer_bytes = (uint64_t)m->n_kv_heads * m->max_seq * lhd * sizeof(float);
++                    be->mem.upload(gl->d_k_cache, m->k_cache, kv_layer_bytes);
++                    be->mem.upload(gl->d_v_cache, m->v_cache, kv_layer_bytes);
++                }
++            }
++        }
++#endif
++        llm_rep_reset();
+     } else {
+         start_pos = m->cache_len;
+     }
+@@ -3737,6 +4485,14 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+     int gen_count = 0;
+     output_text[0] = '\0';
+ 
++    /* Reset thinking state for this generation */
++    llm_think_count  = 0;
++    llm_think_active = 0;
++
++    /* Seed repetition window with prompt tokens */
++    for (int i = 0; i < n_prompt; i++)
++        llm_rep_push(prompt_tokens[i]);
++
+     /* Process prompt tokens (prefill) */
+     uint64_t t_prefill_start = rdtsc_fenced();
+     for (int i = 0; i < n_prompt && (start_pos + i) < m->max_seq - 1; i++) {
+@@ -3750,6 +4506,7 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+ 
+     /* Get next token from the last forward pass */
+     int next = llm_sample(llm_logits, m->vocab_size, temperature);
++    LOG_DBG("GEN", "first sampled token: %d (eos=%d)", next, m->eos_id);
+ 
+     uint64_t t_gen_start = rdtsc_fenced();
+     int consec_nl = 0;  /* consecutive newline counter */
+@@ -3757,10 +4514,130 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+     for (int g = 0; g < max_gen && pos < m->max_seq; g++) {
+         /* Check for EOS BEFORE decoding its text */
+         if (next == m->eos_id) break;
+-        /* Gemma turn marker (106 = <turn|>) always signals end of response */
+-        if (next == 106) break;
++        /* Gemma turn marker (106 = <turn|>) always signals end of response.
++         * Forward the token so the KV cache includes it for multi-turn. */
++        if (next == 106) {
++            llm_forward_token(m, llm_logits, next, pos);
++            pos++;
++            break;
++        }
++
++        /* ΓöÇΓöÇ Thinking mode: detect <|think|> toggle (token 98) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
++        if (next == LLM_THINK_TOKEN && llm_think_enabled) {
++            if (!llm_think_active) {
++                /* Entering thinking block */
++                llm_think_active = 1;
++                LOG_INFO("THINK", "thinking started at token %d", gen_count);
++                if (llm_think_show) {
++                    const char *tag = "<think>\n";
++                    int tl = 8;
++                    for (int i = 0; i < tl && out_pos < max_text_len - 1; i++)
++                        output_text[out_pos++] = tag[i];
++                    output_text[out_pos] = '\0';
++                    if (llm_stream_cb)
++                        llm_stream_cb(tag, tl, llm_stream_cb_ud);
++                }
++            } else {
++                /* Exiting thinking block */
++                llm_think_active = 0;
++                LOG_INFO("THINK", "thinking ended: %d thinking tokens", llm_think_count);
++                if (llm_think_show) {
++                    const char *tag = "\n</think>\n";
++                    int tl = 10;
++                    for (int i = 0; i < tl && out_pos < max_text_len - 1; i++)
++                        output_text[out_pos++] = tag[i];
++                    output_text[out_pos] = '\0';
++                    if (llm_stream_cb)
++                        llm_stream_cb(tag, tl, llm_stream_cb_ud);
++                }
++            }
++            /* Forward the think token through the transformer (keeps KV cache consistent) */
++            llm_forward_token(m, llm_logits, next, pos);
++            pos++;
++            gen_count++;
++            llm_rep_push(next);
++            next = llm_sample(llm_logits, m->vocab_size, temperature);
++            continue;
++        }
++
++        /* ΓöÇΓöÇ Gemma channel thinking: <|channel> (100) starts, <channel|> (101) ends ΓöÇΓöÇ */
++        if (next == LLM_CHANNEL_START && llm_think_enabled && !llm_think_active) {
++            llm_think_active = 1;
++            LOG_INFO("THINK", "channel thinking started at token %d", gen_count);
++            if (llm_think_show) {
++                const char *tag = "<think>\n";
++                int tl = 8;
++                for (int i = 0; i < tl && out_pos < max_text_len - 1; i++)
++                    output_text[out_pos++] = tag[i];
++                output_text[out_pos] = '\0';
++                if (llm_stream_cb)
++                    llm_stream_cb(tag, tl, llm_stream_cb_ud);
++            }
++            llm_forward_token(m, llm_logits, next, pos);
++            pos++;
++            gen_count++;
++            llm_rep_push(next);
++            next = llm_sample(llm_logits, m->vocab_size, temperature);
++            continue;
++        }
++        if (next == LLM_CHANNEL_END && llm_think_active) {
++            llm_think_active = 0;
++            LOG_INFO("THINK", "channel thinking ended: %d thinking tokens", llm_think_count);
++            if (llm_think_show) {
++                const char *tag = "\n</think>\n";
++                int tl = 10;
++                for (int i = 0; i < tl && out_pos < max_text_len - 1; i++)
++                    output_text[out_pos++] = tag[i];
++                output_text[out_pos] = '\0';
++                if (llm_stream_cb)
++                    llm_stream_cb(tag, tl, llm_stream_cb_ud);
++            }
++            llm_forward_token(m, llm_logits, next, pos);
++            pos++;
++            gen_count++;
++            llm_rep_push(next);
++            next = llm_sample(llm_logits, m->vocab_size, temperature);
++            continue;
++        }
++
++        /* ΓöÇΓöÇ Inside thinking: pure token-space operation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
++        if (llm_think_active) {
++            /* Skip detokenization entirely ΓÇö just forward and sample */
++            llm_think_count++;
++            if (llm_think_show) {
++                /* Optionally detokenize for display */
++                char tok_buf[128];
++                int tok_len = llm_decode_token(m, next, tok_buf, sizeof(tok_buf));
++                for (int i = 0; i < tok_len && out_pos < max_text_len - 1; i++)
++                    output_text[out_pos++] = tok_buf[i];
++                output_text[out_pos] = '\0';
++                if (llm_stream_cb && tok_len > 0) {
++                    char stream_buf[128];
++                    int si = 0;
++                    for (int i = 0; i < tok_len; ) {
++                        unsigned char c = (unsigned char)tok_buf[i];
++                        if (c == 0xE2 && i + 2 < tok_len &&
++                            (unsigned char)tok_buf[i+1] == 0x96 &&
++                            (unsigned char)tok_buf[i+2] == 0x81) {
++                            stream_buf[si++] = ' ';
++                            i += 3;
++                        } else {
++                            stream_buf[si++] = tok_buf[i++];
++                        }
++                    }
++                    if (si > 0) llm_stream_cb(stream_buf, si, llm_stream_cb_ud);
++                }
++            }
++            LOG_TRC("THINK", "think tok %d: id=%d", llm_think_count, next);
++            llm_forward_token(m, llm_logits, next, pos);
++            pos++;
++            gen_count++;
++            llm_rep_push(next);
++            next = llm_sample(llm_logits, m->vocab_size, temperature);
++            continue;
++        }
+ 
+-        /* Decode token to text */
++        /* ΓöÇΓöÇ Normal token: decode to text ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+         char tok_buf[128];
+         int tok_len = llm_decode_token(m, next, tok_buf, sizeof(tok_buf));
+         for (int i = 0; i < tok_len && out_pos < max_text_len - 1; i++)
+@@ -3786,14 +4663,18 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+             if (si > 0) llm_stream_cb(stream_buf, si, llm_stream_cb_ud);
+         }
+ 
+-        /* Check for <|im_end|> or <|endoftext|> in recent text */
+-        if (out_pos >= 10) {
+-            const char *tail = output_text + out_pos - 10;
++        /* Check for known stop sequences in recent text */
++        if (out_pos >= 4) {
++            static const char *stop_seqs[] = {
++                "<|im_end|>", "<|endoftext|>", "<|end|>",
++                "<|eot_id|>", "<|end_of_turn|>", NULL
++            };
+             int stop = 0;
+-            for (int s = 0; s < 10 && !stop; s++) {
+-                if (tail[s] == '<' && tail[s+1] == '|') {
++            for (int si = 0; stop_seqs[si] && !stop; si++) {
++                const char *found = llm_strstr(output_text, stop_seqs[si]);
++                if (found) {
+                     stop = 1;
+-                    int trunc_at = (int)(tail - output_text) + s;
++                    int trunc_at = (int)(found - output_text);
+                     output_text[trunc_at] = '\0';
+                     out_pos = trunc_at;
+                 }
+@@ -3817,16 +4698,22 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+ 
+         /* Sample next token */
+         last_token = next;
++        llm_rep_push(next);
+         next = llm_sample(llm_logits, m->vocab_size, temperature);
+     }
+     uint64_t t_gen_end = rdtsc_fenced();
+ 
+-    /* Final cleanup: strip any <|...|> artifacts from output */
++    /* Final cleanup: strip any known stop sequence artifacts from output */
+     {
+-        for (int i = 0; i + 1 < out_pos; i++) {
+-            if (output_text[i] == '<' && output_text[i+1] == '|') {
+-                output_text[i] = '\0';
+-                out_pos = i;
++        static const char *stop_seqs[] = {
++            "<|im_end|>", "<|endoftext|>", "<|end|>",
++            "<|eot_id|>", "<|end_of_turn|>", NULL
++        };
++        for (int si = 0; stop_seqs[si]; si++) {
++            char *found = llm_strstr(output_text, stop_seqs[si]);
++            if (found) {
++                *found = '\0';
++                out_pos = (int)(found - output_text);
+                 break;
+             }
+         }
+@@ -3842,11 +4729,26 @@ static int llm_generate(llm_model_t *m, const int *prompt_tokens, int n_prompt,
+     if (gen_count > 0) {
+         uint64_t prefill_us = perf_cycles_to_us(t_prefill_end - t_prefill_start);
+         uint64_t gen_us = perf_cycles_to_us(t_gen_end - t_gen_start);
+-        uint64_t ms_per_tok = gen_us / (uint64_t)gen_count / 1000;
+-        kprintf("\n[%d tok, %lu ms/tok, prefill %lu ms, %d cpus]\n",
+-                gen_count, (unsigned long)ms_per_tok,
+-                (unsigned long)(prefill_us / 1000),
+-                smp.ap_started + 1);
++        float tok_per_s = gen_us > 0 ? (float)gen_count * 1000000.0f / (float)gen_us : 0.0f;
++        llm_last_prefill_ms_val  = (float)(prefill_us / 1000);
++        llm_last_tok_per_sec_val = tok_per_s;
++        int visible_tok = gen_count - llm_think_count;
++        if (llm_think_count > 0) {
++            kprintf("\n[%d tok (%d think + %d visible), %.1f tok/s, prefill %lu ms, %d cpus]\n",
++                    gen_count, llm_think_count, visible_tok, tok_per_s,
++                    (unsigned long)(prefill_us / 1000),
++                    smp.ap_started + 1);
++        } else {
++            kprintf("\n[%d tok, %.1f tok/s, prefill %lu ms, %d cpus]\n",
++                    gen_count, tok_per_s,
++                    (unsigned long)(prefill_us / 1000),
++                    smp.ap_started + 1);
++        }
++        LOG_DBG("GEN", "generation complete: %d tokens, %.1f tok/s, "
++                "prefill=%lu us, gen=%lu us, think=%d",
++                gen_count, tok_per_s,
++                (unsigned long)prefill_us, (unsigned long)gen_us,
++                llm_think_count);
+     }
+ 
+     return gen_count;
+@@ -4896,6 +5798,30 @@ const char *llm_model_name(void)
+     return llm_model.name;
+ }
+ 
++const char *llm_model_arch(void)
++{
++    if (!llm_is_loaded()) return "(none)";
++    return llm_model.arch;
++}
++
++int llm_model_layers(void)
++{
++    if (!llm_is_loaded()) return 0;
++    return llm_model.n_layers;
++}
++
++int llm_model_dim(void)
++{
++    if (!llm_is_loaded()) return 0;
++    return llm_model.dim;
++}
++
++int llm_model_vocab(void)
++{
++    if (!llm_is_loaded()) return 0;
++    return llm_model.vocab_size;
++}
++
+ uint64_t llm_param_count(void)
+ {
+     if (!llm_is_loaded()) return 0;
+@@ -4928,6 +5854,21 @@ llm_backend_t llm_get_backend(void)
+     return llm_backend;
+ }
+ 
++int llm_last_vram_usage_mb(void)
++{
++    return llm_last_vram_mb;
++}
++
++float llm_last_prefill_ms(void)
++{
++    return llm_last_prefill_ms_val;
++}
++
++float llm_last_tok_per_sec(void)
++{
++    return llm_last_tok_per_sec_val;
++}
++
+ const char *llm_backend_name(void)
+ {
+     switch (llm_backend) {
+@@ -5074,9 +6015,9 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
+         is_gemma = 1;
+ 
+     if (is_gemma) {
+-        PA("<turn|>user\n");
++        PA("<|turn>user\n");
+         PA(user_text);
+-        PA("\n<turn|>model\n");
++        PA("<turn|>\n<|turn>model\n");
+     } else if (is_phi3) {
+         PA("<|user|>\n");
+         PA(user_text);
+@@ -5105,6 +6046,16 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
+         for (int i = 0; i < n_tokens; i++)
+             llm_tokens[i] = llm_tokens[i + 1];
+     }
++
++    /* Inject <|think|> token for models that support thinking.
++     * Only inject when llm_think_enabled == 2 (force-think mode).
++     * Default (1) = detect and handle organically when model emits it. */
++    if (llm_think_enabled >= 2 && is_gemma && n_tokens > 0 &&
++        n_tokens < llm_alloc_tokens - 2) {
++        llm_tokens[n_tokens++] = LLM_THINK_TOKEN;
++        LOG_DBG("THINK", "force-injected <|think|> token into prompt");
++    }
++
+     if (n_tokens <= 0) {
+         __sync_lock_release(&llm_inference_active);
+         kstrlcpy(output, "[tokenization failed]", max_output);
+@@ -5113,7 +6064,7 @@ int llm_prompt_n(const char *user_text, char *output, int max_output, int max_to
+ 
+     if (max_tokens < 1) max_tokens = 16;
+     int n_gen = llm_generate(m, llm_tokens, n_tokens, output, max_output,
+-                             max_tokens, 0.0f, 0); /* greedy for smoke test */
++                             max_tokens, 0.6f, 0); /* temperature for sampling */
+     __sync_lock_release(&llm_inference_active);
+     return n_gen;
+ }
+@@ -5128,6 +6079,18 @@ void llm_reset_cache(void)
+     if (kv_total > llm_alloc_kv_floats) kv_total = llm_alloc_kv_floats;
+     kmemset(m->k_cache, 0, (uint64_t)kv_total * sizeof(float));
+     kmemset(m->v_cache, 0, (uint64_t)kv_total * sizeof(float));
++#ifdef ENABLE_CUDA
++    if (gpu_ctx.gpu_fwd) {
++        const backend_t *be = backend_get_by_id(BACKEND_CUDA);
++        uint64_t kv_layer_bytes = (uint64_t)m->n_kv_heads * m->max_seq * m->head_dim * sizeof(float);
++        for (int L = 0; L < m->n_layers; L++) {
++            if (m->layers[L].kv_reuse_layer < 0 && gpu_ctx.layers[L].d_k_cache) {
++                be->mem.upload(gpu_ctx.layers[L].d_k_cache, m->k_cache, kv_layer_bytes);
++                be->mem.upload(gpu_ctx.layers[L].d_v_cache, m->v_cache, kv_layer_bytes);
++            }
++        }
++    }
++#endif
+ }
+ 
+ /* Reset chat KV context */
+@@ -5189,9 +6152,9 @@ int llm_chat_turn(const char *user_text, char *output, int max_output,
+         m->arch[0]=='q' && m->arch[1]=='w' && m->arch[2]=='e' && m->arch[3]=='n';
+ 
+     if (is_gemma) {
+-        TA("<turn|>user\n");
++        TA("<|turn>user\n");
+         TA(user_text);
+-        TA("\n<turn|>model\n");
++        TA("<turn|>\n<|turn>model\n");
+     } else if (is_phi3) {
+         TA("<|user|>\n");
+         TA(user_text);
+@@ -5223,6 +6186,15 @@ int llm_chat_turn(const char *user_text, char *output, int max_output,
+         for (int i = 0; i < n_tokens; i++) llm_tokens[i] = llm_tokens[i + 1];
+     }
+ 
++    /* Inject <|think|> token for models that support thinking.
++     * Only inject when llm_think_enabled == 2 (force-think mode).
++     * Default (1) = detect and handle organically when model emits it. */
++    if (llm_think_enabled >= 2 && is_gemma && n_tokens > 0 &&
++        n_tokens < llm_alloc_tokens - 2) {
++        llm_tokens[n_tokens++] = LLM_THINK_TOKEN;
++        LOG_DBG("THINK", "force-injected <|think|> into chat turn");
++    }
++
+     if (n_tokens <= 0) {
+         __sync_lock_release(&llm_inference_active);
+         kstrlcpy(output, "[tokenization failed]", max_output);

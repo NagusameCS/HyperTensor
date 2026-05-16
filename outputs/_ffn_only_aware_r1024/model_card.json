@@ -1,0 +1,50 @@
+{
+  "model_card_version": 1,
+  "generated_at": "2026-05-15 00:31:45",
+  "compression": {
+    "tool": "HyperRetro",
+    "version": "0.2.1",
+    "techniques": [
+      "activation-aware FFN SVD factoring"
+    ]
+  },
+  "model": {
+    "source": "Qwen/Qwen2.5-1.5B",
+    "architecture": "Qwen2ForCausalLM",
+    "hidden_size": 1536,
+    "vocab_size": 151936,
+    "num_layers": 28,
+    "num_attention_heads": 12,
+    "num_kv_heads": 2
+  },
+  "compression_details": {
+    "attention_layers_factored": 0,
+    "ffn_matrices_factored": 84,
+    "ffn_ranks": [
+      1024
+    ],
+    "attn_ranks": [],
+    "quantization": "none",
+    "shared_basis": true
+  },
+  "size": {
+    "on_disk_mb": 2581.0,
+    "estimated_fp16_mb": 2581.0,
+    "estimated_params": 1290483200,
+    "shrink_vs_fp16": 1.0
+  },
+  "performance": {
+    "ppl_baseline_fp16": 2.33,
+    "ppl_compressed": 4.53,
+    "ppl_ratio": 1.944
+  },
+  "deployment": {
+    "formats": [
+      "safetensors",
+      "gguf"
+    ],
+    "load_with": "hyperretro.models.load_model() or load_factored_hf_model()",
+    "gguf_export": "hyperretro export <checkpoint> --format gguf",
+    "llama_cpp_quantize": "llama-quantize model.gguf model-Q4_K_M.gguf Q4_K_M"
+  }
+}

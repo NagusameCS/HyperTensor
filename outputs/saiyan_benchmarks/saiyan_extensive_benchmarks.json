@@ -1,0 +1,187 @@
+{
+  "timestamp": "2026-05-04 18:39:55",
+  "config": {
+    "n_trials": 7,
+    "n_queries": 10
+  },
+  "domain_instinct_matrix": {
+    "Goku": {
+      "math": 0.9071428000000001,
+      "code": 0.7857141999999999,
+      "science": 0.8214286,
+      "logic": 0.8357143,
+      "creative": 0.8499999
+    },
+    "Vegeta": {
+      "math": 0.8499999,
+      "code": 0.8285712000000001,
+      "science": 0.8357142,
+      "logic": 0.8499999,
+      "creative": 0.8499998
+    },
+    "Gohan": {
+      "math": 0.8785714,
+      "code": 0.9214285999999999,
+      "science": 0.8714285,
+      "logic": 0.9142856,
+      "creative": 0.9142855000000001
+    },
+    "Piccolo": {
+      "math": 0.9714284,
+      "code": 0.9071427,
+      "science": 0.8857141000000001,
+      "logic": 0.9214283999999999,
+      "creative": 0.9428570000000001
+    },
+    "Trunks": {
+      "math": 0.9142857,
+      "code": 0.8785712,
+      "science": 0.8857143000000001,
+      "logic": 0.8357142,
+      "creative": 0.8857142
+    },
+    "Yamcha": {
+      "math": 1.0,
+      "code": 1.0,
+      "science": 1.0,
+      "logic": 1.0,
+      "creative": 1.0
+    },
+    "Gogeta": {
+      "math": 0.7928571,
+      "code": 0.8142856999999999,
+      "science": 0.8428570000000001,
+      "logic": 0.8142856999999999,
+      "creative": 0.85
+    },
+    "Vegito": {
+      "math": 0.8285714000000001,
+      "code": 0.8142856,
+      "science": 0.8071429,
+      "logic": 0.7928571,
+      "creative": 0.8357142
+    },
+    "Gotenks": {
+      "math": 0.8785714,
+      "code": 0.9142856,
+      "science": 0.8785712,
+      "logic": 0.8785712999999999,
+      "creative": 0.8642856
+    }
+  },
+  "coverage_stats": {
+    "Goku": {
+      "n_traj": 50,
+      "coverage_radius": 0.1,
+      "growth": 4.961221694946289
+    },
+    "Vegeta": {
+      "n_traj": 44,
+      "coverage_radius": 0.1,
+      "growth": 4.3202595710754395
+    },
+    "Gohan": {
+      "n_traj": 40,
+      "coverage_radius": 0.1,
+      "growth": 3.8987083435058594
+    },
+    "Piccolo": {
+      "n_traj": 25,
+      "coverage_radius": 0.1,
+      "growth": 2.455305814743042
+    },
+    "Trunks": {
+      "n_traj": 29,
+      "coverage_radius": 0.1,
+      "growth": 2.8613431453704834
+    },
+    "Yamcha": {
+      "n_traj": 20,
+      "coverage_radius": 0.1186947226524353,
+      "growth": 1.795021653175354
+    },
+    "Gogeta": {
+      "n_traj": 94,
+      "coverage_radius": 0.1,
+      "growth": 4.6264238357543945
+    },
+    "Vegito": {
+      "n_traj": 94,
+      "coverage_radius": 0.1,
+      "growth": 4.757233619689941
+    },
+    "Gotenks": {
+      "n_traj": 54,
+      "coverage_radius": 0.1,
+      "growth": 2.629243850708008
+    }
+  },
+  "domain_specialization": {
+    "Goku": {
+      "own_domain": "math",
+      "best_domain": "math",
+      "all_domains": {
+        "math": 0.9071428000000001,
+        "code": 0.7857141999999999,
+        "science": 0.8214286,
+        "logic": 0.8357143,
+        "creative": 0.8499999
+      }
+    },
+    "Vegeta": {
+      "own_domain": "code",
+      "best_domain": "math",
+      "all_domains": {
+        "math": 0.8499999,
+        "code": 0.8285712000000001,
+        "science": 0.8357142,
+        "logic": 0.8499999,
+        "creative": 0.8499998
+      }
+    },
+    "Gohan": {
+      "own_domain": "science",
+      "best_domain": "code",
+      "all_domains": {
+        "math": 0.8785714,
+        "code": 0.9214285999999999,
+        "science": 0.8714285,
+        "logic": 0.9142856,
+        "creative": 0.9142855000000001
+      }
+    },
+    "Piccolo": {
+      "own_domain": "logic",
+      "best_domain": "math",
+      "all_domains": {
+        "math": 0.9714284,
+        "code": 0.9071427,
+        "science": 0.8857141000000001,
+        "logic": 0.9214283999999999,
+        "creative": 0.9428570000000001
+      }
+    },
+    "Trunks": {
+      "own_domain": "creative",
+      "best_domain": "math",
+      "all_domains": {
+        "math": 0.9142857,
+        "code": 0.8785712,
+        "science": 0.8857143000000001,
+        "logic": 0.8357142,
+        "creative": 0.8857142
+      }
+    },
+    "Yamcha": {
+      "own_domain": "general",
+      "best_domain": "math",
+      "all_domains": {
+        "math": 1.0,
+        "code": 1.0,
+        "science": 1.0,
+        "logic": 1.0,
+        "creative": 1.0
+      }
+    }
+  }
+}

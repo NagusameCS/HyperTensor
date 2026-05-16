@@ -1,0 +1,23 @@
+\contentsline {section}{Paper I: Geodesic Runtime Compression}{5}{section*.3}%
+\contentsline {section}{Paper II: Geodesic Projection Pipeline}{33}{section*.4}%
+\contentsline {section}{Paper III: Geodesic Speculative Decoding}{48}{section*.5}%
+\contentsline {section}{Paper IV: Organic Training Theory}{59}{section*.6}%
+\contentsline {section}{Paper V: GRC Light Distillation}{77}{section*.7}%
+\contentsline {section}{Paper VI: Task-Level Impact}{88}{section*.8}%
+\contentsline {section}{Paper VII: FFN Cluster Compression}{94}{section*.9}%
+\contentsline {section}{Paper VIII: GTC as RAG Alternative}{103}{section*.10}%
+\contentsline {section}{Paper IX: The 106\% Anomaly}{109}{section*.11}%
+\contentsline {section}{Paper X: Cross-Embedding Compatibility Index}{116}{section*.12}%
+\contentsline {section}{Paper XI: Universal Geodesic Taxonomy}{132}{section*.13}%
+\contentsline {section}{Paper XII: Native Geodesic Training}{136}{section*.14}%
+\contentsline {section}{Paper XIII: Orthogonal Geodesic Deviation}{139}{section*.15}%
+\contentsline {section}{Paper XIV: Behavioral Geodesic Sniping}{142}{section*.16}%
+\contentsline {section}{Paper XV: Completely Organic Generation}{145}{section*.17}%
+\contentsline {section}{Paper XVI: Arithmetic Geodesic Taxonomy}{150}{section*.18}%
+\contentsline {section}{Paper XVII: Analytic Continuation Manifold}{154}{section*.19}%
+\contentsline {section}{Paper XVIII: Riemann Proof Search}{158}{section*.20}%
+\contentsline {section}{Paper XIX: Circuit Complexity Manifold}{161}{section*.21}%
+\contentsline {section}{Paper XXII: Hydrodynamic Solution Manifold}{164}{section*.22}%
+\contentsline {section}{Paper XXV: Gauge Orbit Manifold}{167}{section*.23}%
+\contentsline {section}{Paper XXVIII: Elliptic Curve Manifold}{171}{section*.24}%
+\contentsline {section}{Paper XXXI: The Hodge Manifold}{175}{section*.25}%

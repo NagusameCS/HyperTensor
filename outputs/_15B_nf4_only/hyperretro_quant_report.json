@@ -1,0 +1,10 @@
+{
+  "source": "Qwen/Qwen2.5-1.5B",
+  "out_dir": "outputs\\_15B_nf4_only",
+  "quant": {
+    "quant_type": "nf4",
+    "compute_dtype": "bfloat16",
+    "double_quant": true
+  },
+  "on_disk_mb": 1090.3622417449951
+}

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-05-04 18:08:27",
+  "batch_statistics": {
+    "n_queries": 50,
+    "avg_instinct": 0.7932,
+    "strong_instinct": 30,
+    "moderate_instinct": 20,
+    "weak_instinct": 0,
+    "no_instinct": 0,
+    "coverage_radius": 0.8,
+    "n_trajectories": 60
+  }
+}
