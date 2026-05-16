@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperretro"
-version = "0.3.3"
+version = "0.3.4"
 description = "Geometric LLM compression: factor+int4 with verifiable quality certificates"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,6 +50,7 @@ Changelog = "https://github.com/NagusameCS/HyperTensor/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 hf = ["transformers>=4.40", "torch>=2.1", "huggingface_hub>=0.20"]
 vllm = ["vllm>=0.5"]
+gguf = ["gguf>=0.9"]
 bench = ["torch>=2.1", "transformers>=4.40", "datasets>=2.18", "tqdm"]
 dev = ["pytest>=7", "pytest-cov"]
 

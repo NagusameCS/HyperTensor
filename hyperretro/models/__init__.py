@@ -156,9 +156,10 @@ def _detect_model_type(model_id: str) -> str:
 
     Detection order:
     1. OpenMythos variant name (mythos_1b, mythos_3b, etc.)
-    2. HuggingFace repo ID (contains '/')
-    3. Local directory (exists on disk)
-    4. OpenMythos class name
+    2. GGUF file (.gguf extension)
+    3. HuggingFace repo ID (contains '/')
+    4. Local directory (config.json, safetensors, etc.)
+    5. OpenMythos class lookup (via importlib)
     """
     path = Path(model_id)
 
@@ -182,13 +183,19 @@ def _detect_model_type(model_id: str) -> str:
         if list(path.glob("*.safetensors")):
             return "huggingface"
 
-    # 4. Try OpenMythos class lookup
-    try:
-        from open_mythos import OpenMythos, MythosConfig
-        # If model_id is a known variant, it would have been caught above
-        # If someone passes a MythosConfig, treat as openmythos
-    except ImportError:
-        pass
+    # 3b. Local GGUF file
+    if path.is_file() and path.suffix in (".gguf", ".GGUF"):
+        return "gguf"
+    if model_id.endswith(".gguf"):
+        return "gguf"
+
+    # 4. Try OpenMythos class lookup (via importlib to avoid heavy import)
+    from importlib.util import find_spec
+    if find_spec("open_mythos") is not None:
+        try:
+            from open_mythos import OpenMythos, MythosConfig
+        except ImportError:
+            pass
 
     return "huggingface"  # default
 
@@ -228,6 +235,10 @@ def load_model(
             _register_hf()
         elif backend == "openmythos":
             _register_om()
+        elif backend == "gguf":
+            _register_gguf()
+        elif backend == "vllm":
+            _register_vllm()
 
     if backend not in _BACKEND_LOADERS:
         raise ValueError(
@@ -359,6 +370,28 @@ def _register_om():
         ) from e
 
 
+def _register_gguf():
+    """Register the GGUF backend (optional — reads llama.cpp / Ollama files)."""
+    try:
+        from hyperretro.models.gguf import GGUFAdapter, _load_gguf
+        register_backend("gguf", GGUFAdapter, _load_gguf)
+    except ImportError as e:
+        raise ImportError(
+            "GGUF backend requires: pip install gguf"
+        ) from e
+
+
+def _register_vllm():
+    """Register the vLLM backend (optional — needs GPU + vllm package)."""
+    try:
+        from hyperretro.models.vllm_model import VLLMAdapter, _load_vllm
+        register_backend("vllm", VLLMAdapter, _load_vllm)
+    except ImportError as e:
+        raise ImportError(
+            "vLLM backend requires: pip install vllm"
+        ) from e
+
+
 # Auto-register HF on import
 _register_hf()
 
@@ -371,10 +404,18 @@ def list_backends() -> dict[str, bool]:
     """List available backends and their status."""
     backends = {"huggingface": True}
     try:
-        import open_mythos
+        import open_mythos  # noqa: F401
         backends["openmythos"] = True
     except ImportError:
         backends["openmythos"] = False
+    try:
+        import gguf  # noqa: F401
+        backends["gguf"] = True
+    except ImportError:
+        backends["gguf"] = False
+    # vLLM is heavyweight — check via importlib to avoid loading CUDA on import
+    from importlib.util import find_spec
+    backends["vllm"] = find_spec("vllm") is not None
     return backends
 
 
