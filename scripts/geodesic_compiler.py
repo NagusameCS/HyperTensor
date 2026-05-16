@@ -114,7 +114,7 @@ class NativeLinear(nn.Module):
         
         # Initialize basis randomly on Gr(k, d)
         U = torch.randn(d, k)
-        U = U / torch.norm(U, dim=0, keepdims=True)
+        U = U / torch.norm(U, dim=0, keepdim=True)
         # Gram-Schmidt for orthonormal basis
         Q, R = torch.linalg.qr(U)
         self.U = nn.Parameter(Q)  # Basis vectors on Grassmann
@@ -162,7 +162,7 @@ class NativeLinear(nn.Module):
         existing = self.U.data[:, :old_k]
         proj = existing @ (existing.T @ new_vectors)
         new_vectors = new_vectors - proj
-        new_vectors = new_vectors / (torch.norm(new_vectors, dim=0, keepdims=True) + 1e-10)
+        new_vectors = new_vectors / (torch.norm(new_vectors, dim=0, keepdim=True) + 1e-10)
         
         self.U.data = torch.cat([self.U.data, new_vectors], dim=1)
         

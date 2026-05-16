@@ -1,0 +1,118 @@
+"""Smoke tests for hypertensor-core (hypercore) geometric modules."""
+import numpy as np
+import pytest
+import torch
+
+
+class TestGeodesicMetric:
+    """GeodesicMetric -- core geometric reasoning."""
+
+    def test_import(self):
+        from hypercore import GeodesicMetric
+        m = GeodesicMetric()
+        assert m is not None
+
+    def test_measure_collapse_returns_tuple(self):
+        from hypercore import GeodesicMetric
+        m = GeodesicMetric(dim=64)
+        logits = torch.randn(1, 16, 128)
+        collapse, n_collapsed = m.measure_collapse(logits)
+        assert isinstance(collapse, float)
+        assert isinstance(n_collapsed, int)
+
+
+class TestHallucinationGuard:
+    """HallucinationGuard -- hallucination detection."""
+
+    def test_class_exists(self):
+        from hypercore import HallucinationGuard
+        assert HallucinationGuard is not None
+
+
+class TestGenerationMetrics:
+    """GenerationMetrics -- per-token metrics."""
+
+    def test_import(self):
+        from hypercore import GenerationMetrics
+        gm = GenerationMetrics()
+        assert gm is not None
+
+
+class TestLazyImports:
+    """All lazy imports resolve without error."""
+
+    LAZY_NAMES = [
+        "AxiomGauge",
+        "ThermalRankController",
+        "OnlineOjaBasis",
+        "TreeDrafter",
+        "EagleFeatureDrafter",
+        "GCGAttack",
+        "AutoPromptAttack",
+        "PAIRAttack",
+        "NativeLinear",
+        "RiemannianAdamW",
+        "KExpansionScheduler",
+    ]
+
+    @pytest.mark.parametrize("name", LAZY_NAMES)
+    def test_lazy_import_resolves(self, name):
+        import hypercore
+        obj = getattr(hypercore, name)
+        assert obj is not None, f"{name} resolved to None"
+
+
+class TestAxiomGauge:
+    """AxiomGauge -- GL(d) diagonal gauge optimization."""
+
+    def test_import_only(self):
+        from hypercore import AxiomGauge
+        assert AxiomGauge is not None
+
+
+class TestThermalRankController:
+    """ThermalRankController -- temperature-driven rank."""
+
+    def test_import_and_init(self):
+        from hypercore import ThermalRankController
+        ctrl = ThermalRankController()
+        assert ctrl is not None
+
+
+class TestOnlineOjaBasis:
+    """OnlineOjaBasis -- rejection-driven PCA."""
+
+    def test_import_only(self):
+        from hypercore import OnlineOjaBasis
+        assert OnlineOjaBasis is not None
+
+
+class TestTreeDrafter:
+    """TreeDrafter -- tree speculative decoding."""
+
+    def test_import_and_config(self):
+        from hypercore import TreeDrafter
+        from scripts.tree_spec import TreeSpecConfig
+        cfg = TreeSpecConfig(num_heads=2, max_branch=2, max_depth=3)
+        assert cfg.num_heads == 2
+
+
+class TestNativeLinear:
+    """NativeLinear -- train on compressed manifold."""
+
+    def test_import_and_forward(self):
+        from hypercore import NativeLinear
+        layer = NativeLinear(d=64, k=8)
+        x = torch.randn(4, 64)
+        y = layer(x)
+        assert y.shape == (4, 64)
+
+
+class TestRiemannianAdamW:
+    """RiemannianAdamW -- manifold-respecting optimizer."""
+
+    def test_import_and_init(self):
+        from hypercore import NativeLinear, RiemannianAdamW
+        layer = NativeLinear(d=64, k=8)
+        opt = RiemannianAdamW(layer.parameters(), lr=1e-4)
+        assert opt is not None
