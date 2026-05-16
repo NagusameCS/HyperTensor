@@ -438,7 +438,7 @@ def main(argv=None):
     p_compress.add_argument("--output", "-o", default="compressed",
                             help="Output directory (default: compressed/)")
     p_compress.add_argument("--backend", default=None,
-                            help="Force backend: huggingface or openmythos")
+                            help="Force backend: huggingface, gguf, openmythos, or vllm")
     p_compress.add_argument("--ffn-rank", type=int, default=1024,
                             help="FFN SVD rank (default: 1024)")
     p_compress.add_argument("--attn-rank", type=int, default=0,

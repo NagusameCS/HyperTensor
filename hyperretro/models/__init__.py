@@ -23,7 +23,9 @@ This module provides the abstract base and registry:
 
 Supported backends:
     - HuggingFace transformers (always available)
+    - GGUF (optional: pip install gguf) — llama.cpp / Ollama files
     - OpenMythos (optional: pip install open-mythos)
+    - vLLM (optional: pip install vllm) — speculative decode
     - Local safetensors checkpoints (auto-detected)
 
 Industry infrastructure supported:
