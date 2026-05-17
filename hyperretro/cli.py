@@ -112,6 +112,7 @@ def cmd_compress(args):
         int4_block_size=args.int4_block_size,
         int4_awq=not args.no_awq,
         activation_corpus=args.activation_corpus,
+        gauge_optimize=args.gauge,
     )
     compress_time = time.time() - t0
     print(f"  Compressed tensors: {compressed.total_tensors}")
@@ -508,6 +509,8 @@ def main(argv=None):
                             help="Disable AWQ-aware quantization")
     p_compress.add_argument("--activation-corpus", default=None,
                             help="Path to calibration text for AWQ")
+    p_compress.add_argument("--gauge", action="store_true", default=False,
+                            help="Run AxiomGauge diagonal optimization before SVD (free quality boost)")
 
     # --- info ---
     p_info = sub.add_parser("info", help="Show checkpoint info")

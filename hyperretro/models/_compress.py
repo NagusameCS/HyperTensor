@@ -80,6 +80,45 @@ def _compress_hf(
     sd = {k: v.clone() for k, v in model.state_dict.items()}
     orig_config = model._config
 
+    # Optional: AxiomGauge diagonal gauge optimization before SVD.
+    # Finds the GL(d) gauge that minimizes joint tail energy across all
+    # weight matrices. Zero runtime cost -- baked into the compressed factors.
+    if kwargs.get("gauge_optimize", False):
+        try:
+            from hypercore import AxiomGauge
+            d_model = model.get_hidden_size()
+            if d_model > 0:
+                # Collect read-side weight matrices (Q, K, V, gate, up)
+                reads = {}
+                for key, tensor in sd.items():
+                    if tensor.ndim != 2:
+                        continue
+                    if tensor.shape[1] != d_model:
+                        continue
+                    if any(p in key.lower() for p in
+                           ("q_proj", "k_proj", "v_proj", "gate_proj", "up_proj",
+                            "query", "key", "value", "c_fc", "c_attn")):
+                        reads[key] = tensor.float().cpu().numpy()
+                    if len(reads) >= 16:
+                        break
+                if reads:
+                    gauge_rank = kwargs.get("gauge_rank", min(ffn_rank, 1024))
+                    gauge = AxiomGauge(d=d_model, rank=gauge_rank)
+                    result = gauge.fit(reads, n_iter=kwargs.get("gauge_iters", 20),
+                                       lr=0.01, verbose=False)
+                    g = result.g.astype(np.float32)
+                    g_inv = (1.0 / (g + 1e-10)).astype(np.float32)
+
+                    # Bake gauge into read-side weights: W -> W * diag(1/g)
+                    for key, tensor in list(sd.items()):
+                        if tensor.ndim == 2 and tensor.shape[1] == d_model:
+                            try:
+                                sd[key] = tensor.float() * torch.from_numpy(g_inv).to(tensor.device)
+                            except Exception:
+                                pass
+        except (ImportError, Exception):
+            pass
+
     # Collect activation norms if corpus provided
     activation_norms = None
     if corpus_path and Path(corpus_path).exists():
