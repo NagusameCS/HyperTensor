@@ -59,6 +59,11 @@
 hypercore — HyperTensor Core Geometric Modules
 ================================================
 v1.0 | May 8, 2026
+"""
+
+__version__ = "1.0.0"
+
+"""
 
 Submodules:
   geodesic_metric  — GeodesicMetric, HallucinationGuard, GenerationMetrics

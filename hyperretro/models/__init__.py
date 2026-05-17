@@ -327,6 +327,23 @@ class CompressedModel:
         """
         return export_model(self, path, format=format, **kwargs)
 
+    @property
+    def certificate(self) -> dict | None:
+        """Generate a quality certificate for this compressed model.
+
+        Returns a dict with trust_tier, mean_spectral_efficiency,
+        jury-proof PPL bounds, and more. Returns None if certificate
+        dependencies are unavailable.
+        """
+        if not hasattr(self, '_certificate'):
+            from hyperretro.models._compress import _compute_certificate
+            self._certificate = _compute_certificate(
+                self.state_dict, self.manifest, self.source_config,
+                model_id=getattr(self.source_config, 'get', lambda k,d: d)(
+                    '_model_id', 'unknown'),
+            )
+        return self._certificate
+
 
 def export_model(
     model: AbstractModel | CompressedModel,

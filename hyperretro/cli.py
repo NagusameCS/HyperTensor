@@ -113,6 +113,7 @@ def cmd_compress(args):
         int4_awq=not args.no_awq,
         activation_corpus=args.activation_corpus,
         gauge_optimize=args.gauge,
+        certificate=not args.no_cert,
     )
     compress_time = time.time() - t0
     print(f"  Compressed tensors: {compressed.total_tensors}")
@@ -511,6 +512,8 @@ def main(argv=None):
                             help="Path to calibration text for AWQ")
     p_compress.add_argument("--gauge", action="store_true", default=False,
                             help="Run AxiomGauge diagonal optimization before SVD (free quality boost)")
+    p_compress.add_argument("--no-cert", action="store_true", default=False,
+                            help="Skip auto-generating quality certificate")
 
     # --- info ---
     p_info = sub.add_parser("info", help="Show checkpoint info")

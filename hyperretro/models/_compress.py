@@ -165,7 +165,59 @@ def _compress_hf(
             activation_norms=activation_norms if awq else None,
         )
 
-    return CompressedModel(sd, manifest, "huggingface", orig_config)
+    # Auto-certificate if requested (default: True)
+    cm = CompressedModel(sd, manifest, "huggingface", orig_config)
+    cert = None
+    if kwargs.get("certificate", True):
+        cert = _compute_certificate(sd, manifest, orig_config,
+                                     model_id=kwargs.get("model_id", "unknown"))
+        if cert:
+            cm.manifest["certificate"] = cert
+
+    return cm
+
+
+def _compute_certificate(sd, manifest, orig_config, model_id="unknown"):
+    """Generate a quality certificate from compression results.
+
+    Called automatically after compression when certificate=True.
+    Returns a dict with trust_tier, PPL bounds, etc, or None if
+    certificate dependencies are unavailable.
+    """
+    try:
+        from hyperretro.certificates import certify_compression
+        from hyperretro.hf.compress import CompressConfig
+
+        cfg = CompressConfig(
+            rank_k=manifest.get("ffn", [{}])[0].get("rank", 1024) if manifest.get("ffn") else 1024,
+            sink_T=0, dtype="float32",
+        )
+        per_layer_stats = {}
+        for entry in manifest.get("ffn", []):
+            li = entry.get("layer_idx", 0)
+            key = f"layer_{li}"
+            per_layer_stats[key] = {
+                "rank_k": entry.get("rank", 0),
+                "frob_relerr_q": entry.get("frob_q", 0.0),
+                "frob_relerr_k": entry.get("frob_k", 0.0),
+                "frob_relerr_v": entry.get("frob_v", 0.0),
+                "d": entry.get("in_features", 0),
+            }
+
+        cert = certify_compression(sd, cfg, per_layer_stats, model_id=model_id)
+        return {
+            "trust_tier": cert.trust_tier,
+            "mean_spectral_efficiency": cert.mean_spectral_efficiency,
+            "max_bp_ns_bound": cert.max_bp_ns,
+            "mean_frob_q": cert.mean_frob_q,
+            "mean_frob_k": cert.mean_frob_k,
+            "mean_frob_v": cert.mean_frob_v,
+            "has_jury_proof": cert.has_jury_proof,
+            "ppl_multiplier_bound": cert.ppl_multiplier_bound,
+            "ppl_multiplier_bound_typical": cert.ppl_multiplier_bound_typical,
+        }
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------

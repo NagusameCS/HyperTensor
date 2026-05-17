@@ -74,6 +74,8 @@ Advanced:
     >>> result = manifold.sort(new_data, my_encoder)  # O(1)!
 """
 
+__version__ = "0.1.0"
+
 from hypersort.core import (
     ComparisonManifold,
     ManifoldConfig,
