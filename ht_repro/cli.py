@@ -93,9 +93,9 @@ def cmd_smoke():
     print(bold(blue("\n═══ HyperTensor 60-Second Smoke Test ═══\n")))
     passed, summary, elapsed, details = run_test("smoke", verbose=True)
     if passed:
-        print(green("\n✅ SMOKE TEST PASSED — Z₂ symmetry EXACT, rank-1 proven\n"))
+        print(green("\n SMOKE TEST PASSED — Z₂ symmetry EXACT, rank-1 proven\n"))
     else:
-        print(red(f"\n❌ FAILED — {summary[:300]}\n"))
+        print(red(f"\n FAILED — {summary[:300]}\n"))
 
 def cmd_all(tier="T1"):
     tests = [t["id"] for t in tests_by_tier(tier)]
@@ -149,7 +149,7 @@ def cmd_setup():
         if tier == "T2":
             print(f"{yellow('Installing T2 dependencies (GPU)...')}")
             install_deps("T2")
-    print(green("\n✅ Setup complete! Run 'ht-repro smoke' to verify.\n"))
+    print(green("\n Setup complete! Run 'ht-repro smoke' to verify.\n"))
 
 def cmd_status():
     last = last_run()
@@ -162,7 +162,7 @@ def cmd_status():
     for tid, r in last["tests"].items():
         t = find_test(tid)
         name = t["name"] if t else tid
-        icon = {"pass": green("✓"), "fail": red("✗"), "skipped": yellow("⊘"), "error": red("⚠")}.get(r["status"], "?")
+        icon = {"pass": green(""), "fail": red(""), "skipped": yellow("⊘"), "error": red("")}.get(r["status"], "?")
         print(f"  {icon} {name}")
         if r["status"] == "fail":
             print(f"    {r.get('summary', '')[:200]}")
@@ -171,17 +171,17 @@ def cmd_summary():
     print(bold(blue("\n═══ HyperTensor Verified Results ═══\n")))
     print("Last verified: 2026-05-13 | Python 3.12 | No GPU\n")
     rows = [
-        ("Core Math", green("✓"), "SV1=8.944272, Z₂ EXACT, rank-1 proven"),
-        ("Jury Proof", green("✓"), "8 theorems, 174× speedup at 128 jurors"),
-        ("Riemann LMFDB", green("✓"), "54,949 zeros on critical, TPR=1.0, FPR=0.0"),
-        ("AGT v3", green("✓"), "98% detection, 1392× separation, k90=k95=1"),
-        ("Safe OGD", green("✓"), "0% forbidden leakage by construction"),
-        ("GTC vs RAG", green("✓"), "30.9 µs/q, 5.96 KB/record"),
-        ("BP/NS Bound", green("✓"), "160/160 trials pass"),
-        ("Beh. Residue", yellow("⚠"), "Layers 0–22 hold, layer 29 under investigation"),
-        ("GRC Distill", yellow("⏳"), "Needs GPU (T2)"),
-        ("Bilateral UGT", yellow("⏳"), "Needs GPU + model (T2)"),
-        ("COG 10K", yellow("⏳"), "Needs L40S (T3)"),
+        ("Core Math", green(""), "SV1=8.944272, Z₂ EXACT, rank-1 proven"),
+        ("Jury Proof", green(""), "8 theorems, 174× speedup at 128 jurors"),
+        ("Riemann LMFDB", green(""), "54,949 zeros on critical, TPR=1.0, FPR=0.0"),
+        ("AGT v3", green(""), "98% detection, 1392× separation, k90=k95=1"),
+        ("Safe OGD", green(""), "0% forbidden leakage by construction"),
+        ("GTC vs RAG", green(""), "30.9 µs/q, 5.96 KB/record"),
+        ("BP/NS Bound", green(""), "160/160 trials pass"),
+        ("Beh. Residue", yellow(""), "Layers 0–22 hold, layer 29 under investigation"),
+        ("GRC Distill", yellow(""), "Needs GPU (T2)"),
+        ("Bilateral UGT", yellow(""), "Needs GPU + model (T2)"),
+        ("COG 10K", yellow(""), "Needs L40S (T3)"),
     ]
     print(f"{'Test':<20} {'Status':<6} {'Key Result'}")
     print("─" * 70)
@@ -200,7 +200,7 @@ def cmd_dashboard():
     """Generate HTML dashboard."""
     from .dashboard import generate_dashboard
     path = generate_dashboard()
-    print(green(f"\n✅ Dashboard generated: {path}"))
+    print(green(f"\n Dashboard generated: {path}"))
     print(f"   Open with: start {path}\n")
 
 def cmd_serve():

@@ -47,6 +47,10 @@ The Geometric Jury. Eight proven theorems provide the mathematical foundation: a
 ## Quick Start
 
 ```bash
+# HyperRetro -- geometric LLM compression (pip install hyperretro)
+pip install hyperretro
+hyperretro setup
+
 # External verification (requires Qwen2.5-1.5B, ~3.1GB VRAM)
 python scripts/verifyexternal15b.py
 

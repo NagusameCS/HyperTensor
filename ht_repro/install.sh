@@ -73,7 +73,7 @@ for cmd in python3 python; do
 done
 
 if [ -z "$PYTHON" ]; then
-    echo "❌ Python not found. Install Python 3.10+ first: https://python.org"
+    echo " Python not found. Install Python 3.10+ first: https://python.org"
     exit 1
 fi
 
@@ -88,7 +88,7 @@ $PYTHON -m pip install --quiet ht-repro 2>/dev/null || {
 }
 
 echo ""
-echo "✅ ht-repro installed!"
+echo " ht-repro installed!"
 echo ""
 echo "Quick start:"
 echo "  ht-repro smoke       # 60-second Riemann core math test"

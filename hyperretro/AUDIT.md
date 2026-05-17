@@ -258,15 +258,15 @@ export_model(compressed, "compressed/")     # safetensors + HF config
 **Industry infrastructure supported:**
 | Format | Status | Use case |
 |---|---|---|
-| safetensors | ✅ | Standard weight storage |
-| GGUF | ✅ | llama.cpp / Ollama inference |
-| HuggingFace config.json | ✅ | HF ecosystem compatibility |
-| HyperRetro manifest | ✅ | Factored model metadata |
-| GRC certificates | ✅ | Formal compression bounds |
+| safetensors |  | Standard weight storage |
+| GGUF |  | llama.cpp / Ollama inference |
+| HuggingFace config.json |  | HF ecosystem compatibility |
+| HyperRetro manifest |  | Factored model metadata |
+| GRC certificates |  | Formal compression bounds |
 
 **Validated (Qwen2.5-1.5B + mythos_1b):**
 - HF model: 1.54B → 705 tensors compressed, GGUF 3554 MB, safetensors 379 MB
-- OM model: 1.06B → 559 tensors, safetensors 512 MB, config.json ✅, manifest ✅
+- OM model: 1.06B → 559 tensors, safetensors 512 MB, config.json , manifest 
 - All 3 industry formats verified compatible
 
 **Synergy model:** HyperTensor is the "compression middleware" between model
@@ -300,7 +300,7 @@ Standard workflow: `hyperretro-gguf-export → llama-quantize` for Q4_K_M.
    (GPU-blocked).
 4. **Runtime int4 inference**: keep weights quantized at runtime (currently
    dequant to fp16 at load). Needs custom CUDA kernels (bitsandbytes-style).
-6. **#7 factor×int4 quantize** ✅ DONE — quantization penalty ≤ 1.2×,
+6. **#7 factor×int4 quantize**  DONE — quantization penalty ≤ 1.2×,
    5.1× shrink at r=1024, 6.8× at r=768, 13.6× at r=384. PPL validation
    pending distill (GPU-blocked).
 
@@ -551,52 +551,52 @@ not direct weight-bytes.
 
 ## What's new in v0.2.1
 
-- ✅ **FFN compression** module (`hyperretro.hf.ffn_compress`): SVD
+-  **FFN compression** module (`hyperretro.hf.ffn_compress`): SVD
   and shared-basis modes, CLI (`--ffn-rank-in/--ffn-rank-out/--ffn-mode`).
   Honest empirical finding: naive SVD fails catastrophically without
   retraining (PPL +1100% at 86% rank). Attention's shared Q/K/V basis
   is special — SwiGLU gate×up amplifies independent SVD errors.
-- ✅ **FFN distillation recovery**: `--ffn-rank-in/--ffn-rank-out` wired
+-  **FFN distillation recovery**: `--ffn-rank-in/--ffn-rank-out` wired
   into the distill pipeline. In-domain recovery is dramatic (23 679 → 2.12
   PPL in 27 s). **However**: on a narrow calibration corpus, LoRA
   adapters overfit catastrophically — held-out PPL explodes to 15–4000×
   baseline. Generalisation-safe FFN compression requires larger/diverse
   calibration data than commodity hardware can provide in one session.
-- 🏆 **1.5B-scale FFN distillation GENERALISES**: at 1.5B with bf16,
+-  **1.5B-scale FFN distillation GENERALISES**: at 1.5B with bf16,
   FFN gate/up r=1024 + WikiText-2 distill achieves 1.02–1.26× PPL across
   three domains while saving 169M params (10.9%). Best config (attn k=640
   + FFN) saves 202M (13.1%) at 1.05–1.15× PPL. The larger model scale
   shrinks the relative SVD compression gap, making LoRA recovery reliable.
-- ✅ **bf16 training support**: distill pipeline now supports `--dtype
+-  **bf16 training support**: distill pipeline now supports `--dtype
   bfloat16` for models that overflow fp16 (1.5B+). Models load in the
   configured dtype instead of hardcoded fp32.
-- ✅ **FFN distillation comprehensively evaluated**: 6-domain × 3-budget
+-  **FFN distillation comprehensively evaluated**: 6-domain × 3-budget
   sweep. Works in favourable cases (1.05× PPL on ML history) but is
   **unreliable at 0.5B scale** — degrades to 3–13× PPL on other domains
   including WikiText's own test split. LoRA r=64 has insufficient capacity
   to reliably cover the SVD compression gap for 896-dim FFN matrices.
   Approach is architecturally sound but needs larger models where the
   relative compression gap shrinks. Honest negative result documented.
-- ✅ **Reliable optimum identified**: attn-only GRC at k=512, zero-shot,
+-  **Reliable optimum identified**: attn-only GRC at k=512, zero-shot,
   +0.4% PPL, domain-independent, mathematically guaranteed. The only
   deployment-ready path for general-purpose use.
-- ✅ **Behavioral-residue loss** (`--loss behavioral_residue`): tested,
+-  **Behavioral-residue loss** (`--loss behavioral_residue`): tested,
   ties MSE/MARGIN at 48.3% accept; plain KL wins at 55.8% (+7.5 pp).
   Confidence-weighting deprioritises positions that matter for argmax
   matching during draft acceptance.
-- ✅ **Jury-proof PPL bound, v2**: now in TWO flavours — strict worst-case
+-  **Jury-proof PPL bound, v2**: now in TWO flavours — strict worst-case
   (Lemma 3.2) and **concentration bound** (Lemma 3.3) verified empirically
   (100% of layer-error pairs have |cos| < 0.01). 31 orders of magnitude
   tighter. Uses measured max-row-L2 of unembedding, not placeholder spectral norm.
-- ✅ **Orthogonal-layer-error assumption verified**: pairwise weight-error
+-  **Orthogonal-layer-error assumption verified**: pairwise weight-error
   cosine similarity across all 24 layers is essentially zero (mean −0.00015,
   max 0.0021). This physically justifies the concentration bound.
-- ✅ **Joint Pareto frontier** mapped: 12 configs across attn rank × FFN
+-  **Joint Pareto frontier** mapped: 12 configs across attn rank × FFN
   gate/up rank × FFN down rank, with 600-step LoRA distillation. Data
   in `benchmarks/joint_pareto.json`.
-- ✅ **25 unit tests pass** (was 16; +9 FFN tests).
+-  **25 unit tests pass** (was 16; +9 FFN tests).
 
-## 🏆 BREAKTHROUGH: 1.5B-scale FFN distillation generalises
+##  BREAKTHROUGH: 1.5B-scale FFN distillation generalises
 
 The hypothesis from 0.5B was that FFN recovery fails because LoRA
 adapters lack capacity relative to the SVD compression gap. At 1.5B
@@ -659,7 +659,7 @@ down_proj's input space is too high-dimensional (intermediate=4864) for
 any sub-hidden-size rank to survive without retraining. *FFN low-rank
 requires LoRA/distillation recovery* — it is not a stand-alone lever.
 The module ships so this is verifiable; future work is distillation-
-backed FFN compression. ✅ tested, ✅ documented, ✅ honest.
+backed FFN compression.  tested,  documented,  honest.
 
 ### FFN distillation: domain-adaptive but UNRELIABLE at 0.5B scale
 
@@ -670,12 +670,12 @@ astronomy, conversation) with varying distill budgets:
 | Distill budget | Eval domain | Best FFN PPL | Attn-only PPL | FFN beats attn? |
 |---|---:|---:|---:|---:|
 | 600s r=32 | Calib passage (in-domain) | 2.10 | 2.10 | tie |
-| 600s r=32 | Held-out ML history | 39.1× | 1.18× | ❌ |
-| 600s r=32 | Held-out astronomy | — | 1.64× | ❌ |
-| 1200s r=64 | Held-out ML history | **1.05×** | 1.11× | ✅ |
-| 1200s r=64 | WikiText-test (in-domain!) | 3.46× | 2.56× | ❌ |
-| 1200s r=64 | Conversation | 13.2× | 2.29× | ❌ |
-| 1200s r=64 | Astronomy | 8.43× | 1.64× | ❌ |
+| 600s r=32 | Held-out ML history | 39.1× | 1.18× |  |
+| 600s r=32 | Held-out astronomy | — | 1.64× |  |
+| 1200s r=64 | Held-out ML history | **1.05×** | 1.11× |  |
+| 1200s r=64 | WikiText-test (in-domain!) | 3.46× | 2.56× |  |
+| 1200s r=64 | Conversation | 13.2× | 2.29× |  |
+| 1200s r=64 | Astronomy | 8.43× | 1.64× |  |
 
 **Conclusion**: FFN LoRA distillation is **fragile** at the 0.5B scale.
 It can match or beat attn-only on specific texts that closely match the
@@ -688,7 +688,7 @@ the relative compression gap may shrink (more redundancy in larger FFN
 matrices), making this approach viable. But at 0.5B, the honest empirical
 result is: **FFN distillation is not yet reliable enough for deployment**.
 
-### ✅ Domain-Independent Optimum: Attn-Only GRC
+###  Domain-Independent Optimum: Attn-Only GRC
 
 Attention GRC is purely mathematical (spectral projection, no learned
 parameters) and generalises across ALL domains. On six diverse held-out
@@ -723,7 +723,7 @@ bound is physically justified, not just a mathematical convenience.
 
 ### Joint Pareto frontier (attn × FFN gate/up × FFN down)
 
-⚠️ **Superseded** by the WikiText-2 results above. The 12-config sweep in
+ **Superseded** by the WikiText-2 results above. The 12-config sweep in
 `benchmarks/joint_pareto.json` was run with a narrow single-passage
 calibration corpus and is therefore an *in-domain only* measurement.
 See the generalisation frontier table for the honest held-out results.
@@ -732,7 +732,7 @@ See the generalisation frontier table for the honest held-out results.
 
 The `scripts/prepare_wikitext_corpus.py` script downloads WikiText-2 raw
 (23 767 articles, ~2M words, 11 MB) to `data/wikitext2_train.txt`. Used
-for FFN distillation experiments. ⚠️ FFN distillation on WikiText does
+for FFN distillation experiments.  FFN distillation on WikiText does
 not yet produce reliably deployable models at 0.5B scale — this corpus
 is for research/exploration, not production deployment.
 
@@ -888,19 +888,19 @@ to 0.94×.**
 
 | Capability | Status | Detail |
 |---|---|---|
-| PPL vs bnb nf4 | ✅ Beats | +4.0% vs +19.7% at k=640; +16.8% vs +19.7% at k=448 |
-| Speculative acceptance (fp32) | ✅ 52–81% | Multi-token, proper sim |
-| Speculative acceptance (fp16) | ✅ **88.8%** | At k=768, 0.5B — 0.99× wall-clock |
-| GPU kernel | ✅ | 6.6ms fused GEMV, 3.4× CPU |
-| Distillation (MSE) | ✅ | 73–85% PPL recovered |
-| Distillation (KL) | ✅ | +2.7% better than MSE at matched budget |
-| fp16/bf16 | ✅ | Shipped; fp16 gives better acceptance |
-| Model coverage | ✅ 7 archs | GPT-2, GPT-NeoX validated |
-| vLLM adapter | ✅ | SpecRunner + register |
-| CUDA build | ✅ | Source + build script |
-| 1.5B scale | ✅ | 100% top-1 at 50% rank; 3.07× theoretical |
-| Package CLI | ✅ | `python -m hyperretro` with 5 subcommands |
-| Tests | ✅ 16/16 | +44 ht-repro |
+| PPL vs bnb nf4 |  Beats | +4.0% vs +19.7% at k=640; +16.8% vs +19.7% at k=448 |
+| Speculative acceptance (fp32) |  52–81% | Multi-token, proper sim |
+| Speculative acceptance (fp16) |  **88.8%** | At k=768, 0.5B — 0.99× wall-clock |
+| GPU kernel |  | 6.6ms fused GEMV, 3.4× CPU |
+| Distillation (MSE) |  | 73–85% PPL recovered |
+| Distillation (KL) |  | +2.7% better than MSE at matched budget |
+| fp16/bf16 |  | Shipped; fp16 gives better acceptance |
+| Model coverage |  7 archs | GPT-2, GPT-NeoX validated |
+| vLLM adapter |  | SpecRunner + register |
+| CUDA build |  | Source + build script |
+| 1.5B scale |  | 100% top-1 at 50% rank; 3.07× theoretical |
+| Package CLI |  | `python -m hyperretro` with 5 subcommands |
+| Tests |  16/16 | +44 ht-repro |
 
 ## 6. Remaining (needs different hardware)
 
@@ -921,12 +921,12 @@ mathematical certificates.
 
 | Backend | Status |
 |---|---|
-| CUDA (NV) | ✅ Source + build script |
-| CPU AVX2 (x86) | ✅ Source + wrapper + cascade |
-| HIP (AMD) | ✅ Algorithmic port |
-| Metal (Apple) | ✅ Algorithmic port |
-| Torch GPU/CPU | ✅ Working |
-| NumPy | ✅ Always available |
+| CUDA (NV) |  Source + build script |
+| CPU AVX2 (x86) |  Source + wrapper + cascade |
+| HIP (AMD) |  Algorithmic port |
+| Metal (Apple) |  Algorithmic port |
+| Torch GPU/CPU |  Working |
+| NumPy |  Always available |
 
 ## 9. Loss Function Comparison at k=448, γ=8 (NEW)
 

@@ -242,10 +242,10 @@ def cmd_smoke():
     passed, output, elapsed = run_test(test, verbose=True)
 
     if passed:
-        print(green("\n✅ SMOKE TEST PASSED"))
+        print(green("\n SMOKE TEST PASSED"))
         print("   SV1=8.944272, SV2..SV12=0.000000, Z₂ symmetry EXACT")
     else:
-        print(red("\n❌ SMOKE TEST FAILED"))
+        print(red("\n SMOKE TEST FAILED"))
         print(f"   {output[-500:]}")
 
     print(f"   Time: {elapsed:.1f}s\n")
@@ -371,7 +371,7 @@ def cmd_status():
         test = find_test(test_id)
         name = test["name"] if test else test_id
         status = result["status"]
-        icon = {"pass": green("✓"), "fail": red("✗"), "skipped": yellow("⊘")}.get(status, "?")
+        icon = {"pass": green(""), "fail": red(""), "skipped": yellow("⊘")}.get(status, "?")
         print(f"  {icon} {name}")
         if status == "fail":
             print(f"    {result.get('summary', '')[:150]}")
@@ -382,17 +382,17 @@ def cmd_summary():
     print("Last verified: 2026-05-13 | Python 3.12 | Windows 11 | No GPU\n")
 
     summary_data = [
-        ("Core Math", "✅", "SV1=8.944272, Z₂ EXACT, rank-1 proven"),
-        ("Jury Proof", "✅", "8 theorems, 174× speedup"),
-        ("Riemann", "✅", "54,949 zeros on critical, TPR=1.0, FPR=0.0"),
-        ("AGT", "✅", "98% detection, 1392× separation, k90=k95=1"),
-        ("Safe OGD", "✅", "0% forbidden leakage by construction"),
-        ("GTC vs RAG", "✅", "30.9 µs/q, 5.96 KB/record"),
-        ("BP/NS Bound", "✅", "160/160 trials pass"),
-        ("Beh. Residue", "⚠️", "Layers 0–22 hold, layer 29 breaks"),
-        ("GRC Distill", "⏳", "Needs GPU (T2)"),
-        ("Bilateral UGT", "⏳", "Needs GPU + model (T2)"),
-        ("COG 10K", "⏳", "Needs L40S (T3)"),
+        ("Core Math", "", "SV1=8.944272, Z₂ EXACT, rank-1 proven"),
+        ("Jury Proof", "", "8 theorems, 174× speedup"),
+        ("Riemann", "", "54,949 zeros on critical, TPR=1.0, FPR=0.0"),
+        ("AGT", "", "98% detection, 1392× separation, k90=k95=1"),
+        ("Safe OGD", "", "0% forbidden leakage by construction"),
+        ("GTC vs RAG", "", "30.9 µs/q, 5.96 KB/record"),
+        ("BP/NS Bound", "", "160/160 trials pass"),
+        ("Beh. Residue", "", "Layers 0–22 hold, layer 29 breaks"),
+        ("GRC Distill", "", "Needs GPU (T2)"),
+        ("Bilateral UGT", "", "Needs GPU + model (T2)"),
+        ("COG 10K", "", "Needs L40S (T3)"),
     ]
 
     print(f"{'Test':<20} {'Status':<8} {'Key Result'}")
@@ -400,7 +400,7 @@ def cmd_summary():
     for name, status, result in summary_data:
         print(f"{name:<20} {status:<8} {result}")
 
-    print(bold(f"\n✅ = Verified  |  ⚠️ = Needs investigation  |  ⏳ = Needs GPU\n"))
+    print(bold(f"\n = Verified  |   = Needs investigation  |   = Needs GPU\n"))
 
 # ── Main ───────────────────────────────────────────────────────────
 

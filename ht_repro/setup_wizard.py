@@ -197,7 +197,7 @@ def print_setup_report(report: dict):
         installed = sum(1 for v in deps.values() if v)
         total = len(deps)
         color = G if installed == total else (Y if installed > 0 else R)
-        print(f"    {tier}: {color}{installed}/{total} installed{C}  [{', '.join(f'{'✓' if v else '✗'} {k}' for k, v in deps.items())}]")
+        print(f"    {tier}: {color}{installed}/{total} installed{C}  [{', '.join(f'{'' if v else ''} {k}' for k, v in deps.items())}]")
 
     tier_color = {"T1": G, "T2": Y, "T3": R}[report['tier_available']]
     print(f"\n  → Available tier: {tier_color}{B}{report['tier_available']}{C}")

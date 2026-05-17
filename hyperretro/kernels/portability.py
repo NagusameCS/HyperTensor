@@ -299,13 +299,13 @@ HyperRetro Hardware Coverage Matrix
 ═══════════════════════════════════════
  Backend        │ Source              │ Status
 ────────────────┼─────────────────────┼──────────
- CUDA (NV)      │ csrc/cuda/*.cu      │ ✅ Source + build script
- CPU AVX2 (x86) │ csrc/cpu/*.c        │ ✅ Source + build script
- HIP (AMD)      │ csrc/hip/*.hip      │ ✅ Algorithmic port
- Metal (Apple)  │ csrc/metal/*.metal  │ ✅ Algorithmic port
- Torch GPU      │ kernels/gpu.py      │ ✅ Working (no nvcc)
- Torch CPU      │ kernels/__init__.py │ ✅ Fallback
- NumPy          │ kernels/__init__.py │ ✅ Always available
+ CUDA (NV)      │ csrc/cuda/*.cu      │  Source + build script
+ CPU AVX2 (x86) │ csrc/cpu/*.c        │  Source + build script
+ HIP (AMD)      │ csrc/hip/*.hip      │  Algorithmic port
+ Metal (Apple)  │ csrc/metal/*.metal  │  Algorithmic port
+ Torch GPU      │ kernels/gpu.py      │  Working (no nvcc)
+ Torch CPU      │ kernels/__init__.py │  Fallback
+ NumPy          │ kernels/__init__.py │  Always available
 ────────────────┼─────────────────────┼──────────
 
 All backends share the identical Q8_0 layout and algorithm

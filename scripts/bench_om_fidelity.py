@@ -460,7 +460,7 @@ def main():
             h_orig = hidden_orig[name].float().reshape(-1)
             h_recon = hidden_recon[name].float().reshape(-1)
             cos = F.cosine_similarity(h_orig.unsqueeze(0), h_recon.unsqueeze(0)).item()
-            indicator = "✓" if cos > 0.99 else ("⚠" if cos > 0.90 else "✗")
+            indicator = "" if cos > 0.99 else ("" if cos > 0.90 else "")
             print(f"  {indicator} {name:45s}  cos={cos:.6f}")
 
     # 9. Size comparison
@@ -520,13 +520,13 @@ def main():
     shrink = results["shrink"]
 
     if kl < 0.1 and cos > 0.99:
-        print(f"✅ EXCELLENT fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
+        print(f" EXCELLENT fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
         print(f"   The compressed model faithfully reproduces the original.")
     elif kl < 1.0 and cos > 0.95:
-        print(f"⚠️  GOOD fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
+        print(f"  GOOD fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
         print(f"   Minor degradation; distill would close the gap.")
     else:
-        print(f"❌ POOR fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
+        print(f" POOR fidelity: KL={kl:.4f}, cos={cos:.4f}, top5={top5:.2%}")
         print(f"   Compression is too aggressive for this config.")
         print(f"   Missing keys: {len(missing)} — factored weights not restored.")
 

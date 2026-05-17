@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## ⚡ Install (any method)
+##  Install (any method)
 
 ```bash
 # pip (recommended)
@@ -38,7 +38,7 @@ powershell -File create-shortcuts.ps1
 ```
 
 Opens `http://localhost:8765` in your browser — live test runner with streaming output, GPU config, stop button, and full history.
-## 🚀 Quick Start
+##  Quick Start
 
 ```bash
 ht-repro setup          # auto-detect environment, install deps
@@ -52,7 +52,7 @@ ht-repro list           # show all 16 available tests
 ht-repro summary        # print verified results summary
 ```
 
-## 📋 Commands
+##  Commands
 
 | Command | Description |
 |---------|-------------|
@@ -81,19 +81,19 @@ ht-repro summary        # print verified results summary
 | `ht-repro update` | Self-update to latest version |
 | `ht-repro run <id>` | Run a specific test by ID |
 
-## 🎯 Verified Results (2026-05-13)
+##  Verified Results (2026-05-13)
 
 | Test | Status |
 |------|--------|
-| Riemann Core Math | ✅ SV1=8.944272, Z₂ EXACT, rank-1 proven |
-| Jury Proof | ✅ 8 theorems, 174× speedup |
-| Riemann LMFDB | ✅ 54,949 zeros on critical line |
-| AGT v3 | ✅ 98% detection, 1392× separation |
-| Safe OGD | ✅ 0% forbidden leakage |
-| GTC vs RAG | ✅ 30.9 µs/q, 5.96 KB/record |
-| BP/NS Bound | ✅ 160/160 trials pass |
+| Riemann Core Math |  SV1=8.944272, Z₂ EXACT, rank-1 proven |
+| Jury Proof |  8 theorems, 174× speedup |
+| Riemann LMFDB |  54,949 zeros on critical line |
+| AGT v3 |  98% detection, 1392× separation |
+| Safe OGD |  0% forbidden leakage |
+| GTC vs RAG |  30.9 µs/q, 5.96 KB/record |
+| BP/NS Bound |  160/160 trials pass |
 
-## 🌐 Web Dashboard
+##  Web Dashboard
 
 ```bash
 ht-repro dashboard    # generates benchmarks/ht_repro_dashboard.html
@@ -101,6 +101,6 @@ ht-repro dashboard    # generates benchmarks/ht_repro_dashboard.html
 
 Open the generated HTML file in any browser for a full visual report with run history, environment info, and test catalog.
 
-## 📄 License
+##  License
 
 MIT — see [LICENSE](https://github.com/NagusameCS/HyperTensor/blob/main/LICENSE)

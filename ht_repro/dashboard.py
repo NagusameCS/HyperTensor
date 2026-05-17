@@ -90,7 +90,7 @@ def generate_dashboard() -> Path:
         for tid, r in run.get("tests", {}).items():
             t = find_test(tid)
             name = t["name"] if t else tid
-            icon = {"pass": "✅", "fail": "❌", "skipped": "⊘"}.get(r["status"], "?")
+            icon = {"pass": "", "fail": "", "skipped": "⊘"}.get(r["status"], "?")
             color = {"pass": "#34d399", "fail": "#f87171", "skipped": "#fbbf24"}.get(r["status"], "#888")
             time_str = f"{r.get('time', 0):.1f}s" if r.get("time") else "—"
             summary = r.get("summary", r.get("reason", ""))[:150]
@@ -105,7 +105,7 @@ def generate_dashboard() -> Path:
         <div style="margin:16px 0;background:#1c1c1a;border:1px solid #2a2a2a;border-radius:10px;padding:16px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                 <span style="font-family:monospace;font-size:.8rem;color:#888">{run['timestamp']}</span>
-                <span style="font-size:.8rem">✅{passed} ❌{failed} ⊘{skipped} · {run['total_time']:.1f}s</span>
+                <span style="font-size:.8rem">{passed} {failed} ⊘{skipped} · {run['total_time']:.1f}s</span>
             </div>
             <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;margin-bottom:12px">
                 <div style="width:{p_w}px;background:#34d399"></div>

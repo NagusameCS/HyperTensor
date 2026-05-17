@@ -245,7 +245,7 @@ def cmd_list_backends(args):
     formats = list_formats()
     print("Available backends:")
     for name, available in backends.items():
-        status = "✅ available" if available else "❌ not installed"
+        status = " available" if available else " not installed"
         print(f"  {name:<20s} {status}")
     print(f"\nExport formats: {', '.join(formats)}")
     return 0

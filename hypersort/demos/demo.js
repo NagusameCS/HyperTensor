@@ -158,7 +158,7 @@ function demoReuse() {
                     JSON.stringify([...batch].sort((a, b) => a - b));
     console.log(`  Batch ${b+1}: ${sortTime.toFixed(4)} ms | ` +
                 `${result.comparisonsAvoided} comparisons | ` +
-                `${correct ? '✓ CORRECT' : '✗ WRONG'}`);
+                `${correct ? ' CORRECT' : ' WRONG'}`);
   }
 }
 

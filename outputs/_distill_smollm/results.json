@@ -1,1 +1,1 @@
-{"model": "HuggingFaceTB/SmolLM2-135M-Instruct", "ffn_rank": 256, "lora_rank": 8, "ppl_teacher": 1.2203677892684937, "ppl_svd": 172209.34375, "ppl_distill": NaN, "recovery_pct": NaN, "train_time_s": 0.5883543491363525}
+{"model": "HuggingFaceTB/SmolLM2-135M-Instruct", "ffn_rank": 256, "lora_rank": 8, "ppl_teacher": 45.15828323364258, "ppl_svd": 607785.5, "ppl_distill": NaN, "recovery_pct": NaN, "train_time_s": 7.988023996353149}

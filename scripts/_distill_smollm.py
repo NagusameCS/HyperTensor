@@ -67,8 +67,13 @@ for name, mod in list(student.named_modules()):
 nl = len(lora_params)//2
 print(f"LoRA: {nl} layers, {sum(p.numel() for p in lora_params):,} params")
 
-# Synthetic corpus (small)
-test_text = "Machine learning has transformed the way we build software. " * 100
+# Real wikitext corpus
+CORPUS = "data/wikitext2_train_5k.txt"
+if Path(CORPUS).exists():
+    with open(CORPUS, "r", encoding="utf-8") as f:
+        test_text = f.read()[:50000]
+else:
+    test_text = "Machine learning has transformed the way we build software. " * 200
 tokens = tok.encode(test_text)
 print(f"Tokens: {len(tokens)}")
 

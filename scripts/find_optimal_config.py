@@ -210,7 +210,7 @@ def main():
     best = min((r for r in results.values() if r["ppl"]/ppl_base <= 1.05),
                key=lambda r: -r["savings_M"], default=None)
     if best:
-        print(f"\n  ★ OPTIMAL (≤1.05× PPL): save {best['savings_M']:.1f}M "
+        print(f"\n   OPTIMAL (≤1.05× PPL): save {best['savings_M']:.1f}M "
               f"({best['savings_M']/494*100:.1f}% of model) "
               f"at {best['ppl']/ppl_base:.3f}× PPL")
 

@@ -63,7 +63,7 @@ Write-Host ""
 
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) {
-    Write-Host "❌ Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
+    Write-Host " Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
     exit 1
 }
 Write-Host "→ Python: $($python.Source)" -ForegroundColor Gray
@@ -76,7 +76,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "✅ ht-repro installed!" -ForegroundColor Green
+Write-Host " ht-repro installed!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Quick start:" -ForegroundColor White
 Write-Host "  ht-repro smoke       # 60-second Riemann core math test" -ForegroundColor Gray

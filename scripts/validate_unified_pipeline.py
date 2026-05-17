@@ -90,7 +90,7 @@ def test_backends():
 
     backends = list_backends()
     for name, available in backends.items():
-        status = "✅" if available else "⚠️  (not installed)"
+        status = "" if available else "  (not installed)"
         print(f"  {name}: {status}")
 
     formats = list_formats()
@@ -161,7 +161,7 @@ def test_hf_pipeline():
             "gguf_mb": round(gguf_mb, 1),
         }
     except Exception as e:
-        print(f"  ❌ FAILED: {e}")
+        print(f"   FAILED: {e}")
         import traceback
         traceback.print_exc()
         return {"status": "failed", "error": str(e)}
@@ -217,8 +217,8 @@ def test_om_pipeline():
             # Check for industry-standard metadata files
             has_config = (st_path / "config.json").exists()
             has_manifest = (st_path / "hyperretro_factored.json").exists()
-            print(f"  config.json: {'✅' if has_config else '❌'}")
-            print(f"  hyperretro_factored.json: {'✅' if has_manifest else '❌'}")
+            print(f"  config.json: {'' if has_config else ''}")
+            print(f"  hyperretro_factored.json: {'' if has_manifest else ''}")
 
         # Cleanup
         shutil.rmtree(st_path, ignore_errors=True)
@@ -235,10 +235,10 @@ def test_om_pipeline():
             "has_manifest": has_manifest,
         }
     except ImportError:
-        print("  ⚠️  OpenMythos not installed, skipping")
+        print("    OpenMythos not installed, skipping")
         return {"status": "skipped", "reason": "open-mythos not installed"}
     except Exception as e:
-        print(f"  ❌ FAILED: {e}")
+        print(f"   FAILED: {e}")
         import traceback
         traceback.print_exc()
         return {"status": "failed", "error": str(e)}
@@ -262,19 +262,19 @@ def test_industry_compat():
         loaded = load_file(str(tmp))
         assert "test.weight" in loaded
         tmp.unlink()
-        print("  safetensors: ✅")
+        print("  safetensors: ")
         results["safetensors"] = "ok"
     except Exception as e:
-        print(f"  safetensors: ❌ {e}")
+        print(f"  safetensors:  {e}")
         results["safetensors"] = str(e)
 
     # 2. GGUF format
     try:
         from gguf import GGUFReader, GGUFWriter
-        print("  GGUF: ✅ (writer + reader available)")
+        print("  GGUF:  (writer + reader available)")
         results["gguf"] = "ok"
     except ImportError:
-        print("  GGUF: ⚠️  (gguf package not installed)")
+        print("  GGUF:   (gguf package not installed)")
         results["gguf"] = "available_but_not_tested"
 
     # 3. HuggingFace config format
@@ -283,10 +283,10 @@ def test_industry_compat():
         cfg = AutoConfig.from_pretrained("Qwen/Qwen2.5-1.5B")
         cfg_dict = cfg.to_dict()
         assert "hidden_size" in cfg_dict
-        print("  HuggingFace config: ✅")
+        print("  HuggingFace config: ")
         results["huggingface_config"] = "ok"
     except Exception as e:
-        print(f"  HuggingFace config: ❌ {e}")
+        print(f"  HuggingFace config:  {e}")
         results["huggingface_config"] = str(e)
 
     return results
@@ -331,7 +331,7 @@ def main():
                 v in ("ok", True) or v == "available_but_not_tested"
                 for v in (data.values() if isinstance(data, dict) else [])
             )
-            status = "✅" if ok else "⚠️"
+            status = "" if ok else ""
             print(f"  {status} {section}")
 
     return 0

@@ -164,7 +164,7 @@ def demo_manifold_reuse():
         correct = result.sorted_data == sorted(batch)
         print(f"  Batch {i+1}: {sort_time:.4f} ms | "
               f"{result.num_comparisons} comparisons | "
-              f"{'✓ CORRECT' if correct else '✗ WRONG'}")
+              f"{' CORRECT' if correct else ' WRONG'}")
 
 
 def demo_vs_builtin():
@@ -218,7 +218,7 @@ def demo_jury_confidence():
 
     low_conf = [(v, c) for v, c in zip(result.sorted_data, result.confidence_scores) if c < 0.5]
     if low_conf:
-        print(f"\n  ⚠ Geometric Jury flagged {len(low_conf)} low-confidence positions:")
+        print(f"\n   Geometric Jury flagged {len(low_conf)} low-confidence positions:")
         for val, conf in low_conf:
             print(f"    Value {val} — jury confidence {conf:.4f} (possible misplacement)")
 

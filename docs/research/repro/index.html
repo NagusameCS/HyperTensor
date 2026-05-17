@@ -53,7 +53,7 @@ article{max-width:1000px;margin:0 auto;padding:0 24px 48px}
 /* Checklist */
 .chk{list-style:none;padding:0}
 .chk li{padding:3px 0;font-size:.88rem;display:flex;align-items:flex-start;gap:8px}
-.chk li::before{content:'☐';color:var(--text-soft);font-size:1rem;flex-shrink:0;margin-top:1px}
+.chk li::before{content:'';color:var(--text-soft);font-size:1rem;flex-shrink:0;margin-top:1px}
 
 /* Expand/collapse */
 details{margin:8px 0}
@@ -81,7 +81,7 @@ details .inner{padding:8px 0 8px 16px}
 
 <article>
 
-<h2>�️ Quick Start — The ht-repro CLI</h2>
+<h2>� Quick Start — The ht-repro CLI</h2>
 <p>The easiest way to reproduce results. One command per paper, or run everything at once. <strong style="color:var(--green)">NEW</strong></p>
 <div class="cmd"><span class="prompt">$</span> python scripts/ht_repro.py smoke       <span class="out"># 60-second Riemann core math</span><br>
 <span class="prompt">$</span> python scripts/ht_repro.py all-t1      <span class="out"># All CPU-only tests (~30 min)</span><br>
@@ -95,14 +95,14 @@ details .inner{padding:8px 0 8px 16px}
 <span class="prompt">$</span> python -m ht_repro tools models token-setup  <span class="out"># Configure HuggingFace token</span></div>
 <p>Windows shortcut from repo root: <code>ht-repro smoke</code> &nbsp;|&nbsp; Source: <a href="https://github.com/NagusameCS/HyperTensor/blob/main/scripts/ht_repro.py"><code>scripts/ht_repro.py</code></a></p>
 
-<h2>�🚀 60-Second Smoke Test (CPU-only, no GPU, no model download)</h2>
-<p>If you run nothing else, run this. It verifies the core mathematics of Papers XVI–XVIII (Riemann Hypothesis) in under 60 seconds on any laptop. <strong style="color:var(--green)">✅ VERIFIED 2026-05-13</strong></p>
+<h2>� 60-Second Smoke Test (CPU-only, no GPU, no model download)</h2>
+<p>If you run nothing else, run this. It verifies the core mathematics of Papers XVI–XVIII (Riemann Hypothesis) in under 60 seconds on any laptop. <strong style="color:var(--green)"> VERIFIED 2026-05-13</strong></p>
 <div class="cmd"><span class="prompt">$</span> pip install numpy scipy mpmath sympy<br>
 <span class="prompt">$</span> python scripts/faithfulness_rigorous.py</div>
-<p>✅ <strong>Expected output (verified):</strong> <code>SV1=8.944272, SV2..SV12=0.000000</code></p>
+<p> <strong>Expected output (verified):</strong> <code>SV1=8.944272, SV2..SV12=0.000000</code></p>
 <p>Also confirms: Z₂ symmetry EXACT (not approximate) at t=14.1, 100, 1000, 10000, 100000. Error at k=12: 0.0000000000. Power law: error ~ k⁻⁵²·²⁹.</p>
 
-<h2>📋 Hardware Tiers</h2>
+<h2> Hardware Tiers</h2>
 <div class="tier"><h4><span class="badge b-t1">T1</span> CPU-only, any laptop</h4>
 <p style="margin:0">No GPU, no model download needed. Pure Python + NumPy. <strong>~12 papers verifiable</strong> in ~30 min total.</p></div>
 <div class="tier"><h4><span class="badge b-t2">T2</span> Consumer GPU (8+ GB VRAM)</h4>
@@ -110,12 +110,12 @@ details .inner{padding:8px 0 8px 16px}
 <div class="tier"><h4><span class="badge b-t3">T3</span> Datacenter GPU (24+ GB VRAM)</h4>
 <p style="margin:0">L40S, A100, H100. Full-scale runs. <strong>Papers XI–XV</strong> at scale. Pre-computed reference outputs available if you don't have T3 hardware.</p></div>
 
-<h2>📑 Reproduction by Paper</h2>
+<h2> Reproduction by Paper</h2>
 
 <div class="grid">
 
 <div class="card">
-  <div class="num">Foundation · T1 ✅</div>
+  <div class="num">Foundation · T1 </div>
   <h5>Jury Proof — 8 Theorems</h5>
   <p>J = 1−∏(1−cᵢ) derivation, instinct horizon, J-decay table.</p>
   <a href="papers-xi-xviii.html#jury">→ Full guide</a>
@@ -171,7 +171,7 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper VIII · T1 ✅</div>
+  <div class="num">Paper VIII · T1 </div>
   <h5>GTC vs RAG</h5>
   <p>100K-trajectory simulation. 15.5× over FAISS. Pure Python, ~2 min. <em>Verified: 30.9 µs/q, 5.96 KB/record.</em></p>
   <a href="paper-h.html">→ Full guide</a>
@@ -206,7 +206,7 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XIII · T1 ✅</div>
+  <div class="num">Paper XIII · T1 </div>
   <h5>Safe OGD</h5>
   <p>0% TEH by construction. Q_fᵀ·P_safe = 0. CPU-only. <em>Verified: arithmetic_mean & max_loss_DRO confirm.</em></p>
   <a href="papers-xi-xviii.html#xiii">→ Full guide</a>
@@ -227,7 +227,7 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XVI · T1 ✅</div>
+  <div class="num">Paper XVI · T1 </div>
   <h5>AGT — Zeta Zero Topology</h5>
   <p>100% off-critical detection at 50K primes. k90=k95=1. 800× separation. <em>Verified: 8,000 primes, rank-1 exactly, Z₂ exact.</em></p>
   <a href="papers-xi-xviii.html#xvi">→ Full guide</a>
@@ -241,7 +241,7 @@ details .inner{padding:8px 0 8px 16px}
 </div>
 
 <div class="card">
-  <div class="num">Paper XVIII · T1 ✅</div>
+  <div class="num">Paper XVIII · T1 </div>
   <h5>Bridge Protocol</h5>
   <p>5-step pipeline. 105/105 zeros. Meta-jury 100%. Pearson r=1.0000. <em>Verified: 54,949 LMFDB zeros, 100% on critical, TPR=1.0 FPR=0.0.</em></p>
   <a href="papers-xi-xviii.html#xviii">→ Full guide</a>
@@ -249,27 +249,27 @@ details .inner{padding:8px 0 8px 16px}
 
 </div>
 
-<h2>🔧 Full Reproduction Checklist (T1 — CPU only, ~30 min)</h2>
+<h2> Full Reproduction Checklist (T1 — CPU only, ~30 min)</h2>
 <p>Run these in order. All verified 2026-05-13 on Python 3.12, Windows 11, no GPU.</p>
 <ol class="chk" style="list-style:decimal;padding-left:20px">
-<li style="display:list-item"><strong>✅ Smoke test:</strong> <code>python scripts/faithfulness_rigorous.py</code><br>→ SV1=8.944272, SV2..SV12=0.000000, Z₂ exact, error=0 at k=12</li>
-<li style="display:list-item"><strong>✅ Jury proof:</strong> <code>python scripts/jury_final.py</code><br>→ 8 theorems verify, J = 1−∏(1−cᵢ), ensemble of 3 temperatures</li>
-<li style="display:list-item"><strong>✅ Jury horizon:</strong> <code>python scripts/jury_horizon.py</code><br>→ J-decay table, instinct horizon d_h derived, knowledge boundary confirmed</li>
-<li style="display:list-item"><strong>✅ Jury scaling:</strong> <code>python scripts/jury_scaling.py</code><br>→ 174× speedup at 128 jurors, 153× at 512 jurors (vs ~30ms transformer)</li>
-<li style="display:list-item"><strong>✅ Riemann meta-jury:</strong> <code>python scripts/validate_riemann_lmfdb.py</code><br>→ 54,949 LMFDB zeros: 100% on critical line, TPR=1.0, FPR=0.0</li>
-<li style="display:list-item"><strong>✅ Safe OGD:</strong> <code>python scripts/verify_safe_loss_aczel.py</code><br>→ arithmetic_mean=True, max_loss_DRO=True, 0% forbidden leakage</li>
-<li style="display:list-item"><strong>✅ GTC vs RAG:</strong> <code>python scripts/gtc_vs_rag.py</code><br>→ 30.9 µs/q GTC lookup, 5.96 KB/record, ~16× faster than ANN</li>
-<li style="display:list-item"><strong>✅ BP/NS Bound:</strong> <code>python scripts/verify_bp_ns_bound.py</code><br>→ 160/160 trials pass, avg tightness ratio=0.425</li>
-<li style="display:list-item"><strong>✅ Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
-<li style="display:list-item"><strong>✅ AGT v3 (zeta zeros):</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li>
-<li style="display:list-item"><strong>⚠️ Behavioral Residue:</strong> <code>python scripts/verify_behavioral_residue_invariant.py</code><br>→ Layers 0–22 hold (ratio 1.78–2.92), layer 29 fails (ratio=0.79). Needs investigation.</li>
-<li style="display:list-item"><strong>⏳ Riemann ACM:</strong> <code>python scripts/acm_prototype.py</code> (Needs torch)</li>
-<li style="display:list-item"><strong>⏳ Bilateral UGT:</strong> <code>python scripts/bilateral_ugt.py</code> (Needs GPU + model)</li>
-<li style="display:list-item"><strong>⏳ GRC Light Distill:</strong> <code>python scripts/grc_distill.py --phase1-only</code> (Needs model)</li>
-<li style="display:list-item"><strong>✅ Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
-<li style="display:list-item"><strong>✅ AGT v3:</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li></ol>
+<li style="display:list-item"><strong> Smoke test:</strong> <code>python scripts/faithfulness_rigorous.py</code><br>→ SV1=8.944272, SV2..SV12=0.000000, Z₂ exact, error=0 at k=12</li>
+<li style="display:list-item"><strong> Jury proof:</strong> <code>python scripts/jury_final.py</code><br>→ 8 theorems verify, J = 1−∏(1−cᵢ), ensemble of 3 temperatures</li>
+<li style="display:list-item"><strong> Jury horizon:</strong> <code>python scripts/jury_horizon.py</code><br>→ J-decay table, instinct horizon d_h derived, knowledge boundary confirmed</li>
+<li style="display:list-item"><strong> Jury scaling:</strong> <code>python scripts/jury_scaling.py</code><br>→ 174× speedup at 128 jurors, 153× at 512 jurors (vs ~30ms transformer)</li>
+<li style="display:list-item"><strong> Riemann meta-jury:</strong> <code>python scripts/validate_riemann_lmfdb.py</code><br>→ 54,949 LMFDB zeros: 100% on critical line, TPR=1.0, FPR=0.0</li>
+<li style="display:list-item"><strong> Safe OGD:</strong> <code>python scripts/verify_safe_loss_aczel.py</code><br>→ arithmetic_mean=True, max_loss_DRO=True, 0% forbidden leakage</li>
+<li style="display:list-item"><strong> GTC vs RAG:</strong> <code>python scripts/gtc_vs_rag.py</code><br>→ 30.9 µs/q GTC lookup, 5.96 KB/record, ~16× faster than ANN</li>
+<li style="display:list-item"><strong> BP/NS Bound:</strong> <code>python scripts/verify_bp_ns_bound.py</code><br>→ 160/160 trials pass, avg tightness ratio=0.425</li>
+<li style="display:list-item"><strong> Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
+<li style="display:list-item"><strong> AGT v3 (zeta zeros):</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li>
+<li style="display:list-item"><strong> Behavioral Residue:</strong> <code>python scripts/verify_behavioral_residue_invariant.py</code><br>→ Layers 0–22 hold (ratio 1.78–2.92), layer 29 fails (ratio=0.79). Needs investigation.</li>
+<li style="display:list-item"><strong> Riemann ACM:</strong> <code>python scripts/acm_prototype.py</code> (Needs torch)</li>
+<li style="display:list-item"><strong> Bilateral UGT:</strong> <code>python scripts/bilateral_ugt.py</code> (Needs GPU + model)</li>
+<li style="display:list-item"><strong> GRC Light Distill:</strong> <code>python scripts/grc_distill.py --phase1-only</code> (Needs model)</li>
+<li style="display:list-item"><strong> Jury ensemble:</strong> <code>python scripts/jury_ensemble.py</code><br>→ Regression beats classification on all tasks (CECI MAE=0.11, OGD MAE=0.13, COG MAE=0.11)</li>
+<li style="display:list-item"><strong> AGT v3:</strong> <code>python scripts/agt_v3.py</code><br>→ 59/60 detection (98%), 0 FP, 1392× separation, k90=k95=1, SV=[105,0,0,0,0,0,0,0]</li></ol>
 
-<h2>📦 Pre-Computed Reference Outputs</h2>
+<h2> Pre-Computed Reference Outputs</h2>
 <p>Don't have T2/T3 hardware? We ship <strong>pre-computed JSON reference files</strong> for every paper that needs GPU. Compare your local T1 results against the reference:</p>
 <div class="cmd"><span class="prompt">$</span> ls repro/expected_outputs/<br>
 <span class="out">benchmark_decode_nopipe.json    ccm_v4_results.json</span><br>
@@ -277,7 +277,7 @@ details .inner{padding:8px 0 8px 16px}
 <span class="out">... (30+ files)</span></div>
 <p>Each file contains the exact expected numbers from the paper's headline claims, run on the reference GPU (RTX 4070 Laptop for T2, EC2 L40S for T3).</p>
 
-<h2>❓ Troubleshooting</h2>
+<h2> Troubleshooting</h2>
 
 <details><summary>Q: "ModuleNotFoundError: No module named 'xxx'"</summary>
 <div class="inner"><p>Install all dependencies at once:</p>
@@ -300,7 +300,7 @@ Papers V (phase 1), VII, VIII, IX, XIII, XVI, XVII, XVIII, Foundation, and all j
 <div class="inner"><p>Minor variations (±2%) are expected due to GPU microarchitecture differences. The reference GPU is RTX 4070 Laptop (AD106, 8 GB). On an L40S or A100 you'll see different absolute tok/s but the same <em>relative</em> speedup pattern. Check <code>repro/HARDWARE.md</code> for cross-GPU correction factors.</p></div>
 </details>
 
-<h2>🔗 Quick Links</h2>
+<h2> Quick Links</h2>
 <ul style="list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px">
 <li><a href="paper-a.html" style="font-size:.85rem;color:var(--blue)">Paper I (GRC)</a></li>
 <li><a href="paper-b.html" style="font-size:.85rem;color:var(--blue)">Paper II (GP)</a></li>

@@ -355,9 +355,9 @@ def main():
         print(f"  vs nf4: PPL {best['ppl']/nf4_result['ppl']:.1f}x, "
               f"shrink {best['shrink_vs_fp16']/nf4_result['shrink_vs_fp16']:.1f}x")
         if best["shrink_vs_fp16"] > nf4_result["shrink_vs_fp16"]:
-            print(f"  ✅ Beats nf4 on shrink")
+            print(f"   Beats nf4 on shrink")
         if best["ppl"] < nf4_result["ppl"]:
-            print(f"  ✅ Beats nf4 on PPL")
+            print(f"   Beats nf4 on PPL")
 
     return 0
 
