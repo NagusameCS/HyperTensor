@@ -67,6 +67,7 @@ __version__ = "1.0.0"
 
 Submodules:
   geodesic_metric  — GeodesicMetric, HallucinationGuard, GenerationMetrics
+  regime_detector  — RegimeDetector, RegimeAssessment, RegimeSignal
   axiom_gauge      — AxiomGauge: GL(d) diagonal gauge optimization
   thermal_rank     — ThermalRankController: temperature-driven rank scheduler
   online_oja       — OnlineOjaBasis: rejection-driven Oja PCA update
@@ -75,6 +76,7 @@ Submodules:
 
 Usage:
   from hypercore import GeodesicMetric, HallucinationGuard
+  from hypercore.regime_detector import RegimeDetector
   from hypercore.axiom_gauge import AxiomGauge
   from hypercore.thermal_rank import ThermalRankController
 """
@@ -86,11 +88,25 @@ from hypercore.geodesic_metric import (
     GenerationMetrics,
 )
 
+# Regime detection (always available — numpy-only, torch optional)
+from hypercore.regime_detector import (
+    RegimeDetector,
+    RegimeAssessment,
+    RegimeSignal,
+    generate_coupled_dynamics,
+    generate_volatility_regime,
+)
+
 # Optional modules — import on demand, fail gracefully if dependencies missing
 __all__ = [
     'GeodesicMetric',
     'HallucinationGuard',
     'GenerationMetrics',
+    'RegimeDetector',
+    'RegimeAssessment',
+    'RegimeSignal',
+    'generate_coupled_dynamics',
+    'generate_volatility_regime',
     'AxiomGauge',
     'ThermalRankController',
     'OnlineOjaBasis',
